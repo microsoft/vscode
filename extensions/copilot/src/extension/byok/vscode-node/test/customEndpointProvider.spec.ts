@@ -161,11 +161,19 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		});
 
-		it('sends api-key (not Bearer) for openai.azure.com Chat Completions URLs', () => {
+		it.each([
+			'https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview',
+			'https://my-resource.openai.azure.us/openai/responses?api-version=2025-04-01-preview',
+			'https://my-resource.openai.azure.us/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview',
+			'https://my-resource.openai.azure.cn/openai/responses?api-version=2025-04-01-preview',
+			'https://my-resource.cognitiveservices.azure.us/openai/responses?api-version=2025-04-01-preview',
+			'https://my-resource.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview',
+			'https://my-resource.services.ai.azure.com/openai/v1/responses',
+		])('sends api-key (not Bearer) for Azure endpoint URL %s', url => {
 			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
 				makeMetadata(undefined),
 				'test-api-key',
-				'https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview');
+				url);
 			const headers = endpoint.getExtraHeaders();
 
 			expect({

@@ -17,6 +17,7 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { isAzureOpenAIAPIKeyUrl } from '../common/byokProvider';
 
 function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 	if (response.type === ChatFetchResponseType.Failed && response.streamError) {
@@ -361,7 +362,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json'
 		};
-		if (this._modelUrl.includes('openai.azure')) {
+		if (isAzureOpenAIAPIKeyUrl(this._modelUrl)) {
 			headers['api-key'] = this._apiKey;
 		} else {
 			headers['Authorization'] = `Bearer ${this._apiKey}`;

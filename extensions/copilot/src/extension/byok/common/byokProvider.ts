@@ -79,6 +79,32 @@ export interface BYOKModelRegistry {
 // Many model providers don't have robust model lists. This allows us to map id -> information about models, and then if we don't know the model just let the user enter a custom id
 export type BYOKKnownModels = Record<string, BYOKModelCapabilities>;
 
+function getHostname(url: string): string {
+	try {
+		return new URL(url).hostname.toLowerCase();
+	} catch {
+		return url.toLowerCase();
+	}
+}
+
+function hasAzureHostname(url: string, service: string): boolean {
+	const hostname = getHostname(url);
+	return new RegExp(`^(.*\\.)?${service}\\.azure\\.(com|us|cn)$`).test(hostname);
+}
+
+function hasOpenAIAzureHostname(url: string): boolean {
+	return hasAzureHostname(url, 'openai');
+}
+
+export function isAzureOpenAIAPIKeyUrl(url: string): boolean {
+	return hasOpenAIAzureHostname(url) || hasAzureHostname(url, 'cognitiveservices') || hasAzureHostname(url, 'services.ai');
+}
+
+// Only OpenAI resource hosts are expanded into deployment URLs; Foundry endpoint hosts may still use Azure's api-key header.
+export function isAzureOpenAIResourceUrl(url: string): boolean {
+	return hasOpenAIAzureHostname(url);
+}
+
 // Type guards to ensure correct config type
 export function isGlobalKeyConfig(config: BYOKModelConfig): config is BYOKGlobalKeyModelConfig {
 	return 'apiKey' in config && !('deploymentUrl' in config);
