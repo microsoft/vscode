@@ -71,7 +71,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private isNotificationsCenterVisible: boolean | undefined;
 
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
-	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
+	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, DisposableStore>();
 
 	private readonly notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
@@ -392,19 +392,76 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		disposables.add(toDisposable(() => clearTimeout(purgeTimeoutHandle)));
 	}
 
-	private removeToast(item: INotificationViewItem): void {
-		let focusEditor = false;
+	private readonly pendingRemoveToasts = new Set<INotificationViewItem>();
 
-		// UI
+	private removeToast(item: INotificationViewItem): void {
+		if (this.pendingRemoveToasts.has(item)) {
+			return;
+		}
+
 		const notificationToast = this.mapNotificationToToast.get(item);
-		if (notificationToast) {
-			const toastHasDOMFocus = isAncestorOfActiveElement(notificationToast.container);
-			if (toastHasDOMFocus) {
-				focusEditor = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
+		if (!notificationToast) {
+			this.doRemoveToast(item, false);
+			return;
+		}
+
+		const toastHasDOMFocus = isAncestorOfActiveElement(notificationToast.container);
+		let focusEditor = false;
+		if (toastHasDOMFocus) {
+			focusEditor = !(this.focusNext() || this.focusPrevious());
+		}
+
+		this.pendingRemoveToasts.add(item);
+
+		const toastElement = notificationToast.toast;
+		toastElement.classList.add('notification-fade-out');
+
+		const complete = () => {
+			if (!this.pendingRemoveToasts.has(item)) {
+				return;
+			}
+			this.pendingRemoveToasts.delete(item);
+
+			// Check if focus is still inside the toast container or has fallen back to the body.
+			// If the user has moved focus elsewhere (e.g. to a panel or sidebar), we should not steal it.
+			let finalFocusEditor = false;
+			if (focusEditor) {
+				const activeElement = getActiveElement();
+				const toastWindow = getWindow(toastElement);
+				if (isAncestorOfActiveElement(notificationToast.container) || activeElement === toastWindow.document.body) {
+					finalFocusEditor = true;
+				}
 			}
 
-			this.mapNotificationToToast.delete(item);
+			this.doRemoveToast(item, finalFocusEditor);
+		};
+
+		// Check if reduced motion is enabled
+		const reduceMotion = getWindow(toastElement).matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (reduceMotion) {
+			complete();
+			return;
 		}
+
+		const itemDisposables = this.mapNotificationToDisposable.get(item);
+		if (itemDisposables) {
+			const fallbackTimeout = setTimeout(complete, 300);
+			itemDisposables.add(toDisposable(() => clearTimeout(fallbackTimeout)));
+
+			const listener = addDisposableListener(toastElement, 'transitionend', () => {
+				listener.dispose();
+				complete();
+			});
+			itemDisposables.add(listener);
+		} else {
+			complete();
+		}
+	}
+
+	private doRemoveToast(item: INotificationViewItem, focusEditor: boolean): void {
+
+		// UI
+		this.mapNotificationToToast.delete(item);
 
 		// Disposables
 		const notificationDisposables = this.mapNotificationToDisposable.get(item);
@@ -431,6 +488,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private removeToasts(): void {
+
+		// Cancel any pending fade-out animations
+		this.pendingRemoveToasts.clear();
 
 		// Toast
 		this.mapNotificationToToast.clear();

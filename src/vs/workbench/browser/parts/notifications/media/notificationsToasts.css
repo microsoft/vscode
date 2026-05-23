@@ -69,6 +69,15 @@
 	transition: none;
 }
 
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-out {
+	opacity: 0;
+	transition: opacity 200ms ease-in;
+}
+
+.monaco-workbench.monaco-reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-out {
+	transition: opacity 0ms ease-in;
+}
+
 /* Icons */
 
 .monaco-workbench > .notifications-toasts .codicon.codicon-error {
