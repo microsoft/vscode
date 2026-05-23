@@ -223,11 +223,16 @@ export class MobileTitlebarPart extends Disposable {
 				if (added > 0 || removed > 0) {
 					changesAddedEl.textContent = `+${added}`;
 					changesRemovedEl.textContent = `-${removed}`;
+					changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
 				} else {
-					changesAddedEl.textContent = `${changes.length} file${changes.length > 1 ? 's' : ''}`;
+					changesAddedEl.textContent = changes.length === 1
+						? localize('mobileTopBar.singleFileChanged', "1 file")
+						: localize('mobileTopBar.filesChangedCount', "{0} files", changes.length);
 					changesRemovedEl.textContent = '';
+					changesPill.title = changes.length === 1
+						? localize('mobileTopBar.singleFileChangedTooltip', "1 file changed")
+						: localize('mobileTopBar.filesChangedTooltip', "{0} files changed", changes.length);
 				}
-				changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
 			}
 		};
 		this._register(autorun(reader => {
