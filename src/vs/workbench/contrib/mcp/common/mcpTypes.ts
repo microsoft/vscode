@@ -548,6 +548,19 @@ export interface McpServerTransportHTTPOAuth {
 }
 
 /**
+ * Returns the secret-storage key under which an MCP server OAuth client secret is stored.
+ * Scoped by the MCP server URL AND the OAuth client_id so that two servers sharing the same
+ * client_id string (e.g. against different authorization servers) cannot clobber each other's
+ * secret, and so the key is stable across mcp.json configurations that happen to share a label
+ * (e.g. user mcp.json vs. workspace mcp.json). Set by the "Set Client Secret" code lens in
+ * mcp.json and read at authentication time so that client secrets are never stored in
+ * plain-text config files.
+ */
+export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: string): string {
+	return `mcp.oauth.clientSecret:${mcpServerUrl}:${clientId}`;
+}
+
+/**
  * MCP server launched on the command line which communicated over SSE or Streamable HTTP.
  * https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/#http-with-sse
  * https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http
