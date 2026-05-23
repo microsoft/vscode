@@ -166,6 +166,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			'https://my-resource.openai.azure.us/openai/responses?api-version=2025-04-01-preview',
 			'https://my-resource.openai.azure.us/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview',
 			'https://my-resource.openai.azure.cn/openai/responses?api-version=2025-04-01-preview',
+			'https://my-resource.openai.azure.secret/openai/responses?api-version=2025-04-01-preview',
 			'https://my-resource.cognitiveservices.azure.us/openai/responses?api-version=2025-04-01-preview',
 			'https://my-resource.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview',
 			'https://my-resource.services.ai.azure.com/openai/v1/responses',
@@ -182,6 +183,22 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			}).toEqual({
 				authApiKey: 'test-api-key',
 				authorization: undefined,
+			});
+		});
+
+		it('does not send api-key for hostnames that only contain an Azure suffix prefix', () => {
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				makeMetadata(undefined),
+				'test-api-key',
+				'https://my-resource.openai.azure.com.evil.com/openai/responses?api-version=2025-04-01-preview');
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authApiKey: headers['api-key'],
+				authorization: headers['Authorization'],
+			}).toEqual({
+				authApiKey: undefined,
+				authorization: 'Bearer test-api-key',
 			});
 		});
 

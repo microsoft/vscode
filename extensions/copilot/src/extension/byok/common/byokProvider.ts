@@ -89,7 +89,7 @@ function getHostname(url: string): string {
 
 function hasAzureHostname(url: string, service: string): boolean {
 	const hostname = getHostname(url);
-	return new RegExp(`^(.*\\.)?${service}\\.azure\\.(com|us|cn)$`).test(hostname);
+	return new RegExp(`^(.*\\.)?${service}\\.azure\\.[^.]+$`).test(hostname);
 }
 
 function hasOpenAIAzureHostname(url: string): boolean {
