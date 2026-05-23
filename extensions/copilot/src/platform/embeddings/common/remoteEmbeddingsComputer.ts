@@ -64,8 +64,8 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 		});
 		try {
 			return await logExecTime(this._logService, 'RemoteEmbeddingsComputer::computeEmbeddings', async () => {
-				// The remote embeddings endpoint requires GitHub authentication.
-				if (!this._authService.anyGitHubSession) {
+				// The remote embeddings endpoint requires a Copilot token.
+				if (!this._authService.hasCopilotTokenSource) {
 					return { type: embeddingType, values: [] };
 				}
 
