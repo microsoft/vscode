@@ -62,7 +62,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { bindContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -702,33 +702,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const models = this.getModels();
 			if (this._currentSessionType === SessionType.CopilotCLI) {
 				if (shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
-					const mergedModels = this.getAllMergedModels();
-					const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
-					const messageparts: string[] = [
-						`resetting current language model due to model list change from ${modelIdentifier}`,
-						`this._widget?.viewModel?.model.sessionResource = ${this._widget?.viewModel?.model.sessionResource?.toString()}`,
-						`this.getCurrentSessionType = ${this.getCurrentSessionType()}`,
-						`this._currentSessionType = ${this._currentSessionType}`,
-						`model identifiers: ${models.map(m => m.identifier).join(', ')}`,
-						`model target Session Types: ${models.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
-						`model metadataid: ${models.map(m => m.metadata.id).join(', ')}`,
-						`merged.model identifiers: ${mergedModels.map(m => m.identifier).join(', ')}`,
-						`merged.model target Session Types: ${mergedModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
-						`merged.model metadataid: ${mergedModels.map(m => m.metadata.id).join(', ')}`,
-						`filtered.model identifiers: ${filteredModels.map(m => m.identifier).join(', ')}`,
-						`filtered.model target Session Types: ${filteredModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
-						`filtered.model metadataid: ${filteredModels.map(m => m.metadata.id).join(', ')}`,
-					];
-					if (this.getCurrentSessionType() !== SessionType.CopilotCLI) {
-						const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-						if (delegateSessionType) {
-							messageparts.push(`delegateSessionType = ${delegateSessionType}`);
+					if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
+						const mergedModels = this.getAllMergedModels();
+						const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+						const messageparts: string[] = [
+							`resetting current language model due to model list change from ${modelIdentifier}`,
+							`this._widget?.viewModel?.model.sessionResource = ${this._widget?.viewModel?.model.sessionResource?.toString()}`,
+							`this.getCurrentSessionType = ${this.getCurrentSessionType()}`,
+							`this._currentSessionType = ${this._currentSessionType}`,
+							`model identifiers: ${models.map(m => m.identifier).join(', ')}`,
+							`model target Session Types: ${models.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`model metadataid: ${models.map(m => m.metadata.id).join(', ')}`,
+							`merged.model identifiers: ${mergedModels.map(m => m.identifier).join(', ')}`,
+							`merged.model target Session Types: ${mergedModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`merged.model metadataid: ${mergedModels.map(m => m.metadata.id).join(', ')}`,
+							`filtered.model identifiers: ${filteredModels.map(m => m.identifier).join(', ')}`,
+							`filtered.model target Session Types: ${filteredModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`filtered.model metadataid: ${filteredModels.map(m => m.metadata.id).join(', ')}`,
+						];
+						if (this.getCurrentSessionType() !== SessionType.CopilotCLI) {
+							const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+							if (delegateSessionType) {
+								messageparts.push(`delegateSessionType = ${delegateSessionType}`);
+							}
+							const sessionResource = this._widget?.viewModel?.model.sessionResource;
+							messageparts.push(`current session resource = ${sessionResource}`);
 						}
-						const sessionResource = this._widget?.viewModel?.model.sessionResource;
-						messageparts.push(`current session resource = ${sessionResource}`);
-					}
 
-					logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
+						logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
+					}
 					this.setCurrentLanguageModelToDefault();
 				}
 			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
