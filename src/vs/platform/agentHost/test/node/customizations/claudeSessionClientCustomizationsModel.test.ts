@@ -62,7 +62,7 @@ suite('SessionClientCustomizationsDiff', () => {
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
 
-		const uri = URI.parse('https://a').toString();
+		const uri = 'https://a';
 		diff.model.setEnabled(uri, false);
 		assert.deepStrictEqual(diff.model.enabledPluginPaths.get(), []);
 		assert.strictEqual(diff.hasDifference, true);
