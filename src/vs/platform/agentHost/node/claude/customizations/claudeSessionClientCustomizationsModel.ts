@@ -86,11 +86,16 @@ export class SessionClientCustomizationsModel {
 	/** Toggle a client-pushed customization on/off for this session. */
 	setEnabled(uri: string, enabled: boolean): void {
 		const cur = this._state.get();
-		if (cur.enablement.get(uri) === enabled) {
+		const current = cur.enablement.get(uri);
+		if (current === enabled || (enabled && current === undefined)) {
 			return;
 		}
 		const next = new Map(cur.enablement);
-		next.set(uri, enabled);
+		if (enabled) {
+			next.delete(uri);
+		} else {
+			next.set(uri, false);
+		}
 		this._state.set({ synced: cur.synced, enablement: next }, undefined);
 	}
 }

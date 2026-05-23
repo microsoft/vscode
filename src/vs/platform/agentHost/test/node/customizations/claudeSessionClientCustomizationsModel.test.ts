@@ -14,7 +14,7 @@ function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: st
 	return {
 		customization: {
 			customization: {
-				uri: URI.parse(uri),
+				uri,
 				displayName: opts.displayName ?? uri,
 				...(opts.nonce !== undefined ? { nonce: opts.nonce } : {}),
 			},
@@ -76,6 +76,17 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
 		assert.strictEqual(diff.model.enabledPluginPaths.get().length, 1);
+	});
+
+	test('setEnabled(true) is a no-op for default-enabled entries', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.consume();
+		let fires = 0;
+		disposables.add(diff.onDidChange(() => fires++));
+		diff.model.setEnabled('https://a', true);
+		assert.strictEqual(fires, 0);
+		assert.strictEqual(diff.hasDifference, false);
 	});
 
 	test('consume returns current paths and clears dirty', () => {

@@ -146,7 +146,7 @@ suite('ClaudeSdkCustomizationBundler', () => {
 	test('returned SessionCustomization carries the expected shape (status Loaded, enabled true, displayName, description)', async () => {
 		const result = await bundler.bundle(snapshot({
 			agents: [{ name: 'a', description: 'd', model: 'm' }],
-			commands: [{ name: 'c', description: 'd' }],
+			commands: [{ name: 'c', description: 'd', argumentHint: '<x>' }],
 		}));
 		assert.deepStrictEqual({
 			enabled: result!.enabled,
