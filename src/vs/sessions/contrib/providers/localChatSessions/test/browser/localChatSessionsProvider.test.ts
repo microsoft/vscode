@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -190,6 +190,33 @@ suite('LocalChatSessionsProvider', () => {
 		const restored = provider2.getSessions();
 		assert.strictEqual(restored.length, 1);
 		assert.strictEqual(restored[0].resource.toString(), session.resource.toString());
+	});
+
+	test('migrates persisted sessions from profile storage to application storage', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, storage } = createFixture(store);
+
+		const resource = URI.parse('vscode-local-chat://chat/legacy');
+		const legacySessions = [{
+			uri: resource.toJSON(),
+			title: 'Legacy Session',
+			createdAt: 1_000,
+			lastMessageDate: 2_000,
+			workingDirectory: TEST_FOLDER.toJSON(),
+		}];
+		storage.store('sessions.localChat.sessions', JSON.stringify(legacySessions), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store('sessions.localChat.migrated', true, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		await Event.toPromise(provider.onDidChangeSessions);
+
+		const restored = provider.getSessions();
+		assert.strictEqual(restored.length, 1);
+		assert.strictEqual(restored[0].resource.toString(), resource.toString());
+		assert.strictEqual(restored[0].title.get(), 'Legacy Session');
+		assert.strictEqual(storage.get('sessions.localChat.sessions', StorageScope.APPLICATION), JSON.stringify(legacySessions));
+		assert.strictEqual(storage.get('sessions.localChat.sessions', StorageScope.PROFILE), undefined);
+		assert.strictEqual(storage.getBoolean('sessions.localChat.migrated', StorageScope.APPLICATION), true);
 	});
 
 	test('deleteSession removes session from cache and storage', async () => {
