@@ -337,6 +337,26 @@ declare module 'vscode' {
 		archived?: boolean;
 
 		/**
+		 * Resource identifier this item was previously known by. When set, host-stored
+		 * per-resource state (archive, pin, read) recorded under that URI is treated as
+		 * also applying to this item.
+		 *
+		 * On first access of state for {@link resource}, the host adopts the entry
+		 * stored under `legacyResource` forward — copying it onto {@link resource} and
+		 * removing the legacy entry. The migration is transparent: no events fire and
+		 * the effective user-visible state is unchanged.
+		 *
+		 * Intended for providers that need to change the URI shape they emit (e.g. during
+		 * a backend or schema migration) without requiring users to re-archive or re-pin
+		 * items.
+		 *
+		 * The legacy URI's scheme must match {@link resource}'s scheme; otherwise the
+		 * field is ignored. Multi-hop migrations are not supported — providers should
+		 * collapse intermediate hops on their side and emit the original URI.
+		 */
+		readonly legacyResource?: Uri;
+
+		/**
 		 * Timing information for the chat session
 		 */
 		timing?: {

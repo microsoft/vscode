@@ -484,9 +484,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		if (this._scale === scale) {
 			return;
 		}
-		if (scale !== undefined) {
-			lastSettings.scale = scale;
-		}
+		lastSettings.scale = scale;
 		this._scale = scale;
 		this._onDidChangeScale.fire(scale);
 	}

@@ -25,7 +25,7 @@ import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../.
 import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
-import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
@@ -35,7 +35,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
 
 export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 
 /**
  * Context passed to the password prompt during dependency installation.
@@ -112,12 +112,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	// ---- ITerminalSandboxService forwarders ---------------------------------
 
-	isEnabled(): Promise<boolean> {
-		return this._engine.isEnabled();
+	isEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		return this._engine.isEnabled(precheckInputs);
 	}
 
-	isSandboxAllowNetworkEnabled(): Promise<boolean> {
-		return this._engine.isSandboxAllowNetworkEnabled();
+	isSandboxAllowNetworkEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		return this._engine.isSandboxAllowNetworkEnabled(precheckInputs);
 	}
 
 	getOS(): Promise<OperatingSystem> {
@@ -128,12 +128,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._engine.wrapCommand(command, requestUnsandboxedExecution, shell, cwd, commandDetails);
 	}
 
-	checkForSandboxingPrereqs(forceRefresh: boolean = false): Promise<ITerminalSandboxPrerequisiteCheckResult> {
-		return this._engine.checkForSandboxingPrereqs(forceRefresh);
+	checkForSandboxingPrereqs(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult> {
+		return this._engine.checkForSandboxingPrereqs(forceRefresh, precheckInputs);
 	}
 
-	getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
-		return this._engine.getSandboxConfigPath(forceRefresh);
+	getSandboxConfigPath(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined> {
+		return this._engine.getSandboxConfigPath(forceRefresh, precheckInputs);
 	}
 
 	getTempDir(): URI | undefined {
