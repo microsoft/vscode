@@ -742,9 +742,6 @@ export namespace ConfigKey {
 		/** Per-model capability overrides. Keys are model ids, values declare an aliased `family`. Lets evals route an unknown preview model id to a known production family (e.g. `"claude-opus-4.7"`) so the Anthropic prompt resolver, multi-replace tools, tool search, context editing, etc. all activate without a code change. */
 		export const ModelCapabilityOverrides = defineSetting<Record<string, IModelCapabilityOverride>>('chat.modelCapabilityOverrides', ConfigType.Simple, {});
 
-		/** Freeze the customizations-index variable (the `<instructions>`/`<skills>`/`<agents>` block) at the first turn of a conversation and reuse it on subsequent turns. Prevents the system prompt cache from being invalidated by per-turn churn — e.g. the active mode swapping which subagent entry appears in `<agents>`, or async experimentation flipping a `when`-gated skill. */
-		export const FreezeCustomizationsIndex = defineSetting<boolean>('chat.freezeCustomizationsIndex', ConfigType.ExperimentBased, true);
-
 		export const InlineEditsXtabProviderModelConfiguration = (() => {
 			const oldKey = 'chat.advanced.inlineEdits.xtabProvider.modelConfiguration';
 			const newKey = 'chat.inlineEdits.xtabProvider.modelConfiguration';

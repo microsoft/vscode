@@ -280,7 +280,7 @@ export const mcpServerSchema: IJSONSchema = {
 									clientId: {
 										type: 'string',
 										minLength: 1,
-										description: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server.")
+										markdownDescription: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server. To set the matching client secret securely, use the *Set Client Secret* code lens above this field — secrets are stored in the OS secret store, not in this file.")
 									}
 								}
 							},

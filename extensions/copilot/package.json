@@ -1973,7 +1973,6 @@
       },
       {
         "vendor": "customendpoint",
-        "when": "productQualityType != 'stable'",
         "displayName": "Custom Endpoint",
         "configuration": {
           "type": "object",
@@ -4294,16 +4293,6 @@
             "tags": [
               "advanced"
             ]
-          },
-          "github.copilot.chat.freezeCustomizationsIndex": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ],
-            "description": "%github.copilot.config.freezeCustomizationsIndex%"
           },
           "github.copilot.chat.installExtensionSkill.enabled": {
             "type": "boolean",

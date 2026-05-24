@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -278,6 +279,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _isElementSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
 
+	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
+	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
+
 	private readonly _onDidChangeSharingState = this._register(new Emitter<BrowserViewSharingState>());
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState> = this._onDidChangeSharingState.event;
 
@@ -393,8 +397,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._visible = visible;
 		}));
 
-		this._register(this.onDidChangeDevice(device => {
-			this._device = device;
+		this._register(this.browserViewService.onDynamicDidChangeDeviceEmulation(this.id)(device => {
+			if (!structuralEquals(this._device, device)) {
+				this._device = device;
+				this._onDidChangeDevice.fire(device);
+			}
 		}));
 
 		this._register(this.onDidChangeElementSelectionActive(active => {
@@ -472,10 +479,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeVisibility(): Event<IBrowserViewVisibilityEvent> {
 		return this.browserViewService.onDynamicDidChangeVisibility(this.id);
-	}
-
-	get onDidChangeDevice(): Event<IBrowserDeviceProfile | undefined> {
-		return this.browserViewService.onDynamicDidChangeDeviceEmulation(this.id);
 	}
 
 	get onDidClose(): Event<void> {
@@ -612,6 +615,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
+		// Update model state optimistically so dependent UI reacts immediately;
+		// the echo from the main process is filtered by deep comparison.
+		if (!structuralEquals(this._device, device)) {
+			this._device = device;
+			this._onDidChangeDevice.fire(device);
+		}
 		return this.browserViewService.setDeviceEmulation(this.id, device);
 	}
 
