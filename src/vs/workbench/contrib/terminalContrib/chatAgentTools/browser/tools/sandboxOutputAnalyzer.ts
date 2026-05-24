@@ -48,7 +48,8 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			: 'Command ran in sandboxed mode and may have been blocked by the sandbox. If the command failed due to sandboxing:';
 		return `${prefix}
 - If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${fileSystemSetting}, or to add required domains to ${AgentNetworkDomainSettingId.AllowedNetworkDomains}.
-- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user — setting this flag automatically shows a confirmation prompt to the user.
+- If you determine from the output that the failure was caused by blocked network access, immediately retry the command with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command sandboxed with unrestricted network access and automatically shows a confirmation prompt to the user.
+- If it is not a network restriction, or the command still fails after retrying with requestAllowNetwork=true, immediately retry the command with requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. Do NOT ask the user — setting this flag automatically shows a confirmation prompt to the user.
 
 Here is the output of the command:\n`;
 	}
@@ -73,4 +74,13 @@ Here is the output of the command:\n`;
 export function outputLooksSandboxBlocked(output: string): boolean {
 	const normalized = output.replace(/\n/g, ' ');
 	return /Operation not permitted|Permission denied|Read-only file system|sandbox-exec|bwrap|sandbox_violation/i.test(normalized);
+}
+
+/**
+ * Checks whether output clearly suggests a network failure. This is used only
+ * to prevent automatic unsandboxing; retry selection is left to the model.
+ */
+export function outputLooksSandboxNetworkBlocked(output: string): boolean {
+	const normalized = output.replace(/\n/g, ' ');
+	return /Could not resolve host|Temporary failure in name resolution|Name or service not known|EAI_AGAIN|ENETUNREACH|Network is unreachable|network (?:access )?(?:blocked|disabled)|(?:connect|socket).*(?:Operation not permitted|Permission denied)|(?:Operation not permitted|Permission denied).*(?:connect|socket)/i.test(normalized);
 }

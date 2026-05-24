@@ -77,7 +77,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
-import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
+import { SandboxOutputAnalyzer, outputLooksSandboxBlocked, outputLooksSandboxNetworkBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
@@ -164,11 +164,12 @@ function createSandboxLines(allowToRunUnsandboxedCommands: boolean, networkDomai
 		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
 		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
 		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
+		'- When a command fails due to network access being blocked by the sandbox, immediately re-run it with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command in the sandbox with unrestricted network access and automatically shows a confirmation prompt to the user',
 	];
 	if (allowToRunUnsandboxedCommands) {
 		lines.push(
-			'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
-			'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
+			'- When a command fails due to a non-network sandbox restriction, or still fails after retrying with requestAllowNetwork=true, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
+			'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox and a network-enabled sandbox retry is not sufficient, e.g. file access or process restriction errors',
 			'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
 		);
 	} else {
@@ -340,6 +341,14 @@ export async function createRunInTerminalToolData(
 			type: 'string',
 			description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
 		},
+		requestAllowNetwork: {
+			type: 'boolean',
+			description: 'Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this after a sandboxed execution failed because required network access was blocked. The user will be prompted before network restrictions are relaxed.'
+		},
+		requestAllowNetworkReason: {
+			type: 'string',
+			description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
+		},
 	} : {};
 
 	return {
@@ -406,6 +415,8 @@ export interface IRunInTerminalInputParams {
 	timeout?: number;
 	requestUnsandboxedExecution?: boolean;
 	requestUnsandboxedExecutionReason?: string;
+	requestAllowNetwork?: boolean;
+	requestAllowNetworkReason?: string;
 	allowToRunUnsandboxedCommands?: boolean;
 }
 
@@ -434,7 +445,9 @@ export function shouldAutomaticallyRetryUnsandboxed(options: IAutomaticUnsandbox
 		&& !options.isBackgroundExecution
 		&& !options.didTimeout
 		&& options.exitCode !== 0
-		&& outputLooksSandboxBlocked(options.output);
+		&& outputLooksSandboxBlocked(options.output)
+		// Let the model choose requestAllowNetwork for apparent network failures instead of automatically leaving the sandbox.
+		&& !outputLooksSandboxNetworkBlocked(options.output);
 }
 
 /**
@@ -746,8 +759,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const isSandboxEnabled = sandboxPrereqs.enabled;
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
 		const explicitUnsandboxRequest = isSandboxEnabled && allowUnsandboxedCommands && args.requestUnsandboxedExecution === true;
+		const explicitAllowNetworkRequest = isSandboxEnabled && !explicitUnsandboxRequest && args.requestAllowNetwork === true;
 		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
 		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
+		let requiresAllowNetworkConfirmation = false;
+		let requestAllowNetworkReason = explicitAllowNetworkRequest ? args.requestAllowNetworkReason : undefined;
 
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
@@ -787,12 +803,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isBackground: executionOptions.persistentSession,
 			requestUnsandboxedExecution: allowUnsandboxedCommands ? requiresUnsandboxConfirmation : false,
 			requestUnsandboxedExecutionReason,
+			requestAllowNetwork: explicitAllowNetworkRequest,
+			requestAllowNetworkReason,
 		});
 		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
 		const forDisplayCommand: string | undefined = rewriteResult.forDisplayCommand;
 		const isSandboxWrapped = rewriteResult.isSandboxWrapped;
 		requiresUnsandboxConfirmation = rewriteResult.requiresUnsandboxConfirmation;
 		requestUnsandboxedExecutionReason = rewriteResult.requestUnsandboxedExecutionReason;
+		requiresAllowNetworkConfirmation = rewriteResult.requiresAllowNetworkConfirmation;
+		requestAllowNetworkReason = rewriteResult.requestAllowNetworkReason;
 		const blockedDomains = rewriteResult.blockedDomains;
 
 		const toolSpecificData: IChatTerminalToolInvocationData = {
@@ -810,6 +830,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isBackground: executionOptions.persistentSession,
 			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			requestUnsandboxedExecutionReason,
+			requestAllowNetwork: requiresAllowNetworkConfirmation,
+			requestAllowNetworkReason,
 			missingSandboxDependencies: missingDependencies,
 		};
 
@@ -861,6 +883,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalToolSessionId,
 			chatSessionResource,
 			requiresUnsandboxConfirmation,
+			requiresAllowNetworkConfirmation,
 			hasSessionAutoApproval: !!chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource),
 		};
 
@@ -908,7 +931,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			wouldBeAutoApproved
 		);
 		const isUnsandboxedAutoApproved = isSandboxEnabled && requiresUnsandboxConfirmation === true && this._autoApproveUnsandboxedCommands;
-		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && this._allowSandboxAutoApprove;
+		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && !requiresAllowNetworkConfirmation && this._allowSandboxAutoApprove;
 		const isFinalAutoApproved = isUnsandboxedAutoApproved || isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
@@ -985,10 +1008,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationTitle = blockedDomains?.length
 				? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
+		} else if (requiresAllowNetworkConfirmation) {
+			confirmationTitle = localize('runInTerminal.allowNetwork', "Run `{0}` command in the [sandbox]({1}) with unrestricted network access?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
-		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		const shouldShowConfirmation = (!isFinalAutoApproved && (!isSessionAutoApproved || requiresAllowNetworkConfirmation)) || context.forceConfirmationReason !== undefined;
 		const explanation = args.explanation || localize('runInTerminal.defaultExplanation', "No explanation provided");
 		const goal = args.goal || localize('runInTerminal.defaultGoal', "No goal provided");
 		const confirmationMessage = requiresUnsandboxConfirmation
@@ -999,7 +1024,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				goal,
 				requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
 			))
-			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", explanation, goal));
+			: requiresAllowNetworkConfirmation
+				? new MarkdownString(localize(
+					'runInTerminal.allowNetwork.confirmationMessage',
+					"Explanation: {0}\n\nGoal: {1}\n\nReason for allowing unrestricted network access in the sandbox: {2}",
+					explanation,
+					goal,
+					requestAllowNetworkReason || localize('runInTerminal.allowNetwork.confirmationMessage.defaultReason', "The model indicated that this sandboxed command needs unrestricted network access.")
+				))
+				: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", explanation, goal));
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: confirmationMessage,
@@ -1057,12 +1090,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		isBackground: boolean;
 		requestUnsandboxedExecution: boolean;
 		requestUnsandboxedExecutionReason?: string;
+		requestAllowNetwork: boolean;
+		requestAllowNetworkReason?: string;
 	}): Promise<{
 		rewrittenCommand: string;
 		forDisplayCommand: string | undefined;
 		isSandboxWrapped: boolean;
 		requiresUnsandboxConfirmation: boolean;
 		requestUnsandboxedExecutionReason: string | undefined;
+		requiresAllowNetworkConfirmation: boolean;
+		requestAllowNetworkReason: string | undefined;
 		blockedDomains: string[] | undefined;
 	}> {
 		let rewrittenCommand = commandLine;
@@ -1070,6 +1107,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let isSandboxWrapped = false;
 		let requiresUnsandboxConfirmation = options.requestUnsandboxedExecution;
 		let requestUnsandboxedExecutionReason = options.requestUnsandboxedExecution ? options.requestUnsandboxedExecutionReason : undefined;
+		let requiresAllowNetworkConfirmation = false;
+		const requestAllowNetworkReason = options.requestAllowNetwork ? options.requestAllowNetworkReason : undefined;
 		let blockedDomains: string[] | undefined;
 
 		for (const rewriter of this._commandLineRewriters) {
@@ -1080,6 +1119,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				os: options.os,
 				isBackground: options.isBackground,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+				requestAllowNetwork: options.requestAllowNetwork,
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
@@ -1091,6 +1131,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				if (rewriteResult.requiresUnsandboxConfirmation) {
 					requiresUnsandboxConfirmation = true;
+				}
+				if (rewriteResult.requiresAllowNetworkConfirmation) {
+					requiresAllowNetworkConfirmation = true;
 				}
 				if (rewriteResult.blockedDomains?.length) {
 					blockedDomains = rewriteResult.blockedDomains;
@@ -1106,6 +1149,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isSandboxWrapped,
 			requiresUnsandboxConfirmation,
 			requestUnsandboxedExecutionReason,
+			requiresAllowNetworkConfirmation,
+			requestAllowNetworkReason: requiresAllowNetworkConfirmation ? requestAllowNetworkReason : undefined,
 			blockedDomains,
 		};
 	}
@@ -1953,12 +1998,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				isBackground: executionOptions.persistentSession,
 				requestUnsandboxedExecution,
 				requestUnsandboxedExecutionReason: retryReason,
+				requestAllowNetwork: false,
+				requestAllowNetworkReason: undefined,
 			});
 			const rewrittenRetryReason = retryRewriteResult.requestUnsandboxedExecutionReason ?? retryReason;
 			const retryConfirmationCommand = toolSpecificData.presentationOverrides?.commandLine ?? command;
 			const retryRiskAssessment = {
 				toolId: TerminalToolId.RunInTerminal,
-				parameters: { ...args, command: retryRewriteResult.rewrittenCommand, allowToRunUnsandboxedCommands: allowUnsandboxedCommands, requestUnsandboxedExecution },
+				parameters: { ...args, command: retryRewriteResult.rewrittenCommand, allowToRunUnsandboxedCommands: allowUnsandboxedCommands, requestUnsandboxedExecution, requestAllowNetwork: false, requestAllowNetworkReason: undefined },
 			};
 			const shouldRetry = await this._confirmAutomaticUnsandboxRetry(invocation.context.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, retryRiskAssessment, token);
 			if (shouldRetry) {
@@ -1973,6 +2020,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					},
 					requestUnsandboxedExecution,
 					requestUnsandboxedExecutionReason: rewrittenRetryReason,
+					requestAllowNetwork: undefined,
+					requestAllowNetworkReason: undefined,
 					terminalCommandUri: undefined,
 					terminalCommandOutput: undefined,
 					terminalTheme: undefined,
@@ -1990,6 +2039,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						allowToRunUnsandboxedCommands: allowUnsandboxedCommands,
 						requestUnsandboxedExecution,
 						requestUnsandboxedExecutionReason: rewrittenRetryReason,
+						requestAllowNetwork: false,
+						requestAllowNetworkReason: undefined,
 					},
 					toolSpecificData: retryToolSpecificData,
 				}, _countTokens, _progress, token);

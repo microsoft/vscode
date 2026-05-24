@@ -162,6 +162,23 @@ suite('TerminalSandboxEngine', () => {
 		ok(wrapped.command.includes(`/app/node_modules/@vscode/ripgrep-universal/bin/linux-${arch}`), `Expected ripgrep-universal platform-arch path in command. Actual: ${wrapped.command}`);
 	});
 
+	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash', undefined, undefined, true);
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const unrestrictedConfig = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, true);
+		deepStrictEqual(unrestrictedConfig.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+
+		await engine.wrapCommand('echo restricted again');
+		const restrictedConfig = JSON.parse(createdFiles.get(configPath)!);
+		deepStrictEqual(restrictedConfig.network, { allowedDomains: [], deniedDomains: [] });
+	});
+
 	test('onDidChangeRoots triggers a sandbox config rewrite on the next wrap', async () => {
 		let writeRoots: URI[] = [URI.file('/workspace-a')];
 		const host = createHost({

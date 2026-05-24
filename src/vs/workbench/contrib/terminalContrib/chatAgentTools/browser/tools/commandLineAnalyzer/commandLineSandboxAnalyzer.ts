@@ -29,8 +29,8 @@ export class CommandLineSandboxAnalyzer extends Disposable implements ICommandLi
 			};
 		}
 		return {
-			isAutoApproveAllowed: isAutoApproveEnabled,
-			forceAutoApproval: !_options.requiresUnsandboxConfirmation && isAutoApproveEnabled,
+			isAutoApproveAllowed: isAutoApproveEnabled && !_options.requiresAllowNetworkConfirmation,
+			forceAutoApproval: !_options.requiresUnsandboxConfirmation && !_options.requiresAllowNetworkConfirmation && isAutoApproveEnabled,
 		};
 	}
 }

@@ -128,6 +128,7 @@ export class TerminalSandboxEngine extends Disposable {
 	private _commandCwd: URI | undefined;
 	private _commandLine: string | undefined;
 	private _commandShell: string | undefined;
+	private _commandAllowNetwork = false;
 	private _os: OperatingSystem = OS;
 	private readonly _defaultWritePaths: string[] = [];
 
@@ -183,7 +184,9 @@ export class TerminalSandboxEngine extends Disposable {
 		return { allowedDomains, deniedDomains };
 	}
 
-	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[]): Promise<ITerminalSandboxWrapResult> {
+	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult> {
+		const allowUnsandboxedCommands = this._areUnsandboxedCommandsAllowed();
+		const allowNetworkForCommand = requestUnsandboxedExecution !== true && requestAllowNetwork === true;
 		const normalizedCommandDetails = this._normalizeCommandDetails(commandDetails ?? []);
 		const normalizedCommandKeywords = this._normalizeCommandKeywords(normalizedCommandDetails.map(c => c.keyword));
 		const currentReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails);
@@ -196,6 +199,7 @@ export class TerminalSandboxEngine extends Disposable {
 			|| !this._areStringArraysEqual(currentReadAllowListPaths, nextReadAllowListPaths)
 			|| !this._areObjectsEqual(currentRuntimeConfiguration, nextRuntimeConfiguration)
 			|| this._commandCwd?.toString() !== cwd?.toString()
+			|| this._commandAllowNetwork !== allowNetworkForCommand
 			|| (this._os === OperatingSystem.Windows && (this._commandLine !== command || this._commandShell !== shell));
 		if (shouldRefreshConfig) {
 			this._commandAllowListKeywords = normalizedCommandKeywords;
@@ -203,6 +207,7 @@ export class TerminalSandboxEngine extends Disposable {
 			this._commandCwd = cwd;
 			this._commandLine = command;
 			this._commandShell = shell;
+			this._commandAllowNetwork = allowNetworkForCommand;
 			await this.getSandboxConfigPath(true);
 		}
 
@@ -210,10 +215,8 @@ export class TerminalSandboxEngine extends Disposable {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
 
-		const allowUnsandboxedCommands = this._areUnsandboxedCommandsAllowed();
-
 		// Check if the command would attempt to access any blocked network domains before wrapping it in the sandbox.
-		const blockedDomainResult = requestUnsandboxedExecution || !allowUnsandboxedCommands ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
+		const blockedDomainResult = requestUnsandboxedExecution || requestAllowNetwork === true || !allowUnsandboxedCommands ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
 		if (!requestUnsandboxedExecution && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
 			return {
 				command: this._wrapUnsandboxedCommand(command, shell),
@@ -239,6 +242,7 @@ export class TerminalSandboxEngine extends Disposable {
 			return {
 				command: this._windowsMxcRuntime.wrapCommand(this._mxcPath, this._sandboxConfigPath),
 				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: allowNetworkForCommand && !this._isSandboxAllowNetworkConfigured() ? true : undefined,
 			};
 		}
 
@@ -266,11 +270,13 @@ export class TerminalSandboxEngine extends Disposable {
 			return {
 				command: `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`,
 				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: allowNetworkForCommand && !this._isSandboxAllowNetworkConfigured() ? true : undefined,
 			};
 		}
 		return {
 			command: wrappedCommand,
 			isSandboxWrapped: true,
+			requiresAllowNetworkConfirmation: allowNetworkForCommand && !this._isSandboxAllowNetworkConfigured() ? true : undefined,
 		};
 	}
 
@@ -535,7 +541,7 @@ export class TerminalSandboxEngine extends Disposable {
 			return undefined;
 		}
 
-		const allowNetwork = await this.isSandboxAllowNetworkEnabled();
+		const allowNetwork = this._commandAllowNetwork || await this.isSandboxAllowNetworkEnabled();
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
 			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
 			: {};
