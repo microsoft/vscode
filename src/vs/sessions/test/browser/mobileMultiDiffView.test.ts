@@ -66,6 +66,18 @@ suite('MobileMultiDiffView', () => {
 
 		const scrollWrapper = container.querySelector('.mobile-overlay-scroll') as HTMLElement | null;
 		assert.ok(scrollWrapper, 'scroll wrapper should exist');
+		const virtualContent = container.querySelector('.mobile-multi-diff-virtual-content') as HTMLElement | null;
+		assert.ok(virtualContent, 'virtual content should exist');
+
+		let appendChildCount = 0;
+		const originalAppendChild = virtualContent.appendChild;
+		virtualContent.appendChild = function <T extends Node>(node: T): T {
+			appendChildCount++;
+			return originalAppendChild.call(this, node) as T;
+		};
+		store.add(toDisposable(() => {
+			virtualContent.appendChild = originalAppendChild;
+		}));
 
 		scrollWrapper.scrollTop = scrollWrapper.scrollHeight;
 		scrollWrapper.dispatchEvent(new Event('scroll'));
@@ -82,6 +94,7 @@ suite('MobileMultiDiffView', () => {
 		await animationFrames(2);
 
 		assert.strictEqual(new Set(readUris).size, readUris.length, 'remounting loaded files should not reread resources');
+		assert.strictEqual(appendChildCount, 0, 'scrolling should not reappend mounted file sections');
 
 		view.dispose();
 	});

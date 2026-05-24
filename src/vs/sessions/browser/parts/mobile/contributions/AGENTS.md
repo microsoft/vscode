@@ -75,6 +75,7 @@ Useful ideas to borrow from Monaco/editor virtualization:
 
 - Applied: reuse visible row DOM instead of clearing and rebuilding the whole visible body slice on every range change.
 - Applied: batch newly visible row runs, building markup in one pass before inserting it.
+- Applied: keep mounted file sections in DOM order without re-appending them on every scroll layout update.
 - Prefetch and cache render data for near-visible files, but do not pre-render their DOM.
 - Keep loaded rows positioned with absolute `top`; avoid transform-driven scrolling for loaded content because native sticky headers depend on stable section positioning.
 - Preserve horizontal scroll state per file across virtualized unmount/remount cycles.

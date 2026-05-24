@@ -344,6 +344,7 @@ export class MobileMultiDiffView extends Disposable {
 			}
 		}
 
+		let previousSection: HTMLElement | undefined;
 		for (const item of layout.items) {
 			const state = this.fileStates[item.index];
 			const section = this.ensureFileSection(state);
@@ -351,10 +352,18 @@ export class MobileMultiDiffView extends Disposable {
 			if (!this.mountedIndexes.has(item.index)) {
 				this.mountedIndexes.add(item.index);
 			}
-			this.virtualContent.appendChild(section);
+			this.ensureFileSectionDomOrder(section, previousSection);
+			previousSection = section;
 		}
 
 		this.scheduleLoadVisibleFiles();
+	}
+
+	private ensureFileSectionDomOrder(section: HTMLElement, previousSection: HTMLElement | undefined): void {
+		const referenceNode = previousSection ? previousSection.nextSibling : this.virtualContent.firstChild;
+		if (section !== referenceNode) {
+			this.virtualContent.insertBefore(section, referenceNode);
+		}
 	}
 
 	private applyVirtualLayout(section: HTMLElement, state: IMobileMultiDiffFileState, item: IMobileMultiDiffVirtualItemLayout): void {
