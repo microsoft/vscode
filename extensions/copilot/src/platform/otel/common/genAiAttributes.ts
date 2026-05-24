@@ -65,8 +65,10 @@ export const GenAiAttr = {
 	USAGE_OUTPUT_TOKENS: 'gen_ai.usage.output_tokens',
 	USAGE_CACHE_READ_INPUT_TOKENS: 'gen_ai.usage.cache_read.input_tokens',
 	USAGE_CACHE_CREATION_INPUT_TOKENS: 'gen_ai.usage.cache_creation.input_tokens',
-	/** Custom: reasoning/thinking token count (not yet standardized in GenAI conventions) */
+	/** Legacy: reasoning/thinking token count. Prefer `USAGE_REASONING_OUTPUT_TOKENS`; this key is kept for backwards compatibility. */
 	USAGE_REASONING_TOKENS: 'gen_ai.usage.reasoning_tokens',
+	/** Reasoning/thinking output token count (semantic-convention-aligned). Dual-emitted alongside `USAGE_REASONING_TOKENS`. */
+	USAGE_REASONING_OUTPUT_TOKENS: 'gen_ai.usage.reasoning.output_tokens',
 
 	// Conversation
 	CONVERSATION_ID: 'gen_ai.conversation.id',
@@ -235,9 +237,6 @@ export const GitHubCopilotAttr = {
 	TOOL_PARAM_MCP_SERVER_NAME: 'github.copilot.tool.parameters.mcp_server_name',
 	/** MCP tool name (the part after the `mcp_<server>_` prefix). */
 	TOOL_PARAM_MCP_TOOL_NAME: 'github.copilot.tool.parameters.mcp_tool_name',
-
-	/** Reasoning/thinking token count (semantic-convention-aligned). Dual of `gen_ai.usage.reasoning_tokens`. */
-	USAGE_REASONING_OUTPUT_TOKENS: 'gen_ai.usage.reasoning.output_tokens',
 } as const;
 
 export type AgentType = 'builtin' | 'plugin' | 'custom';

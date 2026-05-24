@@ -28,6 +28,13 @@ describe('extractToolParameters', () => {
 		expect(gatedAttrs[GitHubCopilotAttr.TOOL_PARAM_MCP_SERVER_NAME]).toBe('github');
 	});
 
+	it('also handles Anthropic-style mcp__server__tool double-underscore format', () => {
+		const { attrs, gatedAttrs } = extractToolParameters('mcp__github__list_issues', {});
+		expect(attrs[GitHubCopilotAttr.TOOL_PARAM_MCP_SERVER_NAME_HASH]).toMatch(/^[a-f0-9]{64}$/);
+		expect(attrs[GitHubCopilotAttr.TOOL_PARAM_MCP_TOOL_NAME]).toBe('list_issues');
+		expect(gatedAttrs[GitHubCopilotAttr.TOOL_PARAM_MCP_SERVER_NAME]).toBe('github');
+	});
+
 	it('classifies file edit operations and gates file_path', () => {
 		const { attrs, gatedAttrs } = extractToolParameters('str_replace', {
 			file_path: '/src/app.ts',

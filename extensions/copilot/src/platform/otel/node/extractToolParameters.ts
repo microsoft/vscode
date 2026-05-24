@@ -63,8 +63,20 @@ export function extractToolParameters(toolName: string, input: unknown): ToolPar
 		attrs[GitHubCopilotAttr.TOOL_PARAM_SKILL_NAME] = skillName;
 	}
 
-	// MCP-style tool names are `mcp_<server>_<tool>`. Extract server + tool name and hash the server.
-	if (toolName.startsWith('mcp_')) {
+	// MCP-style tool names: VS Code/CLI use `mcp_<server>_<tool>`; Anthropic-style
+	// references use `mcp__<server>__<tool>`. Accept both: try double-underscore
+	// first, then fall back to single.
+	if (toolName.startsWith('mcp__')) {
+		const rest = toolName.slice('mcp__'.length);
+		const sep = rest.indexOf('__');
+		if (sep > 0) {
+			const serverName = rest.slice(0, sep);
+			const mcpToolName = rest.slice(sep + 2);
+			attrs[GitHubCopilotAttr.TOOL_PARAM_MCP_SERVER_NAME_HASH] = hashTelemetryValue(serverName);
+			attrs[GitHubCopilotAttr.TOOL_PARAM_MCP_TOOL_NAME] = mcpToolName;
+			gatedAttrs[GitHubCopilotAttr.TOOL_PARAM_MCP_SERVER_NAME] = serverName;
+		}
+	} else if (toolName.startsWith('mcp_')) {
 		const rest = toolName.slice('mcp_'.length);
 		const underscore = rest.indexOf('_');
 		if (underscore > 0) {
