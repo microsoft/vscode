@@ -128,6 +128,21 @@ describe('resolvePromptToContentBlocks', () => {
 		expect(textBlocks(blocks)[1].text).toContain(fileUri.fsPath);
 	});
 
+	it('resolves non-inline URI references with provided text', async () => {
+		const summaryUri = URI.parse('copilot-delegated-chat-summary:/summary?request-id');
+		const ref = makeRef(summaryUri);
+		const request = new TestChatRequest('Start implementation\nComplete the task as described in the summary', [ref]);
+
+		const blocks = await resolvePromptToContentBlocks(request, {
+			resolveReferenceText: uri => uri.toString() === summaryUri.toString() ? 'Delegated summary content' : undefined
+		});
+
+		expect(blocks).toHaveLength(2);
+		expect(textBlocks(blocks)[0].text).toBe('Start implementation\nComplete the task as described in the summary');
+		expect(textBlocks(blocks)[1].text).toContain('Delegated summary content');
+		expect(textBlocks(blocks)[1].text).not.toContain(summaryUri.toString());
+	});
+
 	it('includes multiple non-inline references in a single system-reminder block', async () => {
 		const uri1 = URI.file('/a.ts');
 		const uri2 = URI.file('/b.ts');

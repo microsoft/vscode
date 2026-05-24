@@ -219,6 +219,12 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
 				}
 
+				// Continue in Claude
+				const claudeContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Claude);
+				if (claudeContrib && claudeContrib.canDelegate) {
+					actions.push(this.toAction(AgentSessionProviders.Claude, claudeContrib, instantiationService, location));
+				}
+
 				// Offer actions to enter setup if we have no contributions
 				if (actions.length === 0) {
 					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));

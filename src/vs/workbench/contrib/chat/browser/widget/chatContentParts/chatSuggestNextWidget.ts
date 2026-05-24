@@ -17,7 +17,13 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
-import { getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+
+const continueInProviderOrder = new Map<AgentSessionProviders, number>([
+	[AgentSessionProviders.Background, 0],
+	[AgentSessionProviders.Cloud, 1],
+	[AgentSessionProviders.Claude, 2],
+]);
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
@@ -153,6 +159,10 @@ export class ChatSuggestNextWidget extends Disposable {
 			}
 			const provider = getAgentSessionProvider(c.type);
 			return provider !== undefined && getAgentCanContinueIn(provider);
+		}).sort((a, b) => {
+			const providerA = getAgentSessionProvider(a.type)!;
+			const providerB = getAgentSessionProvider(b.type)!;
+			return (continueInProviderOrder.get(providerA) ?? Number.MAX_SAFE_INTEGER) - (continueInProviderOrder.get(providerB) ?? Number.MAX_SAFE_INTEGER);
 		});
 
 		if (showContinueOn && availableContributions.length > 0) {

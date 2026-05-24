@@ -146,6 +146,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 				[IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker)],
 				[IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService)],
 				[IClaudeSlashCommandService, new SyncDescriptor(ClaudeSlashCommandService)],
+				[IChatDelegationSummaryService, delegationSummary],
 				[IChatSessionMetadataStore, sessionMetadata],
 				[IChatSessionWorktreeService, new SyncDescriptor(ChatSessionWorktreeService)],
 				[IChatSessionWorktreeCheckpointService, new SyncDescriptor(ChatSessionWorktreeCheckpointService)],

@@ -41,7 +41,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * new sessions are not persisted but may go away with
 	 * https://github.com/microsoft/vscode/pull/278476 as input state is stored on the model.
 	 */
-	modelInputState?: IChatModelInputState;
+	modelInputState?: Partial<IChatModelInputState>;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
@@ -256,11 +256,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				this.hideLoadingInChatWidget();
 			}
 
+			this.updateModel(editorModel.model);
+
 			if (options?.modelInputState) {
 				editorModel.model.inputModel.setState(options.modelInputState);
 			}
-
-			this.updateModel(editorModel.model);
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {

@@ -16,6 +16,10 @@ function uriToString(uri: URI): string {
 	return uri.scheme === 'file' ? uri.fsPath : uri.toString();
 }
 
+export interface IResolvePromptToContentBlocksOptions {
+	readonly resolveReferenceText?: (uri: URI) => string | undefined;
+}
+
 /**
  * Converts a `vscode.ChatRequest` into an array of Anthropic content blocks.
  *
@@ -24,7 +28,7 @@ function uriToString(uri: URI): string {
  * - Binary image references become `image` content blocks.
  * - Slash-command prompts (starting with `/`) are passed through unmodified.
  */
-export async function resolvePromptToContentBlocks(request: vscode.ChatRequest): Promise<Anthropic.ContentBlockParam[]> {
+export async function resolvePromptToContentBlocks(request: vscode.ChatRequest, options?: IResolvePromptToContentBlocksOptions): Promise<Anthropic.ContentBlockParam[]> {
 	if (request.prompt.startsWith('/')) {
 		return [{ type: 'text', text: request.prompt }];
 	}
@@ -64,7 +68,7 @@ export async function resolvePromptToContentBlocks(request: vscode.ChatRequest):
 		}
 
 		const valueText = URI.isUri(refValue)
-			? uriToString(refValue)
+			? (options?.resolveReferenceText?.(refValue) ?? uriToString(refValue))
 			: isLocation(refValue)
 				? `${uriToString(refValue.uri)}:${refValue.range.start.line + 1}`
 				: undefined;
