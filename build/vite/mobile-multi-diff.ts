@@ -216,8 +216,16 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number):
 
 // --- Mock services ---
 
+const readLog: string[] = [];
+
+function recordRead(uri: URI): void {
+	readLog.push(uri.toString());
+	document.documentElement.dataset.mobileMultiDiffReadCount = String(readLog.length);
+}
+
 const mockTextFileService = {
 	read(uri: URI) {
+		recordRead(uri);
 		const content = FILES[uri.toString()] ?? '';
 		return Promise.resolve({ value: content });
 	}
@@ -242,6 +250,13 @@ const mockLanguageService = {
 		return 'unknown';
 	}
 } as unknown as ILanguageService;
+
+Object.assign(globalThis, {
+	__mobileMultiDiffDebug: {
+		readLog,
+		get readCount() { return readLog.length; },
+	}
+});
 
 // --- Build diff data ---
 
@@ -283,13 +298,45 @@ const diffs: IFileDiffViewData[] = [
 	},
 ];
 
+function createLargeScenario(fileCount: number, lineCount: number): IFileDiffViewData[] {
+	const result: IFileDiffViewData[] = [];
+	for (let fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+		const originalURI = URI.parse(`inmemory://original/large/file${fileIndex}.ts`);
+		const modifiedURI = URI.parse(`inmemory://modified/large/file${fileIndex}.ts`);
+		FILES[originalURI.toString()] = createLargeFileText(fileIndex, lineCount, false);
+		FILES[modifiedURI.toString()] = createLargeFileText(fileIndex, lineCount, true);
+		result.push({
+			originalURI,
+			modifiedURI,
+			identical: false,
+			added: lineCount,
+			removed: lineCount,
+		});
+	}
+	return result;
+}
+
+function createLargeFileText(fileIndex: number, lineCount: number, modified: boolean): string {
+	const lines: string[] = [];
+	for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
+		const value = modified ? lineIndex + 1000 : lineIndex;
+		lines.push(`export const file${fileIndex}Value${lineIndex} = ${value};`);
+	}
+	return lines.join('\n');
+}
+
 // --- Render ---
 
 function init() {
 	const container = document.getElementById('container')!;
+	const params = new URLSearchParams(location.search);
+	const useLargeScenario = params.has('large');
+	const fileCount = Math.max(1, Number(params.get('files') ?? 50));
+	const lineCount = Math.max(1, Number(params.get('lines') ?? 500));
+	const scenarioDiffs = useLargeScenario ? createLargeScenario(fileCount, lineCount) : diffs;
 
 	const data: IMobileMultiDiffViewData = {
-		diffs,
+		diffs: scenarioDiffs,
 		initialIndex: 0,
 	};
 

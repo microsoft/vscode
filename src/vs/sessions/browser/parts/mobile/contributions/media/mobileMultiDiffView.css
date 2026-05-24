@@ -74,7 +74,6 @@
 	padding: 2px;
 	border-radius: 3px;
 	cursor: pointer;
-	touch-action: manipulation;
 }
 
 .mobile-multi-diff-file-chevron::before {
@@ -165,7 +164,7 @@
 /* In the multi-diff view, hunk headers are sticky within each file section. */
 .mobile-multi-diff-file-section .mobile-diff-hunk-header {
 	position: sticky;
-	top: 34px;
+	top: 0;
 	z-index: 1;
 	background: var(--vscode-editor-background, #1e1e1e);
 }
