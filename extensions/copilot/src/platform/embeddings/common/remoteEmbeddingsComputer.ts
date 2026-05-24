@@ -64,8 +64,8 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 		});
 		try {
 			return await logExecTime(this._logService, 'RemoteEmbeddingsComputer::computeEmbeddings', async () => {
-				// The remote embeddings endpoint requires GitHub authentication.
-				if (!this._authService.anyGitHubSession) {
+				// The remote embeddings endpoint requires a Copilot token.
+				if (!this._authService.hasCopilotTokenSource) {
 					return { type: embeddingType, values: [] };
 				}
 
@@ -76,9 +76,12 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 					return embeddings ?? { type: embeddingType, values: [] };
 				}
 
+				// The Dotcom embeddings path requires a GitHub access token. Token pathways that mint a
+				// Copilot token without a cached GitHub session (proxy/HMAC, eval harness) cannot reach this
+				// endpoint, so fall back to returning empty embeddings instead of throwing.
 				const token = (await this._authService.getGitHubSession('any', { silent: true }))?.accessToken;
 				if (!token) {
-					throw new Error('No authentication token available');
+					return { type: embeddingType, values: [] };
 				}
 
 				const embeddingsOut: Embedding[] = [];

@@ -249,6 +249,24 @@ suite('TerminalSandboxEngine', () => {
 		await engine.cleanupTempDir(); // must not throw
 	});
 
+	test('precheck inputs can disable sandboxing when default approval permission is disabled', async () => {
+		const host = createHost();
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		strictEqual(await engine.isEnabled({ isDefaultApprovalPermissionEnabled: true }), true);
+		strictEqual(await engine.isEnabled({ isDefaultApprovalPermissionEnabled: false }), false);
+		strictEqual(await engine.isSandboxAllowNetworkEnabled({ isDefaultApprovalPermissionEnabled: false }), false);
+		strictEqual(await engine.getSandboxConfigPath(false, { isDefaultApprovalPermissionEnabled: false }), undefined);
+
+		deepStrictEqual(await engine.checkForSandboxingPrereqs(false, { isDefaultApprovalPermissionEnabled: false }), {
+			enabled: false,
+			sandboxConfigPath: undefined,
+			failedCheck: undefined,
+		});
+
+		strictEqual(createFileCount, 0, 'Disabled sandbox precheck should not create sandbox config files');
+	});
+
 	test('isEnabled returns false on Windows when Windows sandbox setting is disabled by default', async () => {
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
