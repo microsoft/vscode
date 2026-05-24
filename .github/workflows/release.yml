@@ -73,7 +73,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
@@ -197,7 +197,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 arm64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
@@ -207,26 +207,6 @@ jobs:
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
         shell: pwsh
         run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
-
-      - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          for ($i = 1; $i -le 5; $i++) {
-            try {
-              npm ci
-              break
-            }
-            catch {
-              if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
-                throw
-              }
-              Write-Host "npm ci failed attempt $i, retrying..."
-              Start-Sleep -Seconds 2
-            }
-          }
         env:
           npm_config_arch: arm64
           npm_config_foreground_scripts: "true"
@@ -242,13 +222,6 @@ jobs:
           node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -Force .build/node_modules_cache
           7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt
-
-      - name: Save node_modules cache
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-windows-arm64-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Create .build folder
         shell: pwsh
@@ -327,7 +300,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
@@ -440,7 +413,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
