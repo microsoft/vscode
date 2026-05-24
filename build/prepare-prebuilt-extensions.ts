@@ -46,25 +46,6 @@ interface ExtractOptions {
 }
 
 /**
- * Check if prebuilt-extensions submodule exists
- */
-function submoduleExists(): boolean {
-	const submodulePath = path.join(root, 'prebuilt-extensions');
-	const gitmodulesPath = path.join(root, '.gitmodules');
-
-	// Check .gitmodules first — submodule may be configured but not yet initialized
-	if (fs.existsSync(gitmodulesPath)) {
-		const gitmodules = fs.readFileSync(gitmodulesPath, 'utf8');
-		if (gitmodules.includes('prebuilt-extensions')) {
-			return true;
-		}
-	}
-
-	// Fall back to checking directory existence
-	return fs.existsSync(submodulePath);
-}
-
-/**
  * Detect current platform and architecture
  */
 function detectPlatform(): { platform: string; arch: string } {
@@ -95,42 +76,53 @@ function detectPlatform(): { platform: string; arch: string } {
 }
 
 /**
- * Initialize and update the prebuilt extensions submodule
+ * Get submodule URL from .gitmodules
+ */
+function getSubmoduleUrl(): string | null {
+	const gitmodulesPath = path.join(root, '.gitmodules');
+	if (!fs.existsSync(gitmodulesPath)) {
+		return null;
+	}
+	const gitmodules = fs.readFileSync(gitmodulesPath, 'utf8');
+	const match = gitmodules.match(/\[submodule "prebuilt-extensions"\][^[]*url\s*=\s*(\S+)/);
+	return match?.[1] ?? null;
+}
+
+/**
+ * Clone or update the prebuilt extensions repository.
+ * Directly clones from the remote URL in .gitmodules — no git submodule workflow needed.
  */
 async function updateSubmodule(): Promise<void> {
-	console.log('Checking prebuilt-extensions submodule...');
+	const url = getSubmoduleUrl();
 
-	if (!submoduleExists()) {
-		console.log('⚠ Submodule not configured. Skipping extension preparation.');
-		console.log('  To use prebuilt extensions:');
-		console.log('  1. Create an extensions repository');
-		console.log('  2. Run: git submodule add <repo-url> prebuilt-extensions');
-		console.log('  3. See: QUICK_START.md for details');
+	if (!url) {
+		console.log('⚠ Prebuilt extensions not configured. Skipping.');
+		console.log('  To use prebuilt extensions, add to .gitmodules:');
+		console.log('  [submodule "prebuilt-extensions"]');
+		console.log('    path = prebuilt-extensions');
+		console.log('    url = <your-vsix-repo-url>');
 		return;
 	}
 
+	console.log(`Repository: ${url}`);
+
+	const submodulePath = path.join(root, 'prebuilt-extensions');
+
 	try {
-		console.log(`  root (import.meta.dirname) = ${root}`);
-		console.log(`  cwd = ${process.cwd()}`);
-
-		// Check if submodule is already initialized
-		const submodulePath = path.join(root, 'prebuilt-extensions');
-		const gitPath = path.join(submodulePath, '.git');
-		const isInitialized = fs.existsSync(gitPath);
-
-		if (!isInitialized) {
-			// Initialize and checkout pinned commit (no --remote for deterministic builds)
-			await exec('git submodule init', { cwd: root });
-			await exec('git submodule update', { cwd: root });
-			console.log('✓ Submodule initialized at pinned commit');
+		if (fs.existsSync(submodulePath)) {
+			// Already cloned — pull latest
+			console.log('  Pulling latest...');
+			await exec(`git -C "${submodulePath}" pull --ff-only`, { cwd: root });
+			console.log('✓ Up to date');
 		} else {
-			// Update submodule to latest remote commit (dev workflow)
-			await exec('git submodule update --remote', { cwd: root });
-			console.log('✓ Submodule updated to latest remote commit');
+			// Clone fresh (shallow clone for speed)
+			console.log('  Cloning...');
+			await exec(`git clone --depth 1 "${url}" "${submodulePath}"`, { cwd: root });
+			console.log('✓ Cloned');
 		}
 	} catch (error) {
-		console.warn('⚠ Failed to update submodule:', error);
-		console.log('  Continuing with existing submodule content...');
+		console.warn('⚠ Failed to update prebuilt extensions:', error);
+		console.log('  Continuing with existing content...');
 	}
 }
 
@@ -269,28 +261,19 @@ function getPlatformVsixFiles(submodulePath: string, options: ExtractOptions): s
  */
 async function extractExtensions(options: ExtractOptions = {}): Promise<void> {
 	const submodulePath = path.join(root, 'prebuilt-extensions');
-	const cwdSubmodulePath = path.join(process.cwd(), 'prebuilt-extensions');
 	const extensionsDir = path.join(root, '.build', 'extensions');
 
-	// Check if submodule exists — try both import.meta.dirname and process.cwd()
-	let resolvedSubmodulePath = submodulePath;
+	// Check if submodule directory exists
 	if (!fs.existsSync(submodulePath)) {
-		if (fs.existsSync(cwdSubmodulePath)) {
-			console.log(`Using process.cwd() for submodule path: ${cwdSubmodulePath}`);
-			resolvedSubmodulePath = cwdSubmodulePath;
-		} else {
-			console.log(`⚠ Submodule directory not found at either:`);
-			console.log(`  - ${submodulePath}`);
-			console.log(`  - ${cwdSubmodulePath}`);
-			return;
-		}
+		console.log('⚠ Submodule directory not found. Skipping extension extraction.');
+		return;
 	}
 
 	// Ensure extensions directory exists
 	fs.mkdirSync(extensionsDir, { recursive: true });
 
 	// Get VSIX files for the platform
-	const vsixFiles = getPlatformVsixFiles(resolvedSubmodulePath, options);
+	const vsixFiles = getPlatformVsixFiles(submodulePath, options);
 
 	if (vsixFiles.length === 0) {
 		console.log('No VSIX files found for the specified platform');
