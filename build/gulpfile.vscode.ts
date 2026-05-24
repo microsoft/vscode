@@ -38,6 +38,7 @@ import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import * as cp from 'child_process';
+import { preparePrebuiltExtensions } from './prepare-prebuilt-extensions.ts'; // test-workbench_change
 
 
 const glob = promisify(globCallback);
@@ -760,6 +761,16 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 
 const buildRoot = path.dirname(root);
 
+// test-workbench_change start - Prepare prebuilt extensions task
+function preparePrebuiltExtensionsTask(platform: string, arch: string): task.Task {
+	const taskName = `prepare-prebuilt-extensions-${platform}-${arch}`;
+	return task.define(taskName, async () => {
+		console.log(`Preparing prebuilt extensions for ${platform}-${arch}...`);
+		await preparePrebuiltExtensions({ platform, arch });
+	});
+}
+// test-workbench_change end
+
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
@@ -778,6 +789,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const [vscode, vscodeMin] = ['', 'min'].map(minified => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
+
+		// test-workbench_change - Add prebuilt extensions preparation task
+		const prepareExtensionsTask = preparePrebuiltExtensionsTask(platform, arch);
 
 		const packageTasks: task.Task[] = [
 			compileNativeExtensionsBuildTask,
@@ -805,9 +819,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 					minified && useCdnSourceMapsForPackagingTasks ? `${sourceMappingURLBase}/core` : undefined
 				)
 			);
-			// test-workbench_change - Add git version update before build
+			// test-workbench_change - Add git version update and prebuilt extensions before build
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				updateGitVersionTask,
+				prepareExtensionsTask,
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
@@ -818,9 +833,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 				vscodeTaskCI
 			));
 		} else {
-			// test-workbench_change - Add git version update before build
+			// test-workbench_change - Add git version update and prebuilt extensions before build
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				updateGitVersionTask,
+				prepareExtensionsTask,
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,

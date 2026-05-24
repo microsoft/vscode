@@ -1,0 +1,3 @@
+[submodule "prebuilt-extensions"]
+	path = prebuilt-extensions
+	url = https://github.com/AI-Testing-Workbench/test-workbench-vsix.git

@@ -30,6 +30,7 @@ import rceditCallback from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
+import { preparePrebuiltExtensions } from './prepare-prebuilt-extensions.ts'; // test-workbench_change
 import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
@@ -474,6 +475,16 @@ function copyCopilotNativeDepsTaskREH(platform: string, arch: string, destinatio
 	};
 }
 
+// test-workbench_change start - Prepare prebuilt extensions task for REH
+function preparePrebuiltExtensionsTask(platform: string, arch: string): task.Task {
+	const taskName = `prepare-prebuilt-extensions-reh-${platform}-${arch}`;
+	return task.define(taskName, async () => {
+		console.log(`Preparing prebuilt extensions for REH ${platform}-${arch}...`);
+		await preparePrebuiltExtensions({ platform, arch });
+	});
+}
+// test-workbench_change end
+
 /**
  * @param product The parsed product.json file contents
  */
@@ -518,6 +529,9 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
+			// test-workbench_change - Add prebuilt extensions preparation task
+			const prepareExtensionsTask = preparePrebuiltExtensionsTask(platform, arch);
+
 			const packageTasks: task.Task[] = [
 				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`) as task.Task,
@@ -533,7 +547,9 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 			gulp.task(serverTaskCI);
 
+			// test-workbench_change - Add prebuilt extensions before build
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				prepareExtensionsTask,
 				compileBuildWithManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
