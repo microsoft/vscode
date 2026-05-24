@@ -90,20 +90,32 @@ function pickFirstString(obj: Record<string, unknown>, keys: readonly string[]):
 }
 
 function classifyEditType(toolName: string, obj: Record<string, unknown>): EditOperationType | undefined {
-	if (toolName === 'create' || toolName === 'createFile') {
+	if (toolName === 'create' || toolName === 'createFile' || toolName === 'create_file') {
 		return 'create';
 	}
 	if (toolName === 'insert') {
 		return 'insert';
 	}
-	if (toolName === 'str_replace' || toolName === 'str_replace_editor' || toolName === 'replaceString') {
+	if (
+		toolName === 'str_replace' ||
+		toolName === 'str_replace_editor' ||
+		toolName === 'replaceString' ||
+		toolName === 'replace_string_in_file' ||
+		toolName === 'multi_replace_string_in_file'
+	) {
 		return 'str_replace';
 	}
-	if (toolName === 'edit' || toolName === 'applyPatch') {
+	if (
+		toolName === 'edit' ||
+		toolName === 'applyPatch' ||
+		toolName === 'apply_patch' ||
+		toolName === 'insert_edit_into_file' ||
+		toolName === 'edit_notebook_file'
+	) {
 		return 'update';
 	}
-	// `view`/`readFile` have no edit_type.
-	if (toolName === 'view' || toolName === 'readFile') {
+	// `view`/`readFile`/`read_file` have no edit_type.
+	if (toolName === 'view' || toolName === 'readFile' || toolName === 'read_file') {
 		return undefined;
 	}
 	// Fallback: heuristic on common arg names.

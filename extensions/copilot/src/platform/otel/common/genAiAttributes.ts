@@ -256,8 +256,13 @@ export const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'run_in_terminal',
 ]);
 
-/** Tool names treated as file tools for parameter extraction. */
+/**
+ * Tool names treated as file tools for parameter extraction. Includes both
+ * Copilot CLI names (camelCase / Claude-style) and VS Code's `ToolName` enum
+ * values (snake_case, see `extension/tools/common/toolNames.ts`).
+ */
 export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
+	// Copilot CLI / Claude-style names
 	'view',
 	'create',
 	'edit',
@@ -268,4 +273,12 @@ export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'createFile',
 	'replaceString',
 	'applyPatch',
+	// VS Code tool names (ToolName enum)
+	'read_file',
+	'create_file',
+	'apply_patch',
+	'insert_edit_into_file',
+	'replace_string_in_file',
+	'multi_replace_string_in_file',
+	'edit_notebook_file',
 ]);
