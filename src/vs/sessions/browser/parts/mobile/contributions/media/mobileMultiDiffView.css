@@ -166,6 +166,7 @@
  * same as Monaco's isWholeLine decoration behavior.
  */
 .mobile-multi-diff-file-content-inner {
+	position: relative;
 	min-width: max-content;
 	width: 100%;
 }
@@ -183,6 +184,14 @@
 .mobile-multi-diff-file-section .mobile-diff-hunk-header {
 	position: static;
 	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.mobile-multi-diff-file-content .mobile-multi-diff-body-entry {
+	position: absolute;
+	left: 0;
+	right: 0;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .mobile-multi-diff-file-content .mobile-diff-empty-state {

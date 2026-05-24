@@ -20,7 +20,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
 import { generateTokensCSSForColorMap } from '../../../../../editor/common/languages/supports/tokenization.js';
 import { IFileDiffViewData } from './mobileDiffView.js';
-import { computeUnifiedDiff, hasMultipleTokenClasses, type IDiffHunk, regexTokenizeLines, resolveMobileDiffLanguageId, tokenizeFileLines } from './mobileDiffHelpers.js';
+import { computeUnifiedDiff, hasMultipleTokenClasses, type IDiffHunk, type IDiffLine, regexTokenizeLines, resolveMobileDiffLanguageId, tokenizeFileLines } from './mobileDiffHelpers.js';
 import { computeMobileMultiDiffItemHeight, computeMobileMultiDiffVirtualLayout, type IMobileMultiDiffVirtualItem, type IMobileMultiDiffVirtualItemLayout, type IMobileMultiDiffVirtualizerMetrics } from './mobileMultiDiffVirtualizer.js';
 
 const $ = DOM.$;
@@ -44,8 +44,27 @@ export interface IMobileMultiDiffViewData {
 
 type MobileMultiDiffFileLoadState = 'idle' | 'loading' | 'loaded' | 'empty' | 'error';
 
+type MobileMultiDiffBodyEntry = IMobileMultiDiffBodyHunkEntry | IMobileMultiDiffBodyLineEntry;
+
+interface IMobileMultiDiffBodyBaseEntry {
+	readonly top: number;
+	readonly height: number;
+}
+
+interface IMobileMultiDiffBodyHunkEntry extends IMobileMultiDiffBodyBaseEntry {
+	readonly type: 'hunk';
+	readonly header: string;
+}
+
+interface IMobileMultiDiffBodyLineEntry extends IMobileMultiDiffBodyBaseEntry {
+	readonly type: 'line';
+	readonly line: IDiffLine;
+}
+
 interface IMobileMultiDiffFileRenderData {
-	readonly hunks: readonly IDiffHunk[];
+	readonly bodyEntries: readonly MobileMultiDiffBodyEntry[];
+	readonly bodyHeight: number;
+	readonly maxLineCharacterCount: number;
 	readonly origLines: readonly string[];
 	readonly modLines: readonly string[];
 	readonly hasRealTokens: boolean;
@@ -64,6 +83,12 @@ interface IMobileMultiDiffFileState {
 	hunkCount: number;
 	rowCount: number;
 	renderData: IMobileMultiDiffFileRenderData | undefined;
+	bodyScrollTop: number;
+	bodyViewportHeight: number;
+	bodyInner: HTMLElement | undefined;
+	readonly renderedBodyRows: Map<number, HTMLElement>;
+	renderedBodyStartIndex: number | undefined;
+	renderedBodyEndIndex: number | undefined;
 }
 
 /**
@@ -113,6 +138,12 @@ export class MobileMultiDiffView extends Disposable {
 			hunkCount: 0,
 			rowCount: 0,
 			renderData: undefined,
+			bodyScrollTop: 0,
+			bodyViewportHeight: 0,
+			bodyInner: undefined,
+			renderedBodyRows: new Map(),
+			renderedBodyStartIndex: undefined,
+			renderedBodyEndIndex: undefined,
 		}));
 		this.render(workbenchContainer);
 		this.renderGeneration++;
@@ -271,6 +302,7 @@ export class MobileMultiDiffView extends Disposable {
 		state.section?.remove();
 		state.section = undefined;
 		state.content = undefined;
+		this.resetBodyRenderState(state);
 	}
 
 	private scheduleVirtualLayout(): void {
@@ -329,7 +361,12 @@ export class MobileMultiDiffView extends Disposable {
 		section.style.top = `${item.renderTop}px`;
 		section.style.height = `${item.renderHeight}px`;
 		const bodyOffset = Math.max(0, item.innerOffset - VIRTUALIZER_METRICS.fileHeaderHeight);
+		state.bodyScrollTop = bodyOffset;
+		state.bodyViewportHeight = Math.max(0, this.scrollWrapper.clientHeight - VIRTUALIZER_METRICS.fileHeaderHeight);
 		state.content!.style.transform = state.loadState === 'loaded' ? '' : `translateY(${bodyOffset}px)`;
+		if (state.loadState === 'loaded') {
+			this.renderLoadedFileContent(state);
+		}
 	}
 
 	private renderCurrentFileContent(state: IMobileMultiDiffFileState): void {
@@ -360,6 +397,7 @@ export class MobileMultiDiffView extends Disposable {
 		}
 
 		DOM.clearNode(state.content);
+		this.resetBodyRenderState(state);
 		const empty = DOM.append(state.content, $('div.mobile-diff-empty-state'));
 		empty.textContent = message;
 	}
@@ -369,17 +407,24 @@ export class MobileMultiDiffView extends Disposable {
 			return;
 		}
 
-		DOM.clearNode(state.content);
-		const inner = DOM.append(state.content, $('div.mobile-multi-diff-file-content-inner'));
-
-		const colorMap = TokenizationRegistry.getColorMap();
-		if (colorMap && state.renderData.hasRealTokens) {
-			const styleEl = document.createElement('style');
-			styleEl.textContent = generateTokensCSSForColorMap(colorMap);
-			inner.appendChild(styleEl);
+		const bodyOverscan = Math.max(this.scrollWrapper.clientHeight, 480);
+		const visibleTop = Math.max(0, state.bodyScrollTop - bodyOverscan);
+		const visibleBottom = Math.min(
+			state.renderData.bodyHeight,
+			state.bodyScrollTop + state.bodyViewportHeight + bodyOverscan,
+		);
+		const { startIndex, endIndex } = this.computeVisibleBodyEntryRange(state.renderData.bodyEntries, visibleTop, visibleBottom);
+		const inner = this.ensureBodyInner(state);
+		if (state.renderedBodyStartIndex === startIndex && state.renderedBodyEndIndex === endIndex) {
+			return;
 		}
 
-		this.renderHunks(inner, state.renderData.hunks, state.renderData.origLines, state.renderData.modLines);
+		inner.style.height = `${state.renderData.bodyHeight}px`;
+		inner.style.minWidth = `calc(${state.renderData.maxLineCharacterCount + 8}ch + 64px)`;
+
+		this.reconcileBodyEntries(state, startIndex, endIndex);
+		state.renderedBodyStartIndex = startIndex;
+		state.renderedBodyEndIndex = endIndex;
 	}
 
 	private toVirtualItem(state: IMobileMultiDiffFileState): IMobileMultiDiffVirtualItem {
@@ -533,7 +578,9 @@ export class MobileMultiDiffView extends Disposable {
 		state.loadState = 'loaded';
 		state.hunkCount = hunks.length;
 		state.rowCount = hunks.reduce((count, hunk) => count + hunk.lines.length, 0);
-		state.renderData = { hunks, origLines, modLines, hasRealTokens };
+		const { bodyEntries, bodyHeight, maxLineCharacterCount } = this.createBodyEntries(hunks);
+		state.renderData = { bodyEntries, bodyHeight, maxLineCharacterCount, origLines, modLines, hasRealTokens };
+		this.resetBodyRenderState(state);
 		this.renderCurrentFileContent(state);
 	}
 
@@ -555,40 +602,222 @@ export class MobileMultiDiffView extends Disposable {
 		}
 	}
 
-	private renderHunks(
-		container: HTMLElement,
-		hunks: readonly IDiffHunk[],
-		origLineHtml: readonly string[],
-		modLineHtml: readonly string[],
-	): void {
+	private createBodyEntries(hunks: readonly IDiffHunk[]): { bodyEntries: MobileMultiDiffBodyEntry[]; bodyHeight: number; maxLineCharacterCount: number } {
+		const bodyEntries: MobileMultiDiffBodyEntry[] = [];
+		let top = 0;
+		let maxLineCharacterCount = 0;
+
 		for (const hunk of hunks) {
-			const headerEl = DOM.append(container, $('div.mobile-diff-hunk-header'));
-			headerEl.textContent = hunk.header;
+			bodyEntries.push({
+				type: 'hunk',
+				header: hunk.header,
+				top,
+				height: VIRTUALIZER_METRICS.hunkHeaderHeight,
+			});
+			top += VIRTUALIZER_METRICS.hunkHeaderHeight;
 
 			for (const line of hunk.lines) {
-				const row = DOM.append(container, $('div.mobile-diff-line'));
-				row.classList.add(line.type);
-
-				const numEl = DOM.append(row, $('span.mobile-diff-line-num'));
-				numEl.textContent = line.lineNum !== undefined ? String(line.lineNum) : '';
-
-				const gutter = DOM.append(row, $('span.mobile-diff-gutter'));
-				gutter.textContent = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
-
-				const content = DOM.append(row, $('span.mobile-diff-content'));
-				if (line.lineNum !== undefined) {
-					const source = line.type === 'added' ? modLineHtml : origLineHtml;
-					const html = source[line.lineNum - 1];
-					if (html !== undefined) {
-						content.innerHTML = html;
-					} else if (line.text) {
-						content.textContent = line.text;
-					}
-				} else if (line.text) {
-					content.textContent = line.text;
-				}
+				maxLineCharacterCount = Math.max(maxLineCharacterCount, line.text.length);
+				bodyEntries.push({
+					type: 'line',
+					line,
+					top,
+					height: VIRTUALIZER_METRICS.rowHeight,
+				});
+				top += VIRTUALIZER_METRICS.rowHeight;
 			}
 		}
+
+		return { bodyEntries, bodyHeight: top, maxLineCharacterCount };
+	}
+
+	private computeVisibleBodyEntryRange(
+		entries: readonly MobileMultiDiffBodyEntry[],
+		visibleTop: number,
+		visibleBottom: number,
+	): { startIndex: number; endIndex: number } {
+		if (entries.length === 0 || visibleBottom <= visibleTop) {
+			return { startIndex: 0, endIndex: 0 };
+		}
+
+		const startIndex = this.findFirstBodyEntryEndingAfter(entries, visibleTop);
+		const endIndex = this.findFirstBodyEntryStartingAtOrAfter(entries, visibleBottom);
+		return { startIndex, endIndex: Math.max(startIndex, endIndex) };
+	}
+
+	private findFirstBodyEntryEndingAfter(entries: readonly MobileMultiDiffBodyEntry[], offset: number): number {
+		let low = 0;
+		let high = entries.length;
+		while (low < high) {
+			const mid = Math.floor((low + high) / 2);
+			if (entries[mid].top + entries[mid].height <= offset) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		return low;
+	}
+
+	private findFirstBodyEntryStartingAtOrAfter(entries: readonly MobileMultiDiffBodyEntry[], offset: number): number {
+		let low = 0;
+		let high = entries.length;
+		while (low < high) {
+			const mid = Math.floor((low + high) / 2);
+			if (entries[mid].top < offset) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		return low;
+	}
+
+	private ensureBodyInner(state: IMobileMultiDiffFileState): HTMLElement {
+		if (state.bodyInner && state.bodyInner.parentElement === state.content) {
+			return state.bodyInner;
+		}
+
+		if (!state.content || !state.renderData) {
+			throw new Error('Cannot render a loaded mobile diff body without content and render data.');
+		}
+
+		DOM.clearNode(state.content);
+		this.resetBodyRenderState(state);
+		const inner = DOM.append(state.content, $('div.mobile-multi-diff-file-content-inner'));
+		inner.style.height = `${state.renderData.bodyHeight}px`;
+		inner.style.minWidth = `calc(${state.renderData.maxLineCharacterCount + 8}ch + 64px)`;
+
+		const colorMap = TokenizationRegistry.getColorMap();
+		if (colorMap && state.renderData.hasRealTokens) {
+			const styleEl = document.createElement('style');
+			styleEl.textContent = generateTokensCSSForColorMap(colorMap);
+			inner.appendChild(styleEl);
+		}
+
+		state.bodyInner = inner;
+		return inner;
+	}
+
+	private resetBodyRenderState(state: IMobileMultiDiffFileState): void {
+		state.bodyInner = undefined;
+		state.renderedBodyRows.clear();
+		state.renderedBodyStartIndex = undefined;
+		state.renderedBodyEndIndex = undefined;
+	}
+
+	private reconcileBodyEntries(state: IMobileMultiDiffFileState, startIndex: number, endIndex: number): void {
+		if (!state.bodyInner || !state.renderData) {
+			return;
+		}
+
+		for (const [index, element] of Array.from(state.renderedBodyRows)) {
+			if (index < startIndex || index >= endIndex) {
+				element.remove();
+				state.renderedBodyRows.delete(index);
+			}
+		}
+
+		let runStart: number | undefined;
+		let runEnd = startIndex;
+		for (let index = startIndex; index < endIndex; index++) {
+			if (state.renderedBodyRows.has(index)) {
+				if (runStart !== undefined) {
+					this.insertBodyEntryRun(state, runStart, runEnd);
+					runStart = undefined;
+				}
+				continue;
+			}
+
+			runStart ??= index;
+			runEnd = index + 1;
+		}
+
+		if (runStart !== undefined) {
+			this.insertBodyEntryRun(state, runStart, runEnd);
+		}
+	}
+
+	private insertBodyEntryRun(state: IMobileMultiDiffFileState, startIndex: number, endIndex: number): void {
+		if (!state.bodyInner || !state.renderData) {
+			return;
+		}
+
+		const htmlParts: string[] = [];
+		for (let index = startIndex; index < endIndex; index++) {
+			htmlParts.push(this.renderBodyEntryHtml(index, state.renderData.bodyEntries[index], state.renderData.origLines, state.renderData.modLines));
+		}
+
+		const template = document.createElement('template');
+		template.innerHTML = htmlParts.join('');
+		const insertedElements = Array.from(template.content.children) as HTMLElement[];
+		for (const element of insertedElements) {
+			const index = Number(element.dataset.entryIndex);
+			if (Number.isFinite(index)) {
+				state.renderedBodyRows.set(index, element);
+			}
+		}
+
+		state.bodyInner.insertBefore(template.content, this.findNextRenderedBodyRow(state, endIndex));
+	}
+
+	private findNextRenderedBodyRow(state: IMobileMultiDiffFileState, startIndex: number): HTMLElement | null {
+		for (let index = startIndex; index < state.renderData!.bodyEntries.length; index++) {
+			const element = state.renderedBodyRows.get(index);
+			if (element) {
+				return element;
+			}
+		}
+		return null;
+	}
+
+	private renderBodyEntryHtml(
+		index: number,
+		entry: MobileMultiDiffBodyEntry,
+		origLineHtml: readonly string[],
+		modLineHtml: readonly string[],
+	): string {
+		const style = `top:${entry.top}px;height:${entry.height}px;`;
+		if (entry.type === 'hunk') {
+			return `<div class="mobile-diff-hunk-header mobile-multi-diff-body-entry" data-entry-index="${index}" style="${style}">${this.escapeHtml(entry.header)}</div>`;
+		}
+
+		const line = entry.line;
+		const lineNumber = line.lineNum !== undefined ? String(line.lineNum) : '';
+		const gutter = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
+		const content = this.getLineHtml(line, origLineHtml, modLineHtml);
+
+		return [
+			`<div class="mobile-diff-line mobile-multi-diff-body-entry ${line.type}" data-entry-index="${index}" style="${style}">`,
+			`<span class="mobile-diff-line-num">${this.escapeHtml(lineNumber)}</span>`,
+			`<span class="mobile-diff-gutter">${this.escapeHtml(gutter)}</span>`,
+			`<span class="mobile-diff-content">${content}</span>`,
+			'</div>',
+		].join('');
+	}
+
+	private getLineHtml(line: IDiffLine, origLineHtml: readonly string[], modLineHtml: readonly string[]): string {
+		if (line.lineNum !== undefined) {
+			const source = line.type === 'added' ? modLineHtml : origLineHtml;
+			const html = source[line.lineNum - 1];
+			if (html !== undefined) {
+				return html;
+			}
+		}
+		return this.escapeHtml(line.text);
+	}
+
+	private escapeHtml(value: string): string {
+		return value.replace(/[&<>"']/g, char => {
+			switch (char) {
+				case '&': return '&amp;';
+				case '<': return '&lt;';
+				case '>': return '&gt;';
+				case '"': return '&quot;';
+				case '\'': return '&#39;';
+				default: return char;
+			}
+		});
 	}
 
 	override dispose(): void {

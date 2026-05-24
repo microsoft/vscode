@@ -2,14 +2,15 @@
 
 This document is the seed design note for the mobile file diff editor and mobile multi-file diff editor in Agent Sessions. Keep it intentionally small for now; it can grow toward a fuller user-guide shape as the implementation settles.
 
-> Quick summary: mobile diff review uses phone-native full-screen overlays instead of desktop panes. The single-file view renders one unified diff. The multi-file view renders changed files in a continuous review surface with file-level virtualization.
+> Quick summary: mobile diff review uses phone-native full-screen overlays instead of desktop panes. The single-file view renders one unified diff. The multi-file view renders changed files in a continuous review surface with file-level and body-level virtualization.
 
 ## Contents
 
 - [Why](#why)
 - [Current Design](#current-design)
 - [How It Works](#how-it-works)
-- [Next Step: Body Virtualization](#next-step-body-virtualization)
+- [Body Virtualization](#body-virtualization)
+- [Rendering Ideas](#rendering-ideas)
 
 ## Why
 
@@ -48,23 +49,32 @@ This supports added, deleted, modified, and no-op files without importing deskto
 - File content is read, diffed, tokenized, and mounted incrementally as virtualized items become visible.
 - Virtualization owns mounted range and deterministic height accounting; native CSS owns sticky file-header behavior.
 - Keep file sections anchored at their virtual top so headers can use `position: sticky`; do not emulate sticky headers by moving sections on every scroll frame.
+- Loaded multi-file diff bodies flatten hunk headers and line rows into deterministic body entries, then render only the visible body range plus overscan.
 - Line changes are computed with `linesDiffComputers.getDefault()`.
 - The result is shaped into unified diff hunks with a small amount of surrounding context.
 - Syntax highlighting first tries Monaco tokenization through `tokenizeToString`.
 - When no tokenizer is available, a small regex tokenizer provides readable fallback colors.
 - Async rendering is guarded by generation counters so stale reads cannot update disposed or navigated-away views.
 
-## Next Step: Body Virtualization
+## Body Virtualization
 
-`MobileMultiDiffView` now has file-level virtualization, but large loaded file bodies can still contain many line DOM nodes.
+`MobileMultiDiffView` uses two virtualization layers.
+
+- The outer layer virtualizes file sections and keeps each file's full height in the scroll range.
+- The body layer virtualizes hunk headers and line rows within a loaded file.
 
 The important behavior to preserve is that a large file contributes its full content height to the outer virtual scroll range. File sections stay anchored in that range, and the browser handles sticky file headers. Avoid JS-driven header pinning; it can drift during fast compositor scrolling.
 
-The next layer should:
+The body layer should keep reusing cached diff/tokenization data, render only the visible hunk/line slice, and keep height accounting deterministic so outer scroll position remains stable as bodies load.
 
-- Reuse cached diff/tokenization data instead of re-rendering detached file bodies.
-- Render only the line/hunk range visible inside a large loaded file body.
-- Preserve horizontal scroll state per file.
-- Keep height accounting deterministic so outer scroll position remains stable as bodies load.
+One remaining polish item is preserving horizontal scroll state per file when a virtualized section unmounts and remounts.
 
-The next virtualization win should be line-level body virtualization for very large individual files.
+## Rendering Ideas
+
+Useful ideas to borrow from Monaco/editor virtualization:
+
+- Applied: reuse visible row DOM instead of clearing and rebuilding the whole visible body slice on every range change.
+- Applied: batch newly visible row runs, building markup in one pass before inserting it.
+- Prefetch and cache render data for near-visible files, but do not pre-render their DOM.
+- Keep loaded rows positioned with absolute `top`; avoid transform-driven scrolling for loaded content because native sticky headers depend on stable section positioning.
+- Preserve horizontal scroll state per file across virtualized unmount/remount cycles.
