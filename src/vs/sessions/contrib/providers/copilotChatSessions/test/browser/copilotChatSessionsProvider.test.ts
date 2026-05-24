@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,7 +21,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IChatService, ChatSendResult, IChatSendRequestData } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -32,9 +32,11 @@ import { IGitService } from '../../../../../../workbench/contrib/git/common/gitS
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType } from '../../browser/copilotChatSessionsProvider.js';
+import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
 // ---- Helpers ----------------------------------------------------------------
@@ -185,6 +187,7 @@ function createProviderWithConfig(
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
 	});
+	instantiationService.stub(IUriIdentityService, { extUri });
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService };
@@ -203,7 +206,7 @@ function createProviderWithConfig(
 function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	sendRequest: () => Promise<ChatSendResult>,
+	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
 	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -257,6 +260,7 @@ function createProviderForSendTests(
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
 	});
+	instantiationService.stub(IUriIdentityService, { extUri });
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -380,7 +384,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('getSessions includes Background and Local sessions', () => {
+	test('getSessions excludes Local sessions (now owned by LocalChatSessionsProvider)', () => {
 		const bgResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/bg-session' });
 		const localResource = URI.from({ scheme: AgentSessionProviders.Local, path: '/local-session' });
 		model.addSession(createMockAgentSession(bgResource));
@@ -389,7 +393,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const provider = createProvider(disposables, model);
 		const sessions = provider.getSessions();
 
-		assert.strictEqual(sessions.length, 2);
+		assert.strictEqual(sessions.length, 1);
 	});
 
 	test('getSessions includes Claude agent sessions when enabled', () => {
@@ -430,6 +434,28 @@ suite('CopilotChatSessionsProvider', () => {
 	// Note: createNewSession tests are limited because CopilotCLISession
 	// requires IGitService and creates disposables that are hard to clean
 	// up in isolation. Full integration tests should cover session creation.
+
+	test('Copilot CLI session maps workspace selection to Agent Host folder config', async () => {
+		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));
+		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		const providerSession = provider.getSession(session.sessionId) as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		providerSession.setIsolationMode('workspace');
+
+		assert.strictEqual(providerSession.isolationMode.get(), 'workspace');
+		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'folder' });
+		providerSession.dispose();
+	});
+
+	test('Copilot CLI session maps worktree selection to Agent Host config', async () => {
+		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));
+		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		providerSession.setIsolationMode('worktree');
+		providerSession.setBranch('main');
+
+		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), { isolation: 'worktree', branch: 'main' });
+		providerSession.dispose();
+	});
 
 	// ---- Session actions -------
 
@@ -518,7 +544,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.strictEqual(sessions.length, 1);
 		assert.strictEqual(sessions[0].chats.get().length, 1);
-		assert.strictEqual(sessions[0].mainChat.resource.toString(), resource.toString());
+		assert.strictEqual(sessions[0].mainChat.get().resource.toString(), resource.toString());
 	});
 
 	test('setModel applies to existing sessions and their new chats', async () => {
@@ -531,7 +557,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.strictEqual(session.modelId.get(), 'copilot/gpt-4o');
 
-		const chat = provider.addChat(session.sessionId);
+		const chat = await provider.createNewChat(session.sessionId);
 		try {
 			assert.strictEqual(chat.modelId.get(), 'copilot/gpt-4o');
 		} finally {
@@ -539,10 +565,10 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 	});
 
-	test('sendAndCreateChat throws for unknown session', async () => {
+	test('sendRequest throws for unknown session', async () => {
 		const provider = createProvider(disposables, model);
 		await assert.rejects(
-			() => provider.sendAndCreateChat('nonexistent', { query: 'test' }),
+			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
 			/not found/,
 		);
 	});
@@ -582,7 +608,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.strictEqual(sessions.length, 1);
 		assert.strictEqual(sessions[0].chats.get().length, 3);
-		assert.strictEqual(sessions[0].mainChat.resource.toString(), rootResource.toString());
+		assert.strictEqual(sessions[0].mainChat.get().resource.toString(), rootResource.toString());
 	});
 
 	test('orders chats within a grouped session by createdAt', () => {
@@ -690,7 +716,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.ok(sessions[0].mainChat);
-		assert.strictEqual(sessions[0].mainChat.resource.toString(), resource.toString());
+		assert.strictEqual(sessions[0].mainChat.get().resource.toString(), resource.toString());
 	});
 
 	test('deleteSession removes session from model and list', async () => {
@@ -971,7 +997,8 @@ suite('CopilotChatSessionsProvider', () => {
 
 		// Send and commit so the session enters the cache and can be disposed
 		const added = waitForSessionAdded(provider);
-		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		const chat = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
 		await added;
 		commitSession();
 		await assert.doesNotReject(sendPromise);
@@ -983,7 +1010,8 @@ suite('CopilotChatSessionsProvider', () => {
 		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
 
 		const added = waitForSessionAdded(provider);
-		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		const chat1 = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat1.resource, { query: 'test' });
 		await added;
 
 		await provider.archiveSession(session.sessionId);
@@ -1002,7 +1030,8 @@ suite('CopilotChatSessionsProvider', () => {
 		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
 
 		const added = waitForSessionAdded(provider);
-		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		const chat2 = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat2.resource, { query: 'test' });
 		await added;
 
 		await provider.archiveSession(session.sessionId);
@@ -1020,7 +1049,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 	// ---- Claude controller-based send flow -------
 
-	test('sendAndCreateChat replaces temp session with committed session on success', async () => {
+	test('sendRequest replaces temp session with committed session on success', async () => {
 		const { provider, commitSession } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
 		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
@@ -1029,7 +1058,8 @@ suite('CopilotChatSessionsProvider', () => {
 		disposables.add(provider.onDidReplaceSession(e => replacements.push(e)));
 
 		const added = waitForSessionAdded(provider);
-		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'hello world' });
+		const chat3 = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat3.resource, { query: 'hello world' });
 		await added;
 
 		assert.strictEqual(provider.getSessions().length, 1, 'temp session should appear while in-flight');
@@ -1042,13 +1072,14 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(replacements.length > 0, 'onDidReplaceSessions should have fired');
 	});
 
-	test('sendAndCreateChat uses the query as the temp session title', async () => {
+	test('sendRequest uses the query as the temp session title', async () => {
 		const { provider, cancelRequest } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
 		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
 
 		const added = waitForSessionAdded(provider);
-		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'fix the login bug' });
+		const chat4 = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat4.resource, { query: 'fix the login bug' });
 		await added;
 
 		const sessions = provider.getSessions();
@@ -1059,13 +1090,14 @@ suite('CopilotChatSessionsProvider', () => {
 		await provider.deleteSession(session.sessionId);
 	});
 
-	test('sendAndCreateChat keeps temp session on cancellation', async () => {
+	test('sendRequest keeps temp session on cancellation', async () => {
 		const { provider, cancelRequest } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
 		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
 
 		const added = waitForSessionAdded(provider);
-		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		const chat5 = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat5.resource, { query: 'test' });
 		await added;
 
 		// Cancel before the agent session appears
@@ -1161,7 +1193,8 @@ suite('CopilotChatSessionsProvider', () => {
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
-			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
+			const chat = await provider.createNewChat(sessionId);
+			const sendPromise = provider.sendRequest(sessionId, chat.resource, { query: 'test' });
 			await added;
 
 			assert.strictEqual(provider.getSessions().length, 1, 'session should appear while in-flight');
@@ -1181,7 +1214,8 @@ suite('CopilotChatSessionsProvider', () => {
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
-			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
+			const chat = await provider.createNewChat(sessionId);
+			const sendPromise = provider.sendRequest(sessionId, chat.resource, { query: 'test' });
 			await added;
 
 			assert.strictEqual(provider.getSessions().length, 1, 'session should appear while in-flight');
@@ -1205,7 +1239,8 @@ suite('CopilotChatSessionsProvider', () => {
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
-			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
+			const chat = await provider.createNewChat(sessionId);
+			const sendPromise = provider.sendRequest(sessionId, chat.resource, { query: 'test' });
 			await added;
 
 			// Stop before commit arrives — session should stay as completed
@@ -1224,107 +1259,6 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.strictEqual(provider.getSessions()[0].isArchived.get(), false, 'session should be unarchived');
 
 			// Clean up to avoid leaked disposable
-			await provider.deleteSession(sessionId);
-		});
-
-		/**
-		 * Returns a provider where the commit event is controllable. The
-		 * caller can fire the commit event at the right moment to simulate
-		 * the session being committed mid-request, then cancel the request
-		 * afterwards. The session should persist after cancellation.
-		 */
-		function makeCommittableProvider(): {
-			provider: CopilotChatSessionsProvider;
-			commitSession: (original: URI, committed: URI) => void;
-			cancelRequest: () => void;
-		} {
-			let resolveComplete!: () => void;
-			let resolveCreated!: (r: IChatResponseModel) => void;
-			const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
-			const responseCreatedPromise = new Promise<IChatResponseModel>(r => { resolveCreated = r; });
-
-			const commitEmitter = disposables.add(new Emitter<{ original: URI; committed: URI }>());
-
-			const provider = createProviderForSendTests(disposables, model, async () => ({
-				kind: 'sent' as const,
-				data: {
-					responseCompletePromise,
-					responseCreatedPromise,
-					agent: new class extends mock<IChatAgentData>() { }(),
-				} as IChatSendRequestData,
-			}), { onDidCommitSession: commitEmitter.event });
-
-			return {
-				provider,
-				commitSession: (original, committed) => commitEmitter.fire({ original, committed }),
-				cancelRequest: () => {
-					resolveCreated({ isCanceled: true } as unknown as IChatResponseModel);
-					resolveComplete();
-				},
-			};
-		}
-
-		test('stopping a committed session keeps it in the list', async () => {
-			const { provider, commitSession, cancelRequest } = makeCommittableProvider();
-
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
-			const sessionId = newSession.sessionId;
-
-			const added = waitForSessionAdded(provider);
-			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
-			await added;
-
-			assert.strictEqual(provider.getSessions().length, 1, 'session should appear while in-flight');
-
-			// Get the temp session's resource so we can fire the commit event
-			const tempSession = provider.getSessions()[0];
-			const tempResource = tempSession.resource;
-
-			// Simulate commit: the agent created the worktree, so the URI
-			// swaps from untitled to a real committed resource.
-			const committedResource = URI.from({ scheme: AgentSessionProviders.Background, path: `/committed-${Date.now()}` });
-			const committedAgentSession = createMockAgentSession(committedResource);
-			model.addSession(committedAgentSession);
-			commitSession(tempResource, committedResource);
-
-			// _sendFirstChat should complete successfully now
-			await sendPromise;
-
-			assert.strictEqual(provider.getSessions().length, 1, 'committed session should remain in list');
-
-			// Now cancel the request — session must stay
-			cancelRequest();
-
-			assert.strictEqual(provider.getSessions().length, 1, 'committed session should persist after stopping');
-		});
-
-		test('cancelling the request before commit keeps the session with completed status', async () => {
-			const { provider, cancelRequest } = makeInFlightProvider();
-
-			const changes: ISessionChangeEvent[] = [];
-			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
-
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
-			const sessionId = newSession.sessionId;
-
-			const added = waitForSessionAdded(provider);
-			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
-			await added;
-
-			assert.strictEqual(provider.getSessions().length, 1, 'session should appear while in-flight');
-			assert.ok(changes.some(e => e.added.some(s => s.sessionId === sessionId)), 'added event should have fired');
-
-			// Simulate user stopping the request
-			cancelRequest();
-			await sendPromise;
-
-			assert.strictEqual(provider.getSessions().length, 1, 'session should stay in list after cancellation');
-			assert.ok(
-				changes.some(e => e.changed.some(s => s.sessionId === sessionId)),
-				'changed event should have fired',
-			);
-
-			// Clean up the kept session so it doesn't leak
 			await provider.deleteSession(sessionId);
 		});
 	});

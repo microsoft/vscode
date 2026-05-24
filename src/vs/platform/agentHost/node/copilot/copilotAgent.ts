@@ -23,7 +23,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -45,7 +45,7 @@ import { parsedPluginsEqual, toCustomizationAgentRefs, toSdkCustomAgents, toSdkH
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
-import { SessionPluginBundler } from './sessionPluginBundler.js';
+import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 
 interface ICreatedWorktree {
@@ -288,6 +288,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 		})));
+
+		// Restart the CLI client when session sync setting changes (only if idle)
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			this._restartClientIfSessionSyncChanged().catch(err =>
+				this._logService.error('[Copilot] Failed to restart client after session sync change', err)
+			);
+		}));
+	}
+
+	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
+
+	private _isSessionSyncEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
+	}
+
+	private async _restartClientIfSessionSyncChanged(): Promise<void> {
+		const current = this._isSessionSyncEnabled();
+		if (this._lastSessionSyncEnabled === current) {
+			return;
+		}
+		this._lastSessionSyncEnabled = current;
+		if (this._client && this._sessions.size === 0) {
+			this._logService.info(`[Copilot] Session sync changed to ${current}, restarting CopilotClient`);
+			await this._stopClient();
+		}
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -313,7 +338,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
-		return this._plugins.getSessionCustomizations(await this._getSessionCustomizationDirectory(session));
+		return this._plugins.getSessionCustomizationsSettled(await this._getSessionCustomizationDirectory(session));
 	}
 
 	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
@@ -474,7 +499,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
 
-			const client = this._createCopilotClient({
+			const clientOptions: CopilotClientOptions & { remote?: boolean } = {
 				gitHubToken: tokenAtStartup,
 				useLoggedInUser: false,
 				useStdio: true,
@@ -482,7 +507,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env,
 				cliPath,
 				telemetry,
-			});
+				remote: this._isSessionSyncEnabled(),
+			};
+			const client = this._createCopilotClient(clientOptions);
 			await client.start();
 			if (this._githubToken !== tokenAtStartup) {
 				await client.stop();
@@ -1467,7 +1494,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
 			const disableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true;
-			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService);
+			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
 			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
 			return {
 				onPermissionRequest: callbacks.onPermissionRequest,
@@ -1947,6 +1974,32 @@ class PluginController extends Disposable {
 			result.push(this._applyEnablement(sessionResolved.customization));
 		}
 		return result;
+	}
+
+	/**
+	 * Settled variant of {@link getSessionCustomizations}: awaits the
+	 * in-flight host sync, the in-flight client sync, and (when a directory
+	 * is supplied) the session-discovered entry's initial scan + parse
+	 * before snapshotting the customization list.
+	 *
+	 * Callers that publish customizations into session state at session
+	 * creation time MUST use this — the synchronous variant can return an
+	 * empty list for a brand-new working directory because
+	 * {@link SessionDiscoveredEntry} kicks off its `_refresh()` in its
+	 * constructor without anyone awaiting it.
+	 */
+	public async getSessionCustomizationsSettled(directory: URI | undefined): Promise<readonly SessionCustomization[]> {
+		const entry = directory ? this._getOrCreateSessionEntry(directory) : undefined;
+		await Promise.all([
+			this._hostSync.catch(err => {
+				this._logService.warn('[Copilot:PluginController] Host customization update failed', err);
+			}),
+			this._clientSync.catch(err => {
+				this._logService.warn('[Copilot:PluginController] Customization sync failed', err);
+			}),
+			entry?.whenSettled(),
+		]);
+		return this.getSessionCustomizations(directory);
 	}
 
 	/**

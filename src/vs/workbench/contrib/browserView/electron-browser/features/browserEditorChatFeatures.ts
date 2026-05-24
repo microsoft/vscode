@@ -5,8 +5,9 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -21,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -258,6 +259,25 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		return result.confirmed;
 	}
 
+	// -- Chat widget helpers --------------------------------------------
+
+	/**
+	 * Reveal the chat widget and wait for its viewModel to be bound before
+	 * returning. When the chat panel is opened for the first time the session
+	 * model loads asynchronously, and once it loads {@link ChatInputPart}'s
+	 * `_syncFromModel` clears any attachments that were added before the model
+	 * was bound. Callers must use this helper before calling
+	 * {@linkcode IChatWidget.attachmentModel.addContext} so the attachment is
+	 * not silently discarded.
+	 */
+	private async _revealChatWidgetForAttachment(): Promise<IChatWidget | undefined> {
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		if (widget && !widget.viewModel) {
+			await Event.toPromise(widget.onDidChangeViewModel);
+		}
+		return widget;
+	}
+
 	// -- Element Selection ----------------------------------------------
 
 	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
@@ -319,7 +339,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
-		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		const widget = await this._revealChatWidgetForAttachment();
 		widget?.attachmentModel?.addContext(...toAttach);
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
@@ -369,10 +389,61 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 			});
 
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			const widget = await this._revealChatWidgetForAttachment();
 			widget?.attachmentModel?.addContext(...toAttach);
 		} catch (error) {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
+		}
+	}
+
+	// -- Screenshot ----------------------------------------------------
+
+	/**
+	 * Capture a viewport screenshot of the current browser view and attach it to chat.
+	 */
+	async addScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		try {
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			// Capture the screenshot BEFORE revealing the chat panel so the
+			// image reflects what the user saw when they pressed the button,
+			// not a reflowed version of the page after the panel opens.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-screenshot-' + Date.now(),
+				name: localize('browserScreenshot', 'Browser Screenshot'),
+				fullName: localize('browserScreenshot', 'Browser Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+				mimeType: 'image/jpeg',
+			}];
+
+			const widget = await this._revealChatWidgetForAttachment();
+
+			widget?.attachmentModel?.addContext(...toAttach);
+
+			type IntegratedBrowserAddScreenshotToChatAddedEvent = {
+				screenshotType: 'viewport' | 'area' | 'fullPage';
+			};
+
+			type IntegratedBrowserAddScreenshotToChatAddedClassification = {
+				screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, or fullPage).' };
+				owner: 'jruales';
+				comment: 'A screenshot was successfully added to chat from Integrated Browser.';
+			};
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: 'viewport'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
 		}
 	}
 }
@@ -395,7 +466,7 @@ class AddElementToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
 				order: 1,
 				when: ChatContextKeys.enabled
@@ -431,9 +502,9 @@ class AddConsoleLogsToChatAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.BrowserActionsToolbar,
+				id: MenuId.BrowserChatActionsMenu,
 				group: 'actions',
-				order: 2,
+				order: 3,
 				when: ChatContextKeys.enabled
 			}
 		});
@@ -446,8 +517,48 @@ class AddConsoleLogsToChatAction extends Action2 {
 	}
 }
 
+class AddScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddScreenshotToChat;
+
+	constructor() {
+		super({
+			id: AddScreenshotToChatAction.ID,
+			title: localize2('browser.addScreenshotToChatAction', 'Add Screenshot to Chat'),
+			category: BrowserActionCategory,
+			icon: Codicon.deviceCamera,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: 'actions',
+				order: 2,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addScreenshotToChat();
+		}
+	}
+}
+
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
+registerAction2(AddScreenshotToChatAction);
+
+// Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
+// The primary action (chevron's left side) is the first item in the submenu.
+MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
+	submenu: MenuId.BrowserChatActionsMenu,
+	title: localize2('browser.chatActionsSubmenu', "Add to Chat"),
+	icon: Codicon.inspect,
+	group: 'actions',
+	order: 1,
+	when: ChatContextKeys.enabled,
+	isSplitButton: true
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

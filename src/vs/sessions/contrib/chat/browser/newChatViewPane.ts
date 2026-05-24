@@ -345,7 +345,7 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 		try {
-			await this.sessionsManagementService.sendAndCreateChat(session, { query, attachedContext });
+			await this.sessionsManagementService.sendNewChatRequest(session, { query, attachedContext });
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}

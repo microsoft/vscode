@@ -245,6 +245,24 @@
 			}
 		}
 
+		/*
+		 * External-edit pills (agent host) sit directly inside
+		 * `.chat-thinking-tool-wrapper` rather than nested inside a markdown
+		 * code block, so they need the same left padding to clear the
+		 * absolutely-positioned thinking icon.
+		 */
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+			padding: 5px 12px 4px 24px;
+
+			.status-icon.codicon-check {
+				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
+			}
+		}
+
 		.chat-confirmation-widget2 .chat-confirmation-message-terminal-disclaimer .chat-markdown-part.rendered-markdown {
 			padding: 2px 0px;
 		}
@@ -428,6 +446,10 @@
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding-left: 19px;
+		}
+
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
 			padding-left: 19px;
 		}
 

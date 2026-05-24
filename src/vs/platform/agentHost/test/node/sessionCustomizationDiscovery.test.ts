@@ -16,7 +16,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { DiscoveredType, SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
-import { SessionPluginBundler } from '../../node/copilot/sessionPluginBundler.js';
+import { SessionPluginBundler } from '../../node/shared/sessionPluginBundler.js';
 
 suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 

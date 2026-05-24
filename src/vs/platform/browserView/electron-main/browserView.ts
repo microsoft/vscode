@@ -8,7 +8,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
-import { BrowserViewElementInspector } from './browserViewElementInspector.js';
+import { BrowserViewEmulator } from './browserViewEmulator.js';
+import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -41,7 +42,8 @@ export class BrowserView extends Disposable {
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	readonly debugger: BrowserViewDebugger;
-	readonly inspector: BrowserViewElementInspector;
+	readonly emulator: BrowserViewEmulator;
+	readonly inspector: BrowserViewInspector;
 
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
@@ -191,7 +193,8 @@ export class BrowserView extends Disposable {
 		});
 
 		this.debugger = new BrowserViewDebugger(this, this.logService);
-		this.inspector = this._register(new BrowserViewElementInspector(this));
+		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
+		this.inspector = this._register(new BrowserViewInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -472,7 +475,8 @@ export class BrowserView extends Disposable {
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
 			browserZoomIndex: this._browserZoomIndex,
-			isElementSelectionActive: this.inspector.isElementSelectionActive
+			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			device: this.emulator.device
 		};
 	}
 
@@ -497,6 +501,11 @@ export class BrowserView extends Disposable {
 		}
 
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
+
+		if (bounds.emulation) {
+			this.emulator.applyScreenEmulation(bounds.width, bounds.height, bounds.emulation.scale, bounds.zoomFactor);
+		}
+
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),

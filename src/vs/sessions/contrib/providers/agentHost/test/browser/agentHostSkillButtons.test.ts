@@ -62,7 +62,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
 	} satisfies IActiveSession;
 }

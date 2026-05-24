@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChat, ISession, ISessionAgentRef, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -127,15 +127,6 @@ export interface ISessionsProvider {
 	setModel(sessionId: string, modelId: string): void;
 
 	/**
-	 * Set (or clear) the selected custom agent for a session. Optional so
-	 * providers that don't expose custom agents can omit it.
-	 * @param sessionId The ID of the session.
-	 * @param agent The agent to select, or `undefined` to clear the selection
-	 *              and use the provider's default behavior.
-	 */
-	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
-
-	/**
 	 * Archive a session.
 	 * @param sessionId The ID of the session to archive.
 	 */
@@ -161,23 +152,16 @@ export interface ISessionsProvider {
 	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
 
 	/**
-	 * Send a request to a session and create a new chat with the response.
-	 * @param sessionId The ID of the session to send the request to.
-	 * @param options Options for the request, including the query and any attached context entries.
+	 * Create a new chat in the given session and return it.
+	 *
+	 * @param sessionId The ID of the session to create the new chat in.
+	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
-	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
+	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
 
 	/**
-	 * Add a new empty chat to an existing session without sending a request.
-	 * The new chat is registered in the group model and can be used to compose
-	 * a message before sending.
-	 * @param sessionId The ID of the session to add a chat to.
-	 * @returns The newly created chat.
-	 */
-	addChat(sessionId: string): IChat;
-
-	/**
-	 * Send a request for an existing chat within a session.
+	 * Send a request for a chat within a session.
+	 *
 	 * @param sessionId The ID of the session containing the chat.
 	 * @param chatResource The resource URI of the chat to send the request for.
 	 * @param options Options for the request, including the query and any attached context entries.

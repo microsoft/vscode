@@ -33,18 +33,18 @@ import { type IChatInputPickerOptions, ChatInputPickerActionViewItem } from '../
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { type ISession, type ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { type ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+
+const MenuIdAgentHostAgentPicker = new MenuId('sessions.agentHost.agentPicker');
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
 	ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
-
-/** Footer menu for the agent picker dropdown. */
-export const MenuIdAgentHostAgentPicker = new MenuId('AgentHostAgentPicker');
 
 // -- Agent Host Agent Picker Action --
 
@@ -60,13 +60,14 @@ registerAction2(class extends Action2 {
 				order: -1,
 				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}, {
-				// Running-session input bar — render to the left of the
-				// mode picker (order 2) and model picker (order 3) registered
-				// in `agentHostSessionConfigPicker.ts`.
+				// Running-session input bar — only inside the dedicated
+				// Agents Window. The regular VS Code chat editor uses its
+				// own picker (`agentHostCustomAgentPicker.ts`) gated on
+				// `!isSessionsWindow` so the two surfaces don't double up.
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, IsPhoneLayoutContext.negate()),
 			}],
 		});
 	}
@@ -100,17 +101,22 @@ export function agentHostAgentPickerStorageKey(resourceScheme: string): string {
 
 /**
  * Resolves the agent that should be shown for a session:
- * - If the session has an agent and it exists in the effective list, use it.
+ * - If `selectedAgentUri` is set and resolves against the effective agent
+ *   list, use that entry.
  * - Else if a stored agent URI matches an entry in the list, use that entry.
  * - Else `undefined` (the default "Agent" placeholder row).
+ *
+ * Takes the agent URI directly (rather than an `ISessionAgentRef`) because
+ * `ISession.mode` only carries the URI — the display name is recovered from
+ * the resolved {@link CustomizationAgentRef}.
  */
 export function resolveAgentHostAgent(
 	agents: readonly CustomizationAgentRef[],
-	sessionAgent: ISessionAgentRef | undefined,
+	selectedAgentUri: string | undefined,
 	storedAgentUri: string | undefined,
 ): CustomizationAgentRef | undefined {
-	if (sessionAgent) {
-		const match = agents.find(a => a.uri === sessionAgent.uri);
+	if (selectedAgentUri) {
+		const match = agents.find(a => a.uri === selectedAgentUri);
 		if (match) {
 			return match;
 		}
@@ -326,7 +332,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			const action = { id: 'sessions.agentHost.agentPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 			const picker = scopedInstantiationService.createInstance(AgentHostAgentPickerActionItem, action, delegate, pickerOptions);
 
-			const initAgent = (session: ISession | undefined, sessionAgent: ISessionAgentRef | undefined, isUntitled: boolean) => {
+			const initAgent = (session: ISession | undefined, selectedAgentUri: string | undefined, isUntitled: boolean) => {
 				const provider = getProvider(session);
 				const agents = session && provider ? provider.getCustomAgents(session.sessionId) : [];
 
@@ -338,12 +344,33 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 				const storedUri = isUntitled
 					? storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 					: undefined;
-				const resolved = resolveAgentHostAgent(agents, sessionAgent, storedUri);
+				const resolved = resolveAgentHostAgent(agents, selectedAgentUri, storedUri);
 				currentAgent.set(resolved, undefined);
-				if (!sessionAgent && isUntitled && resolved) {
+				if (!selectedAgentUri && isUntitled && resolved) {
 					settingAgentInternally = true;
 					try {
 						delegate.setAgent(resolved);
+					} finally {
+						settingAgentInternally = false;
+					}
+				} else if (selectedAgentUri && !resolved && agents.length > 0) {
+					// The session's selected agent URI no longer maps to any
+					// known custom agent (e.g. the contributing plugin was
+					// uninstalled). Silently clear the selection so the picker
+					// reverts to the default "Agent" row instead of showing a
+					// stale label.
+					//
+					// Only treat this as a stale selection when we actually
+					// have a non-empty agent list to compare against — an
+					// empty list means the session's customization state
+					// hasn't been hydrated yet (e.g. right after a new
+					// session graduates and before the running state
+					// subscription has populated `_lastSessionStates`).
+					// Clearing in that window would wipe a freshly-seeded
+					// selection before the host's echo arrives.
+					settingAgentInternally = true;
+					try {
+						delegate.setAgent(undefined);
 					} finally {
 						settingAgentInternally = false;
 					}
@@ -351,28 +378,29 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			};
 			const initFromActiveSession = () => {
 				const session = sessionsManagementService.activeSession.get();
-				initAgent(session, session?.agent?.get(), session?.status.get() === SessionStatus.Untitled);
+				initAgent(session, session?.mode.get()?.id, session?.status.get() === SessionStatus.Untitled);
 			};
 			initFromActiveSession();
 
 			const disposableStore = new DisposableStore();
-			// React to the active session AND to its `session.agent`
+			// React to the active session AND to its `mode`
 			// observable so server-echoed `SessionAgentChanged` updates
-			// flow back into the picker. The `settingAgentInternally`
-			// guard around the initial pick (below) prevents the autorun
-			// from clobbering an in-flight user selection.
+			// (which flow into `mode`) propagate back into the
+			// picker. The `settingAgentInternally` guard around the initial
+			// pick (below) prevents the autorun from clobbering an in-flight
+			// user selection.
 			disposableStore.add(autorun(reader => {
 				const session = sessionsManagementService.activeSession.read(reader);
-				const sessionAgent = session?.agent?.read(reader);
+				const selectedAgentUri = session?.mode.read(reader)?.id;
 				const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
-				initAgent(session, sessionAgent, isUntitled);
+				initAgent(session, selectedAgentUri, isUntitled);
 			}));
 
 			// Also re-run when the active session's provider advertises a
 			// different effective custom-agent set (root state, session
 			// state, or active-client customizations changed). The picker
 			// contribution doesn't see those mutations through the
-			// `session.agent` observable.
+			// `mode` observable.
 			const customAgentsListener = disposableStore.add(new MutableDisposable());
 			disposableStore.add(autorun(reader => {
 				const session = sessionsManagementService.activeSession.read(reader);

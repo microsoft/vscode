@@ -18,6 +18,7 @@ import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../plat
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
+import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
@@ -173,7 +174,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			requestId: ourRequestId,
 			postOptions
 		});
-
+		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromMessages(messages);
 
 		const baseTelemetry = TelemetryData.createAndMarkAsIssued({
 			...telemetryProperties,
@@ -325,7 +326,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
 			switch (response.type) {
 				case FetchResponseKind.Success: {
-					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
+					const result = await this.processSuccessfulResponse(response, messages, imageTelemetryMeasurements, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
 
 					// Handle FilteredRetry case with augmented messages
 					if (result.type === ChatFetchResponseType.FilteredRetry) {
@@ -522,6 +523,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							isAuto: isAutoModel(chatEndpoint),
 							bytesReceived: actualBytesReceived,
 							issuedTime: baseTelemetry.issuedTime,
+							imageTelemetryMeasurements,
 						});
 					pendingLoggedChatRequest?.resolveWithCancelation();
 					// Set canceled status on OTel span
@@ -555,6 +557,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							bytesReceived: actualBytesReceived,
 							baseTelemetry,
 							streamRecorder,
+							imageTelemetryMeasurements,
 							retryReason: 'server_error',
 							debugNamePrefix: 'retry-server-error-',
 							pendingLoggedChatRequest,
@@ -577,6 +580,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						maxResponseTokens,
 						timeToFirstToken,
 						isVisionRequest: this.filterImageMessages(messages),
+						imageTelemetryMeasurements,
 						transport,
 						interactionType,
 						fetcher: actualFetcher,
@@ -626,6 +630,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					bytesReceived: err.bytesReceived,
 					baseTelemetry,
 					streamRecorder,
+					imageTelemetryMeasurements,
 					retryReason: 'network_error',
 					debugNamePrefix: 'retry-error-',
 					pendingLoggedChatRequest,
@@ -673,6 +678,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						isAuto: isAutoModel(chatEndpoint),
 						bytesReceived: err.bytesReceived,
 						issuedTime: baseTelemetry.issuedTime,
+						imageTelemetryMeasurements,
 					}
 				);
 			} else {
@@ -685,6 +691,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					maxResponseTokens,
 					timeToFirstToken: timeToError,
 					isVisionRequest: this.filterImageMessages(messages),
+					imageTelemetryMeasurements,
 					transport,
 					interactionType,
 					fetcher: actualFetcher,
@@ -766,6 +773,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		bytesReceived: number | undefined;
 		baseTelemetry: TelemetryData;
 		streamRecorder: FetchStreamRecorder;
+		imageTelemetryMeasurements: ImageTelemetryMeasurements;
 		retryReason: 'network_error' | 'server_error';
 		debugNamePrefix: string;
 		pendingLoggedChatRequest: ReturnType<IRequestLogger['logChatRequest']>;
@@ -788,6 +796,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			bytesReceived,
 			baseTelemetry,
 			streamRecorder,
+			imageTelemetryMeasurements,
 			retryReason,
 			debugNamePrefix,
 			pendingLoggedChatRequest,
@@ -828,6 +837,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				maxResponseTokens,
 				timeToFirstToken: timeToError,
 				isVisionRequest: this.filterImageMessages(opts.messages),
+				imageTelemetryMeasurements,
 				transport,
 				interactionType,
 				fetcher: actualFetcher,
@@ -1010,9 +1020,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken?.token;
-			// BYOK endpoints may not need a secret key (e.g., Ollama local), they use getExtraHeaders instead.
-			if (!secretKey && !chatEndpointInfo.getExtraHeaders) {
+			// BYOK endpoints that own their `Authorization` (see IChatEndpoint.ownsAuthorization)
+			// opt out of the CAPI Copilot-token fallback to avoid leaking the user's bearer to a
+			// third-party URL and to keep the wire request from carrying an unintended
+			// `Authorization: Bearer …` alongside their own auth header.
+			if (!chatEndpointInfo.ownsAuthorization) {
+				secretKey ??= copilotToken?.token;
+			}
+			if (!secretKey && !chatEndpointInfo.ownsAuthorization) {
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
 				sendCommunicationErrorTelemetry(this._telemetryService, `Failed to send request to ${urlOrRequestMetadata} due to missing key`);
@@ -1772,6 +1787,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	private async processSuccessfulResponse(
 		response: ChatResults,
 		messages: Raw.ChatMessage[],
+		imageTelemetryMeasurements: ImageTelemetryMeasurements,
 		requestBody: IEndpointBody,
 		requestId: string,
 		maxResponseTokens: number,
@@ -1807,6 +1823,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					timeToFirstToken,
 					timeToFirstTokenEmitted: (baseTelemetry && streamRecorder.firstTokenEmittedTime) ? streamRecorder.firstTokenEmittedTime - baseTelemetry.issuedTime : -1,
 					hasImageMessages: this.filterImageMessages(messages),
+					imageTelemetryMeasurements,
 					transport,
 					fetcher,
 					bytesReceived,

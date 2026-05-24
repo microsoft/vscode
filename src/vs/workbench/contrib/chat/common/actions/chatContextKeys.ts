@@ -168,7 +168,7 @@ export namespace ChatContextKeyExprs {
 
 	/**
 	 * True when the locked coding agent is an agent host session (agent-host-* or remote-*).
-	 * These sessions use AgentHostEditingSession which supports checkpoint-based undo/redo.
+	 * These sessions use {@link AgentHostSnapshotController} which supports checkpoint-based restore.
 	 */
 	export const isAgentHostSession = ContextKeyExpr.or(
 		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^agent-host-/),

@@ -386,7 +386,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
-	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
+	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
@@ -413,9 +413,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (!provider) {
 				throw new Error(`Sessions provider '${session.providerId}' not found`);
 			}
-			const updatedSession = await provider.sendAndCreateChat(session.sessionId, options);
+
+			// Ask the provider to create the new chat; open its widget before sending
+			const chat = await provider.createNewChat(session.sessionId, options.query);
+			await this.chatWidgetService.openSession(chat.resource, ChatViewPaneTarget);
+
+			const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
 			if (updatedSession.sessionId !== session.sessionId && this._activeSession.get()?.sessionId === session.sessionId) {
-				this.logService.info(`[SessionsManagement] sendAndCreateChat: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 				this.setActiveSession(updatedSession);
 				setActiveChatToLast();
 			}
@@ -466,7 +471,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	openNewChatInSession(session: ISession): void {
+	async openNewChatInSession(session: ISession): Promise<void> {
 		this._startOpenSession();
 		const provider = this._getProvider(session);
 		if (!provider) {
@@ -476,7 +481,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Reuse an existing untitled chat if one exists, otherwise create a new one
 		const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
-		const chat = existingUntitled ?? provider.addChat(session.sessionId);
+		const chat = existingUntitled ?? await provider.createNewChat(session.sessionId);
+
+		await this.chatWidgetService.openSession(chat.resource, ChatViewPaneTarget);
 
 		this.setActiveSession(session);
 
@@ -565,16 +572,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}));
 
 			// Track chat list changes — if the active chat is removed, fall back
-			this._activeSessionDisposables.add(autorun(reader => {
-				const chats = session.chats.read(reader);
-				const activeChat = activeChatObs.read(reader);
-				if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
-					const fallback = chats[chats.length - 1] ?? session.mainChat;
-					if (fallback) {
-						this.openChat(session, fallback.resource);
+			if (session.status.get() !== SessionStatus.Untitled) {
+				this._activeSessionDisposables.add(autorun(reader => {
+					const chats = session.chats.read(reader);
+					const activeChat = activeChatObs.read(reader);
+					if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
+						const fallback = chats[chats.length - 1] ?? session.mainChat.read(reader);
+						if (fallback) {
+							this.openChat(session, fallback.resource);
+						}
 					}
-				}
-			}));
+				}));
+			}
 
 			// Track active chat changes to persist per-session state
 			this._activeSessionDisposables.add(autorun(reader => {
@@ -827,7 +836,6 @@ class ActiveSession implements IActiveSession {
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
 	get modelId() { return this._session.modelId; }
-	get agent() { return this._session.agent; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
 	get isArchived() { return this._session.isArchived; }
