@@ -53,7 +53,7 @@ function buildWorkspaceMetadata(repoContext: RepoContext, fileUri?: URI): Worksp
 /**
  * Convert workspace metadata to OTel attributes, omitting undefined values.
  * Emits both the legacy `copilot_chat.repo.*` namespace and the canonical
- * `github.copilot.git.*` namespace (CLI parity, see PR #8037).
+ * `github.copilot.git.*` namespace.
  */
 export function workspaceMetadataToOTelAttributes(
 	metadata?: WorkspaceOTelMetadata,

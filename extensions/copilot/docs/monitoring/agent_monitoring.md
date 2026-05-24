@@ -119,12 +119,10 @@ OTel is **off by default** with zero overhead. It activates when:
 > Copilot Chat emits OTel attributes under three namespaces:
 >
 > - **`gen_ai.*`** — [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). Use these whenever a standard key exists.
-> - **`github.copilot.*`** — The canonical Copilot-specific namespace, shared with the [Copilot CLI runtime](https://github.com/github/copilot-agent-runtime). Prefer this for new dashboards and alerts.
-> - **`copilot_chat.*`** — The original VS Code extension namespace. Several keys (notably `copilot_chat.repo.*` and `gen_ai.usage.reasoning_tokens`) are now **dual-emitted alongside the `github.copilot.*` equivalents**. Tables below mark these rows as **Legacy** with a pointer to the preferred key.
+> - **`github.copilot.*`** — Canonical Copilot-specific namespace. Prefer this for new dashboards and alerts.
+> - **`copilot_chat.*`** — Original VS Code extension namespace. Several keys (notably `copilot_chat.repo.*` and `gen_ai.usage.reasoning_tokens`) are now **dual-emitted alongside the `github.copilot.*` equivalents**. Tables below mark these rows as **Legacy** with a pointer to the preferred key.
 >
 > Legacy keys continue to emit indefinitely so existing collectors, dashboards, and downstream consumers (Agent Debug Log, Chronicle, SQLite span store) keep working without changes. There is no sunset date.
->
-> **Cross-surface compatibility caveat:** A few enums diverge between VS Code and the CLI runtime (e.g. `skill.source` carries VS Code's `PromptFileSource` value on extension-emitted spans and the CLI's own enum on CLI-emitted spans). Where this matters, the divergence is called out on the relevant attribute row.
 
 ### Traces
 

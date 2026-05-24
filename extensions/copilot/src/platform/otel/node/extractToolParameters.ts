@@ -24,9 +24,10 @@ export interface ToolParameterAttributes {
 }
 
 /**
- * Port of the CLI's `extractToolParameters` (copilot-agent-runtime PR #8037,
- * `src/core/otel/otelGenAI.ts`). Produces `github.copilot.tool.parameters.*`
- * attributes for shell, file, skill, and MCP tool calls.
+ * Produces structured `github.copilot.tool.parameters.*` attributes for shell,
+ * file, skill, and MCP tool calls. `gatedAttrs` are content-sensitive (raw
+ * paths, commands, MCP server names) and emit only when `captureContent` is
+ * enabled; `attrs` are always safe (hashes, fixed enums).
  */
 export function extractToolParameters(toolName: string, input: unknown): ToolParameterAttributes {
 	const attrs: Record<string, string> = {};
@@ -63,9 +64,8 @@ export function extractToolParameters(toolName: string, input: unknown): ToolPar
 		attrs[GitHubCopilotAttr.TOOL_PARAM_SKILL_NAME] = skillName;
 	}
 
-	// MCP-style tool names: VS Code/CLI use `mcp_<server>_<tool>`; Anthropic-style
-	// references use `mcp__<server>__<tool>`. Accept both: try double-underscore
-	// first, then fall back to single.
+	// MCP-style tool names: VS Code emits `mcp_<server>_<tool>`; Anthropic-style
+	// references use `mcp__<server>__<tool>`. Accept both.
 	if (toolName.startsWith('mcp__')) {
 		const rest = toolName.slice('mcp__'.length);
 		const sep = rest.indexOf('__');

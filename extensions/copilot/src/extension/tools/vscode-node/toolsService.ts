@@ -153,9 +153,8 @@ export class ToolsService extends BaseToolsService {
 			} catch { /* swallow serialization errors */ }
 		}
 
-		// Structured `github.copilot.tool.parameters.*` (CLI parity). Always-safe
-		// attrs (hashes, edit_type) emit unconditionally; raw paths/commands/MCP
-		// names are gated on captureContent.
+		// Structured `github.copilot.tool.parameters.*`. Hashes and edit_type emit
+		// unconditionally; raw paths, commands, and MCP names are gated.
 		try {
 			const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = extractToolParameters(String(name), options.input);
 			for (const [k, v] of Object.entries(paramAttrs)) {

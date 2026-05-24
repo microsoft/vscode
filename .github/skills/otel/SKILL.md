@@ -85,7 +85,7 @@ Three namespaces coexist on extension-emitted spans:
 | Namespace | Purpose | Status |
 |---|---|---|
 | `gen_ai.*` | OTel GenAI Semantic Conventions. Use whenever a standard key exists. | Canonical |
-| `github.copilot.*` | Copilot-specific vendor namespace, shared with the [Copilot CLI runtime](https://github.com/github/copilot-agent-runtime) (see `src/core/otel/otelGenAI.ts`). | **Preferred — new attributes go here.** |
+| `github.copilot.*` | Copilot-specific vendor namespace. | **Preferred — new attributes go here.** |
 | `copilot_chat.*` | Original VS Code-only namespace. Several keys remain for backwards compatibility. | **Legacy — keep emitting; do not add new keys here.** |
 
 ### Dual-emit rules
@@ -94,12 +94,6 @@ Three namespaces coexist on extension-emitted spans:
 - When **renaming** an existing `copilot_chat.*` attribute to its `github.copilot.*` equivalent (e.g., `copilot_chat.repo.*` → `github.copilot.git.*`, `gen_ai.usage.reasoning_tokens` → `gen_ai.usage.reasoning.output_tokens`), **dual-emit both keys indefinitely**. Downstream readers (Agent Debug Log, Chronicle, SQLite span store, OTLP collectors) may depend on the legacy key.
 - Mark the legacy row in [agent_monitoring.md](../../../extensions/copilot/docs/monitoring/agent_monitoring.md) with **Legacy** in the "Requirement" column and a pointer to the preferred key. No sunset date — legacy keys live on indefinitely.
 - Hash sensitive identifiers (e.g., MCP server names) with `hashTelemetryValue` from [`util/node/crypto.ts`](../../../extensions/copilot/src/util/node/crypto.ts). Emit hashes unconditionally; raw values only when `captureContent` is enabled.
-
-### Cross-surface enum divergence
-
-A few enums emitted under `github.copilot.*` differ between VS Code and the CLI runtime — flag these explicitly in docs and dashboards:
-
-- `github.copilot.skill.source`: VS Code emits the raw `PromptFileSource` enum value (`github-workspace`, `copilot-personal`, `agents-workspace`, `extension-contribution`, …). The CLI emits its own enum (`project`, `personal-copilot`, `plugin`, `builtin`, `remote`, …). Reconcile server-side if joining the two surfaces.
 
 ## 4. Service Layer & Selection
 

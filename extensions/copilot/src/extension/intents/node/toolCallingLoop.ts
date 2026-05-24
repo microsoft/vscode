@@ -738,8 +738,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
 		const modeInstructions = (this.options.request as { modeInstructions2?: { name?: string; isBuiltin?: boolean } }).modeInstructions2;
 		const customModeName = modeInstructions?.name && !modeInstructions.isBuiltin ? modeInstructions.name : undefined;
-		// `builtin` for default/built-in modes, `custom` for user/workspace-contributed modes.
-		// `plugin` is reserved for extension-contributed modes once that lands in the registry.
 		const agentType: 'builtin' | 'custom' = modeInstructions && modeInstructions.isBuiltin === false ? 'custom' : 'builtin';
 
 		// If this is a subagent request, look up the parent trace context stored by the parent agent's execute_tool span

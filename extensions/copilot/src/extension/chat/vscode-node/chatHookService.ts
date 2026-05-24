@@ -186,7 +186,6 @@ export class ChatHookService implements IChatHookService {
 								: 'error';
 						span.setAttribute(CopilotChatAttr.HOOK_RESULT_KIND, resultKind);
 
-						// Map to CLI's `decision` enum for cross-surface dashboards.
 						const hookDecision = commandResult.kind === HookCommandResultKind.Error
 							? 'block'
 							: commandResult.kind === HookCommandResultKind.NonBlockingError
@@ -218,7 +217,7 @@ export class ChatHookService implements IChatHookService {
 
 						// If stopReason is set (including empty string for "stop without message"), stop processing remaining hooks
 						if (result.stopReason !== undefined) {
-							// Stop signals from a successful hook still flip the decision to `block` for CLI parity.
+							// A stop signal from a successful hook still counts as a block.
 							if (hookDecision === 'pass') {
 								span.setAttribute(GitHubCopilotAttr.HOOK_DECISION, 'block');
 							}

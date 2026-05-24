@@ -193,8 +193,7 @@ export const CopilotCliSdkAttr = {
 } as const;
 
 /**
- * Canonical `github.copilot.*` attribute namespace shared with the Copilot CLI
- * runtime (see copilot-agent-runtime `src/core/otel/otelGenAI.ts`). These
+ * Canonical `github.copilot.*` attribute namespace for Copilot Chat. These
  * attributes are dual-emitted alongside the legacy `copilot_chat.*` keys; new
  * dashboards should prefer this namespace.
  */
@@ -243,7 +242,7 @@ export type AgentType = 'builtin' | 'plugin' | 'custom';
 export type HookDecision = 'block' | 'approve' | 'non_blocking_error' | 'pass';
 export type EditOperationType = 'create' | 'update' | 'str_replace' | 'insert';
 
-/** Max length for the `tool.parameters.command` attribute (matches CLI). */
+/** Max length for the `tool.parameters.command` attribute. */
 export const TOOL_PARAM_COMMAND_MAX_LEN = 256;
 
 /** Tool names treated as shell-command tools for parameter extraction. */
@@ -256,12 +255,12 @@ export const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Tool names treated as file tools for parameter extraction. Includes both
- * Copilot CLI names (camelCase / Claude-style) and VS Code's `ToolName` enum
- * values (snake_case, see `extension/tools/common/toolNames.ts`).
+ * Tool names treated as file tools for parameter extraction. Covers VS Code's
+ * `ToolName` enum values (snake_case, see `extension/tools/common/toolNames.ts`)
+ * and the camelCase / Claude-style variants seen on external surfaces.
  */
 export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
-	// Copilot CLI / Claude-style names
+	// camelCase / Claude-style names
 	'view',
 	'create',
 	'edit',
