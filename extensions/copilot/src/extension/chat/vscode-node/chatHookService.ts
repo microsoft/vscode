@@ -153,6 +153,9 @@ export class ChatHookService implements IChatHookService {
 					const inputForLog = this._redactForLogging(commandInput as Record<string, unknown>);
 					this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
 
+					const hookToolName = (commandInput as { tool_name?: unknown }).tool_name;
+					const hookToolNamesJson = typeof hookToolName === 'string' ? JSON.stringify([hookToolName]) : undefined;
+
 					const span = this._otelService.startSpan(`execute_hook ${hookType}`, {
 						kind: SpanKind.INTERNAL,
 						attributes: {
@@ -160,12 +163,7 @@ export class ChatHookService implements IChatHookService {
 							[CopilotChatAttr.HOOK_TYPE]: hookType,
 							'copilot_chat.hook_command': hookCommand.command,
 							...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
-							...(() => {
-								const toolName = (commandInput as { tool_name?: unknown }).tool_name;
-								return typeof toolName === 'string'
-									? { [GitHubCopilotAttr.HOOK_TOOL_NAMES]: JSON.stringify([toolName]) }
-									: {};
-							})(),
+							...(hookToolNamesJson ? { [GitHubCopilotAttr.HOOK_TOOL_NAMES]: hookToolNamesJson } : {}),
 						},
 					});
 
