@@ -77,7 +77,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-windows-x64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -201,7 +201,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-windows-arm64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-arm64-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -242,6 +242,13 @@ jobs:
           node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -Force .build/node_modules_cache
           7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt
+
+      - name: Save node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-windows-arm64-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Create .build folder
         shell: pwsh
@@ -324,7 +331,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-darwin-x64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -437,7 +444,7 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-linux-x64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-linux-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
