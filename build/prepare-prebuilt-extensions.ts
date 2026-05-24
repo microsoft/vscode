@@ -52,17 +52,16 @@ function submoduleExists(): boolean {
 	const submodulePath = path.join(root, 'prebuilt-extensions');
 	const gitmodulesPath = path.join(root, '.gitmodules');
 
-	// Check if directory exists and .gitmodules contains the submodule
-	if (!fs.existsSync(submodulePath)) {
-		return false;
-	}
-
+	// Check .gitmodules first — submodule may be configured but not yet initialized
 	if (fs.existsSync(gitmodulesPath)) {
 		const gitmodules = fs.readFileSync(gitmodulesPath, 'utf8');
-		return gitmodules.includes('prebuilt-extensions');
+		if (gitmodules.includes('prebuilt-extensions')) {
+			return true;
+		}
 	}
 
-	return false;
+	// Fall back to checking directory existence
+	return fs.existsSync(submodulePath);
 }
 
 /**
@@ -117,14 +116,15 @@ async function updateSubmodule(): Promise<void> {
 		const isInitialized = fs.existsSync(gitPath);
 
 		if (!isInitialized) {
-			// Initialize submodule if not already initialized
+			// Initialize and checkout pinned commit (no --remote for deterministic builds)
 			await exec('git submodule init', { cwd: root });
+			await exec('git submodule update', { cwd: root });
+			console.log('✓ Submodule initialized at pinned commit');
+		} else {
+			// Update submodule to latest remote commit (dev workflow)
+			await exec('git submodule update --remote', { cwd: root });
+			console.log('✓ Submodule updated to latest remote commit');
 		}
-
-		// Update submodule to latest commit (without specifying name)
-		await exec('git submodule update --remote', { cwd: root });
-
-		console.log('✓ Submodule updated successfully');
 	} catch (error) {
 		console.warn('⚠ Failed to update submodule:', error);
 		console.log('  Continuing with existing submodule content...');
