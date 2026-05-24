@@ -79,6 +79,10 @@ class MockAuthenticationService {
 		return this._anyGitHubSession;
 	}
 
+	get hasCopilotTokenSource(): boolean {
+		return !!this._anyGitHubSession;
+	}
+
 	setSession(session: AuthenticationSession | undefined): void {
 		this._anyGitHubSession = session;
 	}
