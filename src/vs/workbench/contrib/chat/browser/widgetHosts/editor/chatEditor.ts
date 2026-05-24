@@ -32,6 +32,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
+import { IChatWidgetViewOptions } from '../../chat.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 
@@ -51,6 +52,26 @@ export interface IChatEditorOptions extends IEditorOptions {
 
 export interface IChatEditorViewState {
 	scrollTop: number;
+}
+
+export function createChatEditorViewOptions(parent: HTMLElement, clear: () => Promise<void>): IChatWidgetViewOptions {
+	return {
+		autoScroll: mode => mode !== ChatModeKind.Ask,
+		renderFollowups: true,
+		supportsFileReferences: true,
+		clear,
+		rendererOptions: {
+			renderTextEditsAsSummary: () => {
+				return true;
+			},
+			referencesExpandedWhenEmptyResponse: false,
+			progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+		},
+		enableImplicitContext: true,
+		enableWorkingSet: 'explicit',
+		supportsChangingModes: true,
+		dndContainer: parent,
+	};
 }
 
 export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState> {
@@ -104,22 +125,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				ChatWidget,
 				ChatAgentLocation.Chat,
 				undefined,
-				{
-					autoScroll: mode => mode !== ChatModeKind.Ask,
-					renderFollowups: true,
-					supportsFileReferences: true,
-					clear: () => this.clear(),
-					rendererOptions: {
-						renderTextEditsAsSummary: (uri) => {
-							return true;
-						},
-						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
-					},
-					enableImplicitContext: true,
-					enableWorkingSet: 'explicit',
-					supportsChangingModes: true,
-				},
+				createChatEditorViewOptions(parent, () => this.clear()),
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
