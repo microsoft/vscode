@@ -10,6 +10,7 @@ import { ILink } from '../languages.js';
 export interface ILinkComputerTarget {
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLanguageId?(): string;
 }
 
 export const enum State {
@@ -213,10 +214,51 @@ export class LinkComputer {
 	public static computeLinks(model: ILinkComputerTarget, stateMachine: StateMachine = getStateMachine()): ILink[] {
 		const classifier = getClassifier();
 
+		// Check if this is a markdown file to enable code block detection
+		const languageId = model.getLanguageId?.();
+		const isMarkdown = languageId === 'markdown';
+
+		// State for tracking markdown fenced code blocks (single-pass)
+		let inFencedCodeBlock = false;
+		let fencedCodeBlockFenceChar: string | undefined;
+		let fencedCodeBlockFenceLength = 0;
+
 		const result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);
 			const len = line.length;
+
+			// For markdown files, detect and track fenced code blocks
+			if (isMarkdown) {
+				const trimmedLine = line.trimStart();
+				// Detect fenced code block lines (``` or ~~~, 3 or more chars)
+				const fenceMatch = /^(`{3,}|~{3,})/u.exec(trimmedLine);
+				if (fenceMatch) {
+					const fence = fenceMatch[0];
+					const fenceChar = fence[0];
+					const fenceLength = fence.length;
+					const restOfLine = trimmedLine.slice(fence.length);
+
+					if (!inFencedCodeBlock) {
+						// Opening fence: record fence char/length and enter fenced code block
+						inFencedCodeBlock = true;
+						fencedCodeBlockFenceChar = fenceChar;
+						fencedCodeBlockFenceLength = fenceLength;
+						continue; // Skip link detection on fence line
+					} else if (fencedCodeBlockFenceChar === fenceChar && fenceLength >= fencedCodeBlockFenceLength && /^\s*$/.test(restOfLine)) {
+						// Closing fence: must match fence char and have at least the same length
+						inFencedCodeBlock = false;
+						fencedCodeBlockFenceChar = undefined;
+						fencedCodeBlockFenceLength = 0;
+						continue; // Skip link detection on fence line
+					}
+				}
+
+				// Skip link detection for lines inside code blocks
+				if (inFencedCodeBlock) {
+					continue;
+				}
+			}
 
 			let j = 0;
 			let linkBeginIndex = 0;
