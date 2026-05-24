@@ -14,6 +14,8 @@ export interface IMobileMultiDiffVirtualizerMetrics {
 export interface IMobileMultiDiffVirtualItem {
 	readonly collapsed?: boolean;
 	readonly state: 'unloaded' | 'loading' | 'loaded' | 'empty' | 'error';
+	readonly estimatedHunkCount?: number;
+	readonly estimatedRowCount?: number;
 	readonly hunkCount?: number;
 	readonly rowCount?: number;
 }
@@ -45,19 +47,37 @@ export function computeMobileMultiDiffItemHeight(item: IMobileMultiDiffVirtualIt
 	}
 
 	if (item.state !== 'loaded') {
+		if (item.state === 'unloaded' || item.state === 'loading') {
+			const estimatedHeight = computeDiffBodyHeight(item.estimatedHunkCount, item.estimatedRowCount, metrics);
+			if (estimatedHeight !== undefined) {
+				return metrics.fileHeaderHeight + estimatedHeight;
+			}
+		}
 		return metrics.fileHeaderHeight + metrics.placeholderHeight;
 	}
 
-	const hunkCount = Math.max(0, item.hunkCount ?? 0);
-	const rowCount = Math.max(0, item.rowCount ?? 0);
-	if (hunkCount === 0 && rowCount === 0) {
+	const bodyHeight = computeDiffBodyHeight(item.hunkCount, item.rowCount, metrics);
+	if (bodyHeight === undefined) {
 		return metrics.fileHeaderHeight + metrics.placeholderHeight;
 	}
 
-	return metrics.fileHeaderHeight
-		+ metrics.bodyVerticalPadding
-		+ hunkCount * metrics.hunkHeaderHeight
-		+ rowCount * metrics.rowHeight;
+	return metrics.fileHeaderHeight + bodyHeight;
+}
+
+function computeDiffBodyHeight(
+	hunkCount: number | undefined,
+	rowCount: number | undefined,
+	metrics: IMobileMultiDiffVirtualizerMetrics,
+): number | undefined {
+	const normalizedHunkCount = Math.max(0, hunkCount ?? 0);
+	const normalizedRowCount = Math.max(0, rowCount ?? 0);
+	if (normalizedHunkCount === 0 && normalizedRowCount === 0) {
+		return undefined;
+	}
+
+	return metrics.bodyVerticalPadding
+		+ normalizedHunkCount * metrics.hunkHeaderHeight
+		+ normalizedRowCount * metrics.rowHeight;
 }
 
 export function computeMobileMultiDiffVirtualLayout(
@@ -83,15 +103,14 @@ export function computeMobileMultiDiffVirtualLayout(
 			continue;
 		}
 
-		const renderHeight = Math.min(virtualHeight, viewportHeight);
-		const innerOffset = clamp(scrollTop - virtualTop, 0, Math.max(0, virtualHeight - renderHeight));
+		const innerOffset = clamp(scrollTop - virtualTop, 0, virtualHeight);
 
 		visibleItems.push({
 			index,
 			virtualTop,
 			virtualHeight,
-			renderTop: virtualTop + innerOffset,
-			renderHeight,
+			renderTop: virtualTop,
+			renderHeight: virtualHeight,
 			innerOffset,
 		});
 	}

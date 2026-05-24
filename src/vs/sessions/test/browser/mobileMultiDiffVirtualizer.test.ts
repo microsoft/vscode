@@ -40,6 +40,10 @@ suite('MobileMultiDiffVirtualizer', () => {
 			32 + 44,
 		);
 		assert.strictEqual(
+			computeMobileMultiDiffItemHeight({ state: 'unloaded', estimatedHunkCount: 1, estimatedRowCount: 10 }, metrics),
+			32 + 8 + 18 + 10 * 20,
+		);
+		assert.strictEqual(
 			computeMobileMultiDiffItemHeight({ state: 'empty' }, metrics),
 			32 + 44,
 		);
@@ -145,7 +149,7 @@ suite('MobileMultiDiffVirtualizer', () => {
 		assert.deepStrictEqual(negativeOverscan.items.map(item => item.index), [1]);
 	});
 
-	test('caps a large mounted item to the viewport and computes its inner offset', () => {
+	test('keeps a large mounted item anchored while computing its inner offset', () => {
 		const items = [
 			{ state: 'loaded' as const, hunkCount: 1, rowCount: 10 }, // 258px
 			{ state: 'loaded' as const, hunkCount: 0, rowCount: 2 }, // 80px
@@ -160,9 +164,9 @@ suite('MobileMultiDiffVirtualizer', () => {
 		assert.strictEqual(insideLargeFile.totalHeight, 338);
 		assert.deepStrictEqual(insideLargeFile.items.map(item => item.index), [0]);
 		assert.strictEqual(insideLargeFile.items[0].virtualHeight, 258);
-		assert.strictEqual(insideLargeFile.items[0].renderHeight, 100);
+		assert.strictEqual(insideLargeFile.items[0].renderHeight, 258);
 		assert.strictEqual(insideLargeFile.items[0].innerOffset, 50);
-		assert.strictEqual(insideLargeFile.items[0].renderTop, 50);
+		assert.strictEqual(insideLargeFile.items[0].renderTop, 0);
 
 		const leavingLargeFile = computeMobileMultiDiffVirtualLayout(items, {
 			viewportHeight: 100,
@@ -171,8 +175,9 @@ suite('MobileMultiDiffVirtualizer', () => {
 		});
 
 		assert.deepStrictEqual(leavingLargeFile.items.map(item => item.index), [0, 1]);
-		assert.strictEqual(leavingLargeFile.items[0].innerOffset, 158);
-		assert.strictEqual(leavingLargeFile.items[0].renderTop, 158);
+		assert.strictEqual(leavingLargeFile.items[0].innerOffset, 220);
+		assert.strictEqual(leavingLargeFile.items[0].renderTop, 0);
+		assert.strictEqual(leavingLargeFile.items[0].renderHeight, 258);
 		assert.strictEqual(leavingLargeFile.items[1].innerOffset, 0);
 		assert.strictEqual(leavingLargeFile.items[1].renderTop, 258);
 	});

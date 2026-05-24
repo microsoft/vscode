@@ -2,14 +2,14 @@
 
 This document is the seed design note for the mobile file diff editor and mobile multi-file diff editor in Agent Sessions. Keep it intentionally small for now; it can grow toward a fuller user-guide shape as the implementation settles.
 
-> Quick summary: mobile diff review uses phone-native full-screen overlays instead of desktop panes. The single-file view renders one unified diff. The multi-file view renders changed files in a continuous review surface and should move toward file-level virtualization.
+> Quick summary: mobile diff review uses phone-native full-screen overlays instead of desktop panes. The single-file view renders one unified diff. The multi-file view renders changed files in a continuous review surface with file-level virtualization.
 
 ## Contents
 
 - [Why](#why)
 - [Current Design](#current-design)
 - [How It Works](#how-it-works)
-- [Next Step: Virtualization](#next-step-virtualization)
+- [Next Step: Body Virtualization](#next-step-body-virtualization)
 
 ## Why
 
@@ -25,7 +25,7 @@ Phone review needs the same capability as desktop review, but not the same prese
 There are two mobile diff surfaces:
 
 - `MobileDiffView`: a single-file unified diff overlay with optional sibling navigation.
-- `MobileMultiDiffView`: a multi-file unified diff overlay with sticky per-file headers, collapsible file bodies, and lazy loading for visible or near-visible files.
+- `MobileMultiDiffView`: a virtualized multi-file unified diff overlay with per-file headers, collapsible file bodies, and lazy loading for visible or near-visible files.
 
 Both views use a lightweight diff payload:
 
@@ -44,28 +44,27 @@ This supports added, deleted, modified, and no-op files without importing deskto
 ## How It Works
 
 - File content is read from `ITextFileService`, with `IFileService` as a fallback in the multi-file view.
-- The multi-file view renders file shells first, then reads, diffs, tokenizes, and mounts file bodies when they enter the viewport overscan range.
+- The multi-file view keeps persistent per-file state, reserves virtual height from known diff stats, and only mounts file sections that intersect the viewport overscan range.
+- File content is read, diffed, tokenized, and mounted incrementally as virtualized items become visible.
+- Virtualization owns mounted range and deterministic height accounting; native CSS owns sticky file-header behavior.
+- Keep file sections anchored at their virtual top so headers can use `position: sticky`; do not emulate sticky headers by moving sections on every scroll frame.
 - Line changes are computed with `linesDiffComputers.getDefault()`.
 - The result is shaped into unified diff hunks with a small amount of surrounding context.
 - Syntax highlighting first tries Monaco tokenization through `tokenizeToString`.
 - When no tokenizer is available, a small regex tokenizer provides readable fallback colors.
 - Async rendering is guarded by generation counters so stale reads cannot update disposed or navigated-away views.
 
-## Next Step: Virtualization
+## Next Step: Body Virtualization
 
-`MobileMultiDiffView` now avoids eager file-body work, but it should still move toward the desktop multi-diff virtualization model adapted to the mobile DOM renderer.
+`MobileMultiDiffView` now has file-level virtualization, but large loaded file bodies can still contain many line DOM nodes.
 
-The important behavior to preserve is that a large file contributes its full content height to the outer virtual scroll range, but the mounted file view itself is capped to the viewport height. As the outer scroll moves through that file's range, the file body receives an internal scroll offset. Once that internal offset reaches the end, continued outer scrolling naturally advances to the next file.
+The important behavior to preserve is that a large file contributes its full content height to the outer virtual scroll range. File sections stay anchored in that range, and the browser handles sticky file headers. Avoid JS-driven header pinning; it can drift during fast compositor scrolling.
 
-The virtualized version should:
+The next layer should:
 
-- Keep persistent item state per file: collapsed state, load state, computed content height, cached render data, vertical inner scroll offset, and horizontal scroll offset.
-- Maintain one virtual scroll height for the full file list.
-- Mount only viewport-intersecting file sections plus a small overscan buffer.
-- Cap each mounted expanded file section to the viewport height while preserving its full virtual height in the outer scroll model.
-- Translate the outer scroll position within a file into the file body's inner scroll offset.
-- Keep lazy-loading and tokenizing files when they become visible or near-visible.
-- Preserve scroll stability by deriving heights from known header, hunk, and row counts rather than repeated DOM measurement.
-- Replace native sticky file headers with manually transformed headers, because recycled absolute-positioned sections make CSS sticky unreliable.
+- Reuse cached diff/tokenization data instead of re-rendering detached file bodies.
+- Render only the line/hunk range visible inside a large loaded file body.
+- Preserve horizontal scroll state per file.
+- Keep height accounting deterministic so outer scroll position remains stable as bodies load.
 
-The next virtualization win should be full desktop-style capped item virtualization once deterministic height accounting and inner-offset rendering are in place.
+The next virtualization win should be line-level body virtualization for very large individual files.

@@ -57,9 +57,13 @@ suite('MobileMultiDiffView', () => {
 
 		const view = store.add(new MobileMultiDiffView(container, { diffs }, textFileService, fileService, languageService));
 		await animationFrame();
+		await animationFrame();
 
 		const initialReadCount = readUris.length;
 		assert.strictEqual(initialReadCount, 2, 'opening the view should load one visible file pair');
+		const initialMountedSections = container.querySelectorAll('.mobile-multi-diff-file-section').length;
+		assert.ok(initialMountedSections > 0, 'opening the view should mount visible file sections');
+		assert.ok(initialMountedSections < fileCount, 'opening the view should not mount every file section');
 
 		const scrollWrapper = container.querySelector('.mobile-overlay-scroll') as HTMLElement | null;
 		assert.ok(scrollWrapper, 'scroll wrapper should exist');
@@ -67,9 +71,20 @@ suite('MobileMultiDiffView', () => {
 		scrollWrapper.scrollTop = scrollWrapper.scrollHeight;
 		scrollWrapper.dispatchEvent(new Event('scroll'));
 		await animationFrame();
+		await animationFrame();
 
 		assert.ok(readUris.length > initialReadCount, 'scrolling should load more files');
 		assert.ok(readUris.length <= initialReadCount + 2, 'scrolling should load at most one additional file pair per frame');
+		const mountedSectionsAfterScroll = container.querySelectorAll('.mobile-multi-diff-file-section').length;
+		assert.ok(mountedSectionsAfterScroll > 0, 'scrolling should mount file sections for the new viewport');
+		assert.ok(mountedSectionsAfterScroll < fileCount, 'scrolling should still not mount every file section');
+
+		scrollWrapper.scrollTop = 0;
+		scrollWrapper.dispatchEvent(new Event('scroll'));
+		await animationFrame();
+		await animationFrame();
+
+		assert.strictEqual(new Set(readUris).size, readUris.length, 'remounting loaded files should not reread resources');
 
 		view.dispose();
 	});

@@ -17,6 +17,12 @@
 	max-width: 100%;
 }
 
+.mobile-multi-diff-virtual-content {
+	position: relative;
+	min-width: 0;
+	width: 100%;
+}
+
 /* -- Top bar (fixed, shows Back + file count) -------------------------------- */
 
 .mobile-multi-diff-topbar {
@@ -41,6 +47,9 @@
 /* -- File sections ----------------------------------------------------------- */
 
 .mobile-multi-diff-file-section {
+	position: absolute;
+	left: 0;
+	right: 0;
 	min-width: 0; /* Allow flex child to shrink below content width */
 }
 
@@ -48,16 +57,18 @@
 	border-bottom: none;
 }
 
-/* -- Sticky file header ------------------------------------------------------ */
+/* -- File header ------------------------------------------------------------- */
 
 .mobile-multi-diff-file-header {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 6px 12px;
 	position: sticky;
 	top: 0;
-	z-index: 2;
+	height: 34px;
+	box-sizing: border-box;
+	padding: 6px 12px;
+	z-index: 3;
 	background: var(--vscode-multiDiffEditor-headerBackground);
 	border-top: 1px solid var(--vscode-multiDiffEditor-border, var(--vscode-sideBarSectionHeader-border, transparent));
 	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
@@ -135,11 +146,18 @@
 /* -- File content area ------------------------------------------------------- */
 
 .mobile-multi-diff-file-content {
+	position: absolute;
+	top: 34px;
+	left: 0;
+	right: 0;
 	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
 	font-size: 12px;
-	line-height: 1.5;
+	line-height: 18px;
 	overflow-x: auto;
+	overflow-y: visible;
 	-webkit-overflow-scrolling: touch;
+	will-change: transform;
+	z-index: 1;
 }
 
 /*
@@ -158,13 +176,17 @@
 }
 
 .mobile-multi-diff-file-content .mobile-diff-hunk-header {
+	line-height: 18px;
 	white-space: nowrap;
 }
 
-/* In the multi-diff view, hunk headers are sticky within each file section. */
 .mobile-multi-diff-file-section .mobile-diff-hunk-header {
-	position: sticky;
-	top: 0;
-	z-index: 1;
+	position: static;
 	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.mobile-multi-diff-file-content .mobile-diff-empty-state {
+	height: 76px;
+	padding: 0 32px;
+	box-sizing: border-box;
 }
