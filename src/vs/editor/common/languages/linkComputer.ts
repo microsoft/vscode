@@ -230,14 +230,13 @@ export class LinkComputer {
 
 			// For markdown files, detect and track fenced code blocks
 			if (isMarkdown) {
-				const trimmedLine = line.trimStart();
-				// Detect fenced code block lines (``` or ~~~, 3 or more chars)
-				const fenceMatch = /^(`{3,}|~{3,})/u.exec(trimmedLine);
+				// Detect fenced code block lines (``` or ~~~, 3 or more chars) with up to 3 leading spaces
+				const fenceMatch = /^( {0,3})(`{3,}|~{3,})/u.exec(line);
 				if (fenceMatch) {
-					const fence = fenceMatch[0];
+					const fence = fenceMatch[2];
 					const fenceChar = fence[0];
 					const fenceLength = fence.length;
-					const restOfLine = trimmedLine.slice(fence.length);
+					const restOfLine = line.slice(fenceMatch[0].length);
 
 					if (!inFencedCodeBlock) {
 						// Opening fence: record fence char/length and enter fenced code block
