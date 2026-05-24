@@ -110,6 +110,9 @@ async function updateSubmodule(): Promise<void> {
 	}
 
 	try {
+		console.log(`  root (import.meta.dirname) = ${root}`);
+		console.log(`  cwd = ${process.cwd()}`);
+
 		// Check if submodule is already initialized
 		const submodulePath = path.join(root, 'prebuilt-extensions');
 		const gitPath = path.join(submodulePath, '.git');
@@ -266,19 +269,28 @@ function getPlatformVsixFiles(submodulePath: string, options: ExtractOptions): s
  */
 async function extractExtensions(options: ExtractOptions = {}): Promise<void> {
 	const submodulePath = path.join(root, 'prebuilt-extensions');
+	const cwdSubmodulePath = path.join(process.cwd(), 'prebuilt-extensions');
 	const extensionsDir = path.join(root, '.build', 'extensions');
 
-	// Check if submodule exists
+	// Check if submodule exists — try both import.meta.dirname and process.cwd()
+	let resolvedSubmodulePath = submodulePath;
 	if (!fs.existsSync(submodulePath)) {
-		console.log('⚠ Submodule directory not found. Skipping extension extraction.');
-		return;
+		if (fs.existsSync(cwdSubmodulePath)) {
+			console.log(`Using process.cwd() for submodule path: ${cwdSubmodulePath}`);
+			resolvedSubmodulePath = cwdSubmodulePath;
+		} else {
+			console.log(`⚠ Submodule directory not found at either:`);
+			console.log(`  - ${submodulePath}`);
+			console.log(`  - ${cwdSubmodulePath}`);
+			return;
+		}
 	}
 
 	// Ensure extensions directory exists
 	fs.mkdirSync(extensionsDir, { recursive: true });
 
 	// Get VSIX files for the platform
-	const vsixFiles = getPlatformVsixFiles(submodulePath, options);
+	const vsixFiles = getPlatformVsixFiles(resolvedSubmodulePath, options);
 
 	if (vsixFiles.length === 0) {
 		console.log('No VSIX files found for the specified platform');
