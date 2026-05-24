@@ -159,7 +159,9 @@ export class ChangesViewModel extends Disposable {
 			}
 
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			const activeSessionChanges = activeSession?.changes.read(reader) ?? [];
+			const activeSessionChangesets = activeSession?.changesets.read(reader);
+			const activeSessionDefaultChangeset = activeSessionChangesets?.find(c => c.isDefault.read(reader));
+			const activeSessionChanges = activeSessionDefaultChangeset?.changes.read(reader) ?? activeSession?.changes.read(reader) ?? [];
 			const workspace = activeSession?.workspace.read(reader);
 
 			// Session state

@@ -264,6 +264,6 @@ export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummar
 	return [
 		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri) },
 		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() },
-		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
+		// { label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
 	];
 }
