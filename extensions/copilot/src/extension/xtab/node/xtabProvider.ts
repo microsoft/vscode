@@ -823,7 +823,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		fetchResultPromise
 			.then((response) => {
 				if (response.type !== ChatFetchResponseType.Success) {
-					fetchStreamSource.reject(new FetchStreamError(mapChatFetcherErrorToNoNextEditReason(response)));
+					if (response.type === ChatFetchResponseType.Unknown && response.reason === RESPONSE_CONTAINED_NO_CHOICES) {
+						// "No choices" is an expected outcome (model has no edits to suggest), not a fetch error.
+						// Resolve the stream so it doesn't surface as an unhandled rejection.
+						fetchStreamSource.resolve();
+					} else {
+						fetchStreamSource.reject(new FetchStreamError(mapChatFetcherErrorToNoNextEditReason(response)));
+					}
 				} else {
 					fetchStreamSource.resolve();
 				}
