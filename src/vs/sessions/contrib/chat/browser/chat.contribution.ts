@@ -8,6 +8,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -40,7 +41,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
-import { WorktreeCreatedTaskDispatcher } from './worktreeCreatedTaskDispatcher.js';
+import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 
 
@@ -161,3 +162,15 @@ registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessServ
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
+
+// register configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('chat.agentHost.runWorktreeCreatedTasks', "Whether to automatically run tasks tagged with `runOptions.runOn: worktreeCreated` when a new agent host session worktree is created. Manual `Run Task` invocations are unaffected."),
+		},
+	},
+});

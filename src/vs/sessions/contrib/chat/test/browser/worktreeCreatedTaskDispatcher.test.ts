@@ -9,13 +9,19 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry } from '../../browser/sessionsTasksService.js';
-import { WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
+import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
 
 interface ITestSession {
 	readonly session: ISession;
@@ -43,7 +49,7 @@ function makeWorkspace(hasWorktree: boolean): ISessionWorkspace {
 	};
 }
 
-function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; loading?: boolean; status?: SessionStatus; hasWorktree?: boolean } = {}): ITestSession {
+function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreatedTasks?: boolean; loading?: boolean; status?: SessionStatus; hasWorktree?: boolean } = {}): ITestSession {
 	const loading = observableValue('loading', opts.loading ?? false);
 	const status = observableValue('status', opts.status ?? SessionStatus.InProgress);
 	const workspace = observableValue<ISessionWorkspace | undefined>('workspace', makeWorkspace(opts.hasWorktree ?? true));
@@ -51,7 +57,7 @@ function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; lo
 	const session: ISession = {
 		sessionId: opts.id ?? 'test:session',
 		resource: chat.resource,
-		providerId: 'test',
+		providerId: opts.providerId ?? 'test',
 		sessionType: 'background',
 		icon: Codicon.copilot,
 		createdAt: new Date(),
@@ -115,16 +121,32 @@ class FakeSessionsManagementService implements Partial<ISessionsManagementServic
 	getSessions(): ISession[] { return this.sessions; }
 }
 
+class FakeSessionsProvidersService implements Partial<ISessionsProvidersService> {
+	declare readonly _serviceBrand: undefined;
+	getProvider<T extends ISessionsProvider>(id: string): T | undefined {
+		if (id === LOCAL_AGENT_HOST_PROVIDER_ID || id.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
+			return new class extends mock<IAgentHostSessionsProvider>() {
+				override id = id;
+			} as unknown as T;
+		}
+		return undefined;
+	}
+}
+
 suite('WorktreeCreatedTaskDispatcher', () => {
 
 	const store = new DisposableStore();
 	let tasks: FakeSessionsTasksService;
 	let mgmt: FakeSessionsManagementService;
+	let providers: FakeSessionsProvidersService;
+	let configurationService: TestConfigurationService;
 
 	function createDispatcher(): WorktreeCreatedTaskDispatcher {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsTasksService, tasks as unknown as ISessionsTasksService);
 		instantiationService.stub(ISessionsManagementService, mgmt as unknown as ISessionsManagementService);
+		instantiationService.stub(ISessionsProvidersService, providers as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		return store.add(instantiationService.createInstance(WorktreeCreatedTaskDispatcher));
 	}
@@ -132,6 +154,8 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	setup(() => {
 		tasks = new FakeSessionsTasksService();
 		mgmt = new FakeSessionsManagementService();
+		providers = new FakeSessionsProvidersService();
+		configurationService = new TestConfigurationService();
 	});
 
 	teardown(() => {
@@ -380,5 +404,37 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('skips agent host sessions when the agent host setting is disabled (default)', async () => {
+		createDispatcher();
+		const { session } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('runs agent host sessions when the agent host setting is enabled', async () => {
+		configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
+		createDispatcher();
+		const { session } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('does not gate non-agent-host sessions on the agent host setting', async () => {
+		// Setting is `false` by default; non-agent-host sessions should still run.
+		createDispatcher();
+		const { session } = makeSession({ id: 'a', providerId: 'non-agent-host' });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
 	});
 });
