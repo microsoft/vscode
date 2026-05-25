@@ -460,7 +460,13 @@ export class ChatStatusDashboard extends DomWidget {
 
 			// Status text (right-aligned via margin-left: auto)
 			const statusEl = header.appendChild($('span.collapsible-status'));
-			statusEl.append(...renderLabelWithIcons(item.description));
+			const statusDisposables = this._store.add(new MutableDisposable<DisposableStore>());
+			const renderStatus = (text: string): void => {
+				const newStore = new DisposableStore();
+				statusDisposables.value = newStore;
+				this.renderTextPlus(statusEl, text, newStore);
+			};
+			renderStatus(item.description);
 
 			// Show tooltip on hover of the status text
 			let currentTooltip = item.tooltip;
@@ -486,7 +492,7 @@ export class ChatStatusDashboard extends DomWidget {
 				if (e.entry.id === item.id) {
 					// Update status in header
 					statusEl.textContent = '';
-					statusEl.append(...renderLabelWithIcons(e.entry.description));
+					renderStatus(e.entry.description);
 					currentTooltip = e.entry.tooltip;
 
 					// Update mutable hover content references
