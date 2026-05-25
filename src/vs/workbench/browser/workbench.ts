@@ -301,7 +301,8 @@ export class Workbench extends Layout {
 			return;
 		}
 
-		const direction = configurationService.getValue<'ltr' | 'rtl'>('workbench.textDirection') ?? 'ltr';
+		const raw = configurationService.getValue<string>('workbench.textDirection');
+		const direction: 'ltr' | 'rtl' = raw === 'rtl' ? 'rtl' : 'ltr';
 		if (this.workbenchTextDirection === direction) {
 			return;
 		}

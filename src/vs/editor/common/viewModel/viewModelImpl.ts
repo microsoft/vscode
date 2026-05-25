@@ -47,7 +47,9 @@ import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
-const STRONG_LTR_REGEX = /[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02B8]/;
+// Matches any Unicode letter (category L). Used to identify strong-LTR characters
+// after ruling out strong-RTL ones via strings.containsRTL().
+const STRONG_LTR_REGEX = /\p{L}/u;
 
 export class ViewModel extends Disposable implements IViewModel {
 
@@ -855,30 +857,19 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getAutoTextDirection(lineContent: string): TextDirection {
-		if (!strings.containsRTL(lineContent)) {
-			return TextDirection.LTR;
-		}
-
-		const rtlIndex = this._getFirstRTLIndex(lineContent);
-		const ltrIndex = lineContent.search(STRONG_LTR_REGEX);
-		if (ltrIndex === -1) {
-			return TextDirection.RTL;
-		}
-		if (rtlIndex === -1) {
-			return TextDirection.LTR;
-		}
-
-		return rtlIndex < ltrIndex ? TextDirection.RTL : TextDirection.LTR;
-	}
-
-	private _getFirstRTLIndex(lineContent: string): number {
-		for (let i = 0; i < lineContent.length; i++) {
-			if (strings.containsRTL(lineContent[i])) {
-				return i;
+		// First-strong-character algorithm: scan left-to-right and return the
+		// direction of the first character that has a strong bidi category.
+		// RTL is checked first (strings.containsRTL covers Unicode R and AL);
+		// if not RTL but still a letter (\p{L}), it is strong LTR.
+		for (const char of lineContent) {
+			if (strings.containsRTL(char)) {
+				return TextDirection.RTL;
+			}
+			if (STRONG_LTR_REGEX.test(char)) {
+				return TextDirection.LTR;
 			}
 		}
-
-		return -1;
+		return TextDirection.LTR;
 	}
 
 	private _getConfiguredTextDirection(lineContent: string): TextDirection {

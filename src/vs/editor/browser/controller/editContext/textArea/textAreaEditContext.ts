@@ -134,6 +134,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private _visibleTextArea: VisibleTextAreaData | null;
 	private _selections: Selection[];
 	private _modelSelections: Selection[];
+	private _cachedTextDirectionLine: number = -1;
+	private _cachedTextDirection: TextDirection = TextDirection.LTR;
 
 	/**
 	 * The position at which the textarea was rendered.
@@ -585,7 +587,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this._updateTextDirection();
+		this._updateTextDirection(true); // force recompute: textDirection setting may have changed
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
 			this._ensureReadOnlyAttribute();
@@ -695,10 +697,13 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._render();
 	}
 
-	private _updateTextDirection(): void {
+	private _updateTextDirection(forceRecompute: boolean = false): void {
 		const lineNumber = this._selections[0]?.positionLineNumber ?? 1;
-		const textDirection = this._context.viewModel.getTextDirection(lineNumber);
-		const dir = textDirection === TextDirection.RTL ? 'rtl' : 'ltr';
+		if (forceRecompute || lineNumber !== this._cachedTextDirectionLine) {
+			this._cachedTextDirectionLine = lineNumber;
+			this._cachedTextDirection = this._context.viewModel.getTextDirection(lineNumber);
+		}
+		const dir = this._cachedTextDirection === TextDirection.RTL ? 'rtl' : 'ltr';
 		if (this.textArea.domNode.dir !== dir) {
 			this.textArea.setAttribute('dir', dir);
 			this.textAreaCover.setAttribute('dir', dir);
