@@ -408,9 +408,10 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 
 	test('skips agent host sessions when the agent host setting is disabled (default)', async () => {
 		createDispatcher();
-		const { session } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
 		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
@@ -419,9 +420,10 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	test('runs agent host sessions when the agent host setting is enabled', async () => {
 		configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
 		createDispatcher();
-		const { session } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
 		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
@@ -430,9 +432,10 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	test('does not gate non-agent-host sessions on the agent host setting', async () => {
 		// Setting is `false` by default; non-agent-host sessions should still run.
 		createDispatcher();
-		const { session } = makeSession({ id: 'a', providerId: 'non-agent-host' });
+		const { session, workspace } = makeSession({ id: 'a', providerId: 'non-agent-host', hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
 		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
