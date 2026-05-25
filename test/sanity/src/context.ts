@@ -36,8 +36,8 @@ export class TestContext {
 	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
-	// MXC SDK Windows executables are signed, but they do not carry a ProductName VersionInfo resource.
-	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/][^\\/]+\.exe$/i;
+	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
+	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();

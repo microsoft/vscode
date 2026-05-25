@@ -97,8 +97,8 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	private _fetchAndCacheModels(): void {
-		if (!this._authenticationService.anyGitHubSession) {
-			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no GitHub session');
+		if (!this._authenticationService.hasCopilotTokenSource) {
+			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no Copilot token source');
 			return;
 		}
 		const availableModels = this._availableModels = this._getAvailableModels();
@@ -138,7 +138,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	public async getModels(): Promise<CopilotCLIModelInfo[]> {
-		if (!this._authenticationService.anyGitHubSession) {
+		if (!this._authenticationService.hasCopilotTokenSource) {
 			return [];
 		}
 
@@ -179,7 +179,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
 				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				if (!this._authenticationService.anyGitHubSession || !this._resolvedModelInfos) {
+				if (!this._authenticationService.hasCopilotTokenSource || !this._resolvedModelInfos) {
 					return autoModelEnabled ? [buildAutoModel()] : [];
 				}
 				return this._resolvedModelInfos;
