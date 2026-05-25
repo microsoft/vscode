@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { AHP_AUTH_REQUIRED, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
@@ -78,7 +78,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session not found: ${sessionUri}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
 		const workingDirectoryStr = sessionState.summary.workingDirectory;
