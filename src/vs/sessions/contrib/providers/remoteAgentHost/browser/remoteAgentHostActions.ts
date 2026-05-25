@@ -373,14 +373,10 @@ async function connectToConfiguredSSHHost(
 	const port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
 	const suggestedName = hostAlias;
 
-	let defaultKeyPath: string | undefined;
-	if (resolvedConfig.identityFile.length > 0) {
-		const firstKey = resolvedConfig.identityFile[0];
-		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
-		if (!defaultKeys.includes(firstKey)) {
-			defaultKeyPath = firstKey;
-		}
-	}
+	// Pass through the first resolved IdentityFile (if any) as the explicit
+	// key. The main process is responsible for de-duplicating against its
+	// default-key scan, so we don't need to filter here.
+	const defaultKeyPath = resolvedConfig.identityFile[0];
 
 	if (username) {
 		const config: ISSHAgentHostConfig = {

@@ -1136,11 +1136,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	/**
 	 * Build the ordered list of authentication attempts to feed to ssh2's
-	 * `authHandler`. Mirrors OpenSSH's behavior: try the explicitly configured
-	 * key first (if any), then the SSH agent (if `SSH_AUTH_SOCK` is set), then
-	 * each readable default identity file in turn. This means a host that
-	 * accepts `~/.ssh/id_rsa` still works even if the agent doesn't have it
-	 * loaded — without needing an explicit `IdentityFile` entry in `~/.ssh/config`.
+	 * `authHandler`. In `Agent` mode we try the configured agent first (so a
+	 * loaded identity short-circuits before we ever touch an encrypted key
+	 * file), then any non-default explicit `IdentityFile`, then each readable
+	 * default identity in turn. A host that accepts `~/.ssh/id_rsa` still
+	 * works even if the agent doesn't have it loaded — without needing an
+	 * explicit `IdentityFile` entry in `~/.ssh/config`.
 	 */
 	protected async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
 		const attempts: SSHAuthAttempt[] = [];
@@ -1148,20 +1149,24 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		switch (config.authMethod) {
 			case SSHAuthMethod.Agent: {
-				if (config.privateKeyPath) {
-					const explicit = await this._readKeyFileIfExists(config.privateKeyPath);
-					if (explicit) {
-						attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
-					}
-				}
+				// Try the agent first: if it has any of the configured identities
+				// loaded, auth succeeds without ever touching on-disk keys. This
+				// matches OpenSSH's IdentityAgent semantics and avoids an
+				// unnecessary passphrase prompt when an encrypted key file is
+				// configured but the agent already holds its unlocked copy.
 				const agentSock = this._getAgentSocket(config);
 				if (agentSock) {
 					attempts.push({ type: 'agent', username, agent: agentSock });
 				}
-				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
-					if (config.privateKeyPath === keyPath) {
-						continue; // Already added as the explicit attempt above
+				const explicitKeyPath = config.privateKeyPath;
+				const explicitIsDefault = explicitKeyPath !== undefined && SSHRemoteAgentHostMainService._isDefaultKeyPath(explicitKeyPath);
+				if (explicitKeyPath && !explicitIsDefault) {
+					const explicit = await this._readKeyFileIfExists(explicitKeyPath);
+					if (explicit) {
+						attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
 					}
+				}
+				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
 					const contents = await this._readKeyFileIfExists(keyPath);
 					if (contents) {
 						attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
@@ -1207,8 +1212,18 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		'~/.ssh/id_xmss',
 	];
 
+	/**
+	 * Expand a leading `~` to the current user's home directory so that paths
+	 * coming back from `ssh -G` (always absolute) compare equal to our
+	 * `~`-prefixed defaults.
+	 */
+	private static _normalizeKeyPath(keyPath: string): string {
+		return keyPath.replace(/^~/, os.homedir());
+	}
+
 	private static _isDefaultKeyPath(keyPath: string): boolean {
-		return SSHRemoteAgentHostMainService._defaultKeyPaths.includes(keyPath);
+		const normalized = SSHRemoteAgentHostMainService._normalizeKeyPath(keyPath);
+		return SSHRemoteAgentHostMainService._defaultKeyPaths.some(p => SSHRemoteAgentHostMainService._normalizeKeyPath(p) === normalized);
 	}
 
 	/** Test seam: returns the SSH agent socket path, or undefined when no agent is available. */
