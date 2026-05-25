@@ -9,17 +9,14 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
 
@@ -121,31 +118,17 @@ class FakeSessionsManagementService implements Partial<ISessionsManagementServic
 	getSessions(): ISession[] { return this.sessions; }
 }
 
-class FakeSessionsProvidersService implements Partial<ISessionsProvidersService> {
-	declare readonly _serviceBrand: undefined;
-	getProvider<T extends ISessionsProvider>(id: string): T | undefined {
-		if (id === LOCAL_AGENT_HOST_PROVIDER_ID || id.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
-			return new class extends mock<IAgentHostSessionsProvider>() {
-				override id = id;
-			} as unknown as T;
-		}
-		return undefined;
-	}
-}
-
 suite('WorktreeCreatedTaskDispatcher', () => {
 
 	const store = new DisposableStore();
 	let tasks: FakeSessionsTasksService;
 	let mgmt: FakeSessionsManagementService;
-	let providers: FakeSessionsProvidersService;
 	let configurationService: TestConfigurationService;
 
 	function createDispatcher(): WorktreeCreatedTaskDispatcher {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsTasksService, tasks as unknown as ISessionsTasksService);
 		instantiationService.stub(ISessionsManagementService, mgmt as unknown as ISessionsManagementService);
-		instantiationService.stub(ISessionsProvidersService, providers as unknown as ISessionsProvidersService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		return store.add(instantiationService.createInstance(WorktreeCreatedTaskDispatcher));
@@ -154,7 +137,6 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	setup(() => {
 		tasks = new FakeSessionsTasksService();
 		mgmt = new FakeSessionsManagementService();
-		providers = new FakeSessionsProvidersService();
 		configurationService = new TestConfigurationService();
 	});
 
@@ -418,7 +400,7 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	});
 
 	test('runs agent host sessions when the agent host setting is enabled', async () => {
-		configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
+		await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
