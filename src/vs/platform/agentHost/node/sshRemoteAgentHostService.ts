@@ -93,7 +93,7 @@ const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
  * attempt is returned to ssh2.
  */
 export type SSHAuthAttempt =
-	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string }
+	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
 	| { readonly type: 'password'; readonly username: string; readonly password: string }
 	| { readonly type: 'keyboard-interactive'; readonly username: string };
@@ -119,6 +119,11 @@ export type SSHKeyboardInteractivePromptHandler = (
 	finish: (responses: readonly string[]) => void,
 ) => void;
 
+export type SSHKeyPassphrasePromptHandler = (
+	keyPath: string,
+	finish: (passphrase: string | undefined) => void,
+) => void;
+
 /**
  * Translate a {@link SSHAuthAttempt} into the payload shape ssh2 expects in
  * its `authHandler` callback. Returns `undefined` when the attempt cannot be
@@ -131,11 +136,26 @@ export type SSHKeyboardInteractivePromptHandler = (
 function toAuthMethod(
 	attempt: SSHAuthAttempt,
 	kbiHandler: SSHKeyboardInteractivePromptHandler | undefined,
+	keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined,
+	callback: (next: AnyAuthMethod | false) => void,
 ): AnyAuthMethod | undefined {
 	switch (attempt.type) {
 		case 'publickey': {
 			// Strip our internal `keyPath` metadata before handing to ssh2.
-			const { keyPath: _kp, ...payload } = attempt;
+			const { keyPath: _kp, encrypted: _encrypted, ...payload } = attempt;
+			if (attempt.encrypted) {
+				if (!keyPassphraseHandler) {
+					return undefined;
+				}
+				keyPassphraseHandler(attempt.keyPath, passphrase => {
+					if (passphrase === undefined) {
+						callback(false);
+						return;
+					}
+					callback({ ...payload, passphrase });
+				});
+				return undefined;
+			}
 			return payload;
 		}
 		case 'agent':
@@ -184,6 +204,7 @@ export function makeAuthHandler(
 	attempts: readonly SSHAuthAttempt[],
 	logService: ILogService,
 	kbiHandler?: SSHKeyboardInteractivePromptHandler,
+	keyPassphraseHandler?: SSHKeyPassphrasePromptHandler,
 ): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
 	let index = 0;
 	return (methodsLeft, _partialSuccess, callback) => {
@@ -193,8 +214,12 @@ export function makeAuthHandler(
 				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
 				continue;
 			}
-			const method = toAuthMethod(attempt, kbiHandler);
+			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, callback);
 			if (!method) {
+				if (attempt.type === 'publickey' && attempt.encrypted && keyPassphraseHandler) {
+					logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
+					return;
+				}
 				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
@@ -205,6 +230,37 @@ export function makeAuthHandler(
 		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
 		callback(false);
 	};
+}
+
+function readSSHString(buffer: Buffer, offset: number): { value: string; offset: number } | undefined {
+	if (offset + 4 > buffer.length) {
+		return undefined;
+	}
+	const length = buffer.readUInt32BE(offset);
+	const valueOffset = offset + 4;
+	const nextOffset = valueOffset + length;
+	if (nextOffset > buffer.length) {
+		return undefined;
+	}
+	return { value: buffer.toString('utf8', valueOffset, nextOffset), offset: nextOffset };
+}
+
+function isEncryptedPrivateKey(key: Buffer): boolean {
+	const text = key.toString('utf8');
+	if (/-----BEGIN ENCRYPTED PRIVATE KEY-----/.test(text) || /Proc-Type:\s*4,ENCRYPTED/i.test(text)) {
+		return true;
+	}
+	const openSSHKey = /-----BEGIN OPENSSH PRIVATE KEY-----([\s\S]+?)-----END OPENSSH PRIVATE KEY-----/.exec(text);
+	if (!openSSHKey) {
+		return false;
+	}
+	const data = Buffer.from(openSSHKey[1].replace(/\s+/g, ''), 'base64');
+	const magic = Buffer.from('openssh-key-v1\0', 'utf8');
+	if (data.length < magic.length || !data.subarray(0, magic.length).equals(magic)) {
+		return false;
+	}
+	const cipher = readSSHString(data, magic.length);
+	return !!cipher && cipher.value !== 'none';
 }
 
 function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -809,6 +865,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			username: resolved.user ?? sshConfigHost,
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath,
+			identityAgent: resolved.identityAgent,
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
@@ -978,10 +1035,25 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				liveKbiRequests.add(requestId);
 			}
 			: undefined;
+		const keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined = attempts.some(a => a.type === 'publickey' && a.encrypted)
+			? (keyPath, finish) => {
+				const requestId = this._handleKeyboardInteractive(
+					connectionKey ?? displayHost,
+					displayHost,
+					config.username,
+					localize('sshKeyPassphraseName', "SSH Key Passphrase"),
+					'',
+					[{ prompt: localize('sshKeyPassphrasePrompt', "Enter passphrase for SSH key {0}.", keyPath), echo: false }],
+					responses => finish(responses[0]),
+					() => cancelConnectFromKbi?.(),
+				);
+				liveKbiRequests.add(requestId);
+			}
+			: undefined;
 		// Cast: the ssh2 @types don't model `false` (give-up) for the
 		// callback nor `null` for the first invocation's `methodsLeft`,
 		// even though the runtime supports both per the ssh2 docs.
-		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler) as unknown as ConnectConfig['authHandler'];
+		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler, keyPassphraseHandler) as unknown as ConnectConfig['authHandler'];
 
 		const cancelLiveKbiRequests = () => {
 			for (const requestId of liveKbiRequests) {
@@ -999,7 +1071,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		};
 
 		if (config.agentForward) {
-			const agentSock = this._isAgentAvailable();
+			const agentSock = this._getAgentSocket(config);
 			if (agentSock) {
 				// ssh2 needs `connectConfig.agent` set so it knows which local
 				// agent socket to forward to. Without it, agent forwarding is a
@@ -1008,7 +1080,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				connectConfig.agentForward = true;
 				this._logService.info(`${LOG_PREFIX} SSH agent forwarding enabled`);
 			} else {
-				this._logService.warn(`${LOG_PREFIX} SSH agent forwarding requested, but SSH_AUTH_SOCK is not set; agent forwarding disabled`);
+				this._logService.warn(`${LOG_PREFIX} SSH agent forwarding requested, but no SSH agent endpoint is available; agent forwarding disabled`);
 			}
 		}
 
@@ -1079,10 +1151,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				if (config.privateKeyPath) {
 					const explicit = await this._readKeyFileIfExists(config.privateKeyPath);
 					if (explicit) {
-						attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath });
+						attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
 					}
 				}
-				const agentSock = this._isAgentAvailable();
+				const agentSock = this._getAgentSocket(config);
 				if (agentSock) {
 					attempts.push({ type: 'agent', username, agent: agentSock });
 				}
@@ -1092,7 +1164,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					}
 					const contents = await this._readKeyFileIfExists(keyPath);
 					if (contents) {
-						attempts.push({ type: 'publickey', username, key: contents, keyPath });
+						attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
 					}
 				}
 				// Final fallback: keyboard-interactive (typically a password prompt).
@@ -1113,7 +1185,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				if (!explicit) {
 					throw new Error(localize('ssh.failedToReadPrivateKey', "Failed to read private key file: {0}", config.privateKeyPath));
 				}
-				attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath });
+				attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
 				break;
 			}
 			case SSHAuthMethod.Password: {
@@ -1142,6 +1214,28 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	/** Test seam: returns the SSH agent socket path, or undefined when no agent is available. */
 	protected _isAgentAvailable(): string | undefined {
 		return process.env['SSH_AUTH_SOCK'];
+	}
+
+	protected _getAgentSocket(config: ISSHAgentHostConfig): string | undefined {
+		if (config.identityAgent !== undefined) {
+			return this._resolveIdentityAgent(config.identityAgent);
+		}
+		return this._isAgentAvailable();
+	}
+
+	private _resolveIdentityAgent(identityAgent: string): string | undefined {
+		const trimmed = identityAgent.trim();
+		if (!trimmed || trimmed.toLowerCase() === 'none') {
+			return undefined;
+		}
+		if (trimmed === 'SSH_AUTH_SOCK') {
+			return this._isAgentAvailable();
+		}
+		if (trimmed.startsWith('$')) {
+			const envMatch = /^\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)\}$|^\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);
+			return envMatch?.groups ? process.env[envMatch.groups.braced ?? envMatch.groups.plain] || undefined : undefined;
+		}
+		return trimmed.replace(/^~/, os.homedir());
 	}
 
 	/**

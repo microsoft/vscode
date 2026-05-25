@@ -389,6 +389,7 @@ async function connectToConfiguredSSHHost(
 			username,
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath: defaultKeyPath,
+			identityAgent: resolvedConfig.identityAgent,
 			agentForward: resolvedConfig.forwardAgent || undefined,
 			name: suggestedName,
 			sshConfigHost: hostAlias,
@@ -404,7 +405,7 @@ async function connectToConfiguredSSHHost(
 
 	// Fallback: alias resolved without a user — fall through to manual flow
 	await instantiationService.invokeFunction(accessor =>
-		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath)
+		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath, resolvedConfig.identityAgent)
 	);
 }
 
@@ -415,6 +416,7 @@ async function promptForCredentialsAndConnect(
 	port: number | undefined,
 	suggestedName?: string,
 	defaultKeyPath?: string,
+	identityAgent?: string,
 ): Promise<void> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const instantiationService = accessor.get(IInstantiationService);
@@ -510,6 +512,7 @@ async function promptForCredentialsAndConnect(
 		username,
 		authMethod,
 		privateKeyPath,
+		identityAgent,
 		password,
 		name: name.trim(),
 	};
