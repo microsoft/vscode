@@ -125,7 +125,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		this.clearResourcesState();
 
 		// With type: only in-memory is supported
-		if (type) {
+		if (type && type !== 'clipboard') {
 			this.mapTextToType.set(type, text);
 			this.logService.trace('BrowserClipboardService#writeText');
 			return;
@@ -178,7 +178,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	async readText(type?: string): Promise<string> {
 		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		// With type: only in-memory is supported
-		if (type) {
+		if (type && type !== 'clipboard') {
 			const readText = this.mapTextToType.get(type) || '';
 			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
 			return readText;
