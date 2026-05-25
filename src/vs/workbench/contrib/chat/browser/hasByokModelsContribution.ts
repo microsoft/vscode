@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -20,29 +21,18 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
  * Owns the `github.copilot.hasByokModels` context key. The key is true iff:
  *  - `github.copilot.clientByokEnabled` is true (set by `ChatEntitlementService` + Copilot extension),
  *  - `chat.offlineByok` is enabled and `chat.aiDisabled` is off, and
- *  - the `LanguageModelsService` has at least one resolved, user-selectable non-Copilot model
- *    (signalled by the `chatNonCopilotModelsAreUserSelectable` context key).
+ *  - the language-models configuration has at least one non-Copilot vendor group (post extension scan),
+ *    or — pre-scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
  *
- * Verifying the last condition is expensive: it requires activating each BYOK-contributing
- * extension and round-tripping into its provider. To avoid paying that cost just to gate UI,
- * this contribution never triggers such activations itself. The strategy is:
+ * Strategy (avoids activating BYOK extensions just to gate UI):
+ *  1. Restore the last persisted answer so UI surfaces are correct on warm reload.
+ *  2. Before extensions register, treat the signal as optimistic — flip true when it does.
+ *  3. After extensions register, configured non-Copilot vendor groups are the source of truth.
+ *     The signal is ignored here because the model cache can lag behind group removal (e.g. the
+ *     Copilot extension's BYOK secret storage still has the API key, so re-resolving returns
+ *     stale models), which would otherwise keep the sign-in UI hidden after removal.
  *
- *  1. On startup, optimistically restore the last persisted answer from
- *     `chat.hasByokModels.lastKnown` so UI surfaces gated by this key are correct on warm
- *     reload before anything else runs.
- *  2. Whenever the `chatNonCopilotModelsAreUserSelectable` signal flips on — which happens
- *     naturally when something else resolves a BYOK vendor (notably `ChatInputPart`, which
- *     activates the previously selected model's vendor when restoring its persisted selection) —
- *     record `true` and persist it.
- *  3. Once extensions are fully scanned, if there are no configured non-Copilot vendors in the
- *     language-models configuration, override a stale optimistic `true` with `false`. Same on
- *     runtime removal of all groups, and when the feature flag flips off.
- *
- * The trade-off is the first-time experience: a brand-new user must pick a BYOK model once
- * before this contribution observes the signal and persists the answer. From then on, the
- * answer survives reloads without any activation cost — users without BYOK pay nothing.
- *
- * Eager so the key is bound at workbench startup before any sign-in UI surfaces render.
+ * Eager so the key is bound before any sign-in UI renders.
  */
 export class HasByokModelsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -63,6 +53,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IProductService private readonly _productService: IProductService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
@@ -89,8 +80,10 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 	}
 
 	private _isFeatureEnabled(): boolean {
+		const offlineByokRaw = this._configurationService.getValue<boolean | undefined>(ChatConfiguration.OfflineByok);
+		const offlineByok = offlineByokRaw ?? (this._productService.quality !== 'stable');
 		return !this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)
-			&& !!this._configurationService.getValue<boolean>(ChatConfiguration.OfflineByok)
+			&& !!offlineByok
 			&& !!this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key);
 	}
 
@@ -113,18 +106,17 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {
-			this._setResult(true);
-			return;
-		}
-
 		if (!this._extensionsRegistered) {
+			// Optimistic flip on the signal; otherwise leave the restored value alone.
+			if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {
+				this._setResult(true);
+			}
 			return;
 		}
 
+		// Post-registration: configured non-Copilot vendor groups are authoritative; the signal
+		// can be stale (model cache may lag behind group removal).
 		const hasByokVendor = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
-		if (!hasByokVendor) {
-			this._setResult(false);
-		}
+		this._setResult(hasByokVendor);
 	}
 }
