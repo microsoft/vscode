@@ -416,6 +416,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (connection.sshConfigHost) {
 			this._sshReconnectStates.deleteAndDispose(connection.sshConfigHost);
 		}
+		// Remove the entry from configured storage BEFORE tearing down the
+		// SSH tunnel. Two reasons:
+		//   1) `_sshService.disconnect` fires `onDidCloseConnection` →
+		//      `notifyConnectionClosed` → `onDidChangeConnections` → our
+		//      `_reconcile` → `_reconnectSSHEntries`, all synchronously
+		//      during the `await` below. If the entry is still in storage at
+		//      that point, the auto-reconnect path immediately reconnects
+		//      the host we just told it to disconnect.
+		//   2) Without removing the entry, it stays in storage and is
+		//      auto-reconnected on the next window reload.
+		// `removeRemoteAgentHost` also runs the entry's transportDisposable
+		// (which itself calls `_mainService.disconnect(connectionId)`), so it
+		// already tears down the underlying SSH tunnel — the explicit
+		// `_sshService.disconnect(connectionKey)` below is belt-and-suspenders
+		// to keep the prior behavior of clearing the connection by its
+		// connection key as well.
+		await this._remoteAgentHostService.removeRemoteAgentHost(connection.address);
 		await this._sshService.disconnect(connectionKey);
 	}
 
