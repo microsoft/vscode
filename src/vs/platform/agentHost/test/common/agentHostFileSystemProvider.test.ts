@@ -125,7 +125,7 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.from({
 			scheme: 'git-blob',
 			path: '/src/app.ts',
-			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' }),
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
 			fragment: 'L1',
 		});
 
@@ -208,7 +208,7 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 		const originalUri = URI.from({
 			scheme: 'git-blob',
 			path: '/src/app.ts',
-			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' }),
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
 		});
 		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
 

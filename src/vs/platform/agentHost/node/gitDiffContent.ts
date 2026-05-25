@@ -11,7 +11,6 @@ const GIT_BLOB_SCHEME = 'git-blob';
 interface IGitBlobUriQuery {
 	readonly sessionUri: string;
 	readonly sha: string;
-	readonly repoRelativePath: string;
 }
 
 /**
@@ -28,7 +27,7 @@ export function buildGitBlobUri(sessionUri: string, sha: string, repoRelativePat
 	return URI.from({
 		scheme: GIT_BLOB_SCHEME,
 		path: `/${repoRelativePath}`,
-		query: JSON.stringify({ sessionUri, sha, repoRelativePath } satisfies IGitBlobUriQuery),
+		query: JSON.stringify({ sessionUri, sha } satisfies IGitBlobUriQuery),
 	}).toString();
 }
 
@@ -56,15 +55,12 @@ export function parseGitBlobUri(raw: string): IGitBlobUriFields | undefined {
 	try {
 		if (parsed.query) {
 			const query = JSON.parse(parsed.query) as Partial<IGitBlobUriQuery>;
-			if (typeof query.sessionUri === 'string' && typeof query.sha === 'string' && typeof query.repoRelativePath === 'string') {
-				const pathRepoRelativePath = parsed.path.startsWith('/') ? parsed.path.substring(1) : parsed.path;
-				if (pathRepoRelativePath !== query.repoRelativePath) {
-					return undefined;
-				}
+			const repoRelativePath = parsed.path.startsWith('/') ? parsed.path.substring(1) : parsed.path;
+			if (typeof query.sessionUri === 'string' && typeof query.sha === 'string' && repoRelativePath) {
 				return {
 					sessionUri: query.sessionUri,
 					sha: query.sha,
-					repoRelativePath: query.repoRelativePath,
+					repoRelativePath,
 				};
 			}
 		}

@@ -39,13 +39,13 @@ suite('gitDiffContent', () => {
 		assert.deepStrictEqual(parseGitBlobUri(legacy), { sessionUri, sha, repoRelativePath: path });
 	});
 
-	test('returns undefined when the display path and query path diverge', () => {
+	test('uses the URI path as the query-form repo path', () => {
 		const uri = URI.from({
 			scheme: 'git-blob',
-			path: '/src/display.ts',
-			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/query.ts' }),
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
 		});
-		assert.strictEqual(parseGitBlobUri(uri.toString()), undefined);
+		assert.deepStrictEqual(parseGitBlobUri(uri.toString()), { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' });
 	});
 
 	test('returns undefined for non git-blob URIs', () => {
