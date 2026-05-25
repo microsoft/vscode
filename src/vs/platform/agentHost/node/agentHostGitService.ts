@@ -10,6 +10,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
 
@@ -179,6 +180,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async isInsideWorkTree(workingDirectory: URI): Promise<boolean> {
@@ -552,8 +554,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
 			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
-				clearTimeout(timer);
 				if (error) {
+					// stderr is summarized in the thrown error message to keep
+					// it readable; log the full unmodified output here so the
+					// raw progress/diagnostic text is still available.
+					if (stderr) {
+						this._logService.warn(`[agentHostGitService] git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+					}
 					if (options?.throwOnError) {
 						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
 						return;
@@ -567,6 +574,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				didTimeOut = true;
 				child.kill();
 			}, timeoutMs);
+			child.on('exit', () => clearTimeout(timer));
 		});
 	}
 }
@@ -593,8 +601,29 @@ export function formatGitError(args: readonly string[], timeoutMs: number, didTi
 	} else {
 		reason = error.message;
 	}
-	const detail = stderr.trim();
+	const detail = summarizeStderrForError(stderr);
 	return detail ? `${reason}: ${detail}` : reason;
+}
+
+/**
+ * Squashes multi-line / carriage-return-heavy stderr (e.g. git progress
+ * meters that emit `Updating files:   0% (149/14834)\r...` repeatedly)
+ * into a single short line suitable for a one-liner error message.
+ * Keeps the most recent non-empty line and caps total length.
+ *
+ * Exported for tests.
+ */
+export function summarizeStderrForError(stderr: string): string {
+	if (!stderr) {
+		return '';
+	}
+	const lines = stderr.split(/[\r\n]+/g).map(line => line.trim()).filter(line => line.length > 0);
+	if (lines.length === 0) {
+		return '';
+	}
+	const last = lines[lines.length - 1];
+	const MAX = 200;
+	return last.length > MAX ? `${last.slice(0, MAX - 1)}…` : last;
 }
 
 /**
