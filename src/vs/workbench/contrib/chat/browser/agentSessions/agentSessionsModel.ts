@@ -672,6 +672,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					timing: session.timing,
 					changes: normalizedChanges,
 					metadata: session.metadata,
+					legacyResource: session.legacyResource,
 				}));
 			}
 		}
@@ -716,8 +717,37 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
+	/**
+	 * Resolve the state entry for a session, honoring a one-way migration from
+	 * {@link IAgentSessionData.legacyResource} when no entry yet exists for the
+	 * session's current resource. Adopts the legacy entry forward (copies it onto
+	 * the current resource key and removes the legacy entry). Returns undefined if
+	 * neither a current nor a legacy entry exists.
+	 */
+	private resolveStateEntry(session: IInternalAgentSessionData): IAgentSessionState | undefined {
+		const own = this.sessionStates.get(session.resource);
+		if (own !== undefined) {
+			return own;
+		}
+		const legacy = session.legacyResource;
+		if (!legacy) {
+			return undefined;
+		}
+		// Cross-scheme and self-referential mappings are rejected defensively.
+		if (legacy.scheme !== session.resource.scheme || legacy.toString() === session.resource.toString()) {
+			return undefined;
+		}
+		const prev = this.sessionStates.get(legacy);
+		if (prev === undefined) {
+			return undefined;
+		}
+		this.sessionStates.set(session.resource, { ...prev });
+		this.sessionStates.delete(legacy);
+		return this.sessionStates.get(session.resource);
+	}
+
 	private isArchived(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.archived ?? Boolean(session.archived);
+		return this.resolveStateEntry(session)?.archived ?? Boolean(session.archived);
 	}
 
 	private setArchived(session: IInternalAgentSessionData, archived: boolean): void {
@@ -729,7 +759,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? {};
+		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, archived });
 
 		const agentSession = this._sessions.get(session.resource);
@@ -741,7 +771,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isPinned(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.pinned ?? false;
+		return this.resolveStateEntry(session)?.pinned ?? false;
 	}
 
 	private setPinned(session: IInternalAgentSessionData, pinned: boolean): void {
@@ -749,14 +779,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? {};
+		const state = this.resolveStateEntry(session) ?? {};
 		this.sessionStates.set(session.resource, { ...state, pinned });
 
 		this._onDidChangeSessions.fire();
 	}
 
 	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
-		return this.sessionStates.get(session.resource)?.read === AgentSessionsModel.UNREAD_MARKER;
+		return this.resolveStateEntry(session)?.read === AgentSessionsModel.UNREAD_MARKER;
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
@@ -764,7 +794,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const storedReadDate = this.sessionStates.get(session.resource)?.read;
+		const storedReadDate = this.resolveStateEntry(session)?.read;
 		if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
 			return false;
 		}
@@ -788,7 +818,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
-		const state = this.sessionStates.get(session.resource) ?? {};
+		// Adopt any legacy state forward first so we don't establish an own entry
+		// under the current resource and orphan the legacy one.
+		const state = this.resolveStateEntry(session) ?? {};
 
 		let newRead: number;
 		if (read) {
@@ -857,6 +889,8 @@ interface ISerializedAgentSession {
 
 	readonly metadata: { [key: string]: unknown } | undefined;
 
+	readonly legacyResource?: string;
+
 	readonly timing: {
 		readonly created: number;
 		readonly lastRequestStarted?: number;
@@ -904,7 +938,8 @@ class AgentSessionsCache {
 			timing: session.timing,
 
 			changes: session.changes,
-			metadata: session.metadata
+			metadata: session.metadata,
+			legacyResource: session.legacyResource?.toString()
 		} satisfies ISerializedAgentSession));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, safeStringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -946,6 +981,7 @@ class AgentSessionsCache {
 					deletions: change.deletions,
 				})) : session.changes,
 				metadata: session.metadata,
+				legacyResource: session.legacyResource ? URI.parse(session.legacyResource) : undefined,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list
