@@ -229,8 +229,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 
 	/**
 	 * Restores the parent session when `resource` is a changeset URI and the
-	 * parent session is not already live. Returns `true` for known changeset
-	 * resources and `false` for non-changeset URIs.
+	 * parent session is not already live. Non-changeset URIs are ignored.
 	 *
 	 * This is intentionally narrower than {@link tryHandleSubscribe}: it does
 	 * not compute per-turn / compare changesets and does not register static
@@ -238,11 +237,11 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * `addSubscriber` may have already created a placeholder changeset snapshot
 	 * before the parent session restore had a chance to apply persisted diffs.
 	 */
-	async restoreSessionIfChangesetSubscription(resource: URI, restoreSession: (session: URI) => Promise<void>): Promise<boolean> {
+	async restoreSessionIfChangesetSubscription(resource: URI, restoreSession: (session: URI) => Promise<void>): Promise<void> {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
 		if (!parsed) {
-			return false;
+			return;
 		}
 		if (parsed.kind === ChangesetKind.Unknown) {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
@@ -250,7 +249,6 @@ export class ChangesetSessionCoordinator extends Disposable {
 		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
 			await restoreSession(URI.parse(parsed.sessionUri));
 		}
-		return true;
 	}
 
 	/**
