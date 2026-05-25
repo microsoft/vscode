@@ -19,7 +19,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -874,6 +874,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
+				commitAll: async () => { },
+				hasUpstream: async () => false,
+				pushBranch: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -922,6 +925,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
+				commitAll: async () => { },
+				hasUpstream: async () => false,
+				pushBranch: async () => { },
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -1190,6 +1196,18 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual(result, { authenticated: false });
 			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
+		});
+
+		test('stores GitHub repo token without a matching provider', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, token: 'repo-token' });
+
+			assert.deepStrictEqual({ result, token: service.getAuthToken(GITHUB_REPO_PROTECTED_RESOURCE.resource), authenticateCalls: copilotAgent.authenticateCalls }, {
+				result: { authenticated: true },
+				token: 'repo-token',
+				authenticateCalls: [],
+			});
 		});
 
 		test('fans out to every provider that owns the resource', async () => {
