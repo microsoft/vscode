@@ -48,7 +48,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		]);
 	}
 
-	private getExtendsLinks(document: vscode.TextDocument, root: jsonc.Node) {
+	private getExtendsLinks(document: vscode.TextDocument, root: jsonc.Node): (vscode.DocumentLink | undefined)[] {
 		const node = jsonc.findNodeAtLocation(root, ['extends']);
 
 		if (!node) {
@@ -62,7 +62,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		return [this.tryCreateTsConfigLink(document, node, TsConfigLinkType.Extends)];
 	}
 
-	private getReferencesLinks(document: vscode.TextDocument, root: jsonc.Node) {
+	private getReferencesLinks(document: vscode.TextDocument, root: jsonc.Node): (vscode.DocumentLink | undefined)[] {
 		return mapChildren(
 			jsonc.findNodeAtLocation(root, ['references']),
 			child => {
@@ -89,7 +89,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		return link;
 	}
 
-	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node) {
+	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node): (vscode.DocumentLink | undefined)[] {
 		return mapChildren(
 			jsonc.findNodeAtLocation(root, ['files']),
 			child => this.pathNodeToLink(document, child));
