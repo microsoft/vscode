@@ -964,7 +964,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		// Register and trigger an initial refresh to populate the provider's items
 		const initialRefreshCts = disposables.add(new CancellationTokenSource());
-		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token) });
+		const initialRefresh = controller.refresh(initialRefreshCts.token).catch(err => {
+			if (!isCancellationError(err)) {
+				this._logService.error(`[ChatSessionsService] Initial refresh failed for provider ${chatSessionType}`, err);
+			}
+		});
+		this._itemControllers.set(chatSessionType, { controller, initialRefresh });
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
