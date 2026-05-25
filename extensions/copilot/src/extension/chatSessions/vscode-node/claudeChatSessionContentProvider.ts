@@ -111,7 +111,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	createHandler(): ChatExtendedRequestHandler {
 		return async (request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> => {
 			const { chatSessionContext } = context;
-			if (!chatSessionContext || request.sessionResource.scheme !== ClaudeSessionUri.scheme) {
+			if (!chatSessionContext || chatSessionContext.chatSessionItem.resource.scheme !== ClaudeSessionUri.scheme) {
 				return this.handleDelegationFromAnotherChat(request, context, stream, token);
 			}
 

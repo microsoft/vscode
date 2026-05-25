@@ -24,6 +24,7 @@ import { ClaudeLanguageModelServer } from '../claudeLanguageModelServer';
 import { parseClaudeModelId } from '../claudeModelId';
 import type { ParsedClaudeModelId } from '../../common/claudeModelId';
 import { IClaudeSessionStateService } from '../../common/claudeSessionStateService';
+import { IChatDelegationSummaryService } from '../../../copilotcli/common/delegationSummaryService';
 import { MockClaudeCodeSdkService } from './mockClaudeCodeSdkService';
 
 function createMockLangModelServer(): ClaudeLanguageModelServer {
@@ -35,6 +36,23 @@ function createMockLangModelServer(): ClaudeLanguageModelServer {
 
 function createMockChatRequest(prompt = ''): vscode.ChatRequest {
 	return { prompt, references: [], tools: new Map(), id: 'test-request-id', toolInvocationToken: {} } as unknown as vscode.ChatRequest;
+}
+
+function createMockChatDelegationSummaryService(): IChatDelegationSummaryService {
+	return {
+		_serviceBrand: undefined,
+		scheme: 'test-summary',
+		summarize: vi.fn().mockResolvedValue(undefined),
+		trackSummaryUsage: vi.fn().mockResolvedValue(undefined),
+		extractPrompt: vi.fn().mockReturnValue(undefined),
+		provideTextDocumentContent: vi.fn().mockReturnValue(undefined),
+	};
+}
+
+function createClaudeCodeAgentTestingServices(store: DisposableStore) {
+	const services = store.add(createExtensionUnitTestingServices());
+	services.define(IChatDelegationSummaryService, createMockChatDelegationSummaryService());
+	return services;
 }
 
 const TEST_MODEL_ID = parseClaudeModelId('claude-3-sonnet');
@@ -67,7 +85,7 @@ describe('ClaudeAgentManager', () => {
 	let sessionStateService: IClaudeSessionStateService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 
@@ -213,7 +231,7 @@ describe('ClaudeCodeSession', () => {
 	let sessionStateService: IClaudeSessionStateService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		sessionStateService = accessor.get(IClaudeSessionStateService);
@@ -559,7 +577,7 @@ describe('ClaudeAgentManager - error handling', () => {
 	let instantiationService: IInstantiationService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 	});
@@ -589,7 +607,7 @@ describe('ClaudeCodeSession - yield flow', () => {
 	let mockService: MockClaudeCodeSdkService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		sessionStateService = accessor.get(IClaudeSessionStateService);
@@ -667,7 +685,7 @@ describe('ClaudeCodeSession - settings change restart', () => {
 	let mockFs: MockFileSystemService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		sessionStateService = accessor.get(IClaudeSessionStateService);
@@ -745,7 +763,7 @@ describe('ClaudeCodeSession - tools restart', () => {
 	let mockService: MockClaudeCodeSdkService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		sessionStateService = accessor.get(IClaudeSessionStateService);
@@ -834,7 +852,7 @@ describe('ClaudeCodeSession - edge cases', () => {
 	let sessionStateService: IClaudeSessionStateService;
 
 	beforeEach(() => {
-		const services = store.add(createExtensionUnitTestingServices());
+		const services = createClaudeCodeAgentTestingServices(store);
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		sessionStateService = accessor.get(IClaudeSessionStateService);
