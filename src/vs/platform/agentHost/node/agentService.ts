@@ -789,6 +789,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			const parsedChangeset = parseChangesetUri(resourceStr);
+			if (snapshot && parsedChangeset && !this._stateManager.getSessionState(parsedChangeset.sessionUri)) {
+				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, s => this.restoreSession(s));
+				snapshot = this._stateManager.getSnapshot(resourceStr);
+			}
 			if (!snapshot) {
 				// Changeset URIs are routed through the coordinator (which
 				// owns its URI shape, the unknown-id early throw, and turn

@@ -228,6 +228,32 @@ export class ChangesetSessionCoordinator extends Disposable {
 	}
 
 	/**
+	 * Restores the parent session when `resource` is a changeset URI and the
+	 * parent session is not already live. Returns `true` for known changeset
+	 * resources and `false` for non-changeset URIs.
+	 *
+	 * This is intentionally narrower than {@link tryHandleSubscribe}: it does
+	 * not compute per-turn / compare changesets and does not register static
+	 * changesets. It exists for the AgentService subscribe path where
+	 * `addSubscriber` may have already created a placeholder changeset snapshot
+	 * before the parent session restore had a chance to apply persisted diffs.
+	 */
+	async restoreSessionIfChangesetSubscription(resource: URI, restoreSession: (session: URI) => Promise<void>): Promise<boolean> {
+		const resourceStr = resource.toString();
+		const parsed = parseChangesetUri(resourceStr);
+		if (!parsed) {
+			return false;
+		}
+		if (parsed.kind === ChangesetKind.Unknown) {
+			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
+		}
+		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
+			await restoreSession(URI.parse(parsed.sessionUri));
+		}
+		return true;
+	}
+
+	/**
 	 * If `resource` is a known changeset URI (uncommitted / session /
 	 * turn), seeds its state on the state manager and returns `true`.
 	 * Returns `false` for non-changeset URIs so callers fall through to
@@ -251,9 +277,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		if (parsed.kind === ChangesetKind.Unknown) {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
 		}
-		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
-			await restoreSession(URI.parse(parsed.sessionUri));
-		}
+		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
