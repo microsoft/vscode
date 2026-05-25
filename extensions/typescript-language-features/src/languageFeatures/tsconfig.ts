@@ -42,15 +42,24 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		}
 
 		return coalesce([
-			this.getExtendsLink(document, root),
+			...this.getExtendsLinks(document, root),
 			...this.getFilesLinks(document, root),
 			...this.getReferencesLinks(document, root)
 		]);
 	}
 
-	private getExtendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
+	private getExtendsLinks(document: vscode.TextDocument, root: jsonc.Node) {
 		const node = jsonc.findNodeAtLocation(root, ['extends']);
-		return node && this.tryCreateTsConfigLink(document, node, TsConfigLinkType.Extends);
+
+		if (!node) {
+			return [];
+		}
+
+		if (node.type === 'array') {
+			return mapChildren(node, child => this.tryCreateTsConfigLink(document, child, TsConfigLinkType.Extends));
+		}
+
+		return [this.tryCreateTsConfigLink(document, node, TsConfigLinkType.Extends)];
 	}
 
 	private getReferencesLinks(document: vscode.TextDocument, root: jsonc.Node) {
