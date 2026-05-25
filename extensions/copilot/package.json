@@ -1951,7 +1951,7 @@
                   },
                   "supportedEndpoints": {
                     "type": "array",
-                    "markdownDescription": "Endpoint shapes supported by this model. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
+                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
                     "items": {
                       "type": "string",
                       "enum": [
@@ -2141,7 +2141,7 @@
                   },
                   "supportedEndpoints": {
                     "type": "array",
-                    "markdownDescription": "Endpoint shapes supported by this model. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
+                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
                     "items": {
                       "type": "string",
                       "enum": [
@@ -2193,29 +2193,21 @@
               "title": "API Key"
             },
             "entraAuthProvider": {
-              "oneOf": [
-                {
-                  "type": "string",
-                  "enum": [
-                    "microsoft",
-                    "microsoft-sovereign-cloud"
-                  ]
-                }
+              "type": "string",
+              "enum": [
+                "microsoft",
+                "microsoft-sovereign-cloud"
               ],
               "default": "microsoft",
               "markdownDescription": "Microsoft authentication provider to use for Entra ID authentication. Use `microsoft-sovereign-cloud` when authenticating with VS Code's configured Microsoft Sovereign Cloud provider. This controls the auth provider/authority, not the requested token scope.",
               "title": "Entra Auth Provider"
             },
             "entraScopes": {
-              "oneOf": [
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "minItems": 1
-                }
-              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
               "default": [
                 "https://cognitiveservices.azure.com/.default"
               ],
@@ -2304,7 +2296,7 @@
                   },
                   "supportedEndpoints": {
                     "type": "array",
-                    "markdownDescription": "Endpoint shapes supported by this model. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
+                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
                     "items": {
                       "type": "string",
                       "enum": [
