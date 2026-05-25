@@ -55,6 +55,7 @@ extends:
     testSteps:
       - checkout: self
         lfs: true
+        retryCountOnTaskFailure: 3
       - template: copilot/setup-steps.yml
       - template: copilot/test-steps.yml
 
@@ -70,5 +71,6 @@ extends:
     generateNotice: true
 
     publishExtension: ${{ parameters.publishExtension }}
-    ghReleasePublishVSIX: true
+    ghCreateTag: ${{ parameters.publishExtension }}
     ghTagPrefix: 'copilot/'
+    ghCreateRelease: false

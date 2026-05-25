@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, Chunk, Document, PromptElement, PromptPiece, PromptPieceChild, PromptSizing, Raw, SystemMessage, TokenLimit, UserMessage } from '@vscode/prompt-tsx';
-import type { ChatRequestEditedFileEvent, LanguageModelToolInformation, NotebookEditor, TaskDefinition, TextEditor } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatRequestEditedFileEvent, LanguageModelToolInformation, NotebookEditor, TaskDefinition, TextEditor } from 'vscode';
 import { sessionResourceToId } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -20,14 +20,14 @@ import { IPromptPathRepresentationService } from '../../../../platform/prompts/c
 import { ITabsAndEditorsService } from '../../../../platform/tabs/common/tabsAndEditorsService';
 import { ITasksService } from '../../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../../platform/workspace/common/workingDirectory';
 import { isDefined, isString } from '../../../../util/vs/base/common/types';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestEditedFileEventKind, Position, Range } from '../../../../vscodeTypes';
 import { GenericBasePromptElementProps } from '../../../context/node/resolvers/genericPanelIntentInvocation';
 import { ChatVariablesCollection, extractDebugTargetSessionIds, isCustomizationsIndex } from '../../../prompt/common/chatVariablesCollection';
-import { getGlobalContextCacheKey, GlobalContextMessageMetadata, RenderedUserMessageMetadata, Turn } from '../../../prompt/common/conversation';
+import { CustomizationsIndexMetadata, getGlobalContextCacheKey, GlobalContextMessageMetadata, RenderedUserMessageMetadata, Turn } from '../../../prompt/common/conversation';
 import { InternalToolReference } from '../../../prompt/common/intents';
 import { IPromptVariablesService } from '../../../prompt/node/promptVariablesService';
 import { ToolName } from '../../../tools/common/toolNames';
@@ -44,11 +44,12 @@ import { NotebookSummaryChange } from '../panel/notebookSummaryChangePrompt';
 import { UserPreferences } from '../panel/preferences';
 import { ChatToolCalls } from '../panel/toolCalling';
 import { AgentMultirootWorkspaceStructure } from '../panel/workspace/workspaceStructure';
-import { AgentConversationHistory } from './agentConversationHistory';
+import { AgentConversationHistory, AgentUserMessageInHistory } from './agentConversationHistory';
 import './allAgentPrompts';
 import { AlternateGPTPrompt, DefaultReminderInstructions, DefaultToolReferencesHint, ReminderInstructionsProps, ToolReferencesHintProps } from './defaultAgentInstructions';
 import { AgentPromptCustomizations, ReminderInstructionsConstructor, ToolReferencesHintConstructor } from './promptRegistry';
 import { SummarizedConversationHistory } from './summarizedConversationHistory';
+import { DeferredToolListReminder } from './toolSearchInstructions';
 
 export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
@@ -57,7 +58,15 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly triggerSummarize?: boolean;
 
 	/**
-	 * Enables cache breakpoints and summarization
+	 * Routes history rendering through SummarizedConversationHistory (which can
+	 * compact when the budget is exceeded). Independent from cache breakpoints
+	 * — Anthropic Messages API endpoints suppress cache breakpoints but still
+	 * need summarization for long conversations.
+	 */
+	readonly enableSummarization?: boolean;
+
+	/**
+	 * Emits prompt-tsx <cacheBreakpoint> markers in the rendered prompt.
 	 */
 	readonly enableCacheBreakpoints?: boolean;
 
@@ -122,9 +131,10 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const sessionId = sessionResource ? sessionResourceToId(sessionResource) : undefined;
 		const debugTargetSessionIds = extractDebugTargetSessionIds([...this.props.promptContext.chatVariables].map(v => v.reference));
 		const templateVariablesContext = this.promptVariablesService.buildTemplateVariablesContext(sessionId, debugTargetSessionIds);
+		const customizationsSnapshot = this.getOrFreezeCustomizationsIndex();
 		const baseInstructions = <>
 			{!omitBaseAgentInstructions && baseAgentInstructions}
-			{await this.getAgentCustomInstructions()}
+			{await this.getAgentCustomInstructions(customizationsSnapshot?.frozen)}
 			{isAutopilot && <SystemMessage priority={80}>
 				When you have fully completed the task, call the task_complete tool to signal that you are done.<br />
 				IMPORTANT: Before calling task_complete, you MUST provide a brief text summary of what was accomplished in your message. The task is not complete until both the summary and the task_complete call are present.
@@ -140,7 +150,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const ReminderInstructionsClass = customizations.ReminderInstructionsClass;
 		const ToolReferencesHintClass = customizations.ToolReferencesHintClass;
 
-		if (this.props.enableCacheBreakpoints) {
+		if (this.props.enableSummarization) {
 			return <>
 				{baseInstructions}
 				<SummarizedConversationHistory
@@ -157,13 +167,14 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 					userQueryTagName={userQueryTagName}
 					ReminderInstructionsClass={ReminderInstructionsClass}
 					ToolReferencesHintClass={ToolReferencesHintClass}
+					customizationsIndexUpdate={customizationsSnapshot?.drift}
 				/>
 			</>;
 		} else {
 			return <>
 				{baseInstructions}
-				<AgentConversationHistory flexGrow={1} priority={700} promptContext={this.props.promptContext} />
-				<AgentUserMessage flexGrow={2} priority={900} {...getUserMessagePropsFromAgentProps(this.props, { userQueryTagName, ReminderInstructionsClass, ToolReferencesHintClass })} />
+				<AgentConversationHistory flexGrow={1} priority={700} promptContext={this.props.promptContext} userQueryTagName={userQueryTagName} />
+				<AgentUserMessage flexGrow={2} priority={900} {...getUserMessagePropsFromAgentProps(this.props, { userQueryTagName, ReminderInstructionsClass, ToolReferencesHintClass })} customizationsIndexUpdate={customizationsSnapshot?.drift} />
 				<ChatToolCalls priority={899} flexGrow={2} promptContext={this.props.promptContext} toolCallRounds={this.props.promptContext.toolCallRounds} toolCallResults={this.props.promptContext.toolCallResults} truncateAt={maxToolResultLength} enableCacheBreakpoints={false} />
 			</>;
 		}
@@ -188,13 +199,15 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		/>;
 	}
 
-	private async getAgentCustomInstructions() {
+	private async getAgentCustomInstructions(frozenCustomizationsIndex?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined }) {
 		const putCustomInstructionsInSystemMessage = this.configurationService.getConfig(ConfigKey.CustomInstructionsInSystemMessage);
 		const customInstructionsBodyParts: PromptPiece[] = [];
 		customInstructionsBodyParts.push(
 			<CustomInstructions
 				languageId={undefined}
 				chatVariables={this.props.promptContext.chatVariables}
+				customizationsIndexOverride={frozenCustomizationsIndex?.value}
+				customizationsIndexToolReferencesOverride={frozenCustomizationsIndex?.toolReferences}
 				includeSystemMessageConflictWarning={!putCustomInstructionsInSystemMessage}
 				customIntroduction={putCustomInstructionsInSystemMessage ? '' : undefined} // If in system message, skip the "follow these user-provided coding instructions" intro
 			/>
@@ -216,14 +229,75 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 			<UserMessage>{customInstructionsBodyParts}</UserMessage>;
 	}
 
+	/**
+	 * Snapshot the customizations-index variable on the first turn of the
+	 * conversation and reuse it for every subsequent turn. Stops per-turn
+	 * churn in the bundled `<instructions>`/`<skills>`/`<agents>` text (e.g.
+	 * the active mode swapping which subagent entry is listed in `<agents>`)
+	 * from invalidating the system prompt cache.
+	 *
+	 * Returns:
+	 * - `frozen`: the value (and matching tool-reference offsets) to substitute
+	 *   in the system prompt. Always present once a variable is available.
+	 * - `drift`: the live current-turn value (and offsets) when it differs from
+	 *   `frozen`. Rendered in the latest user message so the model sees the
+	 *   up-to-date listing without busting the system prompt cache. Only
+	 *   surfaced when the variable was present this turn; an absent variable
+	 *   (e.g. on a request path without `instructionContext` such as terminal
+	 *   steering, or when collection ran but produced no listings) leaves the
+	 *   frozen system-prompt listing standing rather than emitting an empty
+	 *   update that would falsely signal removal.
+	 *
+	 * Returns `undefined` overall if no override should apply (no first turn
+	 * available, or no snapshot yet and the variable is absent on this turn).
+	 */
+	private getOrFreezeCustomizationsIndex(): {
+		frozen: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
+		drift?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
+	} | undefined {
+		const firstTurn = this.props.promptContext.conversation?.turns.at(0);
+		if (!firstTurn) {
+			return undefined;
+		}
+		const variable = this.props.promptContext.chatVariables.find(isCustomizationsIndex);
+		const currentValue = variable && typeof variable.value === 'string' ? variable.value : undefined;
+		const currentToolReferences = variable?.reference.toolReferences;
+
+		const currentCacheKey = this.instantiationService.invokeFunction(getGlobalContextCacheKey);
+		const existing = firstTurn.getMetadata(CustomizationsIndexMetadata);
+		if (existing && existing.cacheKey === currentCacheKey) {
+			const frozen = { value: existing.value, toolReferences: existing.toolReferences };
+			// Only surface drift when the variable was present this turn AND
+			// differs from the snapshot. An absent variable can mean either
+			// "collection didn't run" (e.g. terminal steering requests omit
+			// `instructionContext`) or "collection ran but produced no listings".
+			// In either case we keep the frozen system-prompt listing standing
+			// rather than emit an empty `<customizationsUpdate>` block, which
+			// would falsely tell the model that all customizations were removed
+			// (its rendered text says it "supersedes" the system prompt) and
+			// would needlessly churn the cache tail.
+			if (currentValue !== undefined && currentValue !== existing.value) {
+				return { frozen, drift: { value: currentValue, toolReferences: currentToolReferences } };
+			}
+			return { frozen };
+		}
+		if (currentValue === undefined) {
+			return undefined;
+		}
+		firstTurn.setMetadata(new CustomizationsIndexMetadata(currentValue, currentToolReferences, currentCacheKey));
+		return { frozen: { value: currentValue, toolReferences: currentToolReferences } };
+	}
+
 	private async getOrCreateGlobalAgentContext(endpoint: IChatEndpoint): Promise<PromptPieceChild[]> {
 		const globalContext = await this.getOrCreateGlobalAgentContextContent(endpoint);
 		const isNewChat = this.props.promptContext.history?.length === 0;
 		// TODO:@bhavyau find a better way to extract session resource
 		const sessionResource = (this.props.promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
+		const workingDirectory = (this.props.promptContext.tools?.toolInvocationToken as any)?.workingDirectory as URI | undefined;
+		const workingDir = this.instantiationService.createInstance(WorkingDirectory, workingDirectory);
 		const result = globalContext ?
 			renderedMessageToTsxChildren(globalContext, !!this.props.enableCacheBreakpoints) :
-			<GlobalAgentContext enableCacheBreakpoints={!!this.props.enableCacheBreakpoints} availableTools={this.props.promptContext.tools?.availableTools} isNewChat={isNewChat} sessionResource={sessionResource} />;
+			<GlobalAgentContext enableCacheBreakpoints={!!this.props.enableCacheBreakpoints} availableTools={this.props.promptContext.tools?.availableTools} isNewChat={isNewChat} sessionResource={sessionResource} workingDir={workingDir} />;
 
 		return result;
 	}
@@ -243,7 +317,9 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const isNewChat = this.props.promptContext.history?.length === 0;
 		// TODO:@bhavyau find a better way to extract session resource
 		const sessionResource = (this.props.promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
-		const rendered = await renderPromptElement(this.instantiationService, endpoint, GlobalAgentContext, { enableCacheBreakpoints: this.props.enableCacheBreakpoints, availableTools: this.props.promptContext.tools?.availableTools, isNewChat, sessionResource }, undefined, undefined);
+		const workingDirectory = (this.props.promptContext.tools?.toolInvocationToken as any)?.workingDirectory as URI | undefined;
+		const workingDir = this.instantiationService.createInstance(WorkingDirectory, workingDirectory);
+		const rendered = await renderPromptElement(this.instantiationService, endpoint, GlobalAgentContext, { enableCacheBreakpoints: this.props.enableCacheBreakpoints, availableTools: this.props.promptContext.tools?.availableTools, isNewChat, sessionResource, workingDir }, undefined, undefined);
 		const msg = rendered.messages.at(0)?.content;
 		if (msg) {
 			firstTurn?.setMetadata(new GlobalContextMessageMetadata(msg, this.instantiationService.invokeFunction(getGlobalContextCacheKey)));
@@ -257,6 +333,7 @@ interface GlobalAgentContextProps extends BasePromptElementProps {
 	readonly availableTools?: readonly LanguageModelToolInformation[];
 	readonly isNewChat?: boolean;
 	readonly sessionResource?: string;
+	readonly workingDir: WorkingDirectory;
 }
 
 /**
@@ -273,11 +350,12 @@ class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 				<TokenLimit max={2000}>
 					<AgentTasksInstructions availableTools={this.props.availableTools} />
 				</TokenLimit>
-				<WorkspaceFoldersHint />
-				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} />
+				<WorkspaceFoldersHint workingDir={this.props.workingDir} />
+				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} workingDir={this.props.workingDir} />
 			</Tag>
 			<UserPreferences flexGrow={7} priority={800} />
 			{this.props.isNewChat && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
+			<DeferredToolListReminder availableTools={this.props.availableTools} />
 			{this.props.enableCacheBreakpoints && <cacheBreakpoint type={CacheType} />}
 		</UserMessage>;
 	}
@@ -310,6 +388,24 @@ export interface AgentUserMessageProps extends BasePromptElementProps, AgentUser
 	readonly additionalHookContext?: string;
 	/** When true, this request was system-initiated (e.g. terminal completion notification) and should skip context/wrapping. */
 	readonly isSystemInitiated?: boolean;
+	/**
+	 * Live customizations-index text rendered into the latest user message
+	 * when it has drifted from the frozen snapshot in the system prompt.
+	 * Lets the model see mid-conversation updates (new skill, mode swap, etc.)
+	 * without invalidating the system prompt cache.
+	 *
+	 * Rendered inside this message's `<Tag name='context'>` (rather than as a
+	 * sibling `UserMessage`) so it becomes part of the captured
+	 * `RenderedUserMessageMetadata`. Emitting it as a separate UserMessage
+	 * would cause `result.messages.at(-1)` in `agentIntent.runOne` to point
+	 * at the drift block instead of the user query — the metadata would then
+	 * store just the drift block and historical replays on later turns would
+	 * lose the actual user query, busting cross-turn cache continuity.
+	 *
+	 * Only set when the current value differs from the snapshot captured on
+	 * the first turn.
+	 */
+	readonly customizationsIndexUpdate?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 }
 
 export function getUserMessagePropsFromTurn(turn: Turn, endpoint: IChatEndpoint, customizations?: AgentUserMessageCustomizations): AgentUserMessageProps {
@@ -367,8 +463,17 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 			return <FrozenContentUserMessage frozenContent={frozenContent} enableCacheBreakpoints={this.props.enableCacheBreakpoints} />;
 		}
 
-		if (this.props.isHistorical) {
-			this.logService.trace('Re-rendering historical user message');
+		// Historical turn without frozen content — this can happen when a session was
+		// persisted before RenderedUserMessageMetadata existed, when the freeze in
+		// agentIntent.runOne didn't fire (e.g. last message wasn't User), or after a
+		// re-render path that bypasses the freeze. Re-rendering the live user message
+		// body here would embed current workspace state (<editorContext>, terminal
+		// state, todos, reminders) into a *historical* user message and break the
+		// prompt cache for every preceding turn. Render the same minimal,
+		// cache-stable body that AgentUserMessageInHistory uses instead.
+		if (this.props.isHistorical && this.props.turn) {
+			this.logService.trace('Re-rendering historical user message without frozen content; using minimal body');
+			return <AgentUserMessageInHistory turn={this.props.turn} userQueryTagName={this.props.userQueryTagName} />;
 		}
 
 		// System-initiated messages (e.g. terminal completion notifications) are
@@ -417,6 +522,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 						{hasTerminalTool && <TerminalStatePromptElement sessionId={this.props.sessionId} />}
 						{hasTodoTool && <TodoListContextPrompt sessionResource={this.props.sessionResource} />}
 						{this.props.additionalHookContext && <AdditionalHookContextPrompt context={this.props.additionalHookContext} />}
+						{this.props.customizationsIndexUpdate && <CustomizationsIndexUpdate update={this.props.customizationsIndexUpdate} />}
 					</Tag>
 					<CurrentEditorContext endpoint={this.props.endpoint} />
 					<Tag name='reminderInstructions'>
@@ -512,6 +618,47 @@ class AdditionalHookContextPrompt extends PromptElement<AdditionalHookContextPro
 	}
 }
 
+interface CustomizationsIndexUpdateProps extends BasePromptElementProps {
+	readonly update: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
+}
+
+/**
+ * Surfaces drift between the frozen customizations-index snapshot (in the
+ * system prompt) and the current turn's listing. Rendered inside
+ * `AgentUserMessage`'s `<Tag name='context'>` alongside `EditedFileEvents`,
+ * `TerminalStatePromptElement`, etc., so it becomes part of the same
+ * `UserMessage` and is captured into `RenderedUserMessageMetadata` together
+ * with the user query. Replays verbatim on subsequent turns as the
+ * historical user message, preserving cross-turn cache continuity. Emitting
+ * it as a sibling `UserMessage` would make `result.messages.at(-1)` point at
+ * the drift block in `agentIntent.runOne`, so the metadata would store just
+ * the drift block and historical replays on later turns would lose the
+ * actual user query.
+ *
+ * Used only when the live index differs from the snapshot captured on the
+ * first turn.
+ */
+class CustomizationsIndexUpdate extends PromptElement<CustomizationsIndexUpdateProps> {
+	constructor(
+		props: CustomizationsIndexUpdateProps,
+		@IPromptVariablesService private readonly promptVariablesService: IPromptVariablesService,
+	) {
+		super(props);
+	}
+
+	async render() {
+		let value = this.props.update.value;
+		const toolReferences = this.props.update.toolReferences;
+		if (toolReferences?.length) {
+			value = await this.promptVariablesService.resolveToolReferencesInPrompt(value, toolReferences);
+		}
+		return <Tag name='customizationsUpdate'>
+			The available instructions, skills, and agents have changed since this conversation started. The listings below supersede the ones in the system prompt.<br />
+			{value}
+		</Tag>;
+	}
+}
+
 interface SkillAdherenceReminderProps extends BasePromptElementProps {
 	readonly chatVariables: ChatVariablesCollection;
 }
@@ -525,6 +672,8 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 	constructor(
 		props: SkillAdherenceReminderProps,
 		@ICustomInstructionsService private readonly customInstructionsService: ICustomInstructionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super(props);
 	}
@@ -539,6 +688,14 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 		const indexFile = this.customInstructionsService.parseInstructionIndexFile(indexVariable.value);
 		if (indexFile.skills.size === 0) {
 			return undefined;
+		}
+
+		const skillToolEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, this.experimentationService);
+
+		if (skillToolEnabled) {
+			return <Tag name='additional_skills_reminder'>
+				Always check if any skills apply to the user's request. If so, use the {ToolName.Skill} tool to invoke the skill by name. Multiple skill files may be needed for a single request. These files contain best practices built from testing that are needed for high-quality outputs.<br />
+			</Tag>;
 		}
 
 		return <Tag name='additional_skills_reminder'>
@@ -625,17 +782,20 @@ class CurrentEditorContext extends PromptElement<CurrentEditorContextProps> {
 	}
 }
 
-class WorkspaceFoldersHint extends PromptElement<BasePromptElementProps> {
+interface WorkspaceFoldersHintProps extends BasePromptElementProps {
+	readonly workingDir: WorkingDirectory;
+}
+
+class WorkspaceFoldersHint extends PromptElement<WorkspaceFoldersHintProps> {
 	constructor(
-		props: BasePromptElementProps,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
+		props: WorkspaceFoldersHintProps,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
 	) {
 		super(props);
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const folders = this.workspaceService.getWorkspaceFolders();
+		const folders = this.props.workingDir.getFolders();
 		if (folders.length > 0) {
 			return (
 				<>

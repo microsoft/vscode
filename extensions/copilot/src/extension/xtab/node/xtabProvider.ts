@@ -16,7 +16,7 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
-import { NextCursorLinePrediction, NextCursorLinePredictionCursorPlacement } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
+import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
@@ -357,6 +357,20 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
 		}
 
+		const neighborSnippets = promptOptions.neighborFiles.enabled
+			? await raceCancellation(
+				raceTimeout(
+					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
+					delaySession.getDebounceTime()
+				),
+				cancellationToken,
+			)
+			: undefined;
+
+		if (cancellationToken.isCancellationRequested) {
+			return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
+		}
+
 		const lintErrors = new LintErrors(activeDocument.id, currentDocument, this.langDiagService, request.xtabEditHistory);
 
 		const promptPieces = new PromptPieces(
@@ -371,13 +385,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			aggressivenessLevel,
 			lintErrors,
 			XtabProvider.computeTokens,
-			promptOptions
+			promptOptions,
+			neighborSnippets,
 		);
 
-		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt } = getUserPrompt(promptPieces);
+		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);
 
 		telemetry.setNDiffsInPrompt(nDiffsInPrompt);
 		telemetry.setDiffTokensInPrompt(diffTokensInPrompt);
+		if (neighborSnippetsResult) {
+			telemetry.setNNeighborSnippetsComputed(neighborSnippetsResult.nComputed);
+			telemetry.setNNeighborSnippetsInPrompt(neighborSnippetsResult.nIncluded);
+			telemetry.setNeighborSnippetIndicesInPrompt(neighborSnippetsResult.includedIndices);
+		}
 
 		const responseFormat = xtabPromptOptions.ResponseFormat.fromPromptingStrategy(promptOptions.promptingStrategy);
 
@@ -921,6 +941,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
 					const lastLineLength = lastLine.length;
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabCustomDiffPatchResponseHandler.handleResponse(
 							linesStream,
@@ -929,6 +950,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							activeDoc.workspaceRoot,
 							pseudoEditWindow,
 							tracer,
+							duplicateAdditionsMode,
 						),
 					);
 					break;
@@ -1179,8 +1201,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const nextCursorLineOneBased = nextCursorLineZeroBased + 1;
 		const nextCursorLine = promptPieces.activeDoc.documentAfterEditsLines.at(nextCursorLineZeroBased);
 
-		const cursorPlacement = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionCursorPlacement, this.expService);
-		const nextCursorColumn = XtabProvider.getNextCursorColumn(nextCursorLine, cursorPlacement);
+		const nextCursorColumn = XtabProvider.getNextCursorColumn(nextCursorLine);
 
 		switch (nextCursorLinePrediction) {
 			case NextCursorLinePrediction.Jump: {
@@ -1408,6 +1429,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextMaxTokens, this.expService),
 				traitPosition: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextTraitsPosition, this.expService),
 			}),
+			neighborFiles: {
+				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
+				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+			},
 			diffHistory: {
 				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffMaxTokens, this.expService),
@@ -1416,6 +1441,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			},
 			lintOptions: undefined,
 			includePostScript: true,
+			globalBudget: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, this.expService)
+				? {
+					totalTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, this.expService),
+					order: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_ORDER,
+					shares: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_SHARES,
+				}
+				: undefined,
 		};
 
 		const selectedModelConfig = this.modelService.selectedModelConfiguration();
@@ -1541,19 +1573,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}, [edits, []]);
 	}
 
-	public static getNextCursorColumn(nextCursorLine: string | undefined, cursorPlacement: NextCursorLinePredictionCursorPlacement): number {
-		let nextCursorColumn: number;
-		switch (cursorPlacement) {
-			case NextCursorLinePredictionCursorPlacement.BeforeLine:
-				nextCursorColumn = (nextCursorLine?.match(/^(\s*)/)?.at(1)?.length ?? 0) + 1;
-				break;
-			case NextCursorLinePredictionCursorPlacement.AfterLine:
-				nextCursorColumn = (nextCursorLine?.length ?? 0) + 1;
-				break;
-			default:
-				assertNever(cursorPlacement);
-		}
-		return nextCursorColumn;
+	public static getNextCursorColumn(nextCursorLine: string | undefined): number {
+		return (nextCursorLine?.match(/^(\s*)/)?.at(1)?.length ?? 0) + 1;
 	}
 }
 

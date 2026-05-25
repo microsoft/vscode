@@ -51,6 +51,8 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { compareIgnoreCase } from '../../../../../base/common/strings.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
@@ -128,6 +130,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 	}
@@ -310,6 +313,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		if (this._approvalModel) {
 			this.renderApprovalRow(session, template);
 		}
+
+		// Lazily resolve item details (timing, changes, badge, etc.)
+		this.triggerResolve(session, template);
+	}
+
+	private triggerResolve(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const cts = new CancellationTokenSource();
+		template.elementDisposable.add({ dispose() { cts.dispose(true); } });
+
+		this.chatSessionsService.resolveChatSessionItem(session.element.providerType, session.element.resource, cts.token).catch(() => {
+			// Resolve failures are non-fatal — the item continues to display with whatever data is available
+		});
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {

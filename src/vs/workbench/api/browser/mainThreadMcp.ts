@@ -18,9 +18,10 @@ import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -61,6 +62,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchMcpGatewayService private readonly _mcpGatewayService: IWorkbenchMcpGatewayService,
+		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
 	) {
 		super();
 		this._register(_authenticationService.onDidChangeSessions(e => this._onDidChangeAuthSessions(e.providerId, e.label)));
@@ -148,6 +150,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				handle.value ??= this._mcpRegistry.registerCollection({
 					...collection,
 					source: extensionId,
+					order: McpCollectionSortOrder.Extension,
 					resolveServerLanch: collection.canResolveLaunch ? (async def => {
 						const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 						return r ? McpServerLaunch.fromSerialized(r) : undefined;
@@ -235,6 +238,32 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		const resourceServer = authDetails.resourceMetadata?.resource ? URI.parse(authDetails.resourceMetadata.resource) : undefined;
 		const resolvedScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? authDetails.authorizationServerMetadata.scopes_supported ?? [];
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
+
+		const resolvedClientId = clientId ?? authDetails.clientId;
+		const mcpServerUrl = server.launch.type === McpServerTransportType.HTTP ? server.launch.uri.toString(true) : undefined;
+		let clientSecret: string | undefined;
+		let didLookupClientSecret = false;
+		if (resolvedClientId && mcpServerUrl) {
+			try {
+				clientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId));
+				didLookupClientSecret = true;
+			} catch {
+				// Best-effort lookup; proceed without a client secret.
+			}
+		}
+
+		// If the user explicitly configured an OAuth client_id in mcp.json and the stored
+		// client secret differs from what the existing provider was registered with, force a
+		// re-registration so the new secret takes effect on subsequent token exchanges.
+		// Without this, the user can never replace a cached client secret in the extension
+		// host's DynamicAuthProvider after the provider has been registered.
+		if (didLookupClientSecret && providerId && !forceNewRegistration && this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
+			const registered = await this._dynamicAuthenticationProviderStorageService.getClientRegistration(providerId);
+			if (registered && registered.clientSecret !== clientSecret) {
+				forceNewRegistration = true;
+			}
+		}
+
 		if (forceNewRegistration && providerId) {
 			if (!this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
 				throw new Error('Cannot force new registration for a non-dynamic authentication provider.');
@@ -246,14 +275,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata, authDetails.clientId);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata, resolvedClientId, clientSecret);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, clientId ?? authDetails.clientId);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, clientSecret);
 	}
 
 	private async _getSessionForProvider(
@@ -264,8 +293,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		authorizationServer?: URI,
 		errorOnUserInteraction: boolean = false,
 		clientId?: string,
+		resource?: string,
+		clientSecret?: string,
 	): Promise<string | undefined> {
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -318,7 +349,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 						activateImmediate: true,
 						account: accountToCreate,
 						authorizationServer,
-						clientId
+						clientId,
+						clientSecret,
+						resource
 					});
 			} while (
 				accountToCreate

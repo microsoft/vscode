@@ -12,13 +12,14 @@ import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/co
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
@@ -47,7 +48,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -55,11 +56,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IPluginGitService private readonly _pluginGit: IPluginGitService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		// On native, use the well-known ~/{dataFolderName}/agent-plugins/ path
 		// so that external tools can discover it. On web, fall back to the
 		// internal cache location.
-		this.agentPluginsHome = environmentService.agentPluginsHome;
+		this.agentPluginsHome = userDataProfileService.currentProfile.agentPluginsHome;
 		const legacyCacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
 		const oldCacheRoot = environmentService.cacheHome.scheme === 'file'
 			? legacyCacheRoot
@@ -107,8 +109,16 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
+		if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+			return this.getPluginSourceInstallUri(plugin.sourceDescriptor);
+		}
 		const repoDir = this.getRepositoryUri(plugin.marketplaceReference, plugin.marketplaceType);
-		return this._getPluginDir(repoDir, plugin.source);
+		const normalizedSource = plugin.source.trim().replace(/^\.?\/+|\/+$/g, '');
+		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
+		if (!isEqualOrParent(pluginDir, repoDir)) {
+			throw new Error(`Invalid plugin source path '${plugin.source}'`);
+		}
+		return pluginDir;
 	}
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
@@ -266,15 +276,6 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} finally {
 			cts.dispose();
 		}
-	}
-
-	private _getPluginDir(repoDir: URI, source: string): URI {
-		const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
-		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
-		if (!isEqualOrParent(pluginDir, repoDir)) {
-			throw new Error(`Invalid plugin source path '${source}'`);
-		}
-		return pluginDir;
 	}
 
 	getPluginSourceInstallUri(sourceDescriptor: IPluginSourceDescriptor): URI {

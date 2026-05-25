@@ -12,8 +12,8 @@ export class ChatQuotaContribution extends Disposable implements IExtensionContr
 
 	constructor(@IChatQuotaService chatQuotaService: IChatQuotaService) {
 		super();
-		this._register(commands.registerCommand('chat.enablePremiumOverages', () => {
-			// Clear quota before opening the page to ensure that if the user enabled overages,
+		this._register(commands.registerCommand('chat.enableAdditionalUsage', () => {
+			// Clear quota before opening the page to ensure that if the user enabled additional usage,
 			// the next request they send won't try to downgrade them to the base model.
 			chatQuotaService.clearQuota();
 			env.openExternal(Uri.parse('https://aka.ms/github-copilot-manage-overage'));

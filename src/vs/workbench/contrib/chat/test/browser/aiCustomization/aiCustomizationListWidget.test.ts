@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -129,37 +131,48 @@ suite('aiCustomizationListWidget', () => {
 				undefined
 			);
 		});
+
+		test('extracts extension ID from User/globalStorage path (Copilot Chat ask agent)', () => {
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/.vscode-oss-dev/User/globalStorage/github.copilot-chat/ask-agent/Ask.agent.md'),
+				'github.copilot-chat'
+			);
+		});
+
+		test('extracts extension ID from User/globalStorage path on Insiders', () => {
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/Library/Application Support/Code - Insiders/User/globalStorage/github.copilot-chat/ask-agent/Ask.agent.md'),
+				'github.copilot-chat'
+			);
+		});
+
+		test('returns undefined for non-extension entries in globalStorage', () => {
+			// e.g. `state.vscdb` or other workspace storage that lacks a publisher.name pattern
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/.vscode-oss-dev/User/globalStorage/state.vscdb'),
+				undefined
+			);
+		});
 	});
 
-	suite('dispose-during-async guards', () => {
+	suite('disposed widget', () => {
 
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
-		let fetchDeferred: DeferredPromise<ICustomizationItem[] | undefined>;
-		let fetchStarted: DeferredPromise<void>;
 
-		function createMockHarnessDescriptor(): IHarnessDescriptor {
-			return {
-				id: 'test',
-				label: 'Test',
-				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
-				itemProvider: {
-					onDidChange: Event.None,
-					provideChatSessionCustomizations: (_token: CancellationToken) => {
-						fetchStarted.complete();
-						return fetchDeferred.p;
-					},
-				},
-			};
-		}
+		const descriptor: IHarnessDescriptor = {
+			id: 'test',
+			label: 'Test',
+			icon: Codicon.settingsGear,
+			getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(undefined),
+			},
+		};
 
 		setup(() => {
 			disposables = new DisposableStore();
-			fetchDeferred = new DeferredPromise();
-			fetchStarted = new DeferredPromise();
-			const descriptor = createMockHarnessDescriptor();
-
 			instaService = workbenchInstantiationService({}, disposables);
 
 			instaService.stub(IPromptsService, {
@@ -182,7 +195,7 @@ suite('aiCustomizationListWidget', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -192,12 +205,17 @@ suite('aiCustomizationListWidget', () => {
 				clearOverrideProjectRoot: () => { },
 			});
 
+			const activeSessionResource = observableValue('test', URI.parse('test:///session'));
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
+
 			instaService.stub(ICustomizationHarnessService, {
-				activeHarness: observableValue('test', 'test'),
+				activeSessionResource,
+				activeHarness,
 				availableHarnesses: observableValue('test', [descriptor]),
-				setActiveHarness: () => { },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				setActiveSession: () => { },
+				getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 				getActiveDescriptor: () => descriptor,
+				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,
 				registerExternalHarness: () => ({ dispose() { } }),
 			});
 
@@ -215,55 +233,24 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+
+			// The widget reads items from the items model; stub it with empty
+			// per-section observables. This avoids needing to wire up the full
+			// ProviderCustomizationItemSource pipeline in tests.
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => observableValue('test', [] as readonly never[]),
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
+			});
 		});
 
-		teardown(() => {
-			// Resolve any pending deferred to avoid hanging promises.
-			if (!fetchDeferred.isSettled) {
-				fetchDeferred.complete(undefined);
-			}
-			disposables.dispose();
-		});
+		teardown(() => disposables.dispose());
 
-		test('refresh does not throw when disposed during loadItems', async () => {
+		test('generateDebugReport returns empty string when widget is disposed', async () => {
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-
-			// Start refresh — loadItems will await fetchItemsForSection
-			// which blocks on our deferred
-			const refreshPromise = widget.refresh();
-
-			// Wait until the provider is actually called before disposing
-			await fetchStarted.p;
 			widget.dispose();
-
-			// Resolve the deferred — this should not cause an error
-			// because the disposal guard prevents updateAddButton() from running
-			fetchDeferred.complete(undefined);
-			await refreshPromise;
-		});
-
-		test('setSection does not throw when disposed during loadItems', async () => {
-			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-
-			const setSectionPromise = widget.setSection(AICustomizationManagementSection.Instructions);
-
-			await fetchStarted.p;
-			widget.dispose();
-
-			fetchDeferred.complete(undefined);
-			await setSectionPromise;
-		});
-
-		test('generateDebugReport returns empty string when disposed during loadItems', async () => {
-			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-
-			const reportPromise = widget.generateDebugReport();
-
-			await fetchStarted.p;
-			widget.dispose();
-
-			fetchDeferred.complete(undefined);
-			const result = await reportPromise;
+			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
 		});
 	});

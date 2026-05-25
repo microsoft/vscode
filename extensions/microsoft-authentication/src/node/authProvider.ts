@@ -192,8 +192,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			return allSessions;
 		}
 
+		const resource = options?.resource;
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account, resource);
 		this._logger.info(`[getSessions] [${scopeData.scopeStr}] returned ${sessions.length} session(s)`);
 		return sessions;
 
@@ -205,6 +206,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+		const resource = options.resource;
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
@@ -251,6 +253,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
+					resource,
 					callbackUri
 				});
 
@@ -448,7 +451,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	private async getAllSessionsForPca(
 		cachedPca: ICachedPublicClientApplication,
 		scopeData: ScopeData,
-		accountFilter?: AuthenticationSessionAccountInformation
+		accountFilter?: AuthenticationSessionAccountInformation,
+		resource?: string
 	): Promise<AuthenticationSession[]> {
 		let filteredAccounts = accountFilter
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
@@ -512,12 +516,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
 						redirectUri = Config.macOSBrokerRedirectUri;
 					}
-					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}...`);
+					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}${resource ? ' and resource' : ''}...`);
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
 						claims,
+						resource,
 						redirectUri,
 						forceRefresh
 					});

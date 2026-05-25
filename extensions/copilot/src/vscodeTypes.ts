@@ -85,6 +85,7 @@ export import NotebookEdit = vscode.NotebookEdit;
 export import NotebookCellData = vscode.NotebookCellData;
 export import NotebookData = vscode.NotebookData;
 export import ChatErrorLevel = vscode.ChatErrorLevel;
+export import ChatInputNotificationSeverity = vscode.ChatInputNotificationSeverity;
 export import TerminalShellExecutionCommandLineConfidence = vscode.TerminalShellExecutionCommandLineConfidence;
 export import ChatRequestEditedFileEventKind = vscode.ChatRequestEditedFileEventKind;
 export import Extension = vscode.Extension;

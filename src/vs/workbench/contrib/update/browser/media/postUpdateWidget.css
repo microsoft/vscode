@@ -3,27 +3,140 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * The widget supplies its own padding and border-radius via `.post-update-widget`,
+ * so we strip the compact hover's contents padding. The selector below is at least as
+ * specific as `.monaco-hover.workbench-hover.compact .hover-contents` and loads after it,
+ * so it wins without `!important`.
+ */
+.monaco-hover.workbench-hover.post-update-widget-hover .hover-contents {
+	padding: 0;
+}
+
 .post-update-widget {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-width: 320px;
+	max-width: 420px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+}
+
+/* Banner */
+.post-update-widget .banner {
+	position: relative;
+	aspect-ratio: 16 / 5;
+	min-height: 90px;
+	background-position: center;
+	background-size: cover;
+	background-repeat: no-repeat;
+	/* Default: VS Code "copilot free" gradient (recreated with layered radial gradients) */
+	background-color: #0b1020;
+	background-image:
+		radial-gradient(ellipse 60% 80% at 12% 90%, rgba(132, 204, 22, 0.55), transparent 60%),
+		radial-gradient(ellipse 70% 90% at 25% 30%, rgba(56, 189, 248, 0.45), transparent 65%),
+		radial-gradient(ellipse 90% 100% at 75% 60%, rgba(99, 102, 241, 0.55), transparent 70%),
+		radial-gradient(ellipse 60% 80% at 100% 100%, rgba(30, 27, 75, 0.7), transparent 70%),
+		linear-gradient(135deg, #0b1020 0%, #1e1b4b 100%);
+}
+
+.post-update-widget .banner-close {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	padding: 0;
+	z-index: 1;
+}
+
+.post-update-widget .banner-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Body */
+.post-update-widget .body {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 16px;
+}
+
+/* Badge */
+.post-update-widget .badge {
+	align-self: flex-start;
+	padding: 2px 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-extensionBadge-remoteBackground, var(--vscode-badge-background));
+	color: var(--vscode-extensionBadge-remoteForeground, var(--vscode-badge-foreground));
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.4;
+	text-transform: none;
+}
+
+/* Title */
+.post-update-widget .title {
+	font-weight: 600;
+	font-size: 16px;
+	line-height: 1.3;
+	color: var(--vscode-foreground);
+}
+
+/* Features */
+.post-update-widget .features {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	padding: 6px 6px;
-	min-width: 300px;
-	max-width: 550px;
-	color: var(--vscode-descriptionForeground);
+}
+
+.post-update-widget .feature {
+	display: grid;
+	grid-template-columns: 20px 1fr;
+	column-gap: 12px;
+	align-items: start;
+}
+
+.post-update-widget .feature-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-foreground);
+	margin-top: 2px;
+	font-size: 16px;
+}
+
+.post-update-widget .feature-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.post-update-widget .feature-title {
+	font-weight: 600;
+	color: var(--vscode-foreground);
 	font-size: var(--vscode-bodyFontSize-small);
 }
 
-/* Header */
-.post-update-widget .header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
+.post-update-widget .feature-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+	line-height: 1.4;
 }
 
-.post-update-widget .header .title {
-	font-weight: 600;
-	font-size: var(--vscode-bodyFontSize);
+/* Markdown fallback */
+.post-update-widget .update-markdown {
 	color: var(--vscode-foreground);
 }
 
@@ -33,12 +146,14 @@
 	justify-content: flex-end;
 	align-items: center;
 	gap: 8px;
+	margin-top: 4px;
 }
 
 .post-update-widget .button-bar button {
-	padding: 4px 12px;
+	padding: 8px 16px;
 	border-radius: var(--vscode-cornerRadius-small);
 	font-size: var(--vscode-bodyFontSize-small);
+	font-weight: 600;
 	cursor: pointer;
 	white-space: nowrap;
 }
@@ -65,4 +180,10 @@
 
 .post-update-widget .update-button-primary:hover {
 	background-color: var(--vscode-button-hoverBackground);
+}
+
+.post-update-widget .update-button-full-width {
+	width: 100%;
+	justify-content: center;
+	text-align: center;
 }

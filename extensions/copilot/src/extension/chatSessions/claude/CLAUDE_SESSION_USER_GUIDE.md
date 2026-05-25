@@ -42,6 +42,7 @@ This guide covers the **Claude** session target in VS Code Copilot Chat: what it
 - [Tools Available to Claude](#tools-available-to-claude)
 - [Memory Files (CLAUDE.md)](#memory-files-claudemd)
 - [Custom Subagents](#custom-subagents)
+- [Skills and Plugins](#skills-and-plugins)
 - [Hooks](#hooks)
 - [Settings Reference](#settings-reference)
 - [How It Differs from Other Session Targets](#how-it-differs-from-other-session-targets)
@@ -135,6 +136,7 @@ In the chat input area, you'll see the current permission mode (e.g., **"Edit au
 | `default` | **Ask before edits** | Claude asks for confirmation before each edit. The safest mode — you approve every change. |
 | `acceptEdits` | **Edit automatically** | Claude auto-approves file edits within your workspace. Shell commands and other actions still require confirmation. This is the **default** for Claude sessions. |
 | `plan` | **Plan mode** | Claude first creates a plan describing what it intends to do, then asks you to approve before executing. |
+| `auto` | **Auto (model classifier)** | Uses a model classifier to automatically approve or deny tool operations. Visible by default; controlled by `github.copilot.chat.claudeAgent.allowAutoPermissions`. |
 | `bypassPermissions` | **Bypass all permissions** | All tools run without confirmation. ⚠️ Only visible when `github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions` is enabled. **Recommended only for sandboxed environments with no internet access.** |
 
 You can change the permission mode at any time during a session by clicking the permission mode button at the bottom of the chat input.
@@ -225,8 +227,24 @@ Each session in the list displays:
 | **Blue dot** | Indicates an unread or recently active session |
 | **Status icon** | Shows whether the session is completed, in progress, needs input, or failed |
 | **Folder badge** | In multi-root or empty workspaces, shows which folder the session ran in |
+| **Change stats** | Shows lines added and removed (e.g., `+584 -17`) — a quick summary of the session's code impact, computed by diffing the session's branch against its base branch |
 
 Sessions are sorted by recency — the most recent session appears at the top. In the dedicated sidebar, they're also grouped by time period.
+
+> **Note:** Git metadata (branch name, change stats, action buttons) and workspace change detection require the session's working directory to be in a **trusted workspace**. If the folder is untrusted, sessions still appear in the list but without git-related information or actions.
+
+#### Git Action Buttons
+
+When a session has a git repository, action buttons appear in the Changes view based on the repository state:
+
+| Button | When It Appears | What It Does |
+|--------|----------------|-------------|
+| **Commit** | Uncommitted changes exist | Sends `/commit` to the session — Claude stages and commits your changes |
+| **Commit and Sync** | Uncommitted changes exist + upstream branch configured | Sends `/commit and /sync` — Claude commits and pushes/pulls |
+| **Sync Changes** | No uncommitted changes + upstream branch configured | Sends `/sync` — Claude pushes/pulls with the remote |
+| **Initialize Repository** | No git repository in the session's working directory | Creates a new git repository in the session's folder |
+
+These buttons let you manage git operations without leaving the Sessions view or typing commands manually.
 
 #### Searching and Filtering Sessions
 
@@ -495,7 +513,7 @@ Claude has access to a comprehensive set of tools for coding tasks:
 
 | Tool | Description |
 |------|-------------|
-| **Task** | Delegate work to a subagent |
+| **Agent** | Delegate work to a subagent (previously called "Task") |
 | **AskUserQuestion** | Ask the user a question with optional choices |
 
 ### IDE Integration
@@ -564,6 +582,68 @@ Use the [`/agents`](#agents--create-and-manage-subagents) slash command to creat
 
 ---
 
+## Skills and Plugins
+
+Claude sessions automatically discover and load **skills** and **plugins** from your workspace and configuration. These extend Claude's capabilities with reusable, packaged functionality — such as custom slash commands, tools, or domain-specific instructions.
+
+### How Skills and Plugins Are Discovered
+
+Claude finds plugin directories from three sources:
+
+| Source | How It Works |
+|--------|-------------|
+| **`chat.agentSkillsLocations` setting** | Paths to directories containing skills. Claude walks one level up from each to find the plugin root. Supports `~/`, absolute, and relative paths. |
+| **Discovered `SKILL.md` files** | The prompts service finds `SKILL.md` files in your workspace. Claude derives the plugin root from each skill's file path. |
+| **Plugin directories** | The prompts service returns plugin root directories directly. |
+
+> **Note:** Directories under `.claude/` are automatically excluded since the Claude SDK loads those on its own.
+
+### Configuring Additional Skill Locations
+
+Use the `chat.agentSkillsLocations` setting to point Claude at additional skill directories:
+
+```json
+{
+  "chat.agentSkillsLocations": {
+    "~/my-skills": true,
+    "/absolute/path/to/skills": true,
+    "relative/skills": true
+  }
+}
+```
+
+- **`~/` paths** are expanded relative to your home directory
+- **Absolute paths** are used as-is
+- **Relative paths** are resolved against each workspace folder
+
+Set a path's value to `false` to disable it without removing the entry.
+
+### Skill File Format
+
+Each skill lives in its own directory with a `SKILL.md` file:
+
+```
+my-plugin/
+└── skills/
+    ├── my-skill/
+    │   └── SKILL.md
+    └── another-skill/
+        └── SKILL.md
+```
+
+`SKILL.md` files use YAML frontmatter for metadata:
+
+```markdown
+---
+name: my-skill
+description: "A brief description of what this skill does"
+---
+
+Instructions for Claude when this skill is invoked...
+```
+
+---
+
 ## Hooks
 
 Hooks let you run custom scripts at key moments in Claude's execution. They're configured via the [`/hooks`](#hooks--configure-lifecycle-hooks) slash command and stored in VS Code settings.
@@ -593,6 +673,7 @@ Hooks let you run custom scripts at key moments in Claude's execution. They're c
 |---------|------|---------|-------------|
 | `github.copilot.chat.claudeAgent.enabled` | boolean | `true` | Enable Claude Agent sessions in VS Code |
 | `github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions` | boolean | `false` | Show "Bypass all permissions" option. ⚠️ Sandboxes only |
+| `github.copilot.chat.claudeAgent.allowAutoPermissions` | boolean | `true` | Show "Auto (model classifier)" permission mode option |
 
 ---
 

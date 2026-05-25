@@ -197,7 +197,10 @@ describe('ToolCallingLoop SessionStart hook', () => {
 	describe('SessionStart hook execution conditions', () => {
 		it('should execute SessionStart hook on the first turn of regular sessions', async () => {
 			const conversation = createTestConversation(1); // First turn
-			const request = createMockChatRequest();
+			const request = createMockChatRequest({
+				model: { id: 'test-model-id' } as ChatRequest['model'],
+				participant: 'test-agent',
+			} as unknown as Partial<ChatRequest>);
 
 			const loop = instantiationService.createInstance(
 				TestToolCallingLoop,
@@ -216,7 +219,12 @@ describe('ToolCallingLoop SessionStart hook', () => {
 
 			const sessionStartCalls = mockChatHookService.getCallsForHook('SessionStart');
 			expect(sessionStartCalls).toHaveLength(1);
-			expect((sessionStartCalls[0].input as SessionStartHookInput).source).toBe('new');
+			const input = sessionStartCalls[0].input as SessionStartHookInput;
+			expect(input).toMatchObject({
+				source: 'new',
+				model: 'test-model-id',
+				agent_type: 'test-agent',
+			});
 		});
 
 		it('should NOT execute SessionStart hook on subsequent turns', async () => {

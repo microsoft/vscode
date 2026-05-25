@@ -67,6 +67,58 @@
 	text-decoration: underline;
 }
 
+/* Progress bar for transient loading state */
+.sessions-policy-blocked-card .sessions-policy-blocked-progress-bar {
+	width: 100%;
+	height: 3px;
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	border-radius: 2px;
+	overflow: hidden;
+	margin-top: 16px;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-progress-bar-fill {
+	width: 30%;
+	height: 100%;
+	background: var(--vscode-progressBar-background, #0078d4);
+	border-radius: 2px;
+	animation: sessions-policy-blocked-progress 2s ease-in-out infinite;
+}
+
+@keyframes sessions-policy-blocked-progress {
+	0% { transform: translateX(0%); }
+	50% { transform: translateX(233%); }
+	100% { transform: translateX(0%); }
+}
+
+/* Approved organizations list */
+.sessions-policy-blocked-card .sessions-policy-blocked-orgs {
+	text-align: center;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-orgs-label {
+	margin: 0 0 4px 0;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-orgs ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-orgs li {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.6;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-footer {
+	font-size: 12px;
+}
+
 .sessions-policy-blocked-card .monaco-button {
 	margin-top: 4px;
 	width: auto;

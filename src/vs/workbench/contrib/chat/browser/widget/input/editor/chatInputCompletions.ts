@@ -53,10 +53,9 @@ import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVa
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { ICustomizationHarnessService, getActiveHarnessSlashCommands } from '../../../../common/customizationHarnessService.js';
-import { IPromptsService, matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
-import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
+import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
@@ -77,12 +76,22 @@ const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
  */
 const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
 
+/**
+ * Returns `true` when the widget's chat session is backed by an agent
+ * host (local or remote). For these sessions, completions are delegated
+ * to the agent host via `AgentHostInputCompletions`, and the workbench's
+ * default in-process providers (file/symbol/tool/agent) short-circuit.
+ */
+function isAgentHostBackedWidget(widget: IChatWidget): boolean {
+	const sessionResource = widget.viewModel?.model.sessionResource;
+	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
+}
+
 class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IChatService chatService: IChatService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
@@ -97,13 +106,6 @@ class SlashCommandCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
-				}
-
-
-				let customAgentTarget: Target | undefined = undefined;
-				if (widget.lockedAgentId) {
-					const sessionResource = widget.viewModel.model.sessionResource;
-					customAgentTarget = (sessionResource ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
@@ -128,6 +130,8 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const sessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+
 				return {
 					suggestions: slashCommands
 						.filter(c => {
@@ -140,13 +144,13 @@ class SlashCommandCompletions extends Disposable {
 							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
 								return false;
 							}
+							if (!matchesSessionType(c.sessionTypes, sessionType)) {
+								return false;
+							}
 							if (!widget.lockedAgentId) {
 								return true;
 							}
 							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
-								return false;
-							}
-							if (c.targets && customAgentTarget && !c.targets.includes(customAgentTarget)) {
 								return false;
 							}
 							return true;
@@ -194,9 +198,12 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+
 				return {
 					suggestions: slashCommands
 						.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when))
+						.filter(c => matchesSessionType(c.sessionTypes, currentSessionType))
 						.map((c, i): CompletionItem => {
 							const withSlash = `${chatSubcommandLeader}${c.command}`;
 							return {
@@ -222,6 +229,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
@@ -239,7 +250,8 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await getActiveHarnessSlashCommands(this.harnessService, this.promptsService, token);
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+				const promptCommands = await this.harnessService.getSlashCommands(widget.viewModel.model.sessionResource, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -248,7 +260,6 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const currentSessionType = widget.viewModel.model.sessionResource ? getChatSessionType(widget.viewModel.model.sessionResource) : undefined;
 				const userInvocableCommands = promptCommands
 					.filter(c => c.userInvocable)
 					.filter(c => matchesSessionType(c.sessionTypes, currentSessionType));
@@ -280,6 +291,10 @@ class SlashCommandCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
+					return;
 				}
 
 				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
@@ -340,6 +355,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return;
@@ -374,6 +393,10 @@ class AgentCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
+					return;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
 					return;
 				}
 
@@ -477,6 +500,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				if (widget.lockedAgentId) {
 					return null;
 				}
@@ -541,6 +568,10 @@ class AgentCompletions extends Disposable {
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (widget?.location !== ChatAgentLocation.Chat || widget.input.currentModeKind !== ChatModeKind.Ask) {
+					return;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
 					return;
 				}
 
@@ -1055,6 +1086,12 @@ class BuiltinDynamicCompletions extends Disposable {
 					return;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					// Agent-host sessions delegate completions to the host
+					// process via `AgentHostInputCompletions`.
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, wordPattern, true);
 				if (range) {
 					return provider({ model, position, widget, range, context }, token);
@@ -1263,6 +1300,12 @@ class ToolCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
+					return null;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
+					// Agent-host sessions delegate completions to the host
+					// process via `AgentHostInputCompletions`.
 					return null;
 				}
 

@@ -8,11 +8,13 @@ import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { formatPricingLabel, getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
+import { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
 
 export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 
@@ -24,7 +26,13 @@ export interface IClaudeCodeModels {
 	 * then to the newest Sonnet, newest Haiku, or any Claude endpoint.
 	 * Returns `undefined` if no Claude endpoint can be found.
 	 */
-	resolveEndpoint(requestedModel: string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined>;
+	resolveEndpoint(requestedModel: ParsedClaudeModelId | string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined>;
+
+	/**
+	 * Resolves the reasoning effort level for the given requested model ID and requested reasoning effort.
+	 */
+	resolveReasoningEffort(requestedModel: ParsedClaudeModelId | string | undefined, requestedReasoningEffort: string | undefined): Promise<EffortLevel | undefined>;
+
 	/**
 	 * Registers a LanguageModelChatProvider so that Claude models appear in
 	 * VS Code's built-in model picker for the claude-code session type.
@@ -80,6 +88,7 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 		const endpoints = await this._getEndpoints();
 		return endpoints.map(endpoint => {
 			const multiplier = endpoint.multiplier === undefined ? undefined : `${endpoint.multiplier}x`;
+			const tooltip: string | undefined = getModelCapabilitiesDescription(endpoint);
 			return {
 				id: endpoint.model,
 				name: endpoint.name,
@@ -87,8 +96,16 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens,
 				maxOutputTokens: endpoint.maxOutputTokens,
-				multiplier,
+				pricing: multiplier ?? (endpoint.tokenPricing ? formatPricingLabel(endpoint.tokenPricing) : undefined),
+				inputCost: endpoint.tokenPricing?.default.inputPrice,
+				outputCost: endpoint.tokenPricing?.default.outputPrice,
+				cacheCost: endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				longContextInputCost: endpoint.tokenPricing?.longContext?.inputPrice,
+				longContextOutputCost: endpoint.tokenPricing?.longContext?.outputPrice,
+				longContextCacheCost: endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
 				multiplierNumeric: endpoint.multiplier,
+				priceCategory: endpoint.priceCategory,
+				tooltip,
 				isUserSelectable: true,
 				configurationSchema: buildConfigurationSchema(endpoint),
 				capabilities: {
@@ -101,12 +118,23 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 		});
 	}
 
-	public async resolveEndpoint(requestedModel: string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined> {
+	public async resolveReasoningEffort(requestedModel: ParsedClaudeModelId | string | undefined, requestedReasoningEffort: string | undefined): Promise<EffortLevel | undefined> {
+		const endpoint = await this.resolveEndpoint(requestedModel, undefined);
+		return pickReasoningEffort(endpoint, requestedReasoningEffort);
+	}
+
+	public async resolveEndpoint(requestedModel: ParsedClaudeModelId | string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined> {
 		const endpoints = await this._getEndpoints();
 
 		// 1. Exact match for the requested model
 		if (requestedModel) {
-			const mappedModel = tryParseClaudeModelId(requestedModel)?.toEndpointModelId() ?? requestedModel;
+			let parsedModel: ParsedClaudeModelId | undefined;
+			if (typeof requestedModel === 'string') {
+				parsedModel = tryParseClaudeModelId(requestedModel);
+			} else {
+				parsedModel = requestedModel;
+			}
+			const mappedModel = parsedModel?.toEndpointModelId() ?? requestedModel;
 			const exact = endpoints.find(e => e.family === mappedModel || e.model === mappedModel);
 			if (exact) {
 				return exact;
@@ -163,14 +191,34 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 	}
 }
 
-const SUPPORTED_EFFORT_LEVELS = ['low', 'medium', 'high'] as const;
+const SUPPORTED_EFFORT_LEVELS: EffortLevel[] = ['low', 'medium', 'high'];
+
+export function isEffortLevel(value: string): value is EffortLevel {
+	return SUPPORTED_EFFORT_LEVELS.includes(value as EffortLevel);
+}
+
+/**
+ * Picks the reasoning effort to use for an endpoint given a requested level.
+ */
+export function pickReasoningEffort(endpoint: IChatEndpoint | undefined, requestedReasoningEffort: string | undefined): EffortLevel | undefined {
+	if (!endpoint || !endpoint.supportsReasoningEffort || endpoint.supportsReasoningEffort.length === 0) {
+		return undefined;
+	}
+	if (requestedReasoningEffort && isEffortLevel(requestedReasoningEffort) && endpoint.supportsReasoningEffort.includes(requestedReasoningEffort)) {
+		return requestedReasoningEffort;
+	}
+	if (endpoint.supportsReasoningEffort.length === 1 && isEffortLevel(endpoint.supportsReasoningEffort[0])) {
+		return endpoint.supportsReasoningEffort[0];
+	}
+	return undefined;
+}
 
 function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModelConfigurationSchema | undefined {
 	const effortLevels = endpoint.supportsReasoningEffort?.filter(
 		(level): level is typeof SUPPORTED_EFFORT_LEVELS[number] =>
 			(SUPPORTED_EFFORT_LEVELS as readonly string[]).includes(level)
 	);
-	if (!effortLevels || effortLevels.length <= 1) {
+	if (!effortLevels) {
 		return;
 	}
 

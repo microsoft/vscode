@@ -37,6 +37,27 @@ export interface ITerminalSandboxWrapResult {
 	requiresUnsandboxConfirmation?: boolean;
 }
 
+export interface ITerminalSandboxPrecheckInputs {
+	/**
+	 * Whether the current caller is using the default approval permission flow.
+	 */
+	readonly isDefaultApprovalPermissionEnabled?: boolean;
+}
+
+export interface ITerminalSandboxCommand {
+	/**
+	 * Normalized command name without path or executable suffix.
+	 * For example, `/usr/bin/git` and `git.exe` both normalize to `git`.
+	 */
+	keyword: string;
+	/**
+	 * Command arguments after the executable token. These are used for
+	 * argument-sensitive sandbox allow-list rules, such as matching a specific
+	 * subcommand while ignoring global options.
+	 */
+	args: readonly string[];
+}
+
 /**
  * Abstraction over terminal operations needed by the install flow.
  * Provided by the browser-layer caller so the common-layer service
@@ -70,11 +91,17 @@ export interface ISandboxDependencyInstallResult {
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	isEnabled(): Promise<boolean>;
+	isEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean>;
+	isSandboxAllowNetworkEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
-	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string): ITerminalSandboxWrapResult;
-	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
+	checkForSandboxingPrereqs(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult>;
+	/**
+	 * Wraps a command line for sandbox execution. Command details are optional,
+	 * but when provided they are used to derive command-specific read/write
+	 * allow-list entries.
+	 */
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[]): Promise<ITerminalSandboxWrapResult>;
+	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
@@ -89,6 +116,10 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 		return false;
 	}
 
+	async isSandboxAllowNetworkEnabled(): Promise<boolean> {
+		return false;
+	}
+
 	async getOS(): Promise<OperatingSystem> {
 		return OS;
 	}
@@ -97,7 +128,7 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 		return { enabled: false, sandboxConfigPath: undefined, failedCheck: undefined };
 	}
 
-	wrapCommand(command: string): ITerminalSandboxWrapResult {
+	async wrapCommand(command: string): Promise<ITerminalSandboxWrapResult> {
 		return { command, isSandboxWrapped: false };
 	}
 

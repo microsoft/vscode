@@ -170,10 +170,9 @@ export function setup(context: TestContext) {
 				throw error;
 			}
 
-			await test.run(window, true);
+			await test.run(window);
 		} finally {
-			context.log('Closing the application');
-			await app.close();
+			await context.closeElectronApp(app);
 		}
 
 		test.validate();

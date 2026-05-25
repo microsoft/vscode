@@ -9,7 +9,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorPartModalContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -21,6 +21,9 @@ import { ChangesViewPane } from '../../changes/browser/changesView.js';
 import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
+import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+
+const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
 class MaximizeMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
@@ -28,7 +31,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 	constructor() {
 		super({
 			id: MaximizeMainEditorPartAction.ID,
-			title: localize2('maximizeMainEditorPart', "Maximize Editor"),
+			title: localize2('maximizeMainEditorPart', "Maximize Editor Area"),
 			icon: Codicon.screenFull,
 			f1: false,
 			menu: {
@@ -37,6 +40,8 @@ class MaximizeMainEditorPartAction extends Action2 {
 				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext,
 					EditorMaximizedContext.negate())
 			}
 		});
@@ -44,6 +49,20 @@ class MaximizeMainEditorPartAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const viewsService = accessor.get(IViewsService);
+		let hidTerminalPanel = false;
+
+		if (layoutService.isVisible(Parts.PANEL_PART) && viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
+			layoutService.setPartHidden(true, Parts.PANEL_PART);
+			hidTerminalPanel = true;
+		}
+
+		if (hidTerminalPanel) {
+			terminalPanelHiddenForMaximizedEditor.add(layoutService);
+		} else {
+			terminalPanelHiddenForMaximizedEditor.delete(layoutService);
+		}
+
 		layoutService.setEditorMaximized(true);
 	}
 }
@@ -56,7 +75,7 @@ class RestoreMainEditorPartAction extends Action2 {
 	constructor() {
 		super({
 			id: RestoreMainEditorPartAction.ID,
-			title: localize2('restoreMainEditorPart', "Restore Editor"),
+			title: localize2('restoreMainEditorPart', "Restore Editor Area"),
 			icon: Codicon.screenNormal,
 			f1: false,
 			menu: {
@@ -65,6 +84,8 @@ class RestoreMainEditorPartAction extends Action2 {
 				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext,
 					EditorMaximizedContext)
 			}
 		});
@@ -72,7 +93,15 @@ class RestoreMainEditorPartAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const shouldRestoreTerminalPanel = terminalPanelHiddenForMaximizedEditor.has(layoutService);
+
 		layoutService.setEditorMaximized(false);
+
+		if (shouldRestoreTerminalPanel && !layoutService.isVisible(Parts.PANEL_PART)) {
+			layoutService.setPartHidden(false, Parts.PANEL_PART);
+		}
+
+		terminalPanelHiddenForMaximizedEditor.delete(layoutService);
 	}
 }
 
@@ -84,14 +113,17 @@ class CloseMainEditorPartAction extends Action2 {
 	constructor() {
 		super({
 			id: CloseMainEditorPartAction.ID,
-			title: localize2('closeMainEditorPart', "Close Editor"),
+			title: localize2('closeMainEditorPart', "Close Editor Area"),
 			icon: Codicon.close,
 			f1: false,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
 				order: 100,
-				when: IsSessionsWindowContext
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext)
 			}
 		});
 	}
@@ -117,15 +149,21 @@ class OpenEditorInModalEditorAction extends Action2 {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
 				order: 1,
-				when: IsSessionsWindowContext
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated()
+				)
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const configurationService = accessor.get(IConfigurationService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		const isMaximized = layoutService.isEditorMaximized();
 
 		// Set the `workbench.editor.useModal` setting to 'all'
 		await configurationService.updateValue('workbench.editor.useModal', 'all');
@@ -150,6 +188,13 @@ class OpenEditorInModalEditorAction extends Action2 {
 		const modalPart = await editorGroupsService.createModalEditorPart();
 		const editorsToMove = prepareMoveCopyEditors(activeGroup, activeGroup.editors.slice(), true);
 		activeGroup.moveEditors(editorsToMove, modalPart.activeGroup);
+
+		// Maximize
+		if (isMaximized && !modalPart.maximized) {
+			modalPart.toggleMaximized();
+		}
+
+		// Focus
 		modalPart.activeGroup.focus();
 	}
 }
@@ -162,7 +207,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenModalEditorInEditorAction.ID,
-			title: localize2('openModalEditorInEditor', "Open in Editor"),
+			title: localize2('openModalEditorInEditor', "Open in Editor Area"),
 			icon: Codicon.openInWindow,
 			f1: false,
 			menu: {
@@ -183,10 +228,13 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-		const activeGroup = editorGroupsService.activeModalEditorPart?.activeGroup;
-		if (!activeGroup) {
+		const activeEditorPart = editorGroupsService.activeModalEditorPart;
+		const activeGroup = activeEditorPart?.activeGroup;
+		if (!activeEditorPart || !activeGroup) {
 			return;
 		}
+
+		const isMaximized = activeEditorPart.maximized;
 
 		// Set the `workbench.editor.useModal` setting back to 'some'
 		await configurationService.updateValue('workbench.editor.useModal', 'some');
@@ -213,6 +261,14 @@ class OpenModalEditorInEditorAction extends Action2 {
 
 		// Move all remaining editors to the main editor part
 		await commandService.executeCommand(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+
+		// Maximize
+		if (isMaximized) {
+			layoutService.setEditorMaximized(true);
+		}
+
+		// Focus
+		editorGroupsService.activeGroup.focus();
 	}
 }
 

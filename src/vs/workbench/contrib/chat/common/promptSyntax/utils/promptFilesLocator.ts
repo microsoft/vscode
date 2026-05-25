@@ -9,7 +9,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
-import { basename, dirname, isEqual, isEqualOrParent, joinPath, extname } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
@@ -61,9 +61,9 @@ export class PromptFilesLocator {
 		const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
 		this.userDataFolder = {
 			uri: userDataPromptsHome,
-			parent: userDataPromptsHome,
+			searchRoot: userDataPromptsHome,
 			filePattern: undefined,
-			source: PromptFileSource.CopilotPersonal,
+			source: PromptFileSource.UserData,
 			storage: PromptsStorage.user,
 			displayPath: nls.localize('promptsUserDataFolder', "User Data"),
 			isDefault: true
@@ -183,10 +183,10 @@ export class PromptFilesLocator {
 
 		const paths = new ResourceSet();
 
-		for (const { parent, filePattern } of absoluteLocations) {
+		for (const { searchRoot, filePattern } of absoluteLocations) {
 			const files = (filePattern === undefined)
-				? await this.resolveFilesAtLocation(parent, type, token) // if the location does not contain a glob pattern, resolve the location directly
-				: await this.searchFilesInLocation(parent, filePattern, token);
+				? await this.resolveFilesAtLocation(searchRoot, type, token) // if the location does not contain a glob pattern, resolve the location directly
+				: await this.searchFilesInLocation(searchRoot, filePattern, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
 					paths.add(file);
@@ -213,10 +213,10 @@ export class PromptFilesLocator {
 		const updateExternalFolderWatchers = () => {
 			externalFolderWatchers.clear();
 			for (const folder of parentFolders) {
-				if (!this.getWorkspaceFolder(folder.parent)) {
+				if (!this.getWorkspaceFolder(folder.searchRoot)) {
 					// if the folder is not part of the workspace, we need to watch it
 					const recursive = folder.filePattern !== undefined || type === PromptsType.instructions; // instructions can be in subfolders, so watch recursively
-					externalFolderWatchers.add(this.fileService.watch(folder.parent, { recursive, excludes: [] }));
+					externalFolderWatchers.add(this.fileService.watch(folder.searchRoot, { recursive, excludes: [] }));
 				}
 			}
 		};
@@ -253,7 +253,7 @@ export class PromptFilesLocator {
 				eventEmitter.fire();
 				return;
 			}
-			if (parentFolders.some(folder => e.affects(folder.parent))) {
+			if (parentFolders.some(folder => e.affects(folder.searchRoot))) {
 				eventEmitter.fire();
 				return;
 			}
@@ -269,7 +269,7 @@ export class PromptFilesLocator {
 	 * Gets the hook source folders for creating new hooks.
 	 * Returns configured hook folders, excluding Claude paths (which are read-only).
 	 */
-	public async getHookSourceFolders(): Promise<readonly URI[]> {
+	public async getHookSourceFolders(): Promise<readonly IResolvedPromptSourceFolder[]> {
 		const configuredLocations = this.getPromptSourceFolders(PromptsType.hook);
 
 		// Ignore claude folders since they aren't first-class supported, so we don't want to create invalid formats
@@ -278,18 +278,23 @@ export class PromptFilesLocator {
 			!loc.path.startsWith('.claude/') && !loc.path.includes('/.claude/')
 		);
 
-		// Convert to absolute URIs
-		const result = new ResourceSet();
+		// Convert to absolute locations with metadata
 		const absoluteLocations = await this.toAbsoluteLocations(PromptsType.hook, allowedHookFolders);
 
+		// Deduplicate by search root, keeping the first occurrence
+		const seen = new ResourceSet();
+		const result: IResolvedPromptSourceFolder[] = [];
 		for (const location of absoluteLocations) {
 			// For hook configs, entries are directories unless the path ends with .json (specific file)
 			// Default entries have filePattern, user entries don't but are still directories
-			// location.parent points to the directory in both cases, so we can just use that
-			result.add(location.parent);
+			// searchRoot already points to the correct directory or specific file to use in both cases
+			if (!seen.has(location.searchRoot)) {
+				seen.add(location.searchRoot);
+				result.push({ ...location, uri: location.searchRoot, filePattern: undefined });
+			}
 		}
 
-		return [...result];
+		return result;
 	}
 
 	/**
@@ -465,8 +470,8 @@ export class PromptFilesLocator {
 					const uri = joinPath(userHome, configuredLocation.substring(2));
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						const { parent, filePattern } = getParentFolder(type, uri);
-						result.push({ uri, parent, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
+						const { searchRoot, filePattern } = resolveSearchLocation(type, uri);
+						result.push({ uri, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 					continue;
 				}
@@ -481,16 +486,16 @@ export class PromptFilesLocator {
 					}
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						const { parent, filePattern } = getParentFolder(type, uri);
-						result.push({ uri, parent, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
+						const { searchRoot, filePattern } = resolveSearchLocation(type, uri);
+						result.push({ uri, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 				} else {
 					for (const folder of rootFolders) {
 						const absolutePath = joinPath(folder, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							const { parent, filePattern } = getParentFolder(type, absolutePath);
-							result.push({ uri: absolutePath, parent, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
+							const { searchRoot, filePattern } = resolveSearchLocation(type, absolutePath);
+							result.push({ uri: absolutePath, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
 				}
@@ -847,33 +852,31 @@ export function isValidGlob(pattern: string): boolean {
 	return false;
 }
 
-interface IParentFolderResult {
-	readonly parent: URI;
+interface ISearchLocationResult {
+	readonly searchRoot: URI;
 	readonly filePattern?: string;
 }
 
 /**
- * Finds the first parent of the provided location that does not contain a `glob pattern`.
+ * Resolves the search root and optional file pattern for the provided location.
+ * For paths with glob patterns, finds the deepest non-glob ancestor directory.
  *
- * Asumes that the location that is provided has a valid path (is abstract)
+ * Assumes that the location that is provided has a valid path (is abstract)
  *
  * ## Examples
  *
  * ```typescript
  * assert.strictDeepEqual(
- *     getParentFolder(PromptsType.prompt, URI.file('/home/user/{folder1,folder2}/file.md')),
- *     { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
- *     'Must find correct non-glob parent dirname.',
+ *     resolveSearchLocation(PromptsType.prompt, URI.file('/home/user/{folder1,folder2}/file.md')),
+ *     { searchRoot: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
+ *     'Must find correct non-glob search root.',
  * );
  * ```
  */
-function getParentFolder(type: PromptsType, location: URI): IParentFolderResult {
-	if (type === PromptsType.hook && extname(location) === '.json') {
-		location = dirname(location);
-	}
+function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocationResult {
 	if (type !== PromptsType.instructions && type !== PromptsType.prompt) {
 		// only instructions and prompts support glob patterns, so we can return the location as is
-		return { parent: location };
+		return { searchRoot: location };
 	}
 
 	const segments = location.path.split('/');
@@ -884,16 +887,16 @@ function getParentFolder(type: PromptsType, location: URI): IParentFolderResult 
 	if (i === segments.length) {
 		// the path does not contain a glob pattern, so we can
 		// just find all prompt files in the provided location
-		return { parent: location };
+		return { searchRoot: location };
 	}
 	const parent = location.with({ path: segments.slice(0, i).join('/') });
 	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
-		return { parent };
+		return { searchRoot: parent };
 	}
 
 	// the path contains a glob pattern, so we search in last folder that does not contain a glob pattern
 	return {
-		parent,
+		searchRoot: parent,
 		filePattern: segments.slice(i).join('/')
 	};
 }

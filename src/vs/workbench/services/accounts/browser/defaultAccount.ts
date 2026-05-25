@@ -114,6 +114,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	declare _serviceBrand: undefined;
 
 	private defaultAccount: IDefaultAccount | null = null;
+	get currentDefaultAccount(): IDefaultAccount | null { return this.defaultAccount; }
 	get policyData(): IPolicyData | null { return this.defaultAccountProvider?.policyData ?? null; }
 	get copilotTokenInfo(): ICopilotTokenInfo | null { return this.defaultAccountProvider?.copilotTokenInfo ?? null; }
 
@@ -188,6 +189,14 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	async signOut(): Promise<void> {
 		await this.initBarrier.wait();
 		await this.defaultAccountProvider?.signOut();
+	}
+
+	resolveGitHubUrl(path: string): string {
+		if (this.defaultAccountProvider) {
+			return this.defaultAccountProvider.resolveGitHubUrl(path);
+		}
+
+		return `https://github.com/${path}`;
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -523,7 +532,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authenticationProvider.id);
 				return null;
 			}
-
 			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
@@ -549,6 +557,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
+				policyData.cloud_session_storage_enabled = tokenEntitlementsData.policyData.cloud_session_storage_enabled;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
@@ -670,6 +679,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
 						// MCP is only enabled if the flag is explicitly present and set to 1
 						mcp: tokenMap.get('mcp') === '1',
+						// Cloud session storage policy boolean from Copilot token; undefined when not present
+						cloud_session_storage_enabled: tokenMap.has('cloud_session_storage_enabled') ? tokenMap.get('cloud_session_storage_enabled') === '1' : undefined,
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),
@@ -880,6 +891,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			...this.defaultAccountConfig.authenticationProvider.default,
 			enterprise: false
 		};
+	}
+
+	resolveGitHubUrl(path: string): string {
+		if (this.getDefaultAccountAuthenticationProvider().enterprise) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (enterpriseUrl) {
+					return `${enterpriseUrl.protocol}//${enterpriseUrl.host}/${path}`;
+				}
+			} catch {
+				// fall through to default
+			}
+		}
+
+		return `https://github.com/${path}`;
 	}
 
 	private getEnterpriseUrl(): URL | undefined {

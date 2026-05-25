@@ -156,6 +156,18 @@ export function escapeMarkdownSyntaxTokens(text: string): string {
 }
 
 /**
+ * Escapes only the characters that would break out of markdown link text
+ * (`[label](url)`) syntax: `\` and `]`. Use this when the escaped string is
+ * displayed as the visible label of a link, since renderers that extract the
+ * link text without re-parsing markdown (e.g. the chat inline anchor / skill
+ * pill) would otherwise show full `escapeMarkdownSyntaxTokens` backslashes
+ * (`\-`, `\.`, ...) verbatim.
+ */
+export function escapeMarkdownLinkLabel(text: string): string {
+	return text.replace(/[\\\]]/g, '\\$&');
+}
+
+/**
  * @see https://github.com/microsoft/vscode/issues/193746
  */
 export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string) {

@@ -412,24 +412,6 @@ steps:
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
-  - script: |
-      set -e
-      echo "Disk usage before cleanup:"
-      df -h /
-      # Remove build intermediates no longer needed after tests
-      rm -rf .build/sysroots
-      rm -rf .build/electron
-      rm -rf out
-      rm -rf out-build
-      rm -rf out-vscode-min
-      rm -rf out-vscode-reh-min
-      rm -rf out-vscode-reh-web-min
-      rm -rf ~/.cache/ms-playwright
-      echo "Disk usage after cleanup:"
-      df -h /
-    displayName: Free disk space
-    condition: succeededOrFailed()
-
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts
       condition: succeededOrFailed()

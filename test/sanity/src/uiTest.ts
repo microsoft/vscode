@@ -51,13 +51,12 @@ export class UITest {
 	/**
 	 * Run the UI test actions.
 	 */
-	public async run(page: Page, skipWelcome = false) {
+	public async run(page: Page) {
 		try {
-			if (!skipWelcome) {
-				await this.dismissWelcomeDialog(page);
-			}
+			await this.dismissWelcomeDialog(page);
 			await this.dismissWorkspaceTrustDialog(page);
 			await this.createTextFile(page);
+			await this.searchInWorkspace(page);
 			await this.installExtension(page);
 		} catch (error) {
 			await this.context.captureScreenshot(page);
@@ -74,14 +73,19 @@ export class UITest {
 	}
 
 	/**
-	 * Dismiss the welcome sign-in dialog.
+	 * Dismiss the welcome sign-in dialog if it is shown.
 	 */
 	public async dismissWelcomeDialog(page: Page) {
-		this.context.log('Dismissing welcome dialog');
-		const skipButton = page.getByRole('button', { name: 'Skip' });
-		await skipButton.waitFor({ state: 'visible' });
-		await skipButton.click();
-		await skipButton.waitFor({ state: 'hidden' });
+		this.context.log('Dismissing welcome dialog (if shown)');
+		const closeButton = page.locator('button.onboarding-a-close-btn');
+		try {
+			await closeButton.waitFor({ state: 'visible', timeout: 8_000 });
+		} catch {
+			this.context.log('Welcome dialog not shown, continuing');
+			return;
+		}
+		await closeButton.click();
+		await closeButton.waitFor({ state: 'hidden' });
 	}
 
 	/**
@@ -136,6 +140,39 @@ export class UITest {
 		const filePath = `${this.workspaceDir}/helloWorld.txt`;
 		const fileContents = fs.readFileSync(filePath, 'utf-8');
 		assert.strictEqual(fileContents, 'Hello, World!', 'File contents do not match expected value');
+	}
+
+	/**
+	 * Run a workspace search (Search: Find in Files) and verify ripgrep returns
+	 * the expected match from the file created in {@link createTextFile}.
+	 */
+	private async searchInWorkspace(page: Page) {
+		await this.runCommand(page, 'Search: Find in Files');
+
+		this.context.log('Typing search query');
+		const searchInput = page.locator('.search-view .search-widget .search-container textarea').first();
+		await searchInput.waitFor({ state: 'visible' });
+		await searchInput.fill('Hello, World!');
+		await page.keyboard.press('Enter');
+
+		this.context.log('Waiting for search result text');
+		const resultMessage = page.locator('.search-view .messages .message').first();
+		await resultMessage.waitFor({ state: 'visible' });
+		await page.waitForFunction(() => {
+			const el = document.querySelector('.search-view .messages .message');
+			return el && /\d+\s+result/.test(el.textContent ?? '');
+		}, undefined, { timeout: 30_000 });
+
+		const resultText = (await resultMessage.innerText()).trim();
+		this.context.log(`Search result text: ${resultText}`);
+
+		await this.context.captureScreenshot(page);
+
+		assert.match(
+			resultText,
+			/1 result in 1 file/,
+			`Expected exactly 1 search result for "Hello, World!", but got: ${resultText}`,
+		);
 	}
 
 	/**

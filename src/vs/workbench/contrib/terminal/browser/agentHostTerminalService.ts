@@ -79,6 +79,13 @@ export interface IAgentHostTerminalService {
 	createTerminalForEntry(address: string, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance | undefined>;
 
 	/**
+	 * Reconnects all active terminals that belonged to {@link oldClientId}
+	 * to a new agent host connection. Only terminals matching the old
+	 * client are touched — terminals from other hosts are left alone.
+	 */
+	reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }>;
+
+	/**
 	 * Attaches to an existing server-side terminal by subscribing to its
 	 * state without creating a new process.
 	 */
@@ -104,6 +111,11 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	/** Revived terminal instances, keyed by terminal URI string. */
 	private readonly _revivedInstances = new Map<string, ITerminalInstance>();
+	/**
+	 * Active AgentHostPty instances with their owning connection clientId,
+	 * keyed by terminal URI string. Used for reconnection scoping.
+	 */
+	private readonly _activePtys = new Map<string, { pty: AgentHostPty; clientId: string }>();
 	private readonly _reviveSequencer = new SequencerByKey<string>();
 
 	constructor(
@@ -279,8 +291,9 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	async createTerminal(connection: IAgentConnection, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance> {
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
 		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
+		const key = terminalUri.toString();
 
-		return this._terminalService.createTerminal({
+		const instance = await this._terminalService.createTerminal({
 			config: {
 				customPtyImplementation: (id, cols, rows) => {
 					const pty = new AgentHostPty(id, connection, terminalUri, {
@@ -290,6 +303,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					if (cols > 0 && rows > 0) {
 						pty.resize(cols, rows);
 					}
+					this._activePtys.set(key, { pty, clientId: connection.clientId });
 					return pty;
 				},
 				name,
@@ -298,6 +312,12 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			},
 			location: options?.location,
 		});
+
+		this._register(instance.onDisposed(() => {
+			this._activePtys.delete(key);
+		}));
+
+		return instance;
 	}
 
 	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance> {
@@ -328,6 +348,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						commandSource.connect(instance, pty);
 					}
 
+					this._activePtys.set(key, { pty, clientId: connection.clientId });
 					return pty;
 				},
 				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
@@ -341,8 +362,36 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		instance.store.add(store);
 		this._register(instance.onDisposed(() => {
 			this._revivedInstances.delete(key);
+			this._activePtys.delete(key);
 		}));
 
 		return instance;
+	}
+
+	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {
+		// Only reconnect terminals that belonged to the old connection
+		// identified by oldClientId. In multi-host setups, other hosts'
+		// terminals are left untouched.
+		const entries = [...this._activePtys.entries()].filter(
+			([, entry]) => entry.clientId === oldClientId
+		);
+		const total = entries.length;
+		let recovered = 0;
+		const promises: Promise<void>[] = [];
+		for (const [key, entry] of entries) {
+			promises.push(
+				entry.pty.reconnect(newConnection).then(success => {
+					if (success) {
+						recovered++;
+						// Update the clientId to the new connection
+						entry.clientId = newConnection.clientId;
+					} else {
+						console.warn(`[AgentHostTerminalService] Failed to reconnect terminal: ${key}`);
+					}
+				})
+			);
+		}
+		await Promise.all(promises);
+		return { recovered, total };
 	}
 }

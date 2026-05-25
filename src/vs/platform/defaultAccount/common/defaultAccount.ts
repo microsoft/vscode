@@ -7,6 +7,15 @@ import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvid
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
+/**
+ * Well-known GitHub URL paths used with {@link IDefaultAccountService.resolveGitHubUrl}.
+ */
+export const GitHubPaths = {
+	copilotSettings: 'settings/copilot/features',
+	billingBudgets: 'settings/copilot/features?utm_source=vscode',
+	copilotUpgrade: 'github-copilot/upgrade?utm_source=vscode',
+} as const;
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
@@ -15,6 +24,16 @@ export interface IDefaultAccountProvider {
 	readonly copilotTokenInfo: ICopilotTokenInfo | null;
 	readonly onDidChangeCopilotTokenInfo: Event<ICopilotTokenInfo | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
+
+	/**
+	 * Resolves a GitHub URL path to a full URL, using the GitHub Enterprise
+	 * base URL when the user is authenticated via a GHE provider, or
+	 * `https://github.com` otherwise.
+	 *
+	 * @param path The path portion of the URL (e.g. `settings/copilot/features`).
+	 */
+	resolveGitHubUrl(path: string): string;
+
 	refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
@@ -27,6 +46,7 @@ export interface IDefaultAccountService {
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
 	readonly onDidChangePolicyData: Event<IPolicyData | null>;
 	readonly policyData: IPolicyData | null;
+	readonly currentDefaultAccount: IDefaultAccount | null;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null;
 	readonly onDidChangeCopilotTokenInfo: Event<ICopilotTokenInfo | null>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
@@ -35,4 +55,13 @@ export interface IDefaultAccountService {
 	refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
+
+	/**
+	 * Resolves a GitHub URL path to a full URL, using the GitHub Enterprise
+	 * base URL when the user is authenticated via a GHE provider, or
+	 * `https://github.com` otherwise.
+	 *
+	 * @param path The path portion of the URL (e.g. `settings/copilot/features`).
+	 */
+	resolveGitHubUrl(path: string): string;
 }

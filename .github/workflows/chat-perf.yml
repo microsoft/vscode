@@ -130,7 +130,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Cache Electron
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -139,7 +139,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Cache Playwright
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -215,12 +215,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -229,7 +229,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -388,12 +388,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -402,7 +402,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -468,14 +468,14 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Download perf summary data
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: perf-summary-*
           path: perf-results
 
       - name: Download leak results
         if: inputs.skip_leak_check != true && needs.leak-check.result != 'skipped'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: leak-results
           path: leak-results

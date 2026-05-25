@@ -16,7 +16,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { SideBySideEditor as SideBySideEditorPane } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions, IEditorGroupsContainer } from '../common/editorGroupsService.js';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from '../common/editorService.js';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult, IVisibleEditorsChangeEvent } from '../common/editorService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, IDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
@@ -45,7 +45,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidActiveEditorChange = this._register(new Emitter<void>());
 	readonly onDidActiveEditorChange = this._onDidActiveEditorChange.event;
 
-	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
+	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<IVisibleEditorsChangeEvent>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
 	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent>());
@@ -135,7 +135,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Fire initial set of editor events if there is an active editor
 		if (this.activeEditor) {
 			this.doHandleActiveEditorChangeEvent();
-			this._onDidVisibleEditorsChange.fire();
+			this._onDidVisibleEditorsChange.fire({ isExplicit: false });
 		}
 	}
 
@@ -168,9 +168,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this._onDidEditorsChange.fire({ groupId: group.id, event: e });
 		}));
 
-		groupDisposables.add(group.onDidActiveEditorChange(() => {
+		groupDisposables.add(group.onDidActiveEditorChange(e => {
 			this.handleActiveEditorChange(group);
-			this._onDidVisibleEditorsChange.fire();
+			this._onDidVisibleEditorsChange.fire({ isExplicit: e.isExplicit !== false /* treat undefined as explicit */ });
 		}));
 
 		groupDisposables.add(group.onWillOpenEditor(e => {

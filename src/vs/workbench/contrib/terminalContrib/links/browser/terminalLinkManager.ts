@@ -98,11 +98,19 @@ export class TerminalLinkManager extends DisposableStore {
 
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
+		let activeHoverListeners: DisposableStore | undefined;
+		const clearActiveLinkHover = () => {
+			activeHoverDisposable?.dispose();
+			activeHoverDisposable = undefined;
+			activeTooltipScheduler?.dispose();
+			activeTooltipScheduler = undefined;
+			activeHoverListeners?.dispose();
+			activeHoverListeners = undefined;
+		};
 		this.add(toDisposable(() => {
 			this._clearLinkProviders();
 			dispose(this._externalLinkProviders);
-			activeHoverDisposable?.dispose();
-			activeTooltipScheduler?.dispose();
+			clearActiveLinkHover();
 		}));
 		this._xterm.options.linkHandler = {
 			allowNonHttpProtocols: true,
@@ -146,9 +154,7 @@ export class TerminalLinkManager extends DisposableStore {
 				});
 			},
 			hover: (e, text, range) => {
-				activeHoverDisposable?.dispose();
-				activeHoverDisposable = undefined;
-				activeTooltipScheduler?.dispose();
+				clearActiveLinkHover();
 				activeTooltipScheduler = new RunOnceScheduler(() => {
 					interface XtermWithCore extends Terminal {
 						_core: IXtermCore;
@@ -162,16 +168,30 @@ export class TerminalLinkManager extends DisposableStore {
 						width: this._xterm.cols,
 						height: this._xterm.rows
 					};
+					const hoverViewportY = this._xterm.buffer.active.viewportY;
 					activeHoverDisposable = this._showHover({
-						viewportRange: convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
+						viewportRange: convertBufferRangeToViewport(range, hoverViewportY),
 						cellDimensions,
 						terminalDimensions
 					}, this._getLinkHoverString(text, text), undefined, (text) => this._xterm.options.linkHandler?.activate(e, text, range));
+					activeHoverListeners = new DisposableStore();
+					activeHoverListeners.add(this._xterm.onScroll(() => clearActiveLinkHover()));
+					activeHoverListeners.add(this._xterm.onRender(renderedRange => {
+						// Convert buffer range to viewport range and check if the
+						// rendered range intersects any row of the link
+						const viewportRange = convertBufferRangeToViewport(range, hoverViewportY);
+						if (viewportRange.start.y <= renderedRange.end && viewportRange.end.y >= renderedRange.start) {
+							clearActiveLinkHover();
+						}
+					}));
 					// Clear out scheduler until next hover event
 					activeTooltipScheduler?.dispose();
 					activeTooltipScheduler = undefined;
 				}, this._configurationService.getValue('workbench.hover.delay'));
 				activeTooltipScheduler.schedule();
+			},
+			leave: () => {
+				clearActiveLinkHover();
 			}
 		};
 	}

@@ -54,6 +54,12 @@ export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
+
+export const enum McpCollisionBehavior {
+	Disable = 'disable',
+	Suffix = 'suffix',
+}
 
 export interface IMcpServerSamplingConfiguration {
 	allowedDuringChat?: boolean;
@@ -274,7 +280,7 @@ export const mcpServerSchema: IJSONSchema = {
 									clientId: {
 										type: 'string',
 										minLength: 1,
-										description: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server.")
+										markdownDescription: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server. To set the matching client secret securely, use the *Set Client Secret* code lens above this field — secrets are stored in the OS secret store, not in this file.")
 									}
 								}
 							},

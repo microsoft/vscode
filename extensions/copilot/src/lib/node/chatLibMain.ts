@@ -55,7 +55,7 @@ import { LlmNESTelemetryBuilder, NextEditProviderTelemetryBuilder, TelemetrySend
 import { INextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
 import { IPowerService, NullPowerService } from '../../extension/power/common/powerService';
 import { ChatMLFetcherImpl } from '../../extension/prompt/node/chatMLFetcher';
-import { ISimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
+import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
 import { XtabProvider } from '../../extension/xtab/node/xtabProvider';
 import { IAuthenticationService } from '../../platform/authentication/common/authentication';
 import { ICopilotTokenManager } from '../../platform/authentication/common/copilotTokenManager';
@@ -67,7 +67,7 @@ import { IChatQuotaService } from '../../platform/chat/common/chatQuotaService';
 import { ChatQuotaService } from '../../platform/chat/common/chatQuotaServiceImpl';
 import { IConversationOptions } from '../../platform/chat/common/conversationOptions';
 import { IInteractionService, InteractionService } from '../../platform/chat/common/interactionService';
-import { BaseConfig, Config, ConfigKey, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
+import { BaseConfig, Config, ConfigKey, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { IDiffService } from '../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../platform/diff/node/diffServiceImpl';
@@ -104,8 +104,8 @@ import { resolveOTelConfig } from '../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../platform/otel/common/otelService';
 import { IProxyModelsService } from '../../platform/proxyModels/common/proxyModelsService';
 import { ProxyModelsService } from '../../platform/proxyModels/node/proxyModelsService';
-import { NullRequestLogger } from '../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../platform/requestLogger/common/requestLogger';
+import { NullRequestLogger } from '../../platform/requestLogger/node/nullRequestLogger';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../platform/simulationTestContext/common/simulationTestContext';
 import { ISnippyService, NullSnippyService } from '../../platform/snippy/common/snippyService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../../platform/telemetry/common/nullExperimentationService';
@@ -419,7 +419,7 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 		this._overrides = overrides;
 	}
 
-	override async setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	override async setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
 		const existing = this._overrides.get(key.id);
 		if (existing === value) {
 			return;
@@ -481,14 +481,6 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 			return { defaultValue: overriddenValue as T };
 		}
 		return super.inspectConfig(key);
-	}
-}
-
-class NullSimilarFilesContextService implements ISimilarFilesContextService {
-	declare readonly _serviceBrand: undefined;
-
-	async compute(): Promise<undefined> {
-		return undefined;
 	}
 }
 

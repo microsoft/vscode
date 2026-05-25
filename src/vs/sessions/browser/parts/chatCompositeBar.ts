@@ -6,7 +6,7 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
@@ -75,9 +75,13 @@ export class ChatCompositeBar extends Disposable {
 
 			const chats = activeSession.chats.read(reader);
 			const activeChatUri = activeSession.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = activeSession.mainChat.resource.toString();
+			const mainChatUri = activeSession.mainChat.read(reader).resource.toString();
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
 		}));
+
+		// Scroll active tab into view on resize
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => this._revealActiveTab()));
+		this._register(resizeObserver.observe(this._tabsContainer));
 
 
 		this._updateStyles();
@@ -115,6 +119,38 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
+		// Track unread / needs-input / in-progress state for the indicator.
+		// Precedence: needs-input (unread) > in-progress (spinner) > unread when not active.
+		// At most one indicator is shown at a time.
+		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
+		indicator.appendChild(indicatorIcon);
+		this._tabDisposables.add(autorun(reader => {
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeChat = activeSession?.activeChat.read(reader);
+			const isActive = activeChat?.resource.toString() === chat.resource.toString();
+			const status = chat.status.read(reader);
+			const isRead = chat.isRead.read(reader);
+
+			let mode: 'needs-input' | 'unread' | 'in-progress' | 'none' = 'none';
+			if (status === SessionStatus.NeedsInput) {
+				mode = 'needs-input';
+			} else if (status === SessionStatus.InProgress) {
+				mode = 'in-progress';
+			} else if (!isRead && !isActive) {
+				mode = 'unread';
+			}
+
+			tab.classList.toggle('needs-input', mode === 'needs-input');
+			tab.classList.toggle('unread', mode === 'unread');
+			tab.classList.toggle('in-progress', mode === 'in-progress');
+
+			indicatorIcon.className = 'chat-composite-bar-tab-indicator-icon';
+			if (mode === 'in-progress') {
+				indicatorIcon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+			}
+		}));
+
 		// Remove action bar — only for non-main chats, visible on hover
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
@@ -134,7 +170,6 @@ export class ChatCompositeBar extends Disposable {
 			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
 		}
 
-		const indicator = $('.chat-composite-bar-tab-indicator');
 		tab.appendChild(indicator);
 
 		this._tabsContainer.appendChild(tab);
@@ -195,7 +230,15 @@ export class ChatCompositeBar extends Disposable {
 			const isActive = tab.chat.resource.toString() === activeChatId;
 			tab.element.classList.toggle('active', isActive);
 			tab.element.setAttribute('aria-selected', String(isActive));
+			if (isActive) {
+				tab.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			}
 		}
+	}
+
+	private _revealActiveTab(): void {
+		const activeTab = this._tabs.find(t => t.element.classList.contains('active'));
+		activeTab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	private _updateVisibility(): void {
