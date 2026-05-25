@@ -12,6 +12,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -105,6 +106,7 @@ suite('HasByokModelsContribution', () => {
 		instantiation.stub(IExtensionService, new TestExtensionService());
 		instantiation.stub(IContextKeyService, contextKeyService);
 		instantiation.stub(IConfigurationService, configurationService);
+		instantiation.stub(IProductService, { quality: 'dev' } as IProductService);
 		instantiation.stub(ILanguageModelsConfigurationService, configService as unknown as ILanguageModelsConfigurationService);
 
 		const hasByokModels = ChatEntitlementContextKeys.hasByokModels.bindTo(contextKeyService);
@@ -208,18 +210,38 @@ suite('HasByokModelsContribution', () => {
 		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 
-	test('signal flipping on later updates the persisted value', async () => {
+	test('configured BYOK group is sufficient — extensions registered, no signal → result true', async () => {
 		const store = disposables.add(new DisposableStore());
 		const scenario = createScenario(store, {
 			groups: [{ vendor: 'ollama', name: 'Ollama' }],
 		});
 		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('pre-registration: signal flipping on optimistically updates the persisted value', () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {});
+		// No flush — extensions are not yet registered.
 		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: false, persistedLastKnown: false });
 
 		scenario.nonCopilotUserSelectable.set(true);
-		await flush();
 
 		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('stale signal is ignored once extensions register and no BYOK groups remain', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			// The signal is on (e.g. the language-model cache still has a model whose underlying
+			// BYOK group was just removed) but no non-Copilot vendor group is configured anymore.
+			contextKeys: { nonCopilotUserSelectable: true },
+			storage: { lastKnown: true },
+		});
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 
 	test('removing all BYOK groups at runtime → result false', async () => {
