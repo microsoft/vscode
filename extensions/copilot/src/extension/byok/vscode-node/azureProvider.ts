@@ -12,7 +12,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
+import { BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
@@ -24,6 +24,8 @@ interface AzureBYOKModelProviderConfig extends CustomOAIModelProviderConfig {
 	entraAuthProvider?: AzureEntraAuthProvider;
 	entraScopes?: unknown;
 }
+
+type AzureBYOKModelConfiguration = NonNullable<CustomOAIModelProviderConfig['models']>[number];
 
 /**
  * Resolves the VS Code authentication provider used for Azure Entra auth.
@@ -57,6 +59,34 @@ export function applyAzureSupportedEndpoints(modelInfo: IChatModelInformation, u
 			ModelSupportedEndpoint.Responses
 		]));
 	}
+}
+
+export function applyConfiguredAzureSupportedEndpoints(modelInfo: IChatModelInformation, configuredEndpoints: readonly ModelSupportedEndpoint[] | undefined): void {
+	if (configuredEndpoints?.length) {
+		modelInfo.supported_endpoints = Array.from(new Set([
+			...(modelInfo.supported_endpoints ?? []),
+			...configuredEndpoints
+		]));
+	}
+}
+
+export function resolveAzureModelCapabilities(model: OpenAICompatibleLanguageModelChatInformation<CustomOAIModelProviderConfig>, url: string, modelConfiguration: AzureBYOKModelConfiguration | undefined): BYOKModelCapabilities {
+	return {
+		maxInputTokens: model.maxInputTokens,
+		maxOutputTokens: model.maxOutputTokens,
+		toolCalling: !!model.capabilities?.toolCalling,
+		vision: !!model.capabilities?.imageInput,
+		name: model.name,
+		url,
+		thinking: modelConfiguration?.thinking ?? false,
+		streaming: modelConfiguration?.streaming,
+		requestHeaders: modelConfiguration?.requestHeaders,
+		editTools: modelConfiguration?.editTools ?? model.capabilities?.editTools?.filter(isEndpointEditToolName),
+		zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
+		supportedEndpoints: modelConfiguration?.supportedEndpoints,
+		supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
+		reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
+	};
 }
 
 export function resolveAzureUrl(modelId: string, url: string): string {
@@ -146,20 +176,9 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 
 		const url = this.resolveUrl(model.id, model.url);
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const modelCapabilities = {
-			maxInputTokens: model.maxInputTokens,
-			maxOutputTokens: model.maxOutputTokens,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
-			name: model.name,
-			url,
-			thinking: modelConfiguration?.thinking,
-			streaming: modelConfiguration?.streaming,
-			requestHeaders: modelConfiguration?.requestHeaders,
-			editTools: model.capabilities?.editTools?.filter(isEndpointEditToolName),
-			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
-		};
+		const modelCapabilities = resolveAzureModelCapabilities(model, url, modelConfiguration);
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		applyConfiguredAzureSupportedEndpoints(modelInfo, modelConfiguration?.supportedEndpoints);
 		applyAzureSupportedEndpoints(modelInfo, url);
 
 		const openAIChatEndpoint = this._instantiationService.createInstance(

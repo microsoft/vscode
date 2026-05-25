@@ -10,7 +10,7 @@ import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platf
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { applyAzureSupportedEndpoints, resolveAzureEntraAuthProvider, resolveAzureEntraScopes, resolveAzureUrl } from '../azureProvider';
+import { applyAzureSupportedEndpoints, applyConfiguredAzureSupportedEndpoints, resolveAzureEntraAuthProvider, resolveAzureEntraScopes, resolveAzureModelCapabilities, resolveAzureUrl } from '../azureProvider';
 
 describe('AzureBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -102,6 +102,97 @@ describe('AzureBYOKModelProvider', () => {
 		});
 	});
 
+	describe('resolveAzureModelCapabilities', () => {
+		type AzureModel = Parameters<typeof resolveAzureModelCapabilities>[0];
+
+		function createModel(overrides: Partial<AzureModel> = {}): AzureModel {
+			const model = {
+				id: 'gpt-5.1',
+				name: 'GPT 5.1',
+				version: '1.0.0',
+				family: 'gpt-5.1',
+				url: 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview',
+				maxInputTokens: 272000,
+				maxOutputTokens: 128000,
+				capabilities: {
+					toolCalling: true,
+					imageInput: true,
+					editTools: ['find-replace'],
+				},
+				...overrides,
+			} satisfies AzureModel;
+			return model;
+		}
+
+		it('preserves configured reasoning effort, endpoint, and edit tool metadata for the Entra path', () => {
+			const modelConfiguration: NonNullable<Parameters<typeof resolveAzureModelCapabilities>[2]> = {
+				id: 'gpt-5.1',
+				name: 'GPT 5.1',
+				url: 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview',
+				maxInputTokens: 272000,
+				maxOutputTokens: 128000,
+				toolCalling: true,
+				vision: true,
+				thinking: true,
+				streaming: true,
+				editTools: ['apply-patch'],
+				requestHeaders: { 'X-Test-Header': 'value' },
+				zeroDataRetentionEnabled: true,
+				supportedEndpoints: [ModelSupportedEndpoint.Responses],
+				supportsReasoningEffort: ['none', 'low', 'medium', 'high'],
+				reasoningEffortFormat: 'responses',
+			};
+			const model = createModel({
+				configuration: {
+					models: [modelConfiguration],
+				},
+			});
+
+			const capabilities = resolveAzureModelCapabilities(model, 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview', modelConfiguration);
+
+			expect(capabilities).toMatchObject({
+				thinking: true,
+				streaming: true,
+				requestHeaders: { 'X-Test-Header': 'value' },
+				editTools: ['apply-patch'],
+				zeroDataRetentionEnabled: true,
+				supportedEndpoints: [ModelSupportedEndpoint.Responses],
+				supportsReasoningEffort: ['none', 'low', 'medium', 'high'],
+				reasoningEffortFormat: 'responses',
+			});
+		});
+
+		it('falls back to resolved model capabilities when no matching model configuration exists', () => {
+			const capabilities = resolveAzureModelCapabilities(createModel(), 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview', undefined);
+
+			expect(capabilities).toMatchObject({
+				toolCalling: true,
+				vision: true,
+				thinking: false,
+				editTools: ['find-replace'],
+			});
+			expect(capabilities.supportsReasoningEffort).toBeUndefined();
+			expect(capabilities.reasoningEffortFormat).toBeUndefined();
+		});
+
+		it('honors an explicitly empty configured editTools list instead of falling back', () => {
+			const modelConfiguration: NonNullable<Parameters<typeof resolveAzureModelCapabilities>[2]> = {
+				id: 'gpt-5.1',
+				name: 'GPT 5.1',
+				url: 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview',
+				maxInputTokens: 272000,
+				maxOutputTokens: 128000,
+				toolCalling: true,
+				vision: true,
+				editTools: [],
+			};
+
+			const capabilities = resolveAzureModelCapabilities(createModel(), 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview', modelConfiguration);
+
+			expect(capabilities.editTools).toEqual([]);
+		});
+	});
+
 	describe('applyAzureSupportedEndpoints', () => {
 		it('should mark Responses URLs as supporting the Responses endpoint', () => {
 			const modelInfo = {} as IChatModelInformation;
@@ -125,6 +216,48 @@ describe('AzureBYOKModelProvider', () => {
 			applyAzureSupportedEndpoints(modelInfo, 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview');
 
 			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.Messages, ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses]);
+		});
+	});
+
+	describe('applyConfiguredAzureSupportedEndpoints', () => {
+		it('initializes endpoint metadata when none exists', () => {
+			const modelInfo = {} as IChatModelInformation;
+
+			applyConfiguredAzureSupportedEndpoints(modelInfo, [ModelSupportedEndpoint.Responses]);
+
+			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.Responses]);
+		});
+
+		it('merges explicitly configured supported endpoints with existing metadata', () => {
+			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] } as IChatModelInformation;
+
+			applyConfiguredAzureSupportedEndpoints(modelInfo, [ModelSupportedEndpoint.Responses]);
+
+			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses]);
+		});
+
+		it('deduplicates endpoints that already exist in metadata', () => {
+			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses] } as IChatModelInformation;
+
+			applyConfiguredAzureSupportedEndpoints(modelInfo, [ModelSupportedEndpoint.Responses]);
+
+			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses]);
+		});
+
+		it('leaves metadata unchanged when configured endpoints are empty', () => {
+			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] } as IChatModelInformation;
+
+			applyConfiguredAzureSupportedEndpoints(modelInfo, []);
+
+			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions]);
+		});
+
+		it('leaves metadata unchanged when no endpoints are configured', () => {
+			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] } as IChatModelInformation;
+
+			applyConfiguredAzureSupportedEndpoints(modelInfo, undefined);
+
+			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions]);
 		});
 	});
 
