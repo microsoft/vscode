@@ -250,15 +250,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// tracking from the start point (e.g. when starting from
 		// 'origin/main', without --no-track git would set the new branch's
 		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 60_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 60_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 60_000, throwOnError: true });
 	}
 
 	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
@@ -542,13 +542,20 @@ export class AgentHostGitService implements IAgentHostGitService {
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
+			const timeoutMs = options?.timeout ?? 5000;
+			// Use our own timer rather than execFile's `timeout` option so
+			// we can definitively flag the timeout case in the error
+			// message — execFile only surfaces signal/killed, which can
+			// also mean the process was killed for other reasons.
+			let didTimeOut = false;
 			// Default maxBuffer is 32MB — Node's default is ~1MB, which is
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
-			cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, timeout: options?.timeout ?? 5000, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+				clearTimeout(timer);
 				if (error) {
 					if (options?.throwOnError) {
-						reject(new Error(stderr || error.message));
+						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
 						return;
 					}
 					resolve(undefined);
@@ -556,8 +563,38 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			const timer = setTimeout(() => {
+				didTimeOut = true;
+				child.kill();
+			}, timeoutMs);
 		});
 	}
+}
+
+/**
+ * Builds a diagnostic error message for a failed `git` invocation that
+ * preserves the reason (timeout / signal / exit code) instead of just
+ * surfacing whatever happened to be on stderr. When `git` is killed by
+ * the timeout, stderr often contains only progress output (e.g.
+ * `Updating files:   0% (149/14834)`), so without the timeout indicator
+ * the bubbled-up error is misleading.
+ *
+ * Exported for tests.
+ */
+export function formatGitError(args: readonly string[], timeoutMs: number, didTimeOut: boolean, error: cp.ExecFileException, stderr: string): string {
+	const subcommand = args[0] ?? '(unknown)';
+	let reason: string;
+	if (didTimeOut) {
+		reason = `git ${subcommand} timed out after ${timeoutMs}ms`;
+	} else if (error.killed && error.signal) {
+		reason = `git ${subcommand} killed by ${error.signal}`;
+	} else if (typeof error.code === 'number') {
+		reason = `git ${subcommand} exited with code ${error.code}`;
+	} else {
+		reason = error.message;
+	}
+	const detail = stderr.trim();
+	return detail ? `${reason}: ${detail}` : reason;
 }
 
 /**
