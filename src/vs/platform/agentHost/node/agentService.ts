@@ -992,44 +992,35 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.removeSession(evictionTargetKey);
 	}
 
-	/**
-	 * Subscriber-aware guard for {@link AgentHostStateManager}'s changeset retention.
-	 * The state manager owns the changeset state cache, but it deliberately
-	 * does not know about protocol subscribers or changeset compute lifetimes.
-	 * Keep that cross-component knowledge here, next to `_resourceSubscribers`:
-	 *
-	 * - A direct changeset subscriber means a client is rendering the expanded
-	 *   changeset URI, so evicting would make the next envelope target a missing
-	 *   state object.
-	 * - A parent session subscriber means the session catalogue can still be
-	 *   updated from the static changeset counts, so keep the backing state live
-	 *   while the session itself is observed.
-	 * - A subscribed subagent descendant pins the parent session tree; treat it
-	 *   like a parent-session subscriber for eviction purposes.
-	 * - An active static recompute owns the slot until it publishes or fails.
-	 *
-	 * Eviction that passes this predicate is silent and lossy only as a cache
-	 * operation: persisted diffs can rehydrate the changeset on the next restore
-	 * / subscribe path, and no client is currently observing the entry.
-	 */
+	// Returns true when a changeset is safe to drop from the in-memory cache.
 	private _isChangesetEvictable(changeset: string): boolean {
 		const changesetUri = URI.parse(changeset);
+		// A direct changeset subscriber is rendering this expanded URI. Keep
+		// the state alive so future envelopes still target an existing object.
 		if (this._resourceSubscribers.has(changesetUri)) {
 			return false;
 		}
 		const parsed = parseChangesetUri(changeset);
+		// This guard only handles recognized changeset URIs; leave anything else alone.
 		if (!parsed) {
 			return false;
 		}
 		const sessionUri = URI.parse(parsed.sessionUri);
+		// A parent-session subscriber can still receive catalogue count updates
+		// from this changeset, so keep the backing state while the session is observed.
 		if (this._resourceSubscribers.has(sessionUri)) {
 			return false;
 		}
+		// Subagent views are backed by the parent session tree; treat any
+		// subscribed descendant as a parent-session pin for cache eviction.
 		for (const subscribedUri of this._resourceSubscribers.keys()) {
 			if (this._isSubagentDescendantOf(subscribedUri, sessionUri)) {
 				return false;
 			}
 		}
+		// If a git/session/uncommitted changeset recompute is currently running for this changeset URI,
+		// do not evict its cached state yet. Once the compute is done,
+		// it is safe to evict because the state is just a cache and can be recreated later.
 		return !this._changesets.isStaticChangesetComputeActive(changeset);
 	}
 
