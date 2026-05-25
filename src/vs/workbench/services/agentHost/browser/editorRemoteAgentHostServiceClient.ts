@@ -21,6 +21,7 @@ import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/bro
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -206,6 +207,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	disposeTerminal(terminal: URI): Promise<void> {
 		return this._requireClient().disposeTerminal(terminal);
+	}
+
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._requireClient().invokeChangesetOperation(params);
 	}
 
 	resourceList(uri: URI): Promise<ResourceListResult> {

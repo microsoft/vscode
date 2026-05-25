@@ -127,6 +127,7 @@ class MockAgentService implements IAgentService {
 	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	getAuthToken(_resource: string): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
@@ -149,6 +150,7 @@ class MockAgentService implements IAgentService {
 	async resourceMove(): Promise<{}> { return {}; }
 	async createTerminal(): Promise<void> { }
 	async disposeTerminal(): Promise<void> { }
+	async invokeChangesetOperation(): Promise<{}> { return {}; }
 
 	dispose(): void {
 		this._onDidAction.dispose();

@@ -45,6 +45,27 @@ export interface IAgentHostGitService {
 	 * worktree that still contains uncommitted work.
 	 */
 	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
+
+	/**
+	 * Stages and commits all tracked, staged, and untracked changes in the
+	 * working tree. Mirrors the Copilot CLI session PR path, which commits
+	 * uncommitted work before creating a pull request.
+	 */
+	commitAll(workingDirectory: URI, message: string): Promise<void>;
+
+	/**
+	 * Returns true when the named branch has an upstream tracking ref
+	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
+	 * to decide whether `--set-upstream` is needed.
+	 */
+	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
+
+	/**
+	 * Pushes {@link branchName} to `origin`. When {@link setUpstream} is
+	 * true, the push uses `--set-upstream` so subsequent fetch/push
+	 * commands track the remote branch.
+	 */
+	pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void>;
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a
@@ -271,6 +292,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
 		return !!output && output.trim().length > 0;
+	}
+
+	async commitAll(workingDirectory: URI, message: string): Promise<void> {
+		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
+		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {
+		const output = await this._runGit(workingDirectory, ['rev-parse', '--abbrev-ref', `${branchName}@{upstream}`]);
+		return output !== undefined && output.trim().length > 0;
+	}
+
+	async pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void> {
+		const args = ['push'];
+		if (setUpstream) {
+			args.push('--set-upstream');
+		}
+		args.push('origin', branchName);
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
