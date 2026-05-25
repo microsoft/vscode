@@ -22,6 +22,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
+import { TextDirection } from '../../../../common/model.js';
 import { RenderingContext, RestrictedRenderingContext, HorizontalPosition, LineVisibleRanges } from '../../../view/renderingContext.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../../common/viewEvents.js';
@@ -193,6 +194,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
+		this._updateTextDirection();
 
 		this._ensureReadOnlyAttribute();
 
@@ -583,6 +585,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		this._updateTextDirection();
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
 			this._ensureReadOnlyAttribute();
@@ -600,6 +603,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
 		this._textAreaInput.writeNativeTextAreaContent('selection changed');
+		this._updateTextDirection();
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -686,8 +690,19 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		this._updateTextDirection();
 		this._textAreaInput.writeNativeTextAreaContent('render');
 		this._render();
+	}
+
+	private _updateTextDirection(): void {
+		const lineNumber = this._selections[0]?.positionLineNumber ?? 1;
+		const textDirection = this._context.viewModel.getTextDirection(lineNumber);
+		const dir = textDirection === TextDirection.RTL ? 'rtl' : 'ltr';
+		if (this.textArea.domNode.dir !== dir) {
+			this.textArea.setAttribute('dir', dir);
+			this.textAreaCover.setAttribute('dir', dir);
+		}
 	}
 
 	private _render(): void {

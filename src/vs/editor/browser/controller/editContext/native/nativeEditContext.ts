@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
+import { EndOfLinePreference, IModelDeltaDecoration, TextDirection } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
@@ -297,6 +297,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		this._updateTextDirection();
 		this._screenReaderSupport.render(ctx);
 		this._updateSelectionAndControlBounds();
 	}
@@ -305,6 +306,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
 		this._updateEditContext();
+		this._updateTextDirection();
 		return true;
 	}
 
@@ -409,6 +411,17 @@ export class NativeEditContext extends AbstractEditContext {
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
 		this.domNode.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		this._updateTextDirection();
+	}
+
+	private _updateTextDirection(): void {
+		const lineNumber = this._primarySelection?.positionLineNumber ?? 1;
+		const textDirection = this._context.viewModel.getTextDirection(lineNumber);
+		const dir = textDirection === TextDirection.RTL ? 'rtl' : 'ltr';
+		if (this.domNode.domNode.getAttribute('dir') !== dir) {
+			this.domNode.domNode.setAttribute('dir', dir);
+			this._imeTextArea.setAttribute('dir', dir);
+		}
 	}
 
 	private _updateEditContext(): void {

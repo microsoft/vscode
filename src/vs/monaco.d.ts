@@ -3193,6 +3193,11 @@ declare namespace monaco.editor {
 	export type EditorAutoClosingEditStrategy = 'always' | 'auto' | 'never';
 
 	/**
+	 * Configuration options for editor text direction.
+	 */
+	export type EditorTextDirection = 'ltr' | 'rtl' | 'auto';
+
+	/**
 	 * Configuration options for auto indentation in the editor
 	 */
 	export enum EditorAutoIndentStrategy {
@@ -3542,6 +3547,11 @@ declare namespace monaco.editor {
 		 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
 		 */
 		wordBreak?: 'normal' | 'keepAll';
+		/**
+		 * Controls the text direction of the editor.
+		 * Defaults to 'ltr'.
+		 */
+		textDirection?: EditorTextDirection;
 		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
@@ -5231,33 +5241,34 @@ declare namespace monaco.editor {
 		useShadowDOM = 144,
 		useTabStops = 145,
 		wordBreak = 146,
-		wordSegmenterLocales = 147,
-		wordSeparators = 148,
-		wordWrap = 149,
-		wordWrapBreakAfterCharacters = 150,
-		wordWrapBreakBeforeCharacters = 151,
-		wordWrapColumn = 152,
-		wordWrapOverride1 = 153,
-		wordWrapOverride2 = 154,
-		wrappingIndent = 155,
-		wrappingStrategy = 156,
-		showDeprecated = 157,
-		inertialScroll = 158,
-		inlayHints = 159,
-		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		textDirection = 147,
+		wordSegmenterLocales = 148,
+		wordSeparators = 149,
+		wordWrap = 150,
+		wordWrapBreakAfterCharacters = 151,
+		wordWrapBreakBeforeCharacters = 152,
+		wordWrapColumn = 153,
+		wordWrapOverride1 = 154,
+		wordWrapOverride2 = 155,
+		wrappingIndent = 156,
+		wrappingStrategy = 157,
+		showDeprecated = 158,
+		inertialScroll = 159,
+		inlayHints = 160,
+		wrapOnEscapedLineFeeds = 161,
+		effectiveCursorStyle = 162,
+		editorClassName = 163,
+		pixelRatio = 164,
+		tabFocusMode = 165,
+		layoutInfo = 166,
+		wrappingInfo = 167,
+		defaultColorDecorators = 168,
+		colorDecoratorsActivatedOn = 169,
+		inlineCompletionsAccessibilityVerbose = 170,
+		effectiveEditContext = 171,
+		scrollOnMiddleClick = 172,
+		effectiveAllowVariableFonts = 173,
+		doubleClickSelectsBlock = 174
 	}
 
 	export const EditorOptions: {
@@ -5415,6 +5426,7 @@ declare namespace monaco.editor {
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
+		textDirection: IEditorOption<EditorOption.textDirection, EditorTextDirection>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, string[]>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;

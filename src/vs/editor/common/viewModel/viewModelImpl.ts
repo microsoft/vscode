@@ -47,6 +47,7 @@ import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
+const STRONG_LTR_REGEX = /[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02B8]/;
 
 export class ViewModel extends Disposable implements IViewModel {
 
@@ -853,6 +854,44 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
+	private _getAutoTextDirection(lineContent: string): TextDirection {
+		if (!strings.containsRTL(lineContent)) {
+			return TextDirection.LTR;
+		}
+
+		const rtlIndex = this._getFirstRTLIndex(lineContent);
+		const ltrIndex = lineContent.search(STRONG_LTR_REGEX);
+		if (ltrIndex === -1) {
+			return TextDirection.RTL;
+		}
+		if (rtlIndex === -1) {
+			return TextDirection.LTR;
+		}
+
+		return rtlIndex < ltrIndex ? TextDirection.RTL : TextDirection.LTR;
+	}
+
+	private _getFirstRTLIndex(lineContent: string): number {
+		for (let i = 0; i < lineContent.length; i++) {
+			if (strings.containsRTL(lineContent[i])) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
+	private _getConfiguredTextDirection(lineContent: string): TextDirection {
+		const configured = this._configuration.options.get(EditorOption.textDirection);
+		if (configured === 'rtl') {
+			return TextDirection.RTL;
+		}
+		if (configured === 'auto') {
+			return this._getAutoTextDirection(lineContent);
+		}
+		return TextDirection.LTR;
+	}
+
 	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
 		let rtlCount = 0;
 
@@ -869,7 +908,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		if (rtlCount !== 0) {
+			return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		}
+
+		return this._getConfiguredTextDirection(this.getLineContent(lineNumber));
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
