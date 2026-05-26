@@ -1055,46 +1055,60 @@ dispose) clean across the whole session lifecycle.
 
 Full step-by-step plan: [phase10.5-plan.md](./phase10.5-plan.md).
 
-### Phase 11 — Customizations / plugins (full surface)
+### Phase 11 — Customizations / plugins (full surface) ✅ **DONE**
+
+Shipped in PR #318113. Two-tier model:
 
 **Inbound (host → SDK):**
 
-- `setClientCustomizations(clientId, customizations, progress?)` — call
-  `agentPluginManager.syncCustomizations` to download `CustomizationRef[]`
-  to local dirs, get back `ISyncedCustomization[]` with local paths.
-  Forward incremental results via the `progress` callback
-  (`agentService.ts:439`) for progressive loading UI.
-- Pass the local paths as `options.plugins: [{ type: 'local', path }, ...]`
-  on the next `query()` call.
-- **`setCustomizationEnabled(uri, enabled)` — defer-and-coalesce, NOT
-  restart.** Set `_pendingPluginReload`; at the next yield boundary, call
-  `Query.reloadPlugins()` (a cheap runtime SDK setter — bijective per
-  M11). `reloadPlugins` is in M11's **defer-and-coalesce** bucket, not
-  restart-required: the running subprocess stays up. Only when the *tool
-  set* implied by the new plugin list diverges from the live one do we
-  fall back to the **restart-required** path (yield-restart via
-  `resume: sessionId`); that's the narrow `_toolsMatch` case from
-  `claudeCodeAgent.ts`, not the default. The misnamed `_pendingRestart`
-  flag from the reference impl is a historical artifact — the canonical
-  taxonomy treats plugin reload as cheap.
+- `setClientCustomizations(clientId, customizations, progress?)` — runs inside
+  the per-session sequencer (so a fire-and-forget call from `AgentSideEffects`
+  cannot race a first `sendMessage`). Calls
+  `IAgentPluginManager.syncCustomizations` to download `CustomizationRef[]` to
+  local dirs, forwards incremental results via the `progress` callback for
+  progressive loading UI, and adopts the resulting `ISyncedCustomization[]` on
+  the session.
+- `setCustomizationEnabled(uri, enabled)` — flips the per-session enablement
+  bit. Drains at the next `send()` pre-flight.
+- **Both writes → yield-restart, NOT in-place reload.** `Query.reloadPlugins()`
+  in `@anthropic-ai/claude-agent-sdk` is parameterless: it can only re-read
+  files at plugin paths captured into `Options.plugins` at startup, so it
+  cannot add a new plugin, drop a disabled one, or pick up a content refresh
+  via nonce bump. `send()`'s pre-flight runs a single `rebindForRestart()`
+  when either `toolDiff` or `clientCustomizationsDiff` is dirty; the
+  rematerializer reads `clientCustomizationsDiff.consume()` while building
+  `Options`, so the new plugin URI list lands on the rebuilt `Query`.
 
-**Outbound (SDK → host) — required for Copilot parity
-(`agentService.ts:399–417`):**
+**Outbound (SDK → host):**
 
-- `onDidCustomizationsChange` event.
-- `getCustomizations()` — return host-known customizations (synced + active).
-- `getSessionCustomizations(session)` — per-session active list.
-- See `copilotAgent.ts:190–205, 232–240` for the wiring pattern.
+- `onDidCustomizationsChange` event — fires from (1) client-pushed writes via
+  the diff observable, (2) materialize completion (surfaces the SDK-discovered
+  tier for the first time), (3) pre-flight rebind completion.
+- `getCustomizations()` — provider-level catalogue (host-configured); returns
+  `[]` for Claude today since there is no host-configured surface yet.
+- `getSessionCustomizations(session)` — returns the merged projection of
+  client-pushed entries (with per-URI enablement overlay) plus the
+  SDK-discovered bundle from `ClaudeSdkCustomizationBundler`. Server-side
+  commands / agents / MCP servers from the live `Query` are bundled as a
+  single "Discovered in Claude" Open Plugins-conformant on-disk tree under
+  `IAgentPluginManager.basePath`, namespaced by working-directory hash and
+  nonce-stable across repeated bundles of the same SDK snapshot.
 
-Tests: client provides a customization → agent syncs it → next `query()`
-includes the local path → SDK init message confirms the plugin loaded;
-customization toggle drains via `reloadPlugins` at the next yield (no
-subprocess restart) and the new plugin appears in `available_plugins`; a
-tool-set diff *does* trigger yield-restart; published events fire correctly.
+**Per-session ownership.** All customization state lives on
+`ClaudeAgentSession`:
 
-Exit criteria: customization round-trip works; toggle is defer-and-coalesce
-by default and restart-required only when tool sets diverge; workbench
-renders Claude customizations like Copilot's.
+- `SessionClientCustomizationsModel` + `SessionClientCustomizationsDiff` under
+  `customizations/` (parallel to `clientTools/`) own the synced list,
+  enablement map, derived enabled plugin paths, and dirty bit. Dirty is
+  driven from the model state observable (widened equality covers `nonce`,
+  `displayName`, `description`, `statusMessage`, `agents`, `pluginDir`,
+  status, enablement) so same-URI content refreshes correctly flip dirty.
+- `ClaudeSdkCustomizationBundler` writes the on-disk Open Plugin tree on
+  demand from `getSessionCustomizations`. Repeated calls with the same SDK
+  snapshot skip the rewrite. The tree is intentionally a cross-session warm
+  cache (not deleted on session dispose).
+
+Full step-by-step plan: [phase11-plan.md](./phase11-plan.md).
 
 ### Phase 12 — Subagents ✅ **DONE**
 
