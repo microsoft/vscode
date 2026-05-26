@@ -135,7 +135,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _handleActiveSessionContextKeys(session: IActiveSession | undefined): void {
 		// Update context keys from session data
-		this._isNewChatSessionContext.set(session === undefined || this._pendingNewSession !== undefined);
+		// IsNewChatSessionContext is true when no active session exists, OR when the
+		// active session is still pending (created but not yet sent for the first time).
+		// Scoping to the active session avoids flipping into "new chat" mode while
+		// viewing a different established session.
+		this._isNewChatSessionContext.set(session === undefined || session.sessionId === this._pendingNewSession?.sessionId);
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
