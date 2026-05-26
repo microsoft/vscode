@@ -1249,6 +1249,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
 		const {
 			repoUri,
+			folderUri,
 			worktreeUri,
 			branchName,
 			baseBranchName,
@@ -1261,10 +1262,13 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			hasGitOperationInProgress
 		} = this._extractRepositoryFromMetadata(session);
 
-		const repoUriResolved = repoUri ?? URI.parse('unknown:///');
+		// For non-git folders, use the plain folder URI (from workingDirectoryPath metadata).
+		// Only fall back to unknown:/// when no folder info is available at all.
+		const rootUri = repoUri ?? folderUri ?? URI.parse('unknown:///');
 
-		const gitRepository: ISessionGitRepository = {
-			uri: repoUriResolved,
+		// Only attach git repository info when a real git repository is available.
+		const gitRepository: ISessionGitRepository | undefined = repoUri ? {
+			uri: rootUri,
 			workTreeUri: worktreeUri,
 			branchName,
 			baseBranchName,
@@ -1276,19 +1280,19 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			uncommittedChanges,
 			hasGitOperationInProgress,
 			gitHubInfo: this.gitHubInfo,
-		};
+		} : undefined;
 
 		const folder: ISessionFolder = {
-			root: repoUriResolved,
-			workingDirectory: worktreeUri ?? repoUriResolved,
-			name: basename(repoUriResolved),
+			root: rootUri,
+			workingDirectory: worktreeUri ?? rootUri,
+			name: basename(rootUri),
 			description: branchName,
 			gitRepository,
 		};
 
 		return {
-			uri: repoUriResolved,
-			label: getRepositoryName(session) ?? basename(repoUriResolved),
+			uri: rootUri,
+			label: getRepositoryName(session) ?? basename(rootUri),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			folders: [folder],
@@ -1303,6 +1307,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	 */
 	private _extractRepositoryFromMetadata(session: IAgentSession): {
 		readonly repoUri?: URI;
+		/** Plain folder URI for sessions without a git repository (from `workingDirectoryPath` metadata). */
+		readonly folderUri?: URI;
 		readonly worktreeUri?: URI;
 		readonly branchName?: string;
 		readonly baseBranchName?: string;
@@ -1335,9 +1341,13 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		const worktreeUri = typeof metadata?.worktreePath === 'string'
 			? URI.file(metadata.worktreePath)
 			: undefined;
+		const folderUri = !repoUri && typeof metadata?.workingDirectoryPath === 'string'
+			? URI.file(metadata.workingDirectoryPath)
+			: undefined;
 
 		return {
 			repoUri,
+			folderUri,
 			worktreeUri,
 			branchName: metadata?.branchName as string | undefined,
 			baseBranchName: metadata?.baseBranchName as string | undefined,
