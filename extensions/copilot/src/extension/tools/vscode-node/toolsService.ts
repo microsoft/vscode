@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
@@ -91,10 +93,30 @@ export class ToolsService extends BaseToolsService {
 		@IOTelService private readonly _otelService: IOTelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 	) {
 		super(logService);
 		this._copilotTools = new Lazy(() => new Map(ToolRegistry.getTools().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
 		this._toolExtensions = new Lazy(() => new Map(ToolRegistry.getToolExtensions().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
+		this._register(this._endpointProvider.onDidModelsRefresh(() => this._refreshAvailableChatModelFamilies()));
+		void this._refreshAvailableChatModelFamilies();
+	}
+
+	/**
+	 * Cached set of model families available from CAPI for the current user.
+	 * `undefined` means we have not yet received a model list — in that case
+	 * dynamic family-based tool filters should not hide tools (default to
+	 * enabled until proven unavailable)
+	 */
+	private _availableChatModelFamilies: ReadonlySet<string> | undefined;
+
+	private async _refreshAvailableChatModelFamilies(): Promise<void> {
+		try {
+			const endpoints = await this._endpointProvider.getAllChatEndpoints();
+			this._availableChatModelFamilies = new Set(endpoints.map(e => e.family));
+		} catch {
+			// If the fetch fails (e.g. user not authenticated), leave the cache untouched
+		}
 	}
 
 	private getModelSpecificTools() {
@@ -296,6 +318,16 @@ export class ToolsService extends BaseToolsService {
 					tool.name === ToolName.ReadFile
 					&& isGpt55(endpoint)
 					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55ReadFileTool, this._experimentationService)
+				) {
+					return false;
+				}
+
+				// Disable search_subagent / explore_subagent when the
+				// CAPI search-agent model is not available to the current user
+				if (
+					(tool.name === ToolName.SearchSubagent || tool.name === ToolName.ExploreSubagent)
+					&& this._availableChatModelFamilies !== undefined
+					&& !this._availableChatModelFamilies.has(SEARCH_AGENT_FAMILY)
 				) {
 					return false;
 				}

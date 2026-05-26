@@ -11,7 +11,8 @@ import { ChatLocation, ChatResponse } from '../../../platform/chat/common/common
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
+import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
+import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -85,8 +86,6 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return context;
 	}
 
-	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'vscode-agentic-search-router-a';
-
 	/**
 	 * Get the endpoint to use for the search subagent
 	 */
@@ -95,9 +94,19 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
 		if (useAgenticProxy) {
-			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
-			const agenticProxyModel = modelName || SearchSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
+			// Use the CAPI search-agent model. Fall back to the main agent endpoint if the model
+			// is not available for this user
+			try {
+				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
+				const searchAgentEndpoint = allEndpoints.find(e => e.family === SEARCH_AGENT_FAMILY);
+				if (searchAgentEndpoint instanceof ChatEndpoint) {
+					return this.instantiationService.createInstance(SearchAgentChatEndpoint, searchAgentEndpoint.modelMetadata);
+				}
+				this._logService.warn(`Search-agent model not available in CAPI, falling back to main agent endpoint`);
+			} catch (error) {
+				this._logService.warn(`Failed to get search-agent endpoint from CAPI, falling back to main agent: ${error}`);
+			}
+			return await this.endpointProvider.getChatEndpoint(this.options.request);
 		}
 
 		if (modelName) {
