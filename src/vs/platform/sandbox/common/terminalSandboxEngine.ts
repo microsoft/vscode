@@ -584,7 +584,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 		const sandboxSettings = this._os === OperatingSystem.Windows ? this._windowsMxcRuntime.createConfig({
 			command: this._commandLine ?? '',
-			cwd: this._commandCwd,
+			cwd: this._commandCwd ?? this._getDefaultWindowsMxcCwd(),
 			tempDir: this._tempDir,
 			allowNetwork,
 			networkDomains: this.getResolvedNetworkDomains(),
@@ -714,16 +714,14 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _resolveFileSystemPath(path: string): Promise<string> {
 		const expandedPath = this._os === OperatingSystem.Linux ? this._expandHomePath(path) : path;
-		if (this._os === OperatingSystem.Windows) {
-			return expandedPath;
-		}
 		if (!this._isAbsoluteFileSystemPath(expandedPath)) {
 			return expandedPath;
 		}
 
 		try {
 			const realpath = await this._fileService.realpath(this._toFileSystemResource(expandedPath));
-			return realpath?.path && realpath.path !== expandedPath ? realpath.path : expandedPath;
+			const resolvedPath = realpath ? this._getUriPath(realpath) : undefined;
+			return resolvedPath && resolvedPath !== expandedPath ? resolvedPath : expandedPath;
 		} catch {
 			return expandedPath;
 		}
@@ -734,7 +732,32 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _toFileSystemResource(path: string): URI {
+		if (this._os === OperatingSystem.Windows) {
+			return this._toWindowsFileSystemResource(path);
+		}
 		return this._userHome?.with({ path }) ?? this._tempDir?.with({ path }) ?? this._host.getWriteRoots()[0]?.with({ path }) ?? URI.file(path);
+	}
+
+	private _toWindowsFileSystemResource(path: string): URI {
+		// Normalize Windows separators for URI parsing, e.g. `C:\Users\me` becomes `C:/Users/me`.
+		const normalizedPath = path.replace(/\\/g, '/');
+		// Match UNC paths, e.g. `//server/share/folder` becomes `file://server/share/folder`.
+		if (/^\/\/[^/]/.test(normalizedPath)) {
+			const firstPathSeparator = normalizedPath.indexOf('/', 2);
+			if (firstPathSeparator === -1) {
+				return URI.from({ scheme: 'file', authority: normalizedPath.slice(2), path: '/' });
+			}
+			return URI.from({ scheme: 'file', authority: normalizedPath.slice(2, firstPathSeparator), path: normalizedPath.slice(firstPathSeparator) || '/' });
+		}
+		// Match drive-letter paths, e.g. `C:/Users/me` becomes `file:///c:/Users/me`.
+		if (/^[a-zA-Z]:($|\/)/.test(normalizedPath)) {
+			return URI.from({ scheme: 'file', path: `/${normalizedPath[0].toLowerCase()}${normalizedPath.slice(1)}` });
+		}
+		// Match URI-shaped drive paths, e.g. `/C:/Users/me` becomes `file:///c:/Users/me`.
+		if (/^\/[a-zA-Z]:($|\/)/.test(normalizedPath)) {
+			return URI.from({ scheme: 'file', path: `/${normalizedPath[1].toLowerCase()}${normalizedPath.slice(2)}` });
+		}
+		return URI.from({ scheme: 'file', path: normalizedPath });
 	}
 
 	private _expandHomePath(path: string): string {
@@ -779,6 +802,10 @@ export class TerminalSandboxEngine extends Disposable {
 	private async _getWorkspaceStorageReadPaths(): Promise<string[]> {
 		const root = await this._host.getWorkspaceStorageReadRoot();
 		return root ? [this._getUriPath(root)] : [];
+	}
+
+	private _getDefaultWindowsMxcCwd(): URI | undefined {
+		return this._host.getWriteRoots()[0];
 	}
 
 	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {

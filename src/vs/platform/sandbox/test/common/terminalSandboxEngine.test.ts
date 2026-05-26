@@ -97,7 +97,17 @@ suite('TerminalSandboxEngine', () => {
 			getWorkspaceStorageReadRoot: () => Promise.resolve(URI.from({ scheme: 'file', path: '/c:/Users/user/workspaceStorage/workspace-id' })),
 			getWriteRoots: () => [URI.from({ scheme: 'file', path: '/c:/workspace' })],
 			getWindowsMxcFilesystemPolicy: () => Promise.resolve({ readonlyPaths: ['C:\\tools\\node', 'C:\\tools\\python', 'C:\\Users\\user\\AppData\\Local\\Programs\\Git', 'C:\\Users\\user\\AppData\\Local\\Temp'], readwritePaths: [] }),
-			getWindowsMxcEnvironment: () => Promise.resolve(['PATH=C:\\tools\\node;C:\\Windows\\System32', 'PSHOME=C:\\Program Files\\PowerShell\\7']),
+			getWindowsMxcEnvironment: () => Promise.resolve([
+				'SystemRoot=C:\\Windows',
+				'PATH=C:\\tools\\node;C:\\Windows\\System32',
+				'ComSpec=C:\\Windows\\System32\\cmd.exe',
+				'PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1',
+				'PSModulePath=C:\\Users\\user\\Documents\\PowerShell\\Modules;C:\\Program Files\\PowerShell\\Modules',
+				'USERPROFILE=C:\\Users\\user',
+				'APPDATA=C:\\Users\\user\\AppData\\Roaming',
+				'LOCALAPPDATA=C:\\Users\\user\\AppData\\Local',
+				'PSHOME=C:\\Program Files\\PowerShell\\7'
+			]),
 			...overrides,
 		});
 	}
@@ -301,10 +311,17 @@ suite('TerminalSandboxEngine', () => {
 		ok(wrapped.command.includes(` '${configPath}'`), `Expected wrapped command to pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
 		strictEqual(config.containment, 'process');
-		strictEqual(config.process.commandLine, 'echo hello');
+		strictEqual(config.process.commandLine, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "echo hello"');
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
 		strictEqual(config.ui.disable, false);
+		ok(config.process.env.includes('SystemRoot=C:\\Windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=C:\\tools\\node;C:\\Windows\\System32'), 'PATH should be injected into the MXC process env');
+		ok(config.process.env.includes('ComSpec=C:\\Windows\\System32\\cmd.exe'), 'ComSpec should be injected into the MXC process env');
+		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.process.env.includes('PSModulePath=C:\\Users\\user\\Documents\\PowerShell\\Modules;C:\\Program Files\\PowerShell\\Modules'), 'PSModulePath should be injected into the MXC process env');
+		ok(config.process.env.includes('USERPROFILE=C:\\Users\\user'), 'USERPROFILE should be injected into the MXC process env');
+		ok(config.process.env.includes('APPDATA=C:\\Users\\user\\AppData\\Roaming'), 'APPDATA should be injected into the MXC process env');
+		ok(config.process.env.includes('LOCALAPPDATA=C:\\Users\\user\\AppData\\Local'), 'LOCALAPPDATA should be injected into the MXC process env');
 		ok(config.process.env.includes('PSHOME=C:\\Program Files\\PowerShell\\7'), 'PSHOME should be injected into the MXC process env');
 		deepStrictEqual(config.network, { defaultPolicy: 'allow' });
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace'), 'Workspace should be writable');
@@ -339,6 +356,35 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
 	});
 
+	test('resolves Windows filesystem symlinks when writing MXC config', async () => {
+		enableWindowsSandbox();
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
+			allowWrite: ['C:\\configured\\write-link'],
+			allowRead: ['C:\\configured\\read-link'],
+			denyRead: ['C:\\configured\\secret-link'],
+		});
+		fileService.setRealpath('/c:/workspace-link', '/c:/real/workspace');
+		fileService.setRealpath('/c:/configured/write-link', '/c:/real/configured-write');
+		fileService.setRealpath('/c:/configured/read-link', '/c:/real/configured-read');
+		fileService.setRealpath('/c:/configured/secret-link', '/c:/real/configured-secret');
+		fileService.setRealpath('/c:/tools/node', '/c:/real/tools-node');
+		const host = createWindowsHost({
+			getWriteRoots: () => [URI.from({ scheme: 'file', path: '/c:/workspace-link' })],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		await engine.wrapCommand('echo hello', false, 'pwsh');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/workspace'), 'Workspace write root symlink should be resolved on Windows');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-write'), 'Configured Windows allowWrite symlink should be resolved');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-read'), 'Configured Windows allowRead symlink should be resolved');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/tools-node'), 'Windows policy readonly symlink should be resolved');
+		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-secret'), 'Configured Windows denyRead symlink should be resolved');
+	});
+
 	test('wrapCommand uses arm64 MXC executable on Windows arm64', async () => {
 		enableWindowsSandbox();
 		const host = createWindowsHost({
@@ -351,8 +397,8 @@ suite('TerminalSandboxEngine', () => {
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
-		strictEqual(wrapped.command, `& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe' '${configPath}'`);
-		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/users/user/.test-data/tmp');
+		strictEqual(wrapped.command, `& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe' --debug '${configPath}'`);
+		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
 	});
 
 	test('wrapCommand rewrites MXC config when Windows command changes', async () => {
@@ -364,13 +410,13 @@ suite('TerminalSandboxEngine', () => {
 		let configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const firstCommandLine = JSON.parse(createdFiles.get(configPath)!).process.commandLine;
-		strictEqual(firstCommandLine, 'echo first');
+		strictEqual(firstCommandLine, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "echo first"');
 
 		await engine.wrapCommand('echo second', false, 'pwsh');
 		configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const secondCommandLine = JSON.parse(createdFiles.get(configPath)!).process.commandLine;
-		strictEqual(secondCommandLine, 'echo second');
+		strictEqual(secondCommandLine, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "echo second"');
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {

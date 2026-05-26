@@ -108,7 +108,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 				preservePolicy: false,
 			},
 			process: {
-				commandLine: options.command,
+				commandLine: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ${this._quoteWindowsCommandLineArgument(options.command)}`,
 				cwd: options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath,
 				env: [
 					...options.env
@@ -130,7 +130,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	wrapCommand(executablePath: string, configPath: string): string {
-		return `& ${this._quotePowerShellArgument(executablePath)} ${this._quotePowerShellArgument(configPath)}`;
+		return `& ${this._quotePowerShellArgument(executablePath)} --debug ${this._quotePowerShellArgument(configPath)}`;
 	}
 
 	wrapUnsandboxedCommand(command: string): string {
@@ -162,5 +162,9 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 
 	private _quotePowerShellArgument(value: string): string {
 		return `'${value.replace(/'/g, `''`)}'`;
+	}
+
+	private _quoteWindowsCommandLineArgument(value: string): string {
+		return `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/\\+$/g, '$&$&')}"`;
 	}
 }
