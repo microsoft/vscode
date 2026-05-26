@@ -714,7 +714,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
 		this.partVisibility.chatBar = visibilityDefaults.chatBar;
-		const savedPartVisibility = this._loadPartVisibility(storageService);
+		const savedPartVisibility = visibilityDefaults.sidebar || visibilityDefaults.auxiliaryBar
+			? this._loadPartVisibility(storageService)
+			: {};
 		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
 		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
 		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
