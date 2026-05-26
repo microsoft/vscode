@@ -139,7 +139,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _handleActiveSessionContextKeys(session: IActiveSession | undefined): void {
 		// Update context keys from session data
-		this._isNewChatSessionContext.set(session === undefined);
+		// IsNewChatSessionContext is true when no active session exists, OR when the
+		// active session is still pending (created but not yet sent for the first time).
+		// Scoping to the active session avoids flipping into "new chat" mode while
+		// viewing a different established session.
+		this._isNewChatSessionContext.set(session === undefined || session.sessionId === this._pendingNewSession?.sessionId);
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
@@ -464,6 +468,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		this._pendingNewSession = undefined;
+		this._isNewChatSessionContext.set(false);
 
 		// Kick off the workspace file-count fetch now so it has time to resolve
 		// while the provider creates the chat and sends the request. The reporter
