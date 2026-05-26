@@ -478,8 +478,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
 					if (this.viewMode === 'editor' && this.embeddedEditor) {
 						const editorHeaderHeight = 50;
-						const padding = 24;
-						this.embeddedEditor.layout({ width: Math.max(0, width - padding), height: Math.max(0, height - editorHeaderHeight - padding) });
+						this.embeddedEditor.layout({ width: Math.max(0, width), height: Math.max(0, height - editorHeaderHeight) });
 					}
 					// Embedded MCP/plugin detail panes use a plain DOM widget that flows with
 					// the container; no explicit layout call is needed here.
