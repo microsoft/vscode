@@ -89,7 +89,7 @@
     "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.98.0",
     "@github/copilot": "1.0.49",
     "@github/copilot-sdk": "1.0.0-beta.4",
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -154,7 +154,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.128",
+    "@anthropic-ai/claude-agent-sdk": "0.2.141",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
@@ -208,7 +208,7 @@
     "event-stream": "3.3.4",
     "fancy-log": "^1.3.3",
     "glob": "^5.0.13",
-    "gulp": "^4.0.0",
+    "gulp": "^5.0.1",
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
@@ -247,7 +247,7 @@
     "sinon-test": "^3.1.3",
     "source-map": "0.6.1",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.9",
+    "tar": "^7.5.15",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
     "typescript": "^6.0.0-dev.20260416",
