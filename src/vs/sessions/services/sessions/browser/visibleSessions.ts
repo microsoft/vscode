@@ -242,9 +242,13 @@ export class VisibleSessions extends Disposable {
 	 * - If the slot is already visible, it is moved to the computed
 	 *   position; its sticky / non-sticky state is preserved.
 	 *
+	 * When `activate` is `true` (default), the inserted slot also becomes
+	 * the active session. When `false`, the active session is left
+	 * unchanged.
+	 *
 	 * No-op if `targetSessionId` is not currently visible.
 	 */
-	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right'): void {
+	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
 		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
@@ -280,6 +284,11 @@ export class VisibleSessions extends Disposable {
 			}
 			this._visibleList.splice(destIdx, 0, id);
 			this._mostRecentNonStickySlot = id;
+		}
+
+		if (activate) {
+			const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
+			this._activeSession.set(wrapper, undefined);
 		}
 
 		this._refresh();
