@@ -52,7 +52,7 @@ const BATCH_INTERVAL_MS = 500;
  * Safety-net interval for buffered events that did not trigger a terminal
  * flush.
  */
-const SAFETY_INTERVAL_MS = 60_000;
+export const SAFETY_INTERVAL_MS = 60_000;
 
 /** Max events per flush request — also acts as a buffer-size flush trigger. */
 const MAX_EVENTS_PER_FLUSH = 500;
@@ -1234,6 +1234,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				const dropped = this._eventBuffer.length - MAX_BUFFER_SIZE;
 				this._eventBuffer.splice(0, dropped);
 			}
+			// Re-arm at the safety cadence so buffered events are retried once the
+			// breaker transitions to HALF_OPEN, even if no new spans arrive.
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
 			return;
 		}
 
@@ -1245,6 +1248,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// Release the probe slot consumed by canRequest() above so we don't
 			// burn it on a flush we never actually attempted.
 			this._circuitBreaker.cancelProbe();
+			// Re-arm at the safety cadence so buffered events are retried once the
+			// client's Retry-After window elapses, even if no new spans arrive.
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
 			return;
 		}
 
