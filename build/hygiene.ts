@@ -6,6 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
+// Re-export commonly used filters from the local facade to keep imports tidy.
 import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';

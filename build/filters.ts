@@ -6,6 +6,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+// Filters describe cascading subsets of repository files used by hygiene tasks.
+
 /**
  * Hygiene works by creating cascading subsets of all our files and
  * passing them through a sequence of checks. Here are the current subsets,
