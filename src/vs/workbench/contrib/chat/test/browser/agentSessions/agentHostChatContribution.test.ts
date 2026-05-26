@@ -2440,7 +2440,7 @@ suite('AgentHostChatContribution', () => {
 				dataKind: 'terminal',
 				commandLine: 'echo hello',
 				language: 'shellscript',
-				outputText: 'hello\n',
+				outputText: 'hello\r\n',
 				exitCode: 0,
 			});
 		}));
@@ -2597,7 +2597,7 @@ suite('AgentHostChatContribution', () => {
 				// Terminal tool has output and exit code
 				assert.strictEqual(toolPart.toolSpecificData?.kind, 'terminal');
 				const termData = toolPart.toolSpecificData as IChatTerminalToolInvocationData;
-				assert.strictEqual(termData.terminalCommandOutput?.text, 'file1\nfile2');
+				assert.strictEqual(termData.terminalCommandOutput?.text, 'file1\r\nfile2');
 				assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 			}
 		});
