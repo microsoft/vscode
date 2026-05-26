@@ -90,7 +90,7 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
 - A session becomes **unread** when it completes in the background (transitions from InProgress to a terminal status while not active)
-- Pin and read state is cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
+- Pin and read state are cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 

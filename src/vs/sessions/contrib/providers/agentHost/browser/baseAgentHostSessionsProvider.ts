@@ -2061,9 +2061,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						added.push(existing);
 					}
 					if (existing.update(meta)) {
-						if (!announceExistingAsAdded) {
-							changed.push(existing);
-						}
+						changed.push(existing);
 					}
 				} else {
 					const cached = this.createAdapter(meta);

@@ -867,10 +867,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions(e => events.push(e)));
 
 		// Simulate the host coming back online with a fresh connection that
-		// still reports the same session.
+		// still reports the same session with updated metadata.
 		const reconnected = new MockAgentConnection();
 		disposables.add(toDisposable(() => reconnected.dispose()));
-		reconnected.addSession(createSession('restore-me', { summary: 'Restore Me' }));
+		reconnected.addSession(createSession('restore-me', { summary: 'Restored' }));
 		provider.setConnection(reconnected);
 		await timeout(0);
 
@@ -878,11 +878,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			{
 				sessions: provider.getSessions().map(s => s.title.get()),
 				added: events.flatMap(e => e.added.map(s => s.title.get())),
+				changed: events.flatMap(e => e.changed.map(s => s.title.get())),
 				removed: events.flatMap(e => e.removed.map(s => s.title.get())),
 			},
 			{
-				sessions: ['Restore Me'],
-				added: ['Restore Me'],
+				sessions: ['Restored'],
+				added: ['Restored'],
+				changed: ['Restored'],
 				removed: [],
 			},
 		);
