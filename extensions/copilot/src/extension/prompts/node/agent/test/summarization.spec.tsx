@@ -726,7 +726,7 @@ suite('renderCompactionMessages', () => {
 
 	test('renders messages and returns the summarized round id from propsBuilder', async () => {
 		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, 'trajectory-compaction-v1');
+		const endpoint = instaService.createInstance(MockEndpoint, 'trajectory-compaction');
 		const result = await renderCompactionMessages(
 			endpoint,
 			makeContext(),
@@ -753,7 +753,7 @@ suite('renderCompactionMessages', () => {
 
 	test('returns undefined when there is nothing to summarize', async () => {
 		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, 'trajectory-compaction-v1');
+		const endpoint = instaService.createInstance(MockEndpoint, 'trajectory-compaction');
 		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
 		const emptyContext: IBuildPromptContext = {
 			chatVariables: new ChatVariablesCollection([]),

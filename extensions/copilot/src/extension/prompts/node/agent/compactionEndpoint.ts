@@ -6,30 +6,32 @@
 import type { LanguageModelToolInformation } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
-import { ProxyAgenticEndpoint } from '../../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { OpenAiFunctionTool } from '../../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { normalizeToolSchema } from '../../../tools/common/toolSchemaNormalizer';
 
-/** Default model name forwarded to the agentic proxy when `ConversationCompactionUseAgenticProxy` is set without an explicit `ConversationCompactionModel`. Registered on the copilot-proxy as `trajectory-compaction-v1` (routes to Fireworks deployment `accounts/msft/deployments/ihfptseo`). */
-export const DEFAULT_COMPACTION_AGENTIC_PROXY_MODEL = 'trajectory-compaction-v1';
+/** Default CAPI model family used for trajectory (conversation-history) compaction when `ConversationCompactionUseAgenticProxy` is enabled without an explicit `ConversationCompactionModel`. The model is served via the standard Copilot CAPI chat-completions endpoint. */
+export const DEFAULT_COMPACTION_MODEL = 'trajectory-compaction';
 
 /**
  * Resolve the endpoint to use for trajectory (conversation-history) compaction
- * requests. Mirrors `SearchSubagentToolCallingLoop.getEndpoint()`:
+ * requests:
  *
  *   - When `ConversationCompactionUseAgenticProxy` is enabled, the configured
- *     model (or `DEFAULT_COMPACTION_AGENTIC_PROXY_MODEL`) is wrapped in a
- *     `ProxyAgenticEndpoint` so the request is routed through the Copilot
- *     agentic proxy (which in turn fans out to providers like Fireworks).
+ *     model (or `DEFAULT_COMPACTION_MODEL`) is resolved through the standard
+ *     CAPI endpoint provider — i.e. the same path as any other Copilot chat
+ *     model. The resulting endpoint routes requests via
+ *     `RequestType.ChatCompletions` (regular CAPI), NOT through the agentic
+ *     proxy, even though the gating flag is still named `useAgenticProxy`.
  *   - When only `ConversationCompactionModel` is set, the endpoint provider is
- *     asked for that model directly. Any failure falls back to `mainEndpoint`
- *     so a misconfigured experiment never aborts the agent loop.
+ *     asked for that model directly.
  *   - With neither configured, `mainEndpoint` is returned unchanged — i.e. the
  *     pre-existing behaviour of using the main agent model for compaction.
+ *
+ * Any failure to resolve the requested model falls back to `mainEndpoint` so a
+ * misconfigured experiment never aborts the agent loop.
  *
  * The caller decides whether to apply provider-specific message/tool
  * adjustments (e.g. re-normalising tool schemas against the returned
@@ -37,7 +39,6 @@ export const DEFAULT_COMPACTION_AGENTIC_PROXY_MODEL = 'trajectory-compaction-v1'
  */
 export async function resolveCompactionEndpoint(
 	mainEndpoint: IChatEndpoint,
-	instantiationService: IInstantiationService,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
 	endpointProvider: IEndpointProvider,
@@ -46,21 +47,20 @@ export async function resolveCompactionEndpoint(
 	const modelName = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ConversationCompactionModel, experimentationService);
 	const useAgenticProxy = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ConversationCompactionUseAgenticProxy, experimentationService);
 
-	if (useAgenticProxy) {
-		const agenticProxyModel = modelName || DEFAULT_COMPACTION_AGENTIC_PROXY_MODEL;
-		return instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel, undefined);
+	const resolvedModelName = useAgenticProxy
+		? (modelName || DEFAULT_COMPACTION_MODEL)
+		: modelName;
+
+	if (!resolvedModelName) {
+		return mainEndpoint;
 	}
 
-	if (modelName) {
-		try {
-			return await endpointProvider.getChatEndpoint(modelName as ChatEndpointFamily);
-		} catch (error) {
-			logService.warn(`[compaction] Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
-			return mainEndpoint;
-		}
+	try {
+		return await endpointProvider.getChatEndpoint(resolvedModelName as ChatEndpointFamily);
+	} catch (error) {
+		logService.warn(`[compaction] Failed to get model ${resolvedModelName}, falling back to main agent endpoint: ${error}`);
+		return mainEndpoint;
 	}
-
-	return mainEndpoint;
 }
 
 /**

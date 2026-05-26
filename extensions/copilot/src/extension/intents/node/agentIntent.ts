@@ -951,7 +951,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				// prompt against it (see `isCrossEndpoint` branch below).
 				const compactionEndpoint = await resolveCompactionEndpoint(
 					this.endpoint,
-					this.instantiationService,
 					this.configurationService,
 					this.expService,
 					this.endpointProvider,

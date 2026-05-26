@@ -663,7 +663,6 @@ class ConversationHistorySummarizer {
 		// returns `this.props.endpoint` unchanged.
 		const compactionEndpoint = await resolveCompactionEndpoint(
 			this.props.endpoint,
-			this.instantiationService,
 			this.configurationService,
 			this.experimentationService,
 			this.endpointProvider,
