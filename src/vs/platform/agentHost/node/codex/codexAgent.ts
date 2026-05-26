@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { Codex, Thread, ModelReasoningEffort, ApprovalMode, SandboxMode } from '@openai/codex-sdk';
+import type { Codex, Thread, ModelReasoningEffort, ApprovalMode, SandboxMode, WebSearchMode } from '@openai/codex-sdk';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -28,7 +28,7 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ICodexProxyHandle, ICodexProxyService } from './codexProxyService.js';
 import { ICodexAgentSdkService } from './codexAgentSdkService.js';
 import { createCodexTurnState, mapCodexEvent } from './codexMapSessionEvents.js';
-import { CodexSessionConfigKey, narrowApprovalPolicy, narrowSandboxMode } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowSandboxMode, narrowWebSearchMode } from './codexSessionConfigKeys.js';
 import { resolvePromptWithAttachments } from './codexPromptResolver.js';
 
 /**
@@ -122,11 +122,18 @@ interface ICodexSession {
 	approvalPolicy: ApprovalMode | undefined;
 	/** Active `sandboxMode` for the thread. */
 	sandboxMode: SandboxMode | undefined;
+	/** Active extra writable roots (absolute paths). */
+	additionalDirectories: readonly string[] | undefined;
+	/** Whether the sandbox is allowed to make outbound network requests. */
+	networkAccessEnabled: boolean | undefined;
+	/** Whether the model is allowed to use the web-search tool. */
+	webSearchMode: WebSearchMode | undefined;
 	/**
-	 * `model.id|effort|approval|sandbox` key captured when {@link thread}
-	 * was constructed. The codex `Thread` binds these flags at
-	 * `startThread()` / `resumeThread()` time and replays them on every
-	 * `runStreamed()`, so any change requires rebuilding the wrapper.
+	 * `model.id|effort|approval|sandbox|writableRoots|network|webSearch`
+	 * key captured when {@link thread} was constructed. The codex `Thread`
+	 * binds these flags at `startThread()` / `resumeThread()` time and
+	 * replays them on every `runStreamed()`, so any change requires
+	 * rebuilding the wrapper.
 	 */
 	threadOptionsKey: string | undefined;
 	abortController: AbortController;
@@ -138,9 +145,21 @@ function makeThreadOptionsKey(
 	model: ModelSelection | undefined,
 	approvalPolicy: ApprovalMode | undefined,
 	sandboxMode: SandboxMode | undefined,
+	additionalDirectories: readonly string[] | undefined,
+	networkAccessEnabled: boolean | undefined,
+	webSearchMode: WebSearchMode | undefined,
 	models?: readonly IAgentModelInfo[],
 ): string {
-	return `${model?.id ?? ''}|${resolveCodexEffort(model, models) ?? ''}|${approvalPolicy ?? ''}|${sandboxMode ?? ''}`;
+	const dirs = additionalDirectories && additionalDirectories.length > 0 ? [...additionalDirectories].sort().join(',') : '';
+	return [
+		model?.id ?? '',
+		resolveCodexEffort(model, models) ?? '',
+		approvalPolicy ?? '',
+		sandboxMode ?? '',
+		dirs,
+		networkAccessEnabled === undefined ? '' : String(networkAccessEnabled),
+		webSearchMode ?? '',
+	].join('|');
 }
 
 /**
@@ -323,6 +342,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			model: config.model,
 			approvalPolicy: narrowApprovalPolicy(config.config?.[CodexSessionConfigKey.ApprovalPolicy]),
 			sandboxMode: narrowSandboxMode(config.config?.[CodexSessionConfigKey.SandboxMode]),
+			additionalDirectories: narrowAdditionalDirectories(config.config?.[CodexSessionConfigKey.AdditionalDirectories]),
+			networkAccessEnabled: narrowBoolean(config.config?.[CodexSessionConfigKey.NetworkAccessEnabled]),
+			webSearchMode: narrowWebSearchMode(config.config?.[CodexSessionConfigKey.WebSearchMode]),
 			threadOptionsKey: undefined,
 			abortController: new AbortController(),
 			pendingSteeringPrompt: undefined,
@@ -380,11 +402,47 @@ export class CodexAgent extends Disposable implements IAgent {
 				default: 'workspace-write',
 				sessionMutable: true,
 			}),
+			[CodexSessionConfigKey.AdditionalDirectories]: schemaProperty<string[]>({
+				type: 'array',
+				title: localize('codex.sessionConfig.additionalDirectories', "Additional Writable Directories"),
+				description: localize('codex.sessionConfig.additionalDirectoriesDescription', "Absolute paths the sandbox is allowed to write to, in addition to the workspace. Only applies when Sandbox is 'Workspace Write'."),
+				items: { type: 'string', title: localize('codex.sessionConfig.additionalDirectories.item', "Directory") },
+				default: [],
+				sessionMutable: true,
+			}),
+			[CodexSessionConfigKey.NetworkAccessEnabled]: schemaProperty<boolean>({
+				type: 'boolean',
+				title: localize('codex.sessionConfig.networkAccessEnabled', "Allow Network Access"),
+				description: localize('codex.sessionConfig.networkAccessEnabledDescription', "Allow tool calls running inside the sandbox to make outbound network requests."),
+				default: false,
+				sessionMutable: true,
+			}),
+			[CodexSessionConfigKey.WebSearchMode]: schemaProperty<WebSearchMode>({
+				type: 'string',
+				title: localize('codex.sessionConfig.webSearchMode', "Web Search"),
+				description: localize('codex.sessionConfig.webSearchModeDescription', "Web-search tool availability for the model. 'Disabled' hides the tool; 'Cached' allows cached results only; 'Live' permits real network requests."),
+				enum: ['disabled', 'cached', 'live'],
+				enumLabels: [
+					localize('codex.sessionConfig.webSearchMode.disabled', "Disabled"),
+					localize('codex.sessionConfig.webSearchMode.cached', "Cached Only"),
+					localize('codex.sessionConfig.webSearchMode.live', "Live"),
+				],
+				enumDescriptions: [
+					localize('codex.sessionConfig.webSearchMode.disabledDescription', "Hide the web-search tool from the model."),
+					localize('codex.sessionConfig.webSearchMode.cachedDescription', "Expose the tool but only return cached results (no network)."),
+					localize('codex.sessionConfig.webSearchMode.liveDescription', "Allow the tool to make live web-search requests."),
+				],
+				default: 'disabled',
+				sessionMutable: true,
+			}),
 			[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 		});
 		const values = sessionSchema.validateOrDefault(_params.config, {
 			[CodexSessionConfigKey.ApprovalPolicy]: 'on-request' satisfies ApprovalMode,
 			[CodexSessionConfigKey.SandboxMode]: 'workspace-write' satisfies SandboxMode,
+			[CodexSessionConfigKey.AdditionalDirectories]: [],
+			[CodexSessionConfigKey.NetworkAccessEnabled]: false,
+			[CodexSessionConfigKey.WebSearchMode]: 'disabled' satisfies WebSearchMode,
 		});
 		return Promise.resolve({ schema: sessionSchema.toProtocol(), values });
 	}
@@ -426,14 +484,20 @@ export class CodexAgent extends Disposable implements IAgent {
 		const liveConfig = this._configurationService.getSessionConfigValues(sessionUri.toString());
 		const liveApproval = narrowApprovalPolicy(liveConfig?.[CodexSessionConfigKey.ApprovalPolicy]) ?? entry.state.approvalPolicy;
 		const liveSandbox = narrowSandboxMode(liveConfig?.[CodexSessionConfigKey.SandboxMode]) ?? entry.state.sandboxMode;
+		const liveDirs = narrowAdditionalDirectories(liveConfig?.[CodexSessionConfigKey.AdditionalDirectories]) ?? entry.state.additionalDirectories;
+		const liveNetwork = narrowBoolean(liveConfig?.[CodexSessionConfigKey.NetworkAccessEnabled]) ?? entry.state.networkAccessEnabled;
+		const liveWebSearch = narrowWebSearchMode(liveConfig?.[CodexSessionConfigKey.WebSearchMode]) ?? entry.state.webSearchMode;
 		entry.state.approvalPolicy = liveApproval;
 		entry.state.sandboxMode = liveSandbox;
+		entry.state.additionalDirectories = liveDirs;
+		entry.state.networkAccessEnabled = liveNetwork;
+		entry.state.webSearchMode = liveWebSearch;
 
-		this._logService.info(`[Codex:${sessionId}] _sendMessageCore: model=${entry.state.model?.id ?? '<default>'}, modelConfig=${JSON.stringify(entry.state.model?.config ?? {})}, approval=${liveApproval}, sandbox=${liveSandbox}`);
+		this._logService.info(`[Codex:${sessionId}] _sendMessageCore: model=${entry.state.model?.id ?? '<default>'}, modelConfig=${JSON.stringify(entry.state.model?.config ?? {})}, approval=${liveApproval}, sandbox=${liveSandbox}, dirs=${liveDirs?.length ?? 0}, network=${liveNetwork ?? '<default>'}, webSearch=${liveWebSearch ?? '<default>'}`);
 
 		// --- Rebuild the Thread when options drift ---
 		const currentModels = this._models.get();
-		const desiredKey = makeThreadOptionsKey(entry.state.model, liveApproval, liveSandbox, currentModels);
+		const desiredKey = makeThreadOptionsKey(entry.state.model, liveApproval, liveSandbox, liveDirs, liveNetwork, liveWebSearch, currentModels);
 		const effort = resolveCodexEffort(entry.state.model, currentModels);
 		const threadOptions = {
 			...(entry.state.workingDirectory ? { workingDirectory: entry.state.workingDirectory.fsPath } : {}),
@@ -441,6 +505,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			...(effort ? { modelReasoningEffort: effort } : {}),
 			...(liveApproval ? { approvalPolicy: liveApproval } : {}),
 			...(liveSandbox ? { sandboxMode: liveSandbox } : {}),
+			...(liveDirs && liveDirs.length > 0 ? { additionalDirectories: [...liveDirs] } : {}),
+			...(liveNetwork !== undefined ? { networkAccessEnabled: liveNetwork } : {}),
+			...(liveWebSearch ? { webSearchMode: liveWebSearch } : {}),
 			skipGitRepoCheck: true,
 		};
 
@@ -531,6 +598,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			model: undefined,
 			approvalPolicy: undefined,
 			sandboxMode: undefined,
+			additionalDirectories: undefined,
+			networkAccessEnabled: undefined,
+			webSearchMode: undefined,
 			threadOptionsKey: undefined,
 			abortController: new AbortController(),
 			pendingSteeringPrompt: undefined,
