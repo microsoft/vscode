@@ -353,16 +353,16 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _steeringMessagesInFlight = new Set<string>();
 	/**
 	 * Steering messages that have been accepted by the SDK but not yet
-	 * surfaced to the chat UI as a separate user message. The next SDK
-	 * `assistant.turn_start` we observe is treated as the new turn for the
-	 * head entry: we finalize the current turn and dispatch a new
-	 * {@link ActionType.SessionTurnStarted} whose `userMessage` is the
-	 * steering content. The reducer also removes the pending steering via
-	 * the action's `queuedMessageId`.
+	 * surfaced to the chat UI as a separate user message. When the SDK
+	 * echoes a steering through a `user.message` event whose `content`
+	 * matches one of these entries, we finalize the in-flight turn and
+	 * dispatch a new {@link ActionType.SessionTurnStarted} whose
+	 * `userMessage` is the steering content. The reducer also removes
+	 * the pending steering via the action's `queuedMessageId`.
 	 *
 	 * Entries left here at abort/dispose time are flushed as
 	 * `steering_consumed` signals so the chat UI's pending state still
-	 * clears in cleanup paths where we never observe a fresh turn_start.
+	 * clears in cleanup paths where we never observe the echo.
 	 */
 	private readonly _pendingSteeringFlips = new Map<string, PendingMessage>();
 
@@ -470,18 +470,23 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Promotes the head pending steering message into its own protocol
-	 * turn: closes the in-flight turn (so its responseParts settle into
-	 * history) and dispatches {@link ActionType.SessionTurnStarted} for a
-	 * fresh turn whose user message is the steering content. The action's
+	 * Promotes a pending steering message into its own protocol turn:
+	 * closes the in-flight turn (so its responseParts settle into history)
+	 * and dispatches {@link ActionType.SessionTurnStarted} for a fresh
+	 * turn whose user message is the steering content. The action's
 	 * `queuedMessageId` atomically clears the corresponding pending
 	 * steering message from the session state.
 	 *
-	 * All subsequent SDK events (message deltas, tool calls, …) emitted by
-	 * the agent now reference the new `_turnId`, so the steering response
-	 * lands in the new turn rather than being folded into the original.
+	 * All subsequent SDK events (message deltas, tool calls, …) emitted
+	 * by the agent now reference the new `_turnId`, so the steering
+	 * response lands in the new turn rather than being folded into the
+	 * original.
+	 *
+	 * Returns the new turn id so callers (notably the `user.message`
+	 * handler) can associate the SDK event id with the steering turn for
+	 * history.truncate / sessions.fork mapping.
 	 */
-	private _beginSteeringTurn(steering: PendingMessage): void {
+	private _beginSteeringTurn(steering: PendingMessage): string {
 		const previousTurnId = this._turnId;
 		if (previousTurnId) {
 			this._emitAction({
@@ -496,9 +501,11 @@ export class CopilotAgentSession extends Disposable {
 			userMessage: steering.userMessage,
 			queuedMessageId: steering.id,
 		});
-		this._turnId = newTurnId;
-		this._currentMarkdownPartIds.clear();
-		this._currentReasoningPartIds.clear();
+		// Mirror `resetTurnState` so per-turn counters/mappings (usage
+		// total, streaming part ids, subagent agentId map) don't bleed
+		// from the preempted turn into the new steering turn.
+		this.resetTurnState(newTurnId);
+		return newTurnId;
 	}
 
 	/**
@@ -527,9 +534,9 @@ export class CopilotAgentSession extends Disposable {
 	 * `user.message` content we just observed. Matching by content (rather
 	 * than just popping FIFO) keeps us robust against the SDK reordering
 	 * or coalescing entries — concurrent steering messages with different
-	 * texts are still matched to the correct one. Falls back to the head
-	 * entry only when no content match exists (defensive: should not
-	 * happen in practice).
+	 * texts are still matched to the correct one. Returns `undefined` if
+	 * no buffered entry matches; the caller treats the `user.message` as
+	 * an ordinary echo and skips the turn flip.
 	 */
 	private _takeMatchingPendingSteering(content: string): PendingMessage | undefined {
 		if (this._pendingSteeringFlips.size === 0) {
@@ -1569,20 +1576,35 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		// Capture SDK event IDs for each user.message event so we can map
-		// protocol turn indices to the event IDs needed by the SDK's
-		// history.truncate and sessions.fork RPCs.
+		// Handle `user.message` events with three responsibilities:
+		//
+		// 1. Skip SDK-injected (`source !== 'user'`) messages outright —
+		//    they are skill content / harness injections that must not
+		//    surface to the user and must not be associated with a turn
+		//    boundary (the SDK's truncate/fork mapping keys off the
+		//    user-visible message's event id).
+		//
+		// 2. If the content matches a steering message we acknowledged
+		//    via {@link sendSteering}, promote it to its own protocol
+		//    turn (closing the in-flight turn) BEFORE step 3 so the
+		//    event id is recorded against the new steering turn rather
+		//    than the preempted one.
+		//
+		// 3. Record the SDK event id against the current turn so the
+		//    `history.truncate` / `sessions.fork` RPCs can target the
+		//    right boundary. The DB only sets `event_id` when it's NULL,
+		//    so doing this for synthetic injections would permanently
+		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
-			if (this._turnId) {
-				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
-			}
 			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
-				// Synthetic injection (skill content, etc.) — never user-visible.
 				return;
 			}
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
 				this._beginSteeringTurn(steering);
+			}
+			if (this._turnId) {
+				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 			}
 		}));
 
