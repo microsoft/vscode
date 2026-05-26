@@ -147,8 +147,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 	const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-	const allEndpoints = await endpointProvider.getAllChatEndpoints().catch(() => [] as IChatEndpoint[]);
-	const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
+	const searchAgentAvailable = searchSubagentEnabled
+		? (await endpointProvider.getAllChatEndpoints().catch(() => [] as IChatEndpoint[])).some(e => e.family === SEARCH_AGENT_FAMILY)
+		: false;
 	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
 	allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 

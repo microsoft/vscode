@@ -94,8 +94,10 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
 		if (useAgenticProxy) {
-			// Use the CAPI search-agent model. Fall back to the main agent endpoint if the model
-			// is not available for this user
+			// Primary gating lives in getAgentTools, which is hidden
+			// when CAPI doesn't advertise the search-agent family. This fallback handles
+			// the secondary cases: races between gating and execution, transient CAPI
+			// errors, and any future caller that invokes the loop without the agent gate
 			try {
 				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
 				const searchAgentEndpoint = allEndpoints.find(e => e.family === SEARCH_AGENT_FAMILY);
