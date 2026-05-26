@@ -346,6 +346,8 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly diffHunks?: string;
 		/** When this item was converted from a PR review comment, the original thread ID. */
 		readonly sourcePRReviewCommentId?: string;
+		/** Additional replies that belong to the same comment thread as {@link text}. */
+		readonly replies?: readonly string[];
 	}>;
 }
 

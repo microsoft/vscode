@@ -14,6 +14,7 @@ import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agen
 import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -253,6 +254,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
+				IsWebContext.negate(),
 				ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
 			),
 		});

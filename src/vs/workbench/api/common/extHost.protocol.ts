@@ -1431,6 +1431,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 export interface ExtHostLanguageModelsShape {
 	$provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
+	$onChatModelsChange(): void;
 	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
@@ -1712,7 +1713,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
-	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
+	$provideChatSessionCustomizations(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
@@ -1724,7 +1725,7 @@ export interface ExtHostChatAgentsShape2 {
 	$onDidChangePlugins(): void;
 }
 
-export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin';
+export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 export interface IChatResourceDto {
 	readonly uri: UriComponents;
@@ -1781,6 +1782,7 @@ export interface IChatSessionCustomizationItemDto {
 	readonly uri: UriComponents;
 	readonly type: string;
 	readonly name: string;
+	readonly source: IChatResourceSourceDto;
 	readonly description?: string;
 	readonly groupKey?: string;
 	readonly badge?: string;

@@ -53,13 +53,13 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		const session = 'copilotcli:/abc';
 
 		async function run(text: string, offset = text.length) {
-			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, session, text, offset }, CancellationToken.None);
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
 		}
 
 		test('returns nothing for non-copilotcli scheme', async () => {
 			const items = await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage,
-				session: 'claude:/abc',
+				channel: 'claude:/abc',
 				text: '/',
 				offset: 1,
 			}, CancellationToken.None);
@@ -127,7 +127,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		test('omits /compact when session has no history', async () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false });
 			const items = await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, session, text: '/', offset: 1,
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
 		});
@@ -138,7 +138,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				hasHistory: (id: string) => { seen = id; return true; },
 			});
 			await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, session: 'copilotcli:/abc', text: '/', offset: 1,
+				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/', offset: 1,
 			}, CancellationToken.None);
 			assert.strictEqual(seen, 'abc');
 		});

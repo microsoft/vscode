@@ -134,6 +134,13 @@ export interface IChatSessionItem {
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
 	readonly metadata?: IChatSessionItemMetadata;
+	/**
+	 * Resource identifier the item was previously known by. When set, host-stored
+	 * per-resource state (archive, pin, read) recorded under that URI is adopted
+	 * forward onto {@link resource} on first state read, and the legacy entry is
+	 * removed. Scheme must match {@link resource}'s scheme; otherwise ignored.
+	 */
+	readonly legacyResource?: URI;
 }
 
 export interface IChatSessionItemMetadata {
@@ -204,7 +211,7 @@ export namespace SessionType {
 	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
-	export const AgentHostCopilot = 'agent-host-copilot';
+	export const AgentHostCopilot = 'agent-host-copilotcli';
 }
 
 /**

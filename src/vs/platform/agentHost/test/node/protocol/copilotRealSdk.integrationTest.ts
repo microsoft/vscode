@@ -42,7 +42,7 @@ const COPILOT_CONFIG: IRealSdkProviderConfig = {
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
-	subagentToolName: 'task',
+	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: REAL_SDK_ENABLED,
 	supportsWorktreeIsolation: true,
@@ -98,8 +98,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
 
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'), 90_000);
-		const usageAction = getActionEnvelope(usageNotif).action as SessionUsageAction;
-		assert.strictEqual(usageAction.session, sessionUri);
+		const usageEnvelope = getActionEnvelope(usageNotif);
+		const usageAction = usageEnvelope.action as SessionUsageAction;
+		assert.strictEqual(usageEnvelope.channel, sessionUri);
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
 		assert.ok(usageAction.usage.model);
@@ -113,8 +114,8 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		const turn = state.turns.find(t => t.id === 'turn-usage');
 		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});
@@ -188,13 +189,14 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 			}
 			const envelope = getActionEnvelope(next);
 			seenSeqs.add(envelope.serverSeq);
-			const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+			const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
 			if (!action.confirmed) {
 				client.notify('dispatchAction', {
+					channel: envelope.channel,
 					clientSeq: ++teardownSeq,
 					action: {
 						type: 'session/toolCallConfirmed',
-						session: action.session, turnId: action.turnId,
+						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
 					},
 				});

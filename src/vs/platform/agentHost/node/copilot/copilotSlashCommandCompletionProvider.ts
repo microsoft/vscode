@@ -80,7 +80,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	constructor(private readonly copilotcliId: string, private readonly _sessionInfo?: ICopilotSlashCommandSessionInfo) { }
 
 	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
-		if (AgentSession.provider(params.session) !== this.copilotcliId) {
+		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
 			return [];
 		}
 		const leading = extractLeadingSlashToken(params.text, params.offset);
@@ -89,7 +89,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		}
 
 		// Raw session id is the URI path without the leading slash.
-		const sessionId = AgentSession.id(params.session);
+		const sessionId = AgentSession.id(params.channel);
 		const hasHistory = this._sessionInfo?.hasHistory(sessionId) ?? true;
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
