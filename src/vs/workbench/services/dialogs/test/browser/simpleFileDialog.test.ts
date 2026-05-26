@@ -85,7 +85,7 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
 		const prefix = computeScopedPathPrefix(uri, displayPath);
 
-		assert.strictEqual(prefix, '/file/-');
+		assert.strictEqual(prefix, '/file/');
 		assert.strictEqual(displayPath, '/Users/roblou/code');
 	});
 
@@ -115,7 +115,7 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 	test('pathFromUri strips prefix to show clean path', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const uri = agentHostUri(authority, '/Users/roblou/code');
-		const prefix = '/file/-';
+		const prefix = '/file/';
 
 		assert.strictEqual(pathFromUri(uri, prefix), '/Users/roblou/code');
 	});
@@ -123,7 +123,7 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 	test('pathFromUri with trailing separator', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const uri = agentHostUri(authority, '/Users/roblou/code');
-		const prefix = '/file/-';
+		const prefix = '/file/';
 
 		assert.strictEqual(pathFromUri(uri, prefix, true), '/Users/roblou/code/');
 	});
@@ -135,14 +135,14 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 
 	test('remoteUriFrom re-adds prefix to reconstruct encoded URI', () => {
 		const authority = agentHostAuthority('localhost:8089');
-		const prefix = '/file/-';
+		const prefix = '/file/';
 		const cleanPath = '/Users/roblou/code';
 
 		const result = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, prefix);
 
 		assert.strictEqual(result.scheme, AGENT_HOST_SCHEME);
 		assert.strictEqual(result.authority, authority);
-		assert.strictEqual(result.path, '/file/-/Users/roblou/code');
+		assert.strictEqual(result.path, '/file//Users/roblou/code');
 	});
 
 	test('full round-trip: URI -> pathFromUri -> remoteUriFrom -> same URI', () => {
@@ -167,7 +167,7 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 
 	test('createBackItem root detection with prefix', () => {
 		const authority = agentHostAuthority('localhost:8089');
-		const prefix = '/file/-';
+		const prefix = '/file/';
 
 		// Simulate root folder: path = prefix + '/'
 		const rootUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: prefix + '/' });

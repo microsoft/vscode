@@ -15,7 +15,7 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
  * remote resource can be represented without assuming `file://`:
  *
  * ```
- * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
+ * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority][originalPath]
  * ```
  *
  * For example, `file:///home/user/foo.ts` on remote `my-server` becomes:
@@ -39,12 +39,12 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		return originalUri;
 	}
 
-	// Path format: /[originalScheme]/[originalAuthority]/[originalPath]
+	// Path format: /[originalScheme]/[originalAuthority][originalPath]
 	const originalAuthority = originalUri.authority || '';
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: `/${originalUri.scheme}/${originalAuthority || '-'}${originalUri.path}`,
+		path: `/${originalUri.scheme}/${originalAuthority}${originalUri.path}`,
 		query: originalUri.query,
 		fragment: originalUri.fragment,
 	});
@@ -60,7 +60,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		return agentHostUri;
 	}
 
-	// Path: /[originalScheme]/[originalAuthority]/[rest of original path]
+	// Path: /[originalScheme]/[originalAuthority][rest of original path]
 	const path = agentHostUri.path;
 
 	// Find first segment boundary after leading /
