@@ -10,6 +10,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
 
@@ -179,6 +180,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async isInsideWorkTree(workingDirectory: URI): Promise<boolean> {
@@ -250,15 +252,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// tracking from the start point (e.g. when starting from
 		// 'origin/main', without --no-track git would set the new branch's
 		// upstream to origin/main, which would mis-attribute pushes/pulls).
-		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 60_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 60_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 60_000, throwOnError: true });
 	}
 
 	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
@@ -542,13 +544,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
+			const timeoutMs = options?.timeout ?? 5000;
+			// Use our own timer rather than execFile's `timeout` option so
+			// we can definitively flag the timeout case in the error
+			// message — execFile only surfaces signal/killed, which can
+			// also mean the process was killed for other reasons.
+			let didTimeOut = false;
 			// Default maxBuffer is 32MB — Node's default is ~1MB, which is
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
-			cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, timeout: options?.timeout ?? 5000, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					// stderr is summarized in the thrown error message to keep
+					// it readable; log the full unmodified output here so the
+					// raw progress/diagnostic text is still available.
+					if (stderr) {
+						this._logService.warn(`[agentHostGitService] git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+					}
 					if (options?.throwOnError) {
-						reject(new Error(stderr || error.message));
+						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
 						return;
 					}
 					resolve(undefined);
@@ -556,8 +570,60 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			const timer = setTimeout(() => {
+				didTimeOut = true;
+				child.kill();
+			}, timeoutMs);
+			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+/**
+ * Builds a diagnostic error message for a failed `git` invocation that
+ * preserves the reason (timeout / signal / exit code) instead of just
+ * surfacing whatever happened to be on stderr. When `git` is killed by
+ * the timeout, stderr often contains only progress output (e.g.
+ * `Updating files:   0% (149/14834)`), so without the timeout indicator
+ * the bubbled-up error is misleading.
+ *
+ * Exported for tests.
+ */
+export function formatGitError(args: readonly string[], timeoutMs: number, didTimeOut: boolean, error: cp.ExecFileException, stderr: string): string {
+	const subcommand = args[0] ?? '(unknown)';
+	let reason: string;
+	if (didTimeOut) {
+		reason = `git ${subcommand} timed out after ${timeoutMs}ms`;
+	} else if (error.killed && error.signal) {
+		reason = `git ${subcommand} killed by ${error.signal}`;
+	} else if (typeof error.code === 'number') {
+		reason = `git ${subcommand} exited with code ${error.code}`;
+	} else {
+		reason = error.message;
+	}
+	const detail = summarizeStderrForError(stderr);
+	return detail ? `${reason}: ${detail}` : reason;
+}
+
+/**
+ * Squashes multi-line / carriage-return-heavy stderr (e.g. git progress
+ * meters that emit `Updating files:   0% (149/14834)\r...` repeatedly)
+ * into a single short line suitable for a one-liner error message.
+ * Keeps the most recent non-empty line and caps total length.
+ *
+ * Exported for tests.
+ */
+export function summarizeStderrForError(stderr: string): string {
+	if (!stderr) {
+		return '';
+	}
+	const lines = stderr.split(/[\r\n]+/g).map(line => line.trim()).filter(line => line.length > 0);
+	if (lines.length === 0) {
+		return '';
+	}
+	const last = lines[lines.length - 1];
+	const MAX = 200;
+	return last.length > MAX ? `${last.slice(0, MAX - 1)}…` : last;
 }
 
 /**

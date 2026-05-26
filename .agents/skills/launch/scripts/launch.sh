@@ -150,8 +150,48 @@ LOG_FILE="$RUN_DIR/code.log"
 echo "[launch.sh] launching: $CODE_SH ${ARGS[*]}" >&2
 echo "[launch.sh] logs: $LOG_FILE" >&2
 
-nohup "$CODE_SH" "${ARGS[@]}" >"$LOG_FILE" 2>&1 &
+# Run pre-launch (electron download, compile-if-missing, built-in extensions) in the
+# foreground so any errors surface synchronously. Then skip code.sh's own pre-launch.
+echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
+if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
+	echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
+	tail -n 80 "$LOG_FILE" >&2
+	exit 1
+fi
+
+# Launch code.sh in the background. Detaching with `nohup ... & disown` is
+# sufficient: by the time we return below, CDP is up and Electron is fully
+# forked into its own process tree, so it's robust to its launching shell
+# going away. (Earlier failures came from returning while Electron was still
+# mid-bootstrap, not from process-group concerns.)
+nohup env VSCODE_SKIP_PRELAUNCH=1 "$CODE_SH" "${ARGS[@]}" \
+	</dev/null >>"$LOG_FILE" 2>&1 &
 PID=$!
+disown $PID 2>/dev/null || true
+
+# Block until the renderer's CDP endpoint is responding so the caller can attach
+# immediately. If code.sh dies or we time out, dump the log so the failure is
+# visible.
+echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
+READY=0
+for i in $(seq 1 90); do
+	if ! kill -0 "$PID" 2>/dev/null; then
+		echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2
+		tail -n 80 "$LOG_FILE" >&2
+		exit 1
+	fi
+	if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
+		READY=1
+		echo "[launch.sh] CDP ready after ${i}s" >&2
+		break
+	fi
+	sleep 1
+done
+if [[ "$READY" != "1" ]]; then
+	echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2
+	tail -n 80 "$LOG_FILE" >&2
+	exit 1
+fi
 
 node -e '
 	console.log(JSON.stringify({
