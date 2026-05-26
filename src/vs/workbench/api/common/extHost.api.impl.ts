@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { AsyncIterableObject, raceCancellationError } from '../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellationError } from '../../../base/common/async.js';
 import * as errors from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { combinedDisposable } from '../../../base/common/lifecycle.js';
@@ -1171,7 +1171,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (token?.isCancellationRequested) {
 					const error = new errors.CancellationError();
 					return {
-						changes: AsyncIterableObject.EMPTY,
+						changes: AsyncIterableProducer.EMPTY,
 						complete: Promise.reject(error),
 					};
 				}
@@ -1203,7 +1203,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// In the future, we may want to stream changes incrementally as they are computed
 				// (e.g. by having the worker yield partial results).
 				return {
-					changes: new AsyncIterableObject<vscode.TextDiffChange>(async emitter => {
+					changes: new AsyncIterableProducer<vscode.TextDiffChange>(async emitter => {
 						const result = await mappedPromise;
 						emitter.emitMany(result.changes.map(mapChange));
 					}),
