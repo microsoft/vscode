@@ -146,7 +146,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			octoCalls: octoKitService.calls,
 			createdEvents,
 		}, {
-			message: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123).',
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123).' },
 			gitCalls: [
 				'hasUncommittedChanges',
 				'commitAll:Agent Host changes for feature/test',
@@ -179,7 +179,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			followUp: result.followUp,
 			createdEvents,
 		}, {
-			message: 'Pull request [#7](https://github.com/microsoft/vscode/pull/7) already exists.',
+			message: { markdown: 'Pull request [#7](https://github.com/microsoft/vscode/pull/7) already exists.' },
 			octoCalls: ['findPullRequestByHeadBranch:feature/test'],
 			followUp: { content: { uri: 'https://github.com/microsoft/vscode/pull/7', contentType: 'text/html' }, external: true },
 			createdEvents: ['agent:/session:feature/test'],
@@ -229,7 +229,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
 
 		assert.deepStrictEqual({ message: result.message, octoCalls: octoKitService.calls, createdEvents }, {
-			message: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists.',
+			message: { markdown: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists.' },
 			octoCalls: ['findPullRequestByHeadBranch:feature/test', 'createPullRequest:false', 'findPullRequestByHeadBranch:feature/test'],
 			createdEvents: ['agent:/session:feature/test'],
 		});
