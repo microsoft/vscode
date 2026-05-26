@@ -30,7 +30,7 @@ export interface IWindowsMxcNetworkConfig {
 export interface IWindowsMxcConfig {
 	version: string;
 	containerId: string;
-	containment: 'process';
+	containment: 'processcontainer';
 	lifecycle: {
 		destroyOnExit: boolean;
 		preservePolicy: boolean;
@@ -42,6 +42,7 @@ export interface IWindowsMxcConfig {
 		disable: boolean;
 		clipboard: 'none';
 		injection: boolean;
+		allowWindows: boolean;
 	};
 }
 
@@ -102,13 +103,13 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 		return {
 			version: this._configVersion,
 			containerId: 'vscode-terminal-sandbox',
-			containment: 'process',
+			containment: 'processcontainer',
 			lifecycle: {
 				destroyOnExit: true,
 				preservePolicy: false,
 			},
 			process: {
-				commandLine: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ${this._quoteWindowsCommandLineArgument(options.command)}`,
+				commandLine: `pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command ${this._quoteWindowsCommandLineArgument(options.command)}`,
 				cwd: options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath,
 				env: [
 					...options.env
@@ -125,6 +126,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 				disable: false,
 				clipboard: 'none',
 				injection: false,
+				allowWindows: true
 			},
 		};
 	}
