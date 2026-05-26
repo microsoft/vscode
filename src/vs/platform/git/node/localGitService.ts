@@ -49,9 +49,55 @@ export class LocalGitService implements ILocalGitService {
 
 	async pull(operationId: string, repoPath: string): Promise<boolean> {
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
-		await this._exec(operationId, ['pull', '--ff-only'], repoPath);
+
+		try {
+			await this._exec(operationId, ['pull', '--ff-only'], repoPath);
+		} catch (err) {
+			this._logService.warn(`[LocalGitService] Fast-forward pull failed for ${repoPath}. Retrying after fetch.`);
+			await this._exec(operationId, ['fetch', '--prune'], repoPath);
+
+			try {
+				await this._exec(operationId, ['pull', '--ff-only'], repoPath);
+			} catch (retryErr) {
+				const upstream = await this._getSafeHardResetTarget(operationId, repoPath);
+				if (!upstream) {
+					throw retryErr;
+				}
+
+				this._logService.warn(`[LocalGitService] Pull retries exhausted for ${repoPath}. Performing hard reset to ${upstream}.`);
+				await this._exec(operationId, ['reset', '--hard', upstream], repoPath);
+			}
+		}
+
 		const after = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 		return before !== after;
+	}
+
+	private async _getSafeHardResetTarget(operationId: string, repoPath: string): Promise<string | undefined> {
+		const status = (await this._exec(operationId, ['status', '--porcelain'], repoPath)).trim();
+		if (status.length > 0) {
+			return undefined;
+		}
+
+		let upstream: string;
+		try {
+			upstream = (await this._exec(operationId, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], repoPath)).trim();
+		} catch {
+			return undefined;
+		}
+
+		const behind = await this._revListCount(operationId, repoPath, 'HEAD', '@{u}');
+		const ahead = await this._revListCount(operationId, repoPath, '@{u}', 'HEAD');
+		if (ahead <= 0 || behind <= 0) {
+			return undefined;
+		}
+
+		return upstream;
+	}
+
+	private async _revListCount(operationId: string, repoPath: string, fromRef: string, toRef: string): Promise<number> {
+		const result = await this._exec(operationId, ['rev-list', '--count', `${fromRef}..${toRef}`], repoPath);
+		return Number(result.trim()) || 0;
 	}
 
 	async checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void> {
