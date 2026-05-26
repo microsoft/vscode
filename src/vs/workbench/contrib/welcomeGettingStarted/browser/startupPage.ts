@@ -244,6 +244,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return; // experimental onboarding is disabled
 		}
 
+		if (this.configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+			return; // AI features are disabled, do not show AI-focused onboarding
+		}
+
 		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
 			return; // only show onboarding for new users who have never used the product before
 		}
