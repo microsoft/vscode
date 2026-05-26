@@ -21,6 +21,12 @@ suite('AgentHostFileMonitorService', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function acquire(monitor: AgentHostFileMonitorService, folder: URI, callback: () => void, options?: { readonly excludes?: readonly string[]; readonly debounceMs?: number }): IDisposable {
+		const registration = monitor.acquire(folder, callback, options);
+		assert.ok(registration, 'expected file monitor acquisition to succeed');
+		return registration;
+	}
+
 	test('shares one recursive watcher per folder/options and refcounts callbacks', () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const fileService = new TestFileService();
@@ -29,8 +35,8 @@ suite('AgentHostFileMonitorService', () => {
 			let first = 0;
 			let second = 0;
 
-			const firstRegistration = monitor.acquire(folder, () => first++, { debounceMs: 10 });
-			const secondRegistration = monitor.acquire(folder, () => second++, { debounceMs: 10 });
+			const firstRegistration = acquire(monitor, folder, () => first++, { debounceMs: 10 });
+			const secondRegistration = acquire(monitor, folder, () => second++, { debounceMs: 10 });
 			assert.deepStrictEqual(fileService.snapshot(), { watches: 1, disposed: 0 });
 
 			fileService.fire(URI.file('/repo/src/a.ts'));
@@ -53,7 +59,7 @@ suite('AgentHostFileMonitorService', () => {
 			const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
 			let calls = 0;
 
-			disposables.add(monitor.acquire(URI.file('/repo'), () => calls++, { debounceMs: 10 }));
+			disposables.add(acquire(monitor, URI.file('/repo'), () => calls++, { debounceMs: 10 }));
 			fileService.fire(URI.file('/repo/.git/objects/12/abcdef'));
 			fileService.fire(URI.file('/repo/.git/index.lock'));
 			fileService.fire(URI.file('/repo/.watchman-cookie-123'));
@@ -72,7 +78,7 @@ suite('AgentHostFileMonitorService', () => {
 			const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
 			let calls = 0;
 
-			disposables.add(monitor.acquire(URI.file('/repo'), () => calls++, { excludes: ['**/generated/**'], debounceMs: 10 }));
+			disposables.add(acquire(monitor, URI.file('/repo'), () => calls++, { excludes: ['**/generated/**'], debounceMs: 10 }));
 			fileService.fire(URI.file('/repo/generated/a.ts'));
 			await timeout(11);
 			assert.strictEqual(calls, 0);
@@ -88,8 +94,8 @@ suite('AgentHostFileMonitorService', () => {
 		const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
 		const folder = URI.file('/repo');
 
-		disposables.add(monitor.acquire(folder, () => { }, { excludes: ['**/b/**', '**/a/**'], debounceMs: 10 }));
-		disposables.add(monitor.acquire(folder, () => { }, { excludes: ['**/a/**', '**/b/**'], debounceMs: 10 }));
+		disposables.add(acquire(monitor, folder, () => { }, { excludes: ['**/b/**', '**/a/**'], debounceMs: 10 }));
+		disposables.add(acquire(monitor, folder, () => { }, { excludes: ['**/a/**', '**/b/**'], debounceMs: 10 }));
 
 		assert.deepStrictEqual(fileService.snapshot(), { watches: 1, disposed: 0 });
 	});
@@ -98,8 +104,8 @@ suite('AgentHostFileMonitorService', () => {
 		const fileService = new TestFileService();
 		const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
 
-		disposables.add(monitor.acquire(URI.file('/repo'), () => { }, { debounceMs: 10 }));
-		disposables.add(monitor.acquire(URI.file('/repo/../repo/'), () => { }, { debounceMs: 10 }));
+		disposables.add(acquire(monitor, URI.file('/repo'), () => { }, { debounceMs: 10 }));
+		disposables.add(acquire(monitor, URI.file('/repo/../repo/'), () => { }, { debounceMs: 10 }));
 
 		assert.deepStrictEqual(fileService.snapshot(), { watches: 1, disposed: 0 });
 	});
@@ -118,8 +124,8 @@ suite('AgentHostFileMonitorService', () => {
 		const fileService = new TestFileService();
 		const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
 
-		disposables.add(monitor.acquire(URI.file('/repo-a'), () => { }, { debounceMs: 10 }));
-		disposables.add(monitor.acquire(URI.file('/repo-b'), () => { }, { debounceMs: 10 }));
+		disposables.add(acquire(monitor, URI.file('/repo-a'), () => { }, { debounceMs: 10 }));
+		disposables.add(acquire(monitor, URI.file('/repo-b'), () => { }, { debounceMs: 10 }));
 
 		assert.deepStrictEqual({ snapshot: fileService.snapshot(), listeners: fileService.fileChangeListenerCount }, {
 			snapshot: { watches: 2, disposed: 0 },
@@ -133,7 +139,7 @@ suite('AgentHostFileMonitorService', () => {
 			const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
 			let calls = 0;
 
-			const registration = monitor.acquire(URI.file('/repo'), () => calls++, { debounceMs: 10 });
+			const registration = acquire(monitor, URI.file('/repo'), () => calls++, { debounceMs: 10 });
 			fileService.fire(URI.file('/repo/src/a.ts'));
 			monitor.dispose();
 			registration.dispose();
