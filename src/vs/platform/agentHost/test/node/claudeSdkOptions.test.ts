@@ -112,8 +112,8 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 			() => { },
 		);
 		assert.deepStrictEqual(opts.plugins, [
-			{ type: 'local', path: '/p/a' },
-			{ type: 'local', path: '/p/b' },
+			{ type: 'local', path: URI.file('/p/a').fsPath },
+			{ type: 'local', path: URI.file('/p/b').fsPath },
 		]);
 	});
 

@@ -50,7 +50,7 @@ suite('SessionClientCustomizationsDiff', () => {
 			synced('https://a', { dir: '/p/a' }),
 			synced('https://b'),
 		]);
-		assert.deepStrictEqual(diff.model.enabledPluginPaths.get().map(u => u.fsPath), ['/p/a']);
+		assert.deepStrictEqual(diff.model.enabledPluginPaths.get().map(u => u.fsPath), [URI.file('/p/a').fsPath]);
 	});
 
 	test('setEnabled(false) removes from enabled paths and flips dirty exactly when value changes', () => {
