@@ -615,21 +615,13 @@ export class CopilotApiService implements ICopilotApiService {
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
-		const logService = this._logService;
 		const capiClient = new CAPIClient(extensionInfo, undefined, {
-			fetch: (url, options) => {
-				// --- DEBUG: log every outbound CAPI request with headers ---
-				const headerKeys = options.headers ? Object.keys(options.headers).join(', ') : '<none>';
-				const integrationId = options.headers?.['Copilot-Integration-Id'] ?? options.headers?.['copilot-integration-id'] ?? '<not set>';
-				logService.info(`[CopilotApiService:fetch] ${options.method ?? 'GET'} ${typeof url === 'string' ? url : url.toString()}`);
-				logService.info(`[CopilotApiService:fetch] headers: [${headerKeys}], Copilot-Integration-Id=${integrationId}`);
-				return fetch(url, {
-					method: options.method ?? 'GET',
-					headers: options.headers,
-					body: options.body,
-					signal: options.signal as AbortSignal | undefined,
-				});
-			},
+			fetch: (url, options) => fetch(url, {
+				method: options.method ?? 'GET',
+				headers: options.headers,
+				body: options.body,
+				signal: options.signal as AbortSignal | undefined,
+			}),
 		});
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');

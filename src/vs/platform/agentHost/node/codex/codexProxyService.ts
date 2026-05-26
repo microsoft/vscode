@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
+import * as fs from 'fs';
+import { join } from '../../../../base/common/path.js';
 import { AddressInfo } from 'net';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
@@ -58,6 +60,32 @@ interface IProxyRuntime {
 }
 
 const PROXY_USER_FACING_NAME = 'CodexProxyService';
+
+/**
+ * When set to an absolute directory path, every `/v1/responses` request body
+ * and its full upstream response stream are written to that directory as
+ * `req-NNN-<ts>.json` and `res-NNN-<ts>.txt` so we can diff bodies / decode
+ * SSE without flooding the log channel. Off by default.
+ */
+const DEBUG_DUMP_DIR_ENV = 'VSCODE_CODEX_PROXY_DUMP_DIR';
+
+let _dumpSeq = 0;
+function nextDumpSeq(): string {
+	return String(++_dumpSeq).padStart(4, '0');
+}
+
+function getDumpDir(): string | undefined {
+	const dir = process.env[DEBUG_DUMP_DIR_ENV];
+	if (!dir) {
+		return undefined;
+	}
+	try {
+		fs.mkdirSync(dir, { recursive: true });
+		return dir;
+	} catch {
+		return undefined;
+	}
+}
 
 function generateNonce(): string {
 	const bytes = new Uint8Array(32);
@@ -288,9 +316,59 @@ export class CodexProxyService implements ICodexProxyService {
 		}
 
 		// --- DEBUG: log the model and key fields from the request body ---
+		const dumpDir = getDumpDir();
+		const dumpSeq = dumpDir ? nextDumpSeq() : undefined;
+		if (dumpDir && dumpSeq) {
+			const reqFile = join(dumpDir, `req-${dumpSeq}-${Date.now()}.json`);
+			try {
+				fs.writeFileSync(reqFile, body);
+				this._logService.info(`[${PROXY_USER_FACING_NAME}] dumped request body to ${reqFile}`);
+			} catch (err) {
+				this._logService.warn(`[${PROXY_USER_FACING_NAME}] failed to dump request body: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
 		try {
 			const parsed = JSON.parse(body);
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] >>> /responses body: model=${parsed.model ?? '<none>'}, previous_response_id=${parsed.previous_response_id ?? '<none>'}, stream=${parsed.stream ?? '<none>'}, input_items=${Array.isArray(parsed.input) ? parsed.input.length : '<not-array>'}`);
+			if (Array.isArray(parsed.input)) {
+				// Compact per-item summary: type + small preview, no full JSON.
+				for (let i = 0; i < parsed.input.length; i++) {
+					const item = parsed.input[i];
+					const type = item?.type ?? '<none>';
+					const keys = item && typeof item === 'object' ? Object.keys(item).join(',') : typeof item;
+					let detail = '';
+					if (type === 'message') {
+						const text: string = item?.content?.[0]?.text ?? '';
+						detail = `role=${item?.role ?? '?'} chars=${text.length}`;
+					} else if (type === 'function_call') {
+						detail = `name=${item?.name ?? '?'} call_id=${item?.call_id ?? '?'}`;
+					} else if (type === 'function_call_output') {
+						const output = item?.output ?? '';
+						detail = `call_id=${item?.call_id ?? '?'} output_chars=${typeof output === 'string' ? output.length : 0}`;
+					} else if (type === 'reasoning') {
+						const summary = item?.summary ?? item?.content ?? '';
+						detail = `summary_chars=${typeof summary === 'string' ? summary.length : JSON.stringify(summary).length} encrypted=${typeof item?.encrypted_content === 'string'}`;
+					} else {
+						detail = JSON.stringify(item).slice(0, 120);
+					}
+					this._logService.info(`[${PROXY_USER_FACING_NAME}]   input[${i}] type=${type} keys=[${keys}] ${detail}`);
+				}
+			}
+			// Top-level field names + small values; deliberately skip `instructions`
+			// and `tools` since they're huge and unchanging.
+			const topLevelKeys = Object.keys(parsed).filter(k => k !== 'input').sort();
+			this._logService.info(`[${PROXY_USER_FACING_NAME}]   top-level keys (excl. input)=[${topLevelKeys.join(', ')}]`);
+			for (const k of topLevelKeys) {
+				if (k === 'instructions' || k === 'tools') {
+					const v = parsed[k];
+					const size = typeof v === 'string' ? v.length : JSON.stringify(v).length;
+					this._logService.info(`[${PROXY_USER_FACING_NAME}]     ${k}=<${size} chars elided>`);
+					continue;
+				}
+				const v = parsed[k];
+				const preview = typeof v === 'object' ? JSON.stringify(v).slice(0, 300) : String(v);
+				this._logService.info(`[${PROXY_USER_FACING_NAME}]     ${k}=${preview}`);
+			}
 		} catch {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] >>> /responses body (unparseable): ${body.slice(0, 200)}`);
 		}
@@ -318,6 +396,11 @@ export class CodexProxyService implements ICodexProxyService {
 				return;
 			}
 			const reader = upstream.body.getReader();
+			const resDumpStream = dumpDir && dumpSeq
+				? fs.createWriteStream(join(dumpDir, `res-${dumpSeq}-${Date.now()}.txt`))
+				: undefined;
+			let sseBuf = '';
+			const eventCounts: Record<string, number> = {};
 			try {
 				while (true) {
 					const { done, value } = await reader.read();
@@ -328,11 +411,30 @@ export class CodexProxyService implements ICodexProxyService {
 						break;
 					}
 					if (value && value.byteLength > 0) {
-						res.write(Buffer.from(value));
+						const buf = Buffer.from(value);
+						res.write(buf);
+						if (resDumpStream) {
+							resDumpStream.write(buf);
+						}
+						sseBuf += buf.toString('utf8');
+						let nl: number;
+						while ((nl = sseBuf.indexOf('\n')) >= 0) {
+							const line = sseBuf.slice(0, nl).trimEnd();
+							sseBuf = sseBuf.slice(nl + 1);
+							if (line.startsWith('event:')) {
+								const ev = line.slice('event:'.length).trim();
+								eventCounts[ev] = (eventCounts[ev] ?? 0) + 1;
+							}
+						}
 					}
 				}
 			} finally {
 				try { reader.releaseLock(); } catch { /* ignore */ }
+				resDumpStream?.end();
+			}
+			if (Object.keys(eventCounts).length) {
+				const summary = Object.entries(eventCounts).map(([k, v]) => `${k}=${v}`).join(', ');
+				this._logService.info(`[${PROXY_USER_FACING_NAME}] <<< SSE event counts: ${summary}`);
 			}
 			res.end();
 		} catch (err) {
