@@ -1254,6 +1254,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		const uniqueSessionsInBatch = new Set(batch.map(e => e.chatSessionId)).size;
 		this._setSyncState({ kind: 'syncing', sessionCount: uniqueSessionsInBatch });
 
+		let flushFailed = false;
 		try {
 			// Group events by chat session ID for correct cloud session routing
 			const eventsBySession = new Map<string, { events: SessionEvent[]; chatSessionIds: Set<string>; entries: typeof batch }>();
@@ -1367,6 +1368,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			} else if (hadTransientError) {
 				this._circuitBreaker.recordFailure();
 				this._setSyncState({ kind: 'error' });
+				flushFailed = true;
 
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
 					operation: 'flushFailure',
@@ -1409,6 +1411,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// Re-queue on unexpected error
 			this._eventBuffer.unshift(...batch);
 			this._circuitBreaker.recordFailure();
+			flushFailed = true;
 
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
 				operation: 'flushBatch',
@@ -1421,10 +1424,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 
 		// Re-arm after a flush:
+		//  - transient failure → back off at safety cadence (60s) so we don't
+		//    busy-loop against a failing endpoint; the circuit breaker still
+		//    short-circuits attempts during its own backoff window
 		//  - buffer still has work (re-queued orphans / rate-limited entries) → fast flush
 		//  - otherwise, keep a safety timer running while any cloud session is active
 		//    so late spans are caught even without a terminal event
-		if (this._eventBuffer.length > 0) {
+		if (flushFailed && this._eventBuffer.length > 0) {
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
+		} else if (this._eventBuffer.length > 0) {
 			this._scheduleFlush(BATCH_INTERVAL_MS);
 		} else if (this._cloudSessions.size > 0) {
 			this._scheduleFlush(SAFETY_INTERVAL_MS);
