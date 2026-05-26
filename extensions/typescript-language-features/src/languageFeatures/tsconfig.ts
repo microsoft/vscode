@@ -130,6 +130,7 @@ class TsconfigLinkProviderRegistration implements vscode.Disposable {
 
 	private readonly _configListener: vscode.Disposable;
 	private _providerRegistration: vscode.Disposable | undefined;
+	private _lastPatternsKey: string | undefined;
 
 	constructor(private readonly _provider: vscode.DocumentLinkProvider) {
 		this.update();
@@ -148,12 +149,20 @@ class TsconfigLinkProviderRegistration implements vscode.Disposable {
 	}
 
 	private update(): void {
+		const patterns = this.readPatterns();
+		const key = patterns.join('\n');
+
+		if (key === this._lastPatternsKey) {
+			return;
+		}
+
+		this._lastPatternsKey = key;
 		this._providerRegistration?.dispose();
-		this._providerRegistration = vscode.languages.registerDocumentLinkProvider(this.buildSelector(), this._provider);
+		this._providerRegistration = vscode.languages.registerDocumentLinkProvider(
+			this.buildSelector(patterns), this._provider);
 	}
 
-	private buildSelector(): vscode.DocumentSelector {
-		const patterns = this.readPatterns();
+	private buildSelector(patterns: readonly string[]): vscode.DocumentSelector {
 		return TsconfigLinkProviderRegistration.languages.flatMap(
 			language => patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern })));
 	}
@@ -166,8 +175,14 @@ class TsconfigLinkProviderRegistration implements vscode.Disposable {
 
 		if (Array.isArray(configured)) {
 			for (const value of configured) {
-				if (typeof value === 'string' && value.length > 0) {
-					patterns.add(value);
+				if (typeof value !== 'string') {
+					continue;
+				}
+
+				const trimmed = value.trim();
+
+				if (trimmed.length > 0) {
+					patterns.add(trimmed);
 				}
 			}
 		}

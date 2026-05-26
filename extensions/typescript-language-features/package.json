@@ -2845,6 +2845,7 @@
             "items": {
               "type": "string"
             },
+            "uniqueItems": true,
             "default": [],
             "markdownDescription": "%js/ts.projectConfig.additionalFilePatterns%",
             "scope": "window",
