@@ -1607,13 +1607,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 		},
-		[ChatConfiguration.OfflineByok]: {
-			type: 'boolean',
-			description: nls.localize('chat.offlineByok', "Experimental: enable BYOK chat features without GitHub sign-in."),
-			default: true,
-			scope: ConfigurationScope.WINDOW,
-			included: false,
-		},
 		[ChatConfiguration.TitleBarSignInEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),
