@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -432,6 +432,10 @@ export class AgentHostSessionAdapter implements ISession {
 		if (!sessionFileChangesEqual(this.changes.get(), mapped)) {
 			this.changes.set(mapped, undefined);
 		}
+	}
+
+	releaseBranchChanges(): void {
+		this._branchChangesPopulated = false;
 	}
 }
 
@@ -1080,6 +1084,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return;
 			}
 			const ref = reader.store.add(this.connection.getSubscription(StateComponents.Changeset, target.uri));
+			reader.store.add(toDisposable(() => target.adapter.releaseBranchChanges()));
 			const apply = (state: ChangesetState | Error | undefined) => {
 				if (!state || state instanceof Error) {
 					return;
