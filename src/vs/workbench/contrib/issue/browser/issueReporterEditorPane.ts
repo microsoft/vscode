@@ -19,7 +19,8 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+// eslint-disable-next-line local/code-import-patterns, local/code-layering
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -83,7 +84,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IScreenshotService private readonly screenshotService: IScreenshotService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IIssueFormService private readonly issueFormService: IIssueFormService,
 		@IProcessService private readonly processService: IProcessService,
@@ -319,7 +320,9 @@ export class IssueReporterEditorPane extends EditorPane {
 				// Screenshots are either annotated (always PNG via canvas.toDataURL)
 				// or raw native captures (always JPEG); fall back to PNG.
 				const extension = dataUrl.startsWith('data:image/jpeg') ? 'jpg' : 'png';
-				const folder = URI.joinPath(this.environmentService.userRoamingDataHome, 'issue-screenshots');
+				// Save to the OS temp folder (#318309) so artifacts don't bloat the
+				// user data folder and get cleaned up automatically.
+				const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-screenshots');
 				const target = URI.joinPath(folder, `screenshot-${Date.now()}.${extension}`);
 				await this.fileService.createFolder(folder);
 				await this.fileService.writeFile(target, decodeBase64(dataUrl.substring(commaIndex + 1)));
@@ -532,7 +535,9 @@ export class IssueReporterEditorPane extends EditorPane {
 		try {
 			const extension = data.mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
-			const folder = URI.joinPath(this.environmentService.userRoamingDataHome, 'issue-recordings');
+			// Save to the OS temp folder (#318309) so artifacts don't bloat the
+			// user data folder and get cleaned up automatically.
+			const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-recordings');
 			const target = URI.joinPath(folder, fileName);
 
 			const arrayBuffer = await data.blob.arrayBuffer();
