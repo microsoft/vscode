@@ -625,6 +625,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		addReply: () => { },
 		getFeedback: () => [],
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },

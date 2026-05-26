@@ -92,6 +92,11 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
+	&.sticky {
+		border-left: 2px solid var(--vscode-focusBorder);
+		padding-left: 4px;
+	}
+
 	.session-main,
 	.session-title-row,
 	.session-details-row {

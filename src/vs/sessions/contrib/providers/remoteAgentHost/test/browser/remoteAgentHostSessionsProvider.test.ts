@@ -842,9 +842,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(
 			{
 				sessionCount: provider.getSessions().length,
+				eventCount: events.length,
 				eventRemovedTitles: events.flatMap(e => e.removed.map(s => s.title.get())),
 			},
-			{ sessionCount: 0, eventRemovedTitles: ['Keep Me'] },
+			{ sessionCount: 0, eventCount: 1, eventRemovedTitles: [] },
 		);
 
 		// Flush triggers onWillSaveState; the metadata must survive so the
@@ -866,18 +867,30 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		provider.unpublishCachedSessions();
 		assert.strictEqual(provider.getSessions().length, 0);
+		const events: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => events.push(e)));
 
 		// Simulate the host coming back online with a fresh connection that
-		// still reports the same session.
+		// still reports the same session with updated metadata.
 		const reconnected = new MockAgentConnection();
 		disposables.add(toDisposable(() => reconnected.dispose()));
-		reconnected.addSession(createSession('restore-me', { summary: 'Restore Me' }));
+		reconnected.addSession(createSession('restore-me', { summary: 'Restored' }));
 		provider.setConnection(reconnected);
 		await timeout(0);
 
 		assert.deepStrictEqual(
-			provider.getSessions().map(s => s.title.get()),
-			['Restore Me'],
+			{
+				sessions: provider.getSessions().map(s => s.title.get()),
+				added: events.flatMap(e => e.added.map(s => s.title.get())),
+				changed: events.flatMap(e => e.changed.map(s => s.title.get())),
+				removed: events.flatMap(e => e.removed.map(s => s.title.get())),
+			},
+			{
+				sessions: ['Restored'],
+				added: ['Restored'],
+				changed: ['Restored'],
+				removed: [],
+			},
 		);
 	}));
 

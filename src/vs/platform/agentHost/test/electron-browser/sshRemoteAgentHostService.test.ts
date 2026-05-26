@@ -104,7 +104,7 @@ class MockSSHMainService {
 	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
 	async listSSHConfigFiles(): Promise<URI[]> { return [URI.file('/tmp/ssh-config')]; }
 	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
-		return { hostname: '', user: undefined, port: 22, identityFile: [], forwardAgent: false };
+		return { hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false };
 	}
 
 	dispose(): void {

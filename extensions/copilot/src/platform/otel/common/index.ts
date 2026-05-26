@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { CopilotChatAttr, CopilotCliSdkAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, GenAiTokenType, GenAiToolType, StdAttr } from './genAiAttributes';
+export { CopilotChatAttr, CopilotCliSdkAttr, FILE_TOOL_NAMES, GenAiAttr, GenAiOperationName, GenAiProviderName, GenAiTokenType, GenAiToolType, GitHubCopilotAttr, SHELL_TOOL_NAMES, StdAttr, TOOL_PARAM_COMMAND_MAX_LEN } from './genAiAttributes';
+export type { AgentType, EditOperationType, HookDecision } from './genAiAttributes';
 export { emitAgentTurnEvent, emitCloudSessionInvokeEvent, emitEditFeedbackEvent, emitEditHunkActionEvent, emitEditSurvivalEvent, emitInferenceDetailsEvent, emitInlineDoneEvent, emitSessionStartEvent, emitToolCallEvent, emitUserFeedbackEvent } from './genAiEvents';
 export { GenAiMetrics } from './genAiMetrics';
 export { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from './messageFormatters';

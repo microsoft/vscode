@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ChangesetSummary, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -313,6 +313,16 @@ function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, prov
 		channel: 'ahp-root://',
 		type: NotificationType.SessionRemoved,
 		session: sessionUri.toString(),
+	});
+}
+
+function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: Partial<SessionSummary>, provider = 'copilotcli'): void {
+	const sessionUri = AgentSession.uri(provider, rawId);
+	agentHost.fireNotification({
+		channel: 'ahp-root://',
+		type: NotificationType.SessionSummaryChanged,
+		session: sessionUri.toString(),
+		changes,
 	});
 }
 
@@ -1763,6 +1773,10 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
 	}
 
+	function catalogueFor(rawId: string, additions: number, deletions: number, sessionType: string = 'copilotcli'): ChangesetSummary[] {
+		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), additions, deletions, files: 1 }];
+	}
+
 	test('subscribes to <activeSession>/changeset/uncommitted when an AHP session becomes active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 
@@ -1858,5 +1872,32 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 			insertions: 2,
 			deletions: 1,
 		}]);
+	});
+
+	test('catalogue count updates resume after active branch changeset subscription is released', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		fireSessionAdded(agentHost, 'sess-A', { title: 'Session A' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Session A');
+		assert.ok(session);
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		agentHost.setChangesetState(branchChangesKeyFor('sess-A'), {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///repo/file.ts',
+				edit: {
+					before: { uri: 'file:///repo/file.ts', content: { uri: 'session-db:///before/file.ts' } },
+					after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
+					diff: { added: 2, removed: 1 },
+				},
+			}],
+		});
+
+		activeSession.set(makeActive('sess-B', provider.id), undefined);
+		fireSessionSummaryChanged(agentHost, 'sess-A', { changesets: catalogueFor('sess-A', 5, 3) });
+
+		assert.deepStrictEqual(session.changes.get().map(change => ({ insertions: change.insertions, deletions: change.deletions })), [
+			{ insertions: 5, deletions: 3 },
+		]);
 	});
 });

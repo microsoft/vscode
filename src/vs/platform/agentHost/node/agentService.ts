@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -147,7 +147,14 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._stateManager = this._register(new AgentHostStateManager(_logService));
+		this._stateManager = this._register(new AgentHostStateManager(_logService, {
+			changesetStateRetention: {
+				// The cache calls this lazily after construction. If a future state-manager
+				// initialization path registers changesets before `_changesets` is assigned,
+				// keep the entry pinned rather than evicting with incomplete liveness data.
+				canEvict: changeset => this._changesets ? this._isChangesetEvictable(changeset) : false,
+			},
+		}));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 
@@ -782,6 +789,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			const parsedChangeset = parseChangesetUri(resourceStr);
+			if (snapshot && parsedChangeset && !this._stateManager.getSessionState(parsedChangeset.sessionUri)) {
+				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, s => this.restoreSession(s));
+				snapshot = this._stateManager.getSnapshot(resourceStr);
+			}
 			if (!snapshot) {
 				// Changeset URIs are routed through the coordinator (which
 				// owns its URI shape, the unknown-id early throw, and turn
@@ -855,6 +867,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._resourceSubscribers.delete(resource);
 		this._changesetCoordinator.onLastSubscriber(resource);
+		this._stateManager.onChangesetLivenessChanged();
 		// An empty session whose last subscriber dropped is a candidate for
 		// full GC (provider session, worktree, on-disk state). Sessions with
 		// at least one turn fall through to {@link _maybeEvictIdleSession},
@@ -977,6 +990,38 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._stateManager.removeSession(evictionTargetKey);
+	}
+
+	// Returns true when a changeset is safe to drop from the in-memory cache.
+	private _isChangesetEvictable(changeset: string): boolean {
+		const changesetUri = URI.parse(changeset);
+		// A direct changeset subscriber is rendering this expanded URI. Keep
+		// the state alive so future envelopes still target an existing object.
+		if (this._resourceSubscribers.has(changesetUri)) {
+			return false;
+		}
+		const parsed = parseChangesetUri(changeset);
+		// This guard only handles recognized changeset URIs; leave anything else alone.
+		if (!parsed) {
+			return false;
+		}
+		const sessionUri = URI.parse(parsed.sessionUri);
+		// A parent-session subscriber can still receive catalogue count updates
+		// from this changeset, so keep the backing state while the session is observed.
+		if (this._resourceSubscribers.has(sessionUri)) {
+			return false;
+		}
+		// Subagent views are backed by the parent session tree; treat any
+		// subscribed descendant as a parent-session pin for cache eviction.
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, sessionUri)) {
+				return false;
+			}
+		}
+		// If a git/session/uncommitted changeset recompute is currently running for this changeset URI,
+		// do not evict its cached state yet. Once the compute is done,
+		// it is safe to evict because the state is just a cache and can be recreated later.
+		return !this._changesets.isStaticChangesetComputeActive(changeset);
 	}
 
 	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {
