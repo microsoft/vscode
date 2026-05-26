@@ -3222,7 +3222,7 @@
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "nextEditSuggestions",
               "onExp"
