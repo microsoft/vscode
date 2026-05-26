@@ -19,20 +19,16 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { localize, localize2 } from '../../../nls.js';
+import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
-import { Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
-import { MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext } from '../../common/contextkeys.js';
-import { ISessionsPartService } from './sessionsPartService.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
-import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -375,104 +371,3 @@ export class ChatCompositeBar extends Disposable {
 		this._container.style.setProperty('--chat-tab-active-border', activeBorder?.toString() ?? '');
 	}
 }
-
-registerAction2(class AddChatToSessionBarAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.addChat',
-			title: localize2('chatCompositeBar.addChat', "New Chat"),
-			icon: Codicon.add,
-			menu: {
-				id: Menus.SessionBarInlineToolbar,
-				when: SessionIsCreatedContext,
-				group: 'navigation',
-				order: 10,
-			},
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		accessor.get(ISessionsManagementService).openNewChatInSession(session);
-	}
-});
-
-registerAction2(class TogglePinSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.togglePin',
-			title: localize2('chatCompositeBar.pin', "Pin Session"),
-			icon: Codicon.pin,
-			toggled: {
-				condition: SessionIsStickyContext,
-				icon: Codicon.pinned,
-				title: localize('chatCompositeBar.unpin', "Unpin Session"),
-			},
-			menu: {
-				id: Menus.SessionBarToolbar,
-				group: 'navigation',
-				order: 10,
-			},
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		accessor.get(ISessionsManagementService).toggleSessionStickiness(session);
-	}
-});
-
-registerAction2(class CloseSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.close',
-			title: localize2('chatCompositeBar.close', "Close"),
-			icon: Codicon.close,
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: 'navigation',
-				order: 30,
-			},
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		accessor.get(ISessionsManagementService).closeSession(session);
-	}
-});
-
-registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.toggleMaximize',
-			title: localize2('chatCompositeBar.maximize', "Maximize Session"),
-			icon: Codicon.screenFull,
-			toggled: {
-				condition: SessionIsMaximizedContext,
-				icon: Codicon.screenNormal,
-				title: localize('chatCompositeBar.unmaximize', "Restore Session"),
-			},
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: MultipleSessionsVisibleContext,
-				group: 'navigation',
-				order: 20,
-			},
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
-	}
-});
