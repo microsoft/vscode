@@ -175,14 +175,10 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
-				const primaryActions = [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-					this._commandService.executeCommand('git.showOutput');
-				})];
+				const primaryActions = [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => this._commandService.executeCommand('git.showOutput'))];
 
 				if (marketplace.kind !== MarketplaceReferenceKind.LocalFileUri) {
-					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => {
-						void this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, updateLabel);
-					}));
+					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, updateLabel)));
 				}
 
 				this._notificationService.notify({
