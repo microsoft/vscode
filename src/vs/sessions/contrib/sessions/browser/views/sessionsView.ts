@@ -24,7 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -51,6 +51,21 @@ export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const ACTION_ID_NEW_SESSION = 'workbench.action.sessions.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+
+/**
+ * Place the given session in the sessions grid to the right of the last
+ * currently-visible session (as a non-sticky entry) and make it active. If
+ * the session is already the last visible one, this is a no-op aside from
+ * activation.
+ */
+export async function openSessionToTheSide(sessionsManagementService: ISessionsManagementService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
+	const visible = sessionsManagementService.visibleSessions.get();
+	const lastVisible = visible[visible.length - 1];
+	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+		sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+	}
+	await sessionsManagementService.openSession(session.resource, options);
+}
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -192,12 +207,21 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
 			findWidgetContainer,
-			onSessionOpen: (resource, preserveFocus) => {
-				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(() => {
+			onSessionOpen: (resource, preserveFocus, sideBySide) => {
+				const onOpened = () => {
 					if (isWeb && isMobile) {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
-				}).catch(onUnexpectedError);
+				};
+				if (sideBySide) {
+					// Alt-click: open the session to the right of the last visible session in the grid.
+					const session = this.sessionsManagementService.getSession(resource);
+					if (session) {
+						openSessionToTheSide(this.sessionsManagementService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+						return;
+					}
+				}
+				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));

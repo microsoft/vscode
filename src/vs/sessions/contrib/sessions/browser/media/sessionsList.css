@@ -92,6 +92,11 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
+	&.sticky {
+		border-left: 2px solid var(--vscode-focusBorder);
+		padding-left: 4px;
+	}
+
 	.session-main,
 	.session-title-row,
 	.session-details-row {
@@ -111,6 +116,12 @@
 			display: flex;
 			align-items: center;
 			justify-content: center;
+		}
+
+		> .monaco-pixel-spinner {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
 		}
 
 		&.session-icon-pulse > .codicon {
@@ -482,6 +493,11 @@
 
 		> .codicon {
 			font-size: 14px;
+			height: 20px;
+		}
+
+		> .monaco-pixel-spinner {
+			width: 20px;
 			height: 20px;
 		}
 	}

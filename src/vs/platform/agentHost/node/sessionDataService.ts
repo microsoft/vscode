@@ -5,10 +5,11 @@
 
 import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import { ISessionDatabase, ISessionDataService, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
@@ -50,6 +51,11 @@ export class SessionDataService implements ISessionDataService {
 
 	private readonly _basePath: URI;
 	private readonly _databases: SessionDatabaseCollection;
+	private readonly _onWillDeleteSessionData = new Emitter<IWillDeleteSessionDataEvent>();
+
+	get onWillDeleteSessionData(): Event<IWillDeleteSessionDataEvent> {
+		return this._onWillDeleteSessionData.event;
+	}
 
 	constructor(
 		userDataPath: URI,
@@ -92,6 +98,27 @@ export class SessionDataService implements ISessionDataService {
 
 	async deleteSessionData(session: URI): Promise<void> {
 		const dir = this.getSessionDataDir(session);
+		// Fire the will-delete event first so subscribers (notably the
+		// checkpoint service) can perform async cleanup that needs the
+		// database to still be readable. `waitUntil` collects each
+		// subscriber's promise; we await them all before touching disk.
+		const pending: Promise<unknown>[] = [];
+		try {
+			this._onWillDeleteSessionData.fire({
+				session,
+				waitUntil: p => { pending.push(p); },
+			});
+		} catch (err) {
+			this._logService.warn(`[SessionDataService] onWillDeleteSessionData listener threw synchronously: ${dir.toString()}`, err);
+		}
+		if (pending.length > 0) {
+			const results = await Promise.allSettled(pending);
+			for (const r of results) {
+				if (r.status === 'rejected') {
+					this._logService.warn(`[SessionDataService] onWillDeleteSessionData waitUntil rejected: ${dir.toString()}`, r.reason);
+				}
+			}
+		}
 		try {
 			if (await this._fileService.exists(dir)) {
 				await this._fileService.del(dir, { recursive: true });

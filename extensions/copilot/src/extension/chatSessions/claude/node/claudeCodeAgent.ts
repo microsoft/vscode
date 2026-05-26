@@ -496,7 +496,7 @@ export class ClaudeCodeSession extends Disposable {
 					ANTHROPIC_AUTH_TOKEN: `${serverConfig.nonce}.${this.sessionId}`,
 					CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 					USE_BUILTIN_RIPGREP: '0',
-					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`,
+					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}${pathSep}${process.env.PATH}`,
 					// Forward OTel configuration to the Claude SDK subprocess
 					...deriveClaudeOTelEnv(this._otelService.config),
 				},

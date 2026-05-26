@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ICompletedSpanData } from '../../../../platform/otel/common/otelService';
 import type { IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
-import { createSessionTranslationState, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
+import { createSessionTranslationState, deriveTitleFromUserMessage, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
 
 function makeSpan(overrides: Partial<ICompletedSpanData> = {}): ICompletedSpanData {
 	return {
@@ -125,7 +125,7 @@ describe('translateSpan', () => {
 		expect(events[0].data.error).toBeDefined();
 	});
 
-	it('ignores non-relevant operation names', () => {
+	it('ignores chat spans without usage token attributes', () => {
 		const state = createSessionTranslationState();
 		const span = makeSpan({
 			attributes: {
@@ -135,6 +135,78 @@ describe('translateSpan', () => {
 
 		const events = translateSpan(span, state);
 		expect(events).toHaveLength(0);
+	});
+
+	it('emits assistant.usage for chat spans with usage tokens', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+
+		const span = makeSpan({
+			startTime: 1000,
+			endTime: 1500,
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.response.model': 'claude-sonnet-4-20250514',
+				'gen_ai.usage.input_tokens': 12500,
+				'gen_ai.usage.output_tokens': 800,
+				'gen_ai.usage.cache_read.input_tokens': 5000,
+				'copilot_chat.time_to_first_token': 230,
+			},
+		});
+
+		const events = translateSpan(span, state);
+
+		expect(events).toHaveLength(1);
+		expect(events[0].type).toBe('assistant.usage');
+		expect(events[0].data.model).toBe('claude-sonnet-4-20250514');
+		expect(events[0].data.inputTokens).toBe(12500);
+		expect(events[0].data.outputTokens).toBe(800);
+		expect(events[0].data.cacheReadTokens).toBe(5000);
+		expect(events[0].data.timeToFirstTokenMs).toBe(230);
+		expect(events[0].data.duration).toBe(500);
+		expect(events[0].ephemeral).toBe(true);
+	});
+
+	it('emits assistant.usage with request model as fallback', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.request.model': 'gpt-5.4',
+				'gen_ai.usage.input_tokens': 100,
+				'gen_ai.usage.output_tokens': 50,
+			},
+		});
+
+		const events = translateSpan(span, state);
+
+		expect(events).toHaveLength(1);
+		expect(events[0].data.model).toBe('gpt-5.4');
+		// Optional fields should be absent when not in span
+		expect(events[0].data.cacheReadTokens).toBeUndefined();
+		expect(events[0].data.timeToFirstTokenMs).toBeUndefined();
+	});
+
+	it('emits assistant.usage with subagentId for sub-agent chat spans', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+
+		const span = makeSpan({
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.response.model': 'claude-sonnet-4-20250514',
+				'gen_ai.usage.input_tokens': 200,
+				'gen_ai.usage.output_tokens': 100,
+			},
+		});
+
+		const events = translateSpan(span, state, undefined, 'sub-agent-123');
+
+		expect(events).toHaveLength(1);
+		expect(events[0].type).toBe('assistant.usage');
+		expect(events[0].agentId).toBe('sub-agent-123');
 	});
 
 	it('chains parentId across events', () => {
@@ -291,7 +363,7 @@ describe('translateSpan', () => {
 
 		const events = translateSpan(span, state);
 
-		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'assistant.message']);
+		expect(events.map(e => e.type)).toEqual(['session.start', 'user.message', 'session.title_changed', 'assistant.message']);
 		expect(events.every(e => e.agentId === undefined)).toBe(true);
 	});
 });
@@ -377,9 +449,11 @@ describe('translateDebugLogEntry', () => {
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
 
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0].type).toBe('user.message');
 		expect(events[0].data.content).toBe('Fix the bug');
+		expect(events[1].type).toBe('session.title_changed');
+		expect(events[1].data.title).toBe('Fix the bug');
 	});
 
 	it('emits user.message for turn_start entry with userRequest attr', () => {
@@ -392,9 +466,11 @@ describe('translateDebugLogEntry', () => {
 		});
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0].type).toBe('user.message');
 		expect(events[0].data.content).toBe('Add tests');
+		expect(events[1].type).toBe('session.title_changed');
+		expect(events[1].data.title).toBe('Add tests');
 	});
 
 	it('emits assistant.message for agent_response entry', () => {
@@ -488,5 +564,83 @@ describe('translateDebugLogEntry', () => {
 		expect(state.droppedCount).toBe(1);
 		// Critical: assistant.message must chain to session.start, not the dropped user.message.
 		expect(replyEvents[0].parentId).toBe(startEvents[0].id);
+	});
+
+	it('emits assistant.usage for llm_request entry with token data', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		const entry = makeDebugEntry({
+			type: 'llm_request',
+			name: 'llm_request',
+			dur: 450,
+			attrs: {
+				model: 'claude-sonnet-4-20250514',
+				inputTokens: 8000,
+				outputTokens: 500,
+				cachedTokens: 3000,
+				ttft: 120,
+			},
+		});
+
+		const events = translateDebugLogEntry(entry, 'sess-1', state);
+
+		expect(events).toHaveLength(1);
+		expect(events[0].type).toBe('assistant.usage');
+		expect(events[0].data.model).toBe('claude-sonnet-4-20250514');
+		expect(events[0].data.inputTokens).toBe(8000);
+		expect(events[0].data.outputTokens).toBe(500);
+		expect(events[0].data.cacheReadTokens).toBe(3000);
+		expect(events[0].data.timeToFirstTokenMs).toBe(120);
+		expect(events[0].data.duration).toBe(450);
+		expect(events[0].ephemeral).toBe(true);
+	});
+
+	it('ignores llm_request entry without token data', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		const entry = makeDebugEntry({
+			type: 'llm_request',
+			name: 'llm_request',
+			attrs: { model: 'gpt-5.4' },
+		});
+
+		const events = translateDebugLogEntry(entry, 'sess-1', state);
+		expect(events).toHaveLength(0);
+	});
+
+	it('accepts cacheReadTokens as fallback field name', () => {
+		const state = createSessionTranslationState();
+		state.started = true;
+		const entry = makeDebugEntry({
+			type: 'llm_request',
+			name: 'llm_request',
+			dur: 200,
+			attrs: {
+				model: 'gpt-5.4',
+				inputTokens: 1000,
+				outputTokens: 200,
+				cacheReadTokens: 500,
+			},
+		});
+
+		const events = translateDebugLogEntry(entry, 'sess-1', state);
+
+		expect(events).toHaveLength(1);
+		expect(events[0].data.cacheReadTokens).toBe(500);
+		expect(events[0].data.timeToFirstTokenMs).toBeUndefined();
+	});
+});
+describe('deriveTitleFromUserMessage', () => {
+	it('returns the content unchanged when shorter than the limit', () => {
+		expect(deriveTitleFromUserMessage('Fix the bug')).toBe('Fix the bug');
+	});
+
+	it('truncates and appends ellipsis when content exceeds the limit', () => {
+		const title = deriveTitleFromUserMessage('a'.repeat(80));
+		expect(title).toBe('a'.repeat(60) + '...');
+	});
+
+	it('returns undefined for empty content', () => {
+		expect(deriveTitleFromUserMessage('')).toBeUndefined();
 	});
 });

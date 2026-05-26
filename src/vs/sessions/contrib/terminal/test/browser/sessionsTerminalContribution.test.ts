@@ -110,8 +110,10 @@ function makeAgentSession(opts: {
 		description: chat.description,
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
+		isCreated: observableValue('test.isCreated', true),
+		sticky: observableValue('test.sticky', false),
 	} satisfies TestActiveSession;
 	return session;
 }
@@ -167,7 +169,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		chats: observableValue('test.chats', [chat]),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
 	} satisfies ISession;
 	return session;

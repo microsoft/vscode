@@ -33,7 +33,7 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>): AgentHostG
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new AgentHostGitService(fileService, env as INativeEnvironmentService);
+	return new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
 }
 
 suite('AgentHostGitService - getSessionGitState (real git)', () => {

@@ -182,6 +182,62 @@ describe('BackgroundTodoDeltaTracker', () => {
 		expect(delta.metadata.isRequestOnly).toBe(false);
 	});
 
+	// ── currentTurnSubstantiveToolCallCount ──────────────────────
+
+	test('currentTurnSubstantiveToolCallCount counts only current-turn rounds', () => {
+		const tracker = new BackgroundTodoDeltaTracker();
+		const historyRound: IToolCallRound = {
+			id: 'h1', response: '', toolInputRetry: 0,
+			toolCalls: [
+				{ name: 'read_file', arguments: '{}', id: 'tc-h1a' },
+				{ name: 'edit_file', arguments: '{}', id: 'tc-h1b' },
+			],
+		};
+		const currentRound: IToolCallRound = {
+			id: 'c1', response: '', toolInputRetry: 0,
+			toolCalls: [{ name: 'read_file', arguments: '{}', id: 'tc-c1' }],
+		};
+		const ctx = makePromptContext({ historyRounds: [[historyRound]], toolCallRounds: [currentRound] });
+		const delta = tracker.peekDelta(ctx)!;
+		// Total substantive counts all unprocessed rounds (2 from history + 1 current)
+		expect(delta.metadata.substantiveToolCallCount).toBe(3);
+		// Current-turn only counts the current round (1)
+		expect(delta.metadata.currentTurnSubstantiveToolCallCount).toBe(1);
+	});
+
+	test('currentTurnSubstantiveToolCallCount is zero when all rounds are from history', () => {
+		const tracker = new BackgroundTodoDeltaTracker();
+		const historyRound = makeRound('h1');
+		const ctx = makePromptContext({ historyRounds: [[historyRound]] });
+		const delta = tracker.peekDelta(ctx)!;
+		expect(delta.metadata.substantiveToolCallCount).toBe(1);
+		expect(delta.metadata.currentTurnSubstantiveToolCallCount).toBe(0);
+	});
+
+	test('currentTurnSubstantiveToolCallCount excludes already-processed current-turn rounds', () => {
+		const tracker = new BackgroundTodoDeltaTracker();
+		const r1 = makeRound('r1');
+		const ctx1 = makePromptContext({ toolCallRounds: [r1] });
+		tracker.markProcessed(tracker.peekDelta(ctx1)!);
+
+		// r1 is processed, r2 is new — only r2 should count
+		const r2 = makeRound('r2');
+		const ctx2 = makePromptContext({ toolCallRounds: [r1, r2] });
+		const delta = tracker.peekDelta(ctx2)!;
+		expect(delta.metadata.currentTurnSubstantiveToolCallCount).toBe(1);
+		expect(delta.metadata.substantiveToolCallCount).toBe(1);
+	});
+
+	test('currentTurnSubstantiveToolCallCount equals substantiveToolCallCount when no history', () => {
+		const tracker = new BackgroundTodoDeltaTracker();
+		const r1 = makeRound('r1');
+		const r2 = makeRound('r2');
+		const ctx = makePromptContext({ toolCallRounds: [r1, r2] });
+		const delta = tracker.peekDelta(ctx)!;
+		expect(delta.metadata.currentTurnSubstantiveToolCallCount).toBe(2);
+		expect(delta.metadata.substantiveToolCallCount).toBe(2);
+	});
+
 	// ── Peek / commit semantics ─────────────────────────────────
 
 	test('peekDelta does not advance cursor', () => {

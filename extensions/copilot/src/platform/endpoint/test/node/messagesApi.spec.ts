@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl } from '../../../networking/common/anthropic';
+import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl, modelSupportsMemory } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
@@ -528,7 +528,7 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants and rejects everything else', function () {
+	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
@@ -557,8 +557,38 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-sonnet-4.5': true,
 			'claude-opus-4-1': false,
 			'claude-sonnet-4': false,
-			'claude-haiku-4-5': false,
+			'claude-haiku-4-5': true,
 			'gpt-5': false,
+		});
+	});
+
+	test('matches via endpoint.family when the model id is unknown', function () {
+		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
+		expect({
+			'preview-id + family=claude-opus-4.7': modelSupportsExtendedCacheTtl(fake('claude-opus-4.7', 'preview-opus-internal')),
+			'preview-id + family=claude-sonnet-4.5': modelSupportsExtendedCacheTtl(fake('claude-sonnet-4.5', 'preview-sonnet-internal')),
+			'preview-id + family=claude-opus-4 (unsupported)': modelSupportsExtendedCacheTtl(fake('claude-opus-4', 'preview-opus-old')),
+			'preview-id + family=mystery': modelSupportsExtendedCacheTtl(fake('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.7': true,
+			'preview-id + family=claude-sonnet-4.5': true,
+			'preview-id + family=claude-opus-4 (unsupported)': false,
+			'preview-id + family=mystery': false,
+		});
+	});
+});
+
+suite('modelSupportsMemory', function () {
+	test('matches via endpoint.family when the model id is unknown', function () {
+		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
+		expect({
+			'preview-id + family=claude-opus-4.6': modelSupportsMemory(fake('claude-opus-4.6', 'preview-opus-internal')),
+			'preview-id + family=claude-haiku-4-5': modelSupportsMemory(fake('claude-haiku-4-5', 'preview-haiku-internal')),
+			'preview-id + family=mystery': modelSupportsMemory(fake('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.6': true,
+			'preview-id + family=claude-haiku-4-5': true,
+			'preview-id + family=mystery': false,
 		});
 	});
 });

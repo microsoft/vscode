@@ -12,7 +12,6 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -32,7 +31,6 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import type { IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const FILTER_THRESHOLD = 10;
@@ -196,7 +194,6 @@ export class AgentHostChatInputPicker extends Disposable {
 	constructor(
 		private readonly _widget: IChatWidget,
 		private readonly _property: string,
-		private readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -209,13 +206,6 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._register(this._widget.onDidChangeViewModel(() => {
 			this._reattach();
 		}));
-		const opts = this._pickerOptions;
-		if (opts) {
-			this._register(autorun(reader => {
-				opts.hideChevrons.read(reader);
-				this._renderChip();
-			}));
-		}
 		this._register(this._provisional.onDidChange((sessionResource: URI) => {
 			const current = this._widget.viewModel?.sessionResource;
 			if (current && current.toString() === sessionResource.toString()) {
@@ -357,8 +347,6 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
-		const compact = this._pickerOptions?.hideChevrons.get() ?? false;
-
 		const icon = getConfigIcon(this._property, value);
 		if (icon) {
 			dom.append(trigger, renderIcon(icon));
@@ -370,16 +358,11 @@ export class AgentHostChatInputPicker extends Disposable {
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
 		const label = this._labelFor(schema, value);
-		if (!compact) {
-			const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
-			labelSpan.textContent = label;
-		}
+		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
+		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly && !compact) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 	}
 
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
@@ -574,9 +557,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		this._agentHostService.dispatch({
+		this._agentHostService.dispatch(backendSession.toString(), {
 			type: ActionType.SessionConfigChanged,
-			session: backendSession.toString(),
 			config: partial,
 		});
 	}

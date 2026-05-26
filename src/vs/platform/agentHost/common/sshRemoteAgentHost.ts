@@ -35,6 +35,8 @@ export interface ISSHAgentHostConfig {
 	readonly authMethod: SSHAuthMethod;
 	/** Path to the private key file (when {@link authMethod} is KeyFile). */
 	readonly privateKeyPath?: string;
+	/** Raw IdentityAgent value from resolved SSH config; may be a socket path, `none`, `SSH_AUTH_SOCK`, or an environment reference. */
+	readonly identityAgent?: string;
 	/** Password string (when {@link authMethod} is Password). */
 	readonly password?: string;
 	/** Display name for this connection. */
@@ -155,6 +157,7 @@ export interface ISSHResolvedConfig {
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
+	readonly identityAgent: string | undefined;
 	readonly forwardAgent: boolean;
 }
 
@@ -244,8 +247,8 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/**
 	 * Provide responses for a previously fired keyboard-interactive request.
-	 * Pass `undefined` (e.g. when the user cancels the prompt) to submit empty
-	 * responses, which causes the server to fail this auth attempt.
+	 * Pass `undefined` when the user cancels the prompt; this aborts the
+	 * owning SSH connection attempt.
 	 */
 	respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void>;
 
