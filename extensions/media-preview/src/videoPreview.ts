@@ -5,8 +5,9 @@
 
 import * as vscode from 'vscode';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
-import { MediaPreview, reopenAsText } from './mediaPreview';
-import { escapeAttribute, getNonce } from './util/dom';
+import { MediaPreview, isGitLfsPointer, reopenAsText } from './mediaPreview';
+import { escapeAttribute } from './util/dom';
+import { generateUuid } from './util/uuid';
 
 
 class VideoPreviewProvider implements vscode.CustomReadonlyEditorProvider {
@@ -55,15 +56,17 @@ class VideoPreview extends MediaPreview {
 	protected async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const configurations = vscode.workspace.getConfiguration('mediaPreview.video');
+		const src = await this.getResourcePath(this._webviewEditor, this._resource, version);
 		const settings = {
-			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
+			src,
+			isGitLfs: src === null,
 			autoplay: configurations.get('autoPlay'),
 			loop: configurations.get('loop'),
 		};
 
-		const nonce = getNonce();
+		const nonce = generateUuid();
 
-		const cspSource = this.webviewEditor.webview.cspSource;
+		const cspSource = this._webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -86,18 +89,18 @@ class VideoPreview extends MediaPreview {
 		<p>${vscode.l10n.t("An error occurred while loading the video file.")}</p>
 		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
+	<div class="git-lfs-info">
+		<p>${vscode.l10n.t("The video file is stored with Git LFS and is not available for preview.")}</p>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
+	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'videoPreview.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}
 
 	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string | null> {
-		if (resource.scheme === 'git') {
-			const stat = await vscode.workspace.fs.stat(resource);
-			if (stat.size === 0) {
-				// The file is stored on git lfs
-				return null;
-			}
+		if (await isGitLfsPointer(resource)) {
+			return null;
 		}
 
 		// Avoid adding cache busting if there is already a query string
@@ -108,7 +111,7 @@ class VideoPreview extends MediaPreview {
 	}
 
 	private extensionResource(...parts: string[]) {
-		return this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
+		return this._webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
 	}
 }
 

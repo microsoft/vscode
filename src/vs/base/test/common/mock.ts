@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SinonStub, stub } from 'sinon';
+import { DeepPartial } from '../../common/types.js';
 
 export interface Ctor<T> {
 	new(): T;
 }
 
 export function mock<T>(): Ctor<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return function () { } as any;
 }
 
@@ -18,6 +20,7 @@ export type MockObject<T, ExceptProps = never> = { [K in keyof T]: K extends Exc
 // Creates an object object that returns sinon mocks for every property. Optionally
 // takes base properties.
 export const mockObject = <T extends object>() => <TP extends Partial<T> = {}>(properties?: TP): MockObject<T, keyof TP> => {
+	// eslint-disable-next-line local/code-no-any-casts
 	return new Proxy({ ...properties } as any, {
 		get(target, key) {
 			if (!target.hasOwnProperty(key)) {
@@ -32,3 +35,13 @@ export const mockObject = <T extends object>() => <TP extends Partial<T> = {}>(p
 		},
 	});
 };
+
+/**
+ * Shortcut for type-safe partials in mocks. A shortcut for `obj as Partial<T> as T`.
+ */
+export function upcastPartial<T>(partial: Partial<T>): T {
+	return partial as T;
+}
+export function upcastDeepPartial<T>(partial: DeepPartial<T>): T {
+	return partial as T;
+}

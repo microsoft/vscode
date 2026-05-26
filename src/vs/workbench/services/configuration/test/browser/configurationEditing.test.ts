@@ -38,7 +38,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { joinPath } from '../../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { RemoteAgentService } from '../../../remote/browser/remoteAgentService.js';
-import { getSingleFolderWorkspaceIdentifier } from '../../../workspaces/browser/workspaces.js';
+import { getSingleFolderWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { IUserDataProfilesService, UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
@@ -47,6 +47,7 @@ import { UserDataProfileService } from '../../../userDataProfile/common/userData
 import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -89,7 +90,9 @@ suite('ConfigurationEditing', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationEditing.service.policySetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } }
 					}
 				}
 			}
@@ -193,7 +196,7 @@ suite('ConfigurationEditing', () => {
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, filter: false, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, onDidChangeFilter: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null!, getFilter: null!, getFilters: null!, removeFilter: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, filter: false, onDidChangeFilter: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null!, getFilter: null!, getFilters: null!, removeFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
@@ -329,6 +332,18 @@ suite('ConfigurationEditing', () => {
 		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.service.testSetting', value: 'value' });
+
+		const contents = await fileService.readFile(target);
+		const parsed = json.parse(contents.value.toString());
+		assert.strictEqual(parsed['service.testSetting'], 'value');
+		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
+	});
+
+	test('write user standalone mcp setting - existing file', async () => {
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['mcp']);
+		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+
+		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'mcp.service.testSetting', value: 'value' });
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());

@@ -20,10 +20,10 @@ export abstract class Strip extends Disposable {
 	protected slider: HTMLElement;
 	private height!: number;
 
-	private readonly _onDidChange = new Emitter<number>();
+	private readonly _onDidChange = this._register(new Emitter<number>());
 	readonly onDidChange: Event<number> = this._onDidChange.event;
 
-	private readonly _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = this._register(new Emitter<void>());
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
 	constructor(container: HTMLElement, protected model: ColorPickerModel, type: ColorPickerWidgetType) {

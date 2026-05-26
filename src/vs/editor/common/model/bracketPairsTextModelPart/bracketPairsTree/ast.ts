@@ -626,7 +626,7 @@ export class TextAstNode extends ImmutableLeafAstNode {
 				continue;
 			}
 
-			const visibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, firstNonWsColumn, textModel.getOptions().tabSize)!;
+			const visibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, firstNonWsColumn, textModel.getOptions().tabSize);
 			result = Math.min(result, visibleColumn);
 		}
 

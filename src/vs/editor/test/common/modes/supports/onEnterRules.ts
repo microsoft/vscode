@@ -132,6 +132,16 @@ export const htmlOnEnterRules = [
 	}
 ];
 
+export const vbOnEnterRules = [
+	// Prevent indent after End statements and block terminators (but NOT ElseIf...Then or Else which should indent)
+	{
+		beforeText: /^\s*((End\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator))|Loop|Next|Wend|Until)\b.*$/i,
+		action: {
+			indentAction: IndentAction.None
+		}
+	}
+];
+
 /*
 export enum IndentAction {
 	None = 0,

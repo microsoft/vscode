@@ -47,7 +47,11 @@ const inheritIconFromLanguage = {
 	"jsonl": 'json',
 	"postcss": 'css',
 	"django-html": 'html',
-	"blade": 'php'
+	"blade": 'php',
+	"prompt": 'markdown',
+	"instructions": 'markdown',
+	"chatagent": 'markdown',
+	"skill": 'markdown'
 };
 
 const ignoreExtAssociation = {

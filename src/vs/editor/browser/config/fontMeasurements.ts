@@ -271,7 +271,7 @@ class FontMeasurementsCache {
 		this._values[itemId] = value;
 	}
 
-	public remove(item: BareFontInfo): void {
+	public remove(item: FontInfo): void {
 		const itemId = item.getId();
 		delete this._keys[itemId];
 		delete this._values[itemId];

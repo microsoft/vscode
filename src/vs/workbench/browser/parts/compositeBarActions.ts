@@ -29,6 +29,7 @@ import { Action2, IAction2Options } from '../../../platform/actions/common/actio
 import { ViewContainerLocation } from '../../common/views.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { createConfigureKeybindingAction } from '../../../platform/actions/common/menuService.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 
 export interface ICompositeBar {
 
@@ -160,7 +161,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
-	private mouseUpTimeout: any;
+	private mouseUpTimeout: Timeout | undefined;
 	private keybindingLabel: string | undefined | null;
 
 	constructor(
@@ -236,11 +237,11 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			this.container.classList.add('icon');
 		}
 
+		// Use 'tab' inside tablist, 'button' for popup items outside tablist
+		const role = this.options.isTabList || !this.options.hasPopup ? 'tab' : 'button';
+		this.container.setAttribute('role', role);
 		if (this.options.hasPopup) {
-			this.container.setAttribute('role', 'button');
 			this.container.setAttribute('aria-haspopup', 'true');
-		} else {
-			this.container.setAttribute('role', 'tab');
 		}
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
@@ -260,16 +261,13 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this._register(this.hoverService.setupDelayedHover(this.container, () => ({
 			content: this.computeTitle(),
+			style: HoverStyle.Pointer,
 			position: {
 				hoverPosition: this.options.hoverOptions.position(),
 			},
 			persistence: {
 				hideOnKeyDown: true,
 			},
-			appearance: {
-				showPointer: true,
-				compact: true,
-			}
 		}), { groupId: 'composite-bar-actions' }));
 
 		// Label
@@ -481,7 +479,7 @@ export class CompositeOverflowActivityActionViewItem extends CompositeBarActionV
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, () => true, themeService, hoverService, configurationService, keybindingService);
+		super(action, { icon: true, colors, hasPopup: true, hoverOptions, isTabList: true }, () => true, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	showMenu(): void {

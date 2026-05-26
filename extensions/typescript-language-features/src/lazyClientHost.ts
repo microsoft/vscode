@@ -38,16 +38,12 @@ export function createLazyClientHost(
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return new Lazy(() => {
-		const clientHost = new TypeScriptServiceClientHost(
+		return new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context,
 			onCaseInsensitiveFileSystem,
 			services,
 			onCompletionAccepted);
-
-		context.subscriptions.push(clientHost);
-
-		return clientHost;
 	});
 }
 
@@ -90,7 +86,9 @@ export function lazilyActivateClient(
 		}, undefined, disposables);
 	}
 
-	return vscode.Disposable.from(...disposables);
+	return new vscode.Disposable(() => {
+		disposables.forEach(d => d.dispose());
+	});
 }
 
 function isSupportedDocument(

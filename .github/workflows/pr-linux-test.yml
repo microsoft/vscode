@@ -1,0 +1,416 @@
+on:
+  workflow_call:
+    inputs:
+      job_name:
+        type: string
+        required: true
+      electron_tests:
+        type: boolean
+        default: false
+      browser_tests:
+        type: boolean
+        default: false
+      remote_tests:
+        type: boolean
+        default: false
+
+jobs:
+  linux-test:
+    name: ${{ inputs.job_name }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup system services
+        run: |
+          set -e
+          # Allow unprivileged user namespaces for Chromium's namespace sandbox
+          # Ubuntu 24.04 restricts this by default via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          # Start X server
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+            xvfb \
+            libgtk-3-0 \
+            libxkbfile-dev \
+            libkrb5-dev \
+            libgbm1 \
+            rpm \
+            bubblewrap \
+            socat
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        working-directory: build
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Workaround expat NULL deref CVEs in fontconfig parsing
+        run: |
+          set -e
+          # Ubuntu 24.04 ships expat 2.6.1 which has multiple NULL dereference
+          # CVEs triggered when fontconfig parses <include> directives via
+          # expat's XML_ExternalEntityParserCreate:
+          #   CVE-2026-24515 (backported but crash persists)
+          #   CVE-2026-32776 (not yet backported) - empty external parameter entities
+          #   CVE-2026-32778 (not yet backported) - setContext after OOM
+          # All three are fixed upstream in expat >= 2.7.5.
+          # Check if the runner already has the fix — skip workaround if so.
+          EXPAT_VER=$(dpkg-query -W -f='${Version}' libexpat1 2>/dev/null || echo "0")
+          if dpkg --compare-versions "$EXPAT_VER" ge "2.7.5"; then
+            echo "::warning::libexpat1 $EXPAT_VER includes all CVE fixes (>= 2.7.5). The fontconfig workaround in this workflow can be removed."
+            exit 0
+          fi
+          echo "Installed expat: $EXPAT_VER — applying fontconfig workaround"
+          # Workaround: use a minimal fontconfig config with no <include> directives,
+          # avoiding the external entity parser codepath entirely. Based on upstream
+          # fontconfig 2.15.0 fonts.conf.in with <include> removed, generic family
+          # aliases inlined, and default font mappings for generic families added
+          # (from conf.d/49-sansserif.conf and DejaVu font configs).
+          # Remove once Ubuntu backports the remaining CVE fixes.
+          cat > /tmp/fonts-minimal.conf << 'FONTCONFIG_EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+          <fontconfig>
+            <dir>/usr/share/fonts</dir>
+            <dir>/usr/local/share/fonts</dir>
+            <dir prefix="xdg">fonts</dir>
+            <cachedir>/var/cache/fontconfig</cachedir>
+            <cachedir prefix="xdg">fontconfig</cachedir>
+            <!-- Generic family aliases from upstream fonts.conf -->
+            <match target="pattern">
+              <test qual="any" name="family"><string>mono</string></test>
+              <edit name="family" mode="assign" binding="same"><string>monospace</string></edit>
+            </match>
+            <match target="pattern">
+              <test qual="any" name="family"><string>sans serif</string></test>
+              <edit name="family" mode="assign" binding="same"><string>sans-serif</string></edit>
+            </match>
+            <match target="pattern">
+              <test qual="any" name="family"><string>sans</string></test>
+              <edit name="family" mode="assign" binding="same"><string>sans-serif</string></edit>
+            </match>
+            <match target="pattern">
+              <test qual="any" name="family"><string>system ui</string></test>
+              <edit name="family" mode="assign" binding="same"><string>system-ui</string></edit>
+            </match>
+            <!-- Map generic families to actual fonts (from conf.d/49-sansserif, 57-dejavu) -->
+            <alias>
+              <family>monospace</family>
+              <prefer><family>DejaVu Sans Mono</family></prefer>
+            </alias>
+            <alias>
+              <family>sans-serif</family>
+              <prefer><family>DejaVu Sans</family></prefer>
+            </alias>
+            <alias>
+              <family>serif</family>
+              <prefer><family>DejaVu Serif</family></prefer>
+            </alias>
+            <!-- Fallback: assign sans-serif to unmatched families (from 49-sansserif.conf) -->
+            <match target="pattern">
+              <test qual="all" name="family" compare="not_eq"><string>sans-serif</string></test>
+              <test qual="all" name="family" compare="not_eq"><string>serif</string></test>
+              <test qual="all" name="family" compare="not_eq"><string>monospace</string></test>
+              <edit name="family" mode="append_last"><string>sans-serif</string></edit>
+            </match>
+            <!-- Rendering defaults -->
+            <match target="font">
+              <edit name="antialias" mode="assign"><bool>true</bool></edit>
+              <edit name="hinting" mode="assign"><bool>true</bool></edit>
+              <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
+            </match>
+            <config>
+              <rescan><int>0</int></rescan>
+            </config>
+          </fontconfig>
+          FONTCONFIG_EOF
+          echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
+
+      - name: Fontconfig diagnostics and cache reset
+        run: |
+          set -e
+          echo "--- Font package versions ---"
+          dpkg -l | grep -E 'libexpat|fontconfig|libfreetype|libpango' || true
+          echo ""
+          echo "--- Installed font packages ---"
+          apt list --installed 2>/dev/null | grep -E 'fonts-|fontconfig' || true
+          echo ""
+          echo "--- Active fontconfig file ---"
+          echo "FONTCONFIG_FILE=${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
+          echo ""
+          echo "--- Verify active config integrity ---"
+          python3 -c "
+          import xml.etree.ElementTree as ET, os, glob, sys
+          fc = os.environ.get('FONTCONFIG_FILE', '/etc/fonts/fonts.conf')
+          files = [fc] if os.path.exists(fc) else ['/etc/fonts/fonts.conf'] + sorted(glob.glob('/etc/fonts/conf.d/*.conf'))
+          for f in files:
+              try:
+                  ET.parse(f)
+              except Exception as e:
+                  print(f'WARNING: {f} is invalid: {e}', file=sys.stderr)
+          print('Font config XML validation complete')
+          "
+          echo ""
+          echo "--- Check for symlink loops in font dirs ---"
+          find /usr/share/fonts -maxdepth 3 -type l -exec test -d {} \; -print 2>/dev/null | head -10 || true
+          echo ""
+          echo "--- Clear and rebuild font cache ---"
+          sudo rm -rf /var/cache/fontconfig 2>/dev/null || true
+          rm -rf ~/.cache/fontconfig 2>/dev/null || true
+          fc-cache -f -v 2>&1 | tail -5
+          echo ""
+          echo "--- fontconfig version ---"
+          fc-cache --version 2>&1 | head -1
+        continue-on-error: true
+
+      - name: Transpile client and extensions
+        run: npm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Download Electron and Playwright
+        run: |
+          set -e
+
+          for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
+            if npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+              echo "Download successful on attempt $i"
+              break
+            fi
+
+            if [ $i -eq 3 ]; then
+              echo "Download failed after 3 attempts" >&2
+              exit 1
+            fi
+
+            echo "Download failed on attempt $i, retrying..."
+            sleep 5 # optional: add a small delay between retries
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🧪 Run unit tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --tfs "Unit Tests"
+        env:
+          DISPLAY: ":10"
+
+      - name: 🧪 Run unit tests (node.js)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 15
+        run: npm run test-node
+
+      - name: 🧪 Run unit tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 30
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
+
+      - name: Build integration tests
+        run: |
+          set -e
+          npm run gulp \
+            compile-extension:configuration-editing \
+            compile-extension:css-language-features-server \
+            compile-extension:emmet \
+            compile-extension:git \
+            compile-extension:github-authentication \
+            compile-extension:html-language-features-server \
+            compile-extension:ipynb \
+            compile-extension:notebook-renderers \
+            compile-extension:json-language-features-server \
+            compile-extension:markdown-language-features \
+            compile-extension-media \
+            compile-extension:microsoft-authentication \
+            compile-extension:typescript-language-features \
+            compile-extension:vscode-api-tests \
+            compile-extension:vscode-colorize-tests \
+            compile-extension:vscode-colorize-perf-tests \
+            compile-extension:vscode-test-resolver
+
+      - name: Compile Copilot extension
+        run: npm --prefix extensions/copilot run compile
+
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+        env:
+          DISPLAY: ":10"
+
+      - name: 🧪 Run integration tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-web-integration.sh --browser chromium
+
+      - name: 🧪 Run integration tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        run: ./scripts/test-remote-integration.sh
+        env:
+          DISPLAY: ":10"
+
+      - name: Compile smoke tests
+        working-directory: test/smoke
+        run: npm run compile
+
+      - name: Compile extensions for smoke tests
+        run: npm run gulp compile-extension-media
+
+      - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+        run: |
+          set -e
+          ps -ef
+          cat /proc/sys/fs/inotify/max_user_watches
+          lsof | wc -l
+        continue-on-error: true
+        if: always()
+
+      - name: 🧪 Run smoke tests (Electron)
+        if: ${{ inputs.electron_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --tracing
+        env:
+          DISPLAY: ":10"
+
+      - name: 🧪 Run smoke tests (Browser, Chromium)
+        if: ${{ inputs.browser_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --web --tracing --headless
+
+      - name: 🧪 Run smoke tests (Remote)
+        if: ${{ inputs.remote_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --remote --tracing
+        env:
+          DISPLAY: ":10"
+
+      - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+        run: |
+          set -e
+          ps -ef
+          cat /proc/sys/fs/inotify/max_user_watches
+          lsof | wc -l
+        continue-on-error: true
+        if: always()
+
+      - name: Publish Crash Reports
+        uses: actions/upload-artifact@v7
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('crash-dump-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/crashes
+          if-no-files-found: ignore
+
+      # In order to properly symbolify above crash reports
+      # (if any), we need the compiled native modules too
+      - name: Publish Node Modules
+        uses: actions/upload-artifact@v7
+        if: failure()
+        continue-on-error: true
+        with:
+          name: ${{ format('node-modules-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: node_modules
+          if-no-files-found: ignore
+
+      - name: Publish Log Files
+        uses: actions/upload-artifact@v7
+        if: always()
+        continue-on-error: true
+        with:
+          name: ${{ format('logs-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/logs
+          if-no-files-found: ignore

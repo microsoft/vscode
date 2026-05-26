@@ -42,6 +42,9 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { setHoverDelegateFactory } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
+import { IMarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
+import { IUserInteractionService } from '../../../platform/userInteraction/browser/userInteractionService.js';
 
 /**
  * Description of an action contribution
@@ -85,7 +88,7 @@ export interface IActionDescriptor {
 	 * Method that will be executed when the action is triggered.
 	 * @param editor The editor instance is passed in as a convenience
 	 */
-	run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
+	run(editor: ICodeEditor, ...args: unknown[]): void | Promise<void>;
 }
 
 /**
@@ -280,10 +283,12 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IUserInteractionService userInteractionService: IUserInteractionService,
 	) {
 		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
-		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService, userInteractionService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -295,6 +300,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
 		setBaseLayerHoverDelegate(hoverService);
+
+		markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -335,7 +342,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: unknown[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 
@@ -389,7 +396,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		return toDispose;
 	}
 
-	protected override _triggerCommand(handlerId: string, payload: any): void {
+	protected override _triggerCommand(handlerId: string, payload: unknown): void {
 		if (this._codeEditorService instanceof StandaloneCodeEditorService) {
 			// Help commands find this editor as the active editor
 			try {
@@ -427,6 +434,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IUserInteractionService userInteractionService: IUserInteractionService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
@@ -439,7 +448,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, hoverService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, hoverService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService, markdownRendererService, userInteractionService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
@@ -465,9 +474,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public override updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, false);
@@ -535,9 +541,6 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 		this._register(themeDomRegistration);
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, true);

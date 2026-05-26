@@ -6,6 +6,7 @@
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
@@ -15,6 +16,19 @@ import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
+
+/**
+ * Use as the {@link IRequestOptions.callSite} value to prevent
+ * request telemetry from being emitted. This is needed for
+ * callers such as the telemetry sender to avoid cyclical calls.
+ */
+export const NO_FETCH_TELEMETRY = 'NO_FETCH_TELEMETRY';
+
+export interface IRequestCompleteEvent {
+	readonly callSite: string;
+	readonly latency: number;
+	readonly statusCode: number | undefined;
+}
 
 export interface AuthInfo {
 	isProxy: boolean;
@@ -32,6 +46,11 @@ export interface Credentials {
 
 export interface IRequestService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires when a request completes (successfully or with an error response).
+	 */
+	readonly onDidCompleteRequest: Event<IRequestCompleteEvent>;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
@@ -70,6 +89,9 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	private counter = 0;
 
+	private readonly _onDidCompleteRequest = this._register(new Emitter<IRequestCompleteEvent>());
+	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
+
 	constructor(protected readonly logService: ILogService) {
 		super();
 	}
@@ -77,9 +99,15 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
 		const prefix = `#${++this.counter}: ${options.url}`;
 		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+		const startTime = Date.now();
 		try {
 			const result = await request();
 			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			this._onDidCompleteRequest.fire({
+				callSite: options.callSite,
+				latency: Date.now() - startTime,
+				statusCode: result.res.statusCode,
+			});
 			return result;
 		} catch (error) {
 			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
@@ -96,6 +124,14 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
+}
+
+export function isClientError(context: IRequestContext): boolean {
+	return !!context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500;
+}
+
+export function isServerError(context: IRequestContext): boolean {
+	return !!context.res.statusCode && context.res.statusCode >= 500 && context.res.statusCode < 600;
 }
 
 export function hasNoContent(context: IRequestContext): boolean {
@@ -146,9 +182,13 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.proxyAuthorization',
 	'http.proxySupport',
 	'http.systemCertificates',
+	'http.systemCertificatesNode',
 	'http.experimental.systemCertificatesV2',
 	'http.fetchAdditionalSupport',
+	'http.experimental.networkInterfaceCheckInterval',
 ];
+
+export const systemCertificatesNodeDefault = false;
 
 let proxyConfiguration: IConfigurationNode[] = [];
 let previousUseHostProxy: boolean | undefined = undefined;
@@ -249,6 +289,16 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					markdownDescription: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. On Windows and macOS, a reload of the window is required after turning this off. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
 					restricted: true
 				},
+				'http.systemCertificatesNode': {
+					type: 'boolean',
+					tags: ['experimental'],
+					default: systemCertificatesNodeDefault,
+					markdownDescription: localize('systemCertificatesNode', "Controls whether system certificates should be loaded using Node.js built-in support. Reload the window after changing this setting. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
+					restricted: true,
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'http.experimental.systemCertificatesV2': {
 					type: 'boolean',
 					tags: ['experimental'],
@@ -261,6 +311,23 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					default: true,
 					markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
 					restricted: true
+				},
+				'http.webSocketAdditionalSupport': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: localize('webSocketAdditionalSupport', "Controls whether the built-in WebSocket implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
+					restricted: true
+				},
+				'http.experimental.networkInterfaceCheckInterval': {
+					type: 'number',
+					default: 300,
+					minimum: -1,
+					tags: ['experimental'],
+					markdownDescription: localize('networkInterfaceCheckInterval', "Controls the interval in seconds for checking network interface changes to invalidate the proxy cache. Set to -1 to disable. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
+					restricted: true,
+					experiment: {
+						mode: 'auto'
+					}
 				}
 			}
 		}

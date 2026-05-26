@@ -7,9 +7,9 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import * as extHostProtocol from './extHost.protocol.js';
 
 class ArrayBufferSet {
-	public readonly buffers: ArrayBuffer[] = [];
+	public readonly buffers: ArrayBufferLike[] = [];
 
-	public add(buffer: ArrayBuffer): number {
+	public add(buffer: ArrayBufferLike): number {
 		let index = this.buffers.indexOf(buffer);
 		if (index < 0) {
 			index = this.buffers.length;
@@ -20,7 +20,7 @@ class ArrayBufferSet {
 }
 
 export function serializeWebviewMessage(
-	message: any,
+	message: unknown,
 	options: { serializeBuffersForPostMessage?: boolean }
 ): { message: string; buffers: VSBuffer[] } {
 	if (options.serializeBuffersForPostMessage) {
@@ -83,7 +83,7 @@ function getTypedArrayType(value: ArrayBufferView): extHostProtocol.WebviewMessa
 	return undefined;
 }
 
-export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: any; arrayBuffers: ArrayBuffer[] } {
+export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: unknown; arrayBuffers: ArrayBuffer[] } {
 	const arrayBuffers: ArrayBuffer[] = buffers.map(buffer => {
 		const arrayBuffer = new ArrayBuffer(buffer.byteLength);
 		const uint8Array = new Uint8Array(arrayBuffer);
@@ -117,6 +117,6 @@ export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer
 		return value;
 	};
 
-	const message = JSON.parse(jsonMessage, reviver);
+	const message = JSON.parse(jsonMessage, reviver) as unknown;
 	return { message, arrayBuffers };
 }

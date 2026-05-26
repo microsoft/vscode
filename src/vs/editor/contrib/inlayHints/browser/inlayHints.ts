@@ -11,8 +11,7 @@ import { Range } from '../../../common/core/range.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { InlayHint, InlayHintList, InlayHintsProvider, Command } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
+import { createCommandUri } from '../../../../base/common/htmlContent.js';
 
 export class InlayHintAnchor {
 	constructor(readonly range: Range, readonly direction: 'before' | 'after') { }
@@ -168,9 +167,5 @@ export class InlayHintsFragments {
 }
 
 export function asCommandLink(command: Command): string {
-	return URI.from({
-		scheme: Schemas.command,
-		path: command.id,
-		query: command.arguments && encodeURIComponent(JSON.stringify(command.arguments))
-	}).toString();
+	return createCommandUri(command.id, ...(command.arguments ?? [])).toString();
 }

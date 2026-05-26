@@ -36,7 +36,7 @@ export interface ITextResourceConfigurationService {
 	/**
 	 * Event that fires when the configuration changes.
 	 */
-	onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent>;
+	readonly onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent>;
 
 	/**
 	 * Fetches the value of the section for the given resource by applying language overrides.
@@ -72,7 +72,7 @@ export interface ITextResourceConfigurationService {
 	 * @param configurationTarget Optional target into which the configuration has to be updated.
 	 * If not specified, target will be derived by checking where the configuration is defined.
 	 */
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void>;
+	updateValue(resource: URI | undefined, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void>;
 
 }
 

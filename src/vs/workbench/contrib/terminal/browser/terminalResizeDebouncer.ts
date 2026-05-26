@@ -33,6 +33,9 @@ export class TerminalResizeDebouncer extends Disposable {
 	}
 
 	async resize(cols: number, rows: number, immediate: boolean): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._latestX = cols;
 		this._latestY = rows;
 
@@ -49,12 +52,18 @@ export class TerminalResizeDebouncer extends Disposable {
 		if (win && !this._isVisible()) {
 			if (!this._resizeXJob.value) {
 				this._resizeXJob.value = runWhenWindowIdle(win, async () => {
+					if (this._store.isDisposed) {
+						return;
+					}
 					this._resizeXCallback(this._latestX);
 					this._resizeXJob.clear();
 				});
 			}
 			if (!this._resizeYJob.value) {
 				this._resizeYJob.value = runWhenWindowIdle(win, async () => {
+					if (this._store.isDisposed) {
+						return;
+					}
 					this._resizeYCallback(this._latestY);
 					this._resizeYJob.clear();
 				});
@@ -70,6 +79,9 @@ export class TerminalResizeDebouncer extends Disposable {
 	}
 
 	flush(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this._resizeXJob.value || this._resizeYJob.value) {
 			this._resizeXJob.clear();
 			this._resizeYJob.clear();
@@ -79,6 +91,12 @@ export class TerminalResizeDebouncer extends Disposable {
 
 	@debounce(100)
 	private _debounceResizeX(cols: number) {
+		// The @debounce decorator schedules a setTimeout that is not tied to the
+		// disposable store, so this can fire after the terminal/xterm renderer is
+		// disposed. Bail out to avoid throwing from xterm.js dimension getters.
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._resizeXCallback(cols);
 	}
 }

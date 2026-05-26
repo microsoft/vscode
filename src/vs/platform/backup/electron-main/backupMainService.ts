@@ -347,11 +347,11 @@ export class BackupMainService implements IBackupMainService {
 					if (backupSchemaChildren.length > 0) {
 						return true;
 					}
-				} catch (error) {
+				} catch {
 					// invalid folder
 				}
 			}
-		} catch (error) {
+		} catch {
 			// backup path does not exist
 		}
 

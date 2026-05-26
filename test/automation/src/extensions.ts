@@ -8,7 +8,6 @@ import { Code } from './code';
 import { ncp } from 'ncp';
 import { promisify } from 'util';
 import { Commands } from './workbench';
-import { Quality } from './application';
 import path = require('path');
 import fs = require('fs');
 
@@ -21,7 +20,7 @@ export class Extensions extends Viewlet {
 
 	async searchForExtension(id: string): Promise<any> {
 		await this.commands.runCommand('Extensions: Focus on Extensions View', { exactLabelMatch: true });
-		await this.code.waitForTypeInEditor(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor ${this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context'}`, `@id:${id}`);
+		await this.code.waitForTypeInEditor(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`, `@id:${id}`);
 		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
 
 		let retrials = 1;
@@ -59,7 +58,7 @@ export class Extensions extends Viewlet {
 			await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
 
 			try {
-				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
+				await this.waitForExtensionToBeInstalled();
 				break;
 			} catch (err) {
 				if (attempt++ === 3) {
@@ -70,6 +69,25 @@ export class Extensions extends Viewlet {
 
 		if (waitUntilEnabled) {
 			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) a[aria-label="Disable this extension"]`);
+		}
+	}
+
+	private async waitForExtensionToBeInstalled(): Promise<void> {
+		let attempt = 1;
+		while (true) {
+			try {
+				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`, undefined);
+				break;
+			} catch (err) {
+				if (await this.code.getElement(`.extension-editor .monaco-action-bar .action-item .extension-action.install.installing`)) {
+					if (attempt++ === 3) {
+						throw err;
+					}
+					this.code.logger.log('Extension is still being installed. Waiting...');
+				} else {
+					throw err;
+				}
+			}
 		}
 	}
 }

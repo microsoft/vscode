@@ -94,8 +94,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 		let prevClassName: string | null = null;
 		let prevEndLineIndex = 0;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const d = decorations[i];
+		for (const d of decorations) {
 			const className = d.className;
 			const zIndex = d.zIndex;
 			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
@@ -110,8 +109,8 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 				prevEndLineIndex = endLineIndex;
 			}
 
-			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(new LineDecorationToRender(className, zIndex, d.tooltip));
+			for (let lineIndex = startLineIndex; lineIndex <= prevEndLineIndex; lineIndex++) {
+				output[lineIndex].add(new LineDecorationToRender(className, zIndex, d.tooltip));
 			}
 		}
 
@@ -415,7 +414,8 @@ export class GlyphMarginWidgets extends ViewPart {
 		// Render decorations, reusing previous dom nodes as possible
 		for (let i = 0; i < this._decorationGlyphsToRender.length; i++) {
 			const dec = this._decorationGlyphsToRender[i];
-			const top = ctx.viewportData.relativeVerticalOffset[dec.lineNumber - ctx.viewportData.startLineNumber];
+			const decLineNumber = dec.lineNumber;
+			const top = ctx.viewportData.relativeVerticalOffset[decLineNumber - ctx.viewportData.startLineNumber];
 			const left = this._glyphMarginLeft + dec.laneIndex * this._lineHeight;
 
 			let domNode: FastDomNode<HTMLElement>;
@@ -426,13 +426,14 @@ export class GlyphMarginWidgets extends ViewPart {
 				this._managedDomNodes.push(domNode);
 				this.domNode.appendChild(domNode);
 			}
+			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(decLineNumber);
 
 			domNode.setClassName(`cgmr codicon ` + dec.combinedClassName);
 			domNode.setPosition(`absolute`);
 			domNode.setTop(top);
 			domNode.setLeft(left);
 			domNode.setWidth(width);
-			domNode.setHeight(this._lineHeight);
+			domNode.setHeight(lineHeight);
 		}
 
 		// remove extra dom nodes

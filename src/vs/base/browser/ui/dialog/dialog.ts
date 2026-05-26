@@ -5,10 +5,10 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
-import { ButtonBar, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
+import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
 import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
 import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
 import { Action, toAction } from '../../../common/actions.js';
@@ -26,20 +26,39 @@ export interface IDialogInputOptions {
 	readonly value?: string;
 }
 
+export enum DialogContentsAlignment {
+	/**
+	 * Dialog contents align from left to right (icon, message, buttons on a separate row).
+	 *
+	 * Note: this is the default alignment for dialogs.
+	 */
+	Horizontal = 0,
+
+	/**
+	 * Dialog contents align from top to bottom (icon, message, buttons stack on top of each other)
+	 */
+	Vertical
+}
+
 export interface IDialogOptions {
 	readonly cancelId?: number;
 	readonly detail?: string;
+	readonly alignment?: DialogContentsAlignment;
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	readonly extraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
+	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonDetails?: string[];
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
+	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -77,6 +96,7 @@ export class Dialog extends Disposable {
 	private readonly buttonsContainer: HTMLElement;
 	private readonly messageDetailElement: HTMLElement;
 	private readonly messageContainer: HTMLElement;
+	private readonly footerContainer: HTMLElement | undefined;
 	private readonly iconElement: HTMLElement;
 	private readonly checkbox: Checkbox | undefined;
 	private readonly toolbarContainer: HTMLElement;
@@ -89,13 +109,41 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
+		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
+			if (e.target === this.modalElement) {
+				this.element.focus(); // guide users back into the dialog if clicked elsewhere
+			}
+		}));
+
+		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
+		if (options.alignment === DialogContentsAlignment.Vertical) {
+			this.element.classList.add('align-vertical');
+		}
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
+		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
 		hide(this.element);
 
+		// Footer
+		if (this.options.renderFooter) {
+			this.footerContainer = this.element.appendChild($('.dialog-footer-row'));
+
+			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
+			this.options.renderFooter(customFooter);
+
+			// eslint-disable-next-line no-restricted-syntax
+			for (const el of this.footerContainer.querySelectorAll('a')) {
+				el.tabIndex = 0;
+			}
+		}
+
+		// Buttons
 		this.buttonStyles = options.buttonStyles;
 
 		if (Array.isArray(buttons) && buttons.length > 0) {
@@ -108,6 +156,7 @@ export class Dialog extends Disposable {
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
+		// Message
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
@@ -130,11 +179,13 @@ export class Dialog extends Disposable {
 			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
 			this.options.renderBody(customBody);
 
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
 		}
 
+		// Inputs
 		if (this.options.inputs) {
 			this.inputs = this.options.inputs.map(input => {
 				const inputRowElement = this.messageContainer.appendChild($('.dialog-message-input'));
@@ -155,6 +206,7 @@ export class Dialog extends Disposable {
 			this.inputs = [];
 		}
 
+		// Checkbox
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
 
@@ -169,6 +221,7 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(checkboxMessageElement, EventType.CLICK, () => checkbox.checked = !checkbox.checked));
 		}
 
+		// Toolbar
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 
@@ -216,7 +269,7 @@ export class Dialog extends Disposable {
 			};
 			this._register(toDisposable(close));
 
-			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
+			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer, { alignment: this.options?.alignment === DialogContentsAlignment.Vertical ? ButtonBarAlignment.Vertical : ButtonBarAlignment.Horizontal }));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 
 			const onButtonClick = (index: number) => {
@@ -227,11 +280,12 @@ export class Dialog extends Disposable {
 				});
 			};
 
-			// Handle button clicks
+			// Buttons
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
 
 				let button: IButton;
+				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];
 				if (primary && this.options?.primaryButtonDropdown) {
 					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
 					button = this._register(buttonBar.addButtonWithDropdown({
@@ -247,15 +301,21 @@ export class Dialog extends Disposable {
 							}
 						}))
 					}));
-				} else if (this.options.buttonDetails) {
+				} else if (buttonOptions?.sublabel) {
 					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
 				} else {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 				}
 
+				if (buttonOptions?.styleButton) {
+					buttonOptions.styleButton(button);
+				}
+
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
-					button.description = this.options.buttonDetails![buttonMap[index].index];
+					if (buttonOptions?.sublabel) {
+						button.description = buttonOptions?.sublabel;
+					}
 				}
 				this._register(button.onDidClick(e => {
 					if (e) {
@@ -268,8 +328,13 @@ export class Dialog extends Disposable {
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			const window = getWindow(this.container);
+			let sawEscapeKeyDown = false;
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyCode.Escape)) {
+					sawEscapeKeyDown = true;
+				}
 
 				if (evt.equals(KeyMod.Alt)) {
 					evt.preventDefault();
@@ -321,6 +386,7 @@ export class Dialog extends Disposable {
 					let focusedIndex = -1;
 
 					if (this.messageContainer) {
+						// eslint-disable-next-line no-restricted-syntax
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -364,6 +430,17 @@ export class Dialog extends Disposable {
 						}
 					}
 
+					if (this.footerContainer) {
+						// eslint-disable-next-line no-restricted-syntax
+						const links = this.footerContainer.querySelectorAll('a');
+						for (const link of links) {
+							focusableElements.push(link);
+							if (isActiveElement(link)) {
+								focusedIndex = focusableElements.length - 1;
+							}
+						}
+					}
+
 					// Focus next element (with wrapping)
 					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
@@ -398,7 +475,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
+				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape) && sawEscapeKeyDown) {
 					close();
 				}
 			}, true));
@@ -445,8 +522,7 @@ export class Dialog extends Disposable {
 				}
 			}
 
-
-			if (!this.options.disableCloseAction) {
+			if (!this.options.disableCloseAction && !this.options.disableCloseButton) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
 				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
@@ -463,8 +539,12 @@ export class Dialog extends Disposable {
 
 			this.element.setAttribute('aria-modal', 'true');
 			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text');
-			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
+			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
+
+			// Notify visibility change
+			this.options.onVisibilityChange?.(window, true);
+			this._register(toDisposable(() => this.options.onVisibilityChange?.(window, false)));
 
 			// Focus first element (input or button)
 			if (this.inputs.length > 0) {
@@ -495,14 +575,9 @@ export class Dialog extends Disposable {
 		this.element.style.backgroundColor = bgColor ?? '';
 		this.element.style.border = border;
 
-		// TODO fix
-		// if (fgColor && bgColor) {
-		// 	const messageDetailColor = fgColor.transparent(.9);
-		// 	this.messageDetailElement.style.mixBlendMode = messageDetailColor.makeOpaque(bgColor).toString();
-		// }
-
 		if (linkFgColor) {
-			for (const el of this.messageContainer.getElementsByTagName('a')) {
+			// eslint-disable-next-line no-restricted-syntax
+			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				el.style.color = linkFgColor;
 			}
 		}
@@ -546,8 +621,8 @@ export class Dialog extends Disposable {
 		// so that when we move them around it's not a problem
 		const buttonMap: ButtonMapEntry[] = buttons.map((label, index) => ({ label, index }));
 
-		if (buttons.length < 2) {
-			return buttonMap; // only need to rearrange if there are 2+ buttons
+		if (buttons.length < 2 || this.options.alignment === DialogContentsAlignment.Vertical) {
+			return buttonMap; // only need to rearrange if there are 2+ buttons and the alignment is left-to-right
 		}
 
 		if (isMacintosh || isLinux) {

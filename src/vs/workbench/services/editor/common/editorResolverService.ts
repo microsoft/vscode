@@ -35,15 +35,34 @@ export type EditorAssociation = {
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
+export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+
+/**
+ * Default value for `workbench.editorAssociations` in the Agents window.
+ * Shared so that dynamic re-registrations of the setting preserve the override.
+ */
+export const editorsAssociationsAgentsWindowDefault: Readonly<Record<string, string>> = Object.freeze({
+	'*.md': 'vscode.markdown.preview.editor'
+});
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
-		'workbench.editorAssociations': {
+		[editorsAssociationsSettingId]: {
 			type: 'object',
 			markdownDescription: localize('editor.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
+			additionalProperties: {
+				type: 'string'
+			},
+			agentsWindow: {
+				default: editorsAssociationsAgentsWindowDefault
+			}
+		},
+		[diffEditorsAssociationsSettingId]: {
+			type: 'object',
+			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
 			}
@@ -93,12 +112,33 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type RegisteredEditorInfo = {
-	id: string;
-	label: string;
-	detail?: string;
-	priority: RegisteredEditorPriority;
+export type RegisteredEditorPriorityInfo = {
+	readonly editor: RegisteredEditorPriority;
+	readonly diff: RegisteredEditorPriority;
+	readonly merge: RegisteredEditorPriority;
 };
+
+export type RegisteredEditorInfo = {
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+	readonly priority: RegisteredEditorPriorityInfo;
+};
+
+export type RegisteredEditorRegistrationInfo = Omit<RegisteredEditorInfo, 'priority'> & {
+	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo;
+};
+
+export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo): RegisteredEditorPriorityInfo {
+	if (typeof priority !== 'string') {
+		return priority;
+	}
+	return {
+		editor: priority,
+		diff: priority,
+		merge: priority,
+	};
+}
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
@@ -158,13 +198,13 @@ export interface IEditorResolverService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
+		editorInfo: RegisteredEditorRegistrationInfo,
 		options: RegisteredEditorOptions,
 		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;
 
 	/**
-	 * Given an editor resolves it to the suitable ResolvedEitor based on user extensions, settings, and built-in editors
+	 * Given an editor resolves it to the suitable ResolvedEditor based on user extensions, settings, and built-in editors
 	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
 	 * @returns An EditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
@@ -220,6 +260,6 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
 	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
-	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
+	return glob.match(globPattern, target, { ignoreCase: true });
 }
 //#endregion

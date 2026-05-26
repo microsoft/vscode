@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { create } from './textMateTokenizationWorker.worker.js';
-import { bootstrapSimpleWorker } from '../../../../../../base/common/worker/simpleWorkerBootstrap.js';
+import { bootstrapWebWorker } from '../../../../../../base/common/worker/webWorkerBootstrap.js';
 
-bootstrapSimpleWorker(create);
+bootstrapWebWorker(create);

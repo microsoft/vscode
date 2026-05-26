@@ -18,11 +18,20 @@ export const enum TerminalChatCommandId {
 	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
 	RerunRequest = 'workbench.action.terminal.chat.rerunRequest',
+	ViewHiddenChatTerminals = 'workbench.action.terminal.chat.viewHiddenChatTerminals',
+	OpenTerminalSettingsLink = 'workbench.action.terminal.chat.openTerminalSettingsLink',
+	DisableSessionAutoApproval = 'workbench.action.terminal.chat.disableSessionAutoApproval',
+	FocusMostRecentChatTerminalOutput = 'workbench.action.terminal.chat.focusMostRecentChatTerminalOutput',
+	FocusMostRecentChatTerminal = 'workbench.action.terminal.chat.focusMostRecentChatTerminal',
+	ToggleChatTerminalOutput = 'workbench.action.terminal.chat.toggleChatTerminalOutput',
+	FocusChatInstanceAction = 'workbench.action.terminal.chat.focusChatInstance',
+	ContinueInBackground = 'workbench.action.terminal.chat.continueInBackground',
 }
 
 export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');
 export const MENU_TERMINAL_CHAT_WIDGET_STATUS = MenuId.for('terminalChatWidget.status');
 export const MENU_TERMINAL_CHAT_WIDGET_TOOLBAR = MenuId.for('terminalChatWidget.toolbar');
+export const MENU_CHAT_TERMINAL_TOOL_PROGRESS = MenuId.for('chatTerminalToolProgress');
 
 export const enum TerminalChatContextKeyStrings {
 	ChatFocus = 'terminalChatFocus',
@@ -35,6 +44,14 @@ export const enum TerminalChatContextKeyStrings {
 	ChatResponseContainsMultipleCodeBlocks = 'terminalChatResponseContainsMultipleCodeBlocks',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
+	ChatHasTerminals = 'hasChatTerminals',
+	ChatHasHiddenTerminals = 'hasHiddenChatTerminals',
+	ChatToolHasInstance = 'chatTerminalToolHasInstance',
+	ChatToolCanContinueInBackground = 'chatTerminalToolCanContinueInBackground',
+	ChatToolHasOutput = 'chatTerminalToolHasOutput',
+	ChatToolUsesCollapsible = 'chatTerminalToolUsesCollapsible',
+	ChatToolIsHiddenTerminal = 'chatTerminalToolIsHiddenTerminal',
+	ChatToolOutputExpanded = 'chatTerminalToolOutputExpanded',
 }
 
 
@@ -60,4 +77,28 @@ export namespace TerminalChatContextKeys {
 
 	/** A chat agent exists for the terminal location */
 	export const hasChatAgent = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether a chat agent is registered for the terminal location."));
+
+	/** Has terminals created via chat */
+	export const hasChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasTerminals, false, localize('terminalHasChatTerminals', "Whether there are any chat terminals."));
+
+	/** Has hidden chat terminals */
+	export const hasHiddenChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasHiddenTerminals, false, localize('terminalHasHiddenChatTerminals', "Whether there are any hidden chat terminals."));
+
+	/** Whether the per-instance terminal tool progress part has a terminal instance attached */
+	export const chatToolHasInstance = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolHasInstance, false);
+
+	/** Whether the continue-in-background action is available */
+	export const chatToolCanContinueInBackground = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolCanContinueInBackground, false);
+
+	/** Whether terminal output is available for display */
+	export const chatToolHasOutput = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolHasOutput, false);
+
+	/** Whether the terminal tool uses a collapsible wrapper */
+	export const chatToolUsesCollapsible = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolUsesCollapsible, false);
+
+	/** Whether the associated terminal is hidden from the user */
+	export const chatToolIsHiddenTerminal = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolIsHiddenTerminal, false);
+
+	/** Whether the terminal output section is currently expanded */
+	export const chatToolOutputExpanded = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatToolOutputExpanded, false);
 }

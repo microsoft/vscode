@@ -34,7 +34,7 @@ export class Client extends MessagePortClient implements IDisposable {
 /**
  * This method opens a message channel connection
  * in the target window. The target window needs
- * to use the `Server` from `electron-sandbox/ipc.mp`.
+ * to use the `Server` from `electron-browser/ipc.mp`.
  */
 export async function connect(window: BrowserWindow): Promise<MessagePortMain> {
 

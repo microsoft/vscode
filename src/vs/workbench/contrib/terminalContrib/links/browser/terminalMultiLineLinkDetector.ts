@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink } from './links.js';
 import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers.js';
+import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
 import type { IBufferLine, Terminal } from '@xterm/xterm';
 import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
@@ -115,16 +115,7 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 			// Check if the first non-matching line is an absolute or relative link
 			const linkStat = await this._linkResolver.resolveLink(this._processManager, possiblePath);
 			if (linkStat) {
-				let type: TerminalBuiltinLinkType;
-				if (linkStat.isDirectory) {
-					if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-						type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-					} else {
-						type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-					}
-				} else {
-					type = TerminalBuiltinLinkType.LocalFile;
-				}
+				const type = getTerminalLinkType(linkStat.uri, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 
 				// Convert the entire line's text string index into a wrapped buffer range
 				const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
@@ -196,16 +187,7 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 				// Check if the first non-matching line is an absolute or relative link
 				const linkStat = await this._linkResolver.resolveLink(this._processManager, possiblePath);
 				if (linkStat) {
-					let type: TerminalBuiltinLinkType;
-					if (linkStat.isDirectory) {
-						if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-							type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-						} else {
-							type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-						}
-					} else {
-						type = TerminalBuiltinLinkType.LocalFile;
-					}
+					const type = getTerminalLinkType(linkStat.uri, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 
 					// Convert the link to the buffer range
 					const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
@@ -236,15 +218,5 @@ export class TerminalMultiLineLinkDetector implements ITerminalLinkDetector {
 		}
 
 		return links;
-	}
-
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
-			}
-		}
-		return false;
 	}
 }

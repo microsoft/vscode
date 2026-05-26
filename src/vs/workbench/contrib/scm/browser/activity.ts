@@ -15,12 +15,11 @@ import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadSta
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { Iterable } from '../../../../base/common/iterator.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { getRepositoryResourceCount } from './util.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { getRepositoryResourceCount, getSCMRepositoryIcon, getStatusBarCommandGenericName } from './util.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
 
@@ -30,7 +29,7 @@ const ActiveRepositoryContextKeys = {
 };
 
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
-	private readonly _repositories: IObservable<Iterable<ISCMRepository>>;
+	private readonly _visibleRepositories: IObservable<readonly ISCMRepository[]>;
 	private readonly _activeRepositoryHistoryItemRefName: IObservable<string | undefined>;
 	private readonly _countBadgeConfig: IObservable<'all' | 'focused' | 'off'>;
 	private readonly _countBadgeRepositories: IObservable<readonly { provider: ISCMProvider; resourceCount: IObservable<number> }[]>;
@@ -60,13 +59,13 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
 
-		this._repositories = observableFromEvent(this,
-			Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
-			() => this.scmService.repositories);
+		this._visibleRepositories = observableFromEvent(this,
+			Event.any(this.scmViewService.onDidChangeVisibleRepositories, this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
+			() => this.scmViewService.visibleRepositories);
 
 		this._activeRepositoryHistoryItemRefName = derived(reader => {
-			const repository = this.scmViewService.activeRepository.read(reader);
-			const historyProvider = repository?.provider.historyProvider.read(reader);
+			const activeRepository = this.scmViewService.activeRepository.read(reader);
+			const historyProvider = activeRepository?.repository.provider.historyProvider.read(reader);
 			const historyItemRef = historyProvider?.historyItemRef.read(reader);
 
 			return historyItemRef?.name;
@@ -75,12 +74,12 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		this._countBadgeRepositories = derived(this, reader => {
 			switch (this._countBadgeConfig.read(reader)) {
 				case 'all': {
-					const repositories = this._repositories.read(reader);
-					return [...Iterable.map(repositories, r => ({ provider: r.provider, resourceCount: this._getRepositoryResourceCount(r) }))];
+					const repositories = this._visibleRepositories.read(reader);
+					return repositories.map(r => ({ provider: r.provider, resourceCount: this._getRepositoryResourceCount(r) }));
 				}
 				case 'focused': {
-					const repository = this.scmViewService.activeRepository.read(reader);
-					return repository ? [{ provider: repository.provider, resourceCount: this._getRepositoryResourceCount(repository) }] : [];
+					const activeRepository = this.scmViewService.activeRepository.read(reader);
+					return activeRepository ? [{ provider: activeRepository.repository.provider, resourceCount: this._getRepositoryResourceCount(activeRepository.repository) }] : [];
 				}
 				case 'off':
 					return [];
@@ -102,24 +101,23 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			return total;
 		});
 
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun(reader => {
 			const countBadge = this._countBadge.read(reader);
-			this._updateActivityCountBadge(countBadge, store);
-		}));
-
-		this._register(autorunWithStore((reader, store) => {
-			this._repositories.read(reader);
-			const repository = this.scmViewService.activeRepository.read(reader);
-			const commands = repository?.provider.statusBarCommands.read(reader);
-
-			this._updateStatusBar(repository, commands ?? [], store);
+			this._updateActivityCountBadge(countBadge, reader.store);
 		}));
 
 		this._register(autorun(reader => {
-			const repository = this.scmViewService.activeRepository.read(reader);
+			const activeRepository = this.scmViewService.activeRepository.read(reader);
+			const commands = activeRepository?.repository.provider.statusBarCommands.read(reader);
+
+			this._updateStatusBar(activeRepository, commands ?? [], reader.store);
+		}));
+
+		this._register(autorun(reader => {
+			const activeRepository = this.scmViewService.activeRepository.read(reader);
 			const historyItemRefName = this._activeRepositoryHistoryItemRefName.read(reader);
 
-			this._updateActiveRepositoryContextKeys(repository?.provider.name, historyItemRefName);
+			this._updateActiveRepositoryContextKeys(activeRepository?.repository.provider.name, historyItemRefName);
 		}));
 	}
 
@@ -136,35 +134,22 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		store.add(this.activityService.showViewActivity(VIEW_PANE_ID, { badge }));
 	}
 
-	private _updateStatusBar(repository: ISCMRepository | undefined, commands: readonly Command[], store: DisposableStore): void {
-		if (!repository) {
+	private _updateStatusBar(activeRepository: { repository: ISCMRepository; pinned: boolean } | undefined, commands: readonly Command[], store: DisposableStore): void {
+		if (!activeRepository) {
 			return;
 		}
 
-		const label = repository.provider.rootUri
-			? `${basename(repository.provider.rootUri)} (${repository.provider.label})`
-			: repository.provider.label;
+		const label = activeRepository.repository.provider.rootUri
+			? `${basename(activeRepository.repository.provider.rootUri)} (${activeRepository.repository.provider.label})`
+			: activeRepository.repository.provider.label;
 
 		for (let index = 0; index < commands.length; index++) {
 			const command = commands[index];
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
-
-			// Get a repository agnostic name for the status bar action, derive this from the
-			// first command argument which is in the form "git.<command>/<number>"
-			let repoAgnosticActionName = command.arguments?.[0];
-			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
-				repoAgnosticActionName = repoAgnosticActionName
-					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
-					.replace(/^git\./, '');
-				if (repoAgnosticActionName.length > 1) {
-					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
-				}
-			} else {
-				repoAgnosticActionName = '';
-			}
+			const genericCommandName = getStatusBarCommandGenericName(command);
 
 			const statusbarEntry: IStatusbarEntry = {
-				name: localize('status.scm', "Source Control") + (repoAgnosticActionName ? ` ${repoAgnosticActionName}` : ''),
+				name: localize('status.scm', "Source Control") + (genericCommandName ? ` ${genericCommandName}` : ''),
 				text: command.title,
 				ariaLabel: tooltip,
 				tooltip,
@@ -177,11 +162,12 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			);
 		}
 
-		// Ssource control provider status bar entry
-		if (this.scmService.repositoryCount > 1) {
+		// Source control provider status bar entry
+		if (this.scmViewService.repositories.length > 1) {
+			const icon = getSCMRepositoryIcon(activeRepository, activeRepository.repository);
 			const repositoryStatusbarEntry: IStatusbarEntry = {
 				name: localize('status.scm.provider', "Source Control Provider"),
-				text: `$(repo) ${repository.provider.name}`,
+				text: `$(${icon.id}) ${activeRepository.repository.provider.name}`,
 				ariaLabel: label,
 				tooltip: label,
 				command: 'scm.setActiveProvider'
@@ -216,9 +202,9 @@ export class SCMActiveResourceContextKeyController extends Disposable implements
 			Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 			() => this.scmService.repositories);
 
-		this._store.add(autorunWithStore((reader, store) => {
+		this._register(autorun((reader) => {
 			for (const repository of this._repositories.read(reader)) {
-				store.add(Event.runAndSubscribe(repository.provider.onDidChangeResources, () => {
+				reader.store.add(Event.runAndSubscribe(repository.provider.onDidChangeResources, () => {
 					this._onDidRepositoryChange.fire();
 				}));
 			}

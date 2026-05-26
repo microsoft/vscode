@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// HACK: Export chat parts as it's only partially encapsulated within the contrib. This file only
-// exists because including it into terminalContribExports would cause a circular dependency on
-// startup
-export { TerminalChatContextKeys } from '../terminalContrib/chat/browser/terminalChat.js';
-export { TerminalChatController } from '../terminalContrib/chat/browser/terminalChatController.js';
+// HACK: Export some chat-specific symbols from `terminalContrib/` that are depended upon elsewhere.
+// These are soft layer breakers between `terminal/` and `terminalContrib/` but there are
+// difficulties in removing the dependency. These are explicitly defined here to avoid an eslint
+// line override.
+export { MENU_CHAT_TERMINAL_TOOL_PROGRESS, TerminalChatContextKeys } from '../terminalContrib/chat/browser/terminalChat.js';
+export { RunInTerminalTool } from '../terminalContrib/chatAgentTools/browser/tools/runInTerminalTool.js';

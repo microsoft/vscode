@@ -101,7 +101,7 @@ suite('MainThreadManagedSockets', () => {
 
 			socket.write(VSBuffer.fromString('ping'));
 			await extHost.expectEvent(evt => evt.data === 'ping', 'expected ping');
-			half.onData.fire(VSBuffer.fromString("pong"));
+			half.onData.fire(VSBuffer.fromString('pong'));
 			assert.deepStrictEqual(data, ['pong']);
 		});
 	});

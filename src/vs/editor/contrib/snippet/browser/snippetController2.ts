@@ -21,9 +21,11 @@ import { showSimpleSuggestions } from '../../suggest/browser/suggest.js';
 import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISnippetEdit, SnippetSession } from './snippetSession.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -33,6 +35,7 @@ export interface ISnippetInsertOptions {
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
 	overtypingCapturer: OvertypingCapturer | undefined;
+	reason?: TextModelEditSource;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -56,10 +59,13 @@ export class SnippetController2 implements IEditorContribution {
 	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false, localize('inSnippetMode', "Whether the editor in current in snippet mode"));
 	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false, localize('hasNextTabstop', "Whether there is a next tab stop when in snippet mode"));
 	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false, localize('hasPrevTabstop', "Whether there is a previous tab stop when in snippet mode"));
+	static readonly InSnippetChoice = new RawContextKey('inSnippetChoice', false, localize('inSnippetChoice', "Whether the current snippet tab stop is a choice"));
 
 	private readonly _inSnippet: IContextKey<boolean>;
+	private readonly _inSnippetObservable = observableValue(this, false);
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
+	private readonly _inSnippetChoice: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
 	private readonly _snippetListener = new DisposableStore();
@@ -78,12 +84,15 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
 		this._hasNextTabstop = SnippetController2.HasNextTabstop.bindTo(contextKeyService);
 		this._hasPrevTabstop = SnippetController2.HasPrevTabstop.bindTo(contextKeyService);
+		this._inSnippetChoice = SnippetController2.InSnippetChoice.bindTo(contextKeyService);
 	}
 
 	dispose(): void {
 		this._inSnippet.reset();
+		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
+		this._inSnippetChoice.reset();
 		this._session?.dispose();
 		this._snippetListener.dispose();
 	}
@@ -122,7 +131,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	private _doInsert(
 		template: string | ISnippetEdit[],
-		opts: ISnippetInsertOptions
+		opts: ISnippetInsertOptions,
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -144,7 +153,7 @@ export class SnippetController2 implements IEditorContribution {
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
 			this._session = new SnippetSession(this._editor, template, opts, this._languageConfigurationService);
-			this._session.insert();
+			this._session.insert(opts.reason);
 		} else {
 			assertType(typeof template === 'string');
 			this._session.merge(template, opts);
@@ -242,6 +251,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		this._inSnippet.set(true);
+		this._inSnippetObservable.set(true, undefined);
 		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
 		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
 
@@ -251,6 +261,7 @@ export class SnippetController2 implements IEditorContribution {
 	private _handleChoice(): void {
 		if (!this._session || !this._editor.hasModel()) {
 			this._currentChoice = undefined;
+			this._inSnippetChoice.reset();
 			return;
 		}
 
@@ -258,8 +269,11 @@ export class SnippetController2 implements IEditorContribution {
 		if (!activeChoice || !this._choiceCompletions) {
 			this._choiceCompletions?.disable();
 			this._currentChoice = undefined;
+			this._inSnippetChoice.reset();
 			return;
 		}
+
+		this._inSnippetChoice.set(true);
 
 		if (this._currentChoice !== activeChoice.choice) {
 			this._currentChoice = activeChoice.choice;
@@ -281,8 +295,10 @@ export class SnippetController2 implements IEditorContribution {
 
 	cancel(resetSelection: boolean = false): void {
 		this._inSnippet.reset();
+		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
+		this._inSnippetChoice.reset();
 		this._snippetListener.clear();
 
 		this._currentChoice = undefined;
@@ -312,6 +328,10 @@ export class SnippetController2 implements IEditorContribution {
 		return Boolean(this._inSnippet.get());
 	}
 
+	get isInSnippetObservable(): IObservable<boolean> {
+		return this._inSnippetObservable;
+	}
+
 	getSessionEnclosingRange(): Range | undefined {
 		if (this._session) {
 			return this._session.getEnclosingRange();
@@ -335,6 +355,7 @@ registerEditorCommand(new CommandCtor({
 		primary: KeyCode.Tab
 	}
 }));
+
 registerEditorCommand(new CommandCtor({
 	id: 'jumpToPrevSnippetPlaceholder',
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasPrevTabstop),
@@ -345,6 +366,17 @@ registerEditorCommand(new CommandCtor({
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
+
+// When a snippet choice is active, the suggest widget is shown and would normally
+// claim Shift+Tab for `acceptAlternativeSelectedSuggestion`. Register a higher-weight
+// rule so Shift+Tab navigates to the previous snippet placeholder instead. See #236489.
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'jumpToPrevSnippetPlaceholder',
+	weight: KeybindingWeight.EditorContrib + 91,
+	when: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasPrevTabstop, SnippetController2.InSnippetChoice, EditorContextKeys.textInputFocus),
+	primary: KeyMod.Shift | KeyCode.Tab
+});
+
 registerEditorCommand(new CommandCtor({
 	id: 'leaveSnippet',
 	precondition: SnippetController2.InSnippetMode,

@@ -7,28 +7,30 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
 import { isEmptyObject, isString } from '../../../base/common/types.js';
 import { ConfigurationModel } from './configurationModels.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from './configurationRegistry.js';
 import { ILogService, NullLogService } from '../../log/common/log.js';
-import { IPolicyService, PolicyDefinition, PolicyName } from '../../policy/common/policy.js';
+import { IPolicyService, PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
 import * as json from '../../../base/common/json.js';
+import { PolicyName } from '../../../base/common/policy.js';
 
 export class DefaultConfiguration extends Disposable {
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
+	private _configurationModel: ConfigurationModel;
 	get configurationModel(): ConfigurationModel {
 		return this._configurationModel;
 	}
 
 	constructor(private readonly logService: ILogService) {
 		super();
+		this._configurationModel = ConfigurationModel.createEmptyModel(logService);
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -47,7 +49,7 @@ export class DefaultConfiguration extends Disposable {
 		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 	}
 
-	protected getConfigurationDefaultOverrides(): IStringDictionary<any> {
+	protected getConfigurationDefaultOverrides(): IStringDictionary<unknown> {
 		return {};
 	}
 
@@ -65,11 +67,15 @@ export class DefaultConfiguration extends Disposable {
 			if (defaultOverrideValue !== undefined) {
 				this._configurationModel.setValue(key, defaultOverrideValue);
 			} else if (propertySchema) {
-				this._configurationModel.setValue(key, propertySchema.default);
+				this._configurationModel.setValue(key, this.getDefaultValue(key, propertySchema));
 			} else {
 				this._configurationModel.removeValue(key);
 			}
 		}
+	}
+
+	protected getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
+		return deepClone(propertySchema.default);
 	}
 
 }
@@ -86,6 +92,8 @@ export class NullPolicyConfiguration implements IPolicyConfiguration {
 	async initialize() { return this.configurationModel; }
 }
 
+type ParsedType = IStringDictionary<unknown> | Array<unknown>;
+
 export class PolicyConfiguration extends Disposable implements IPolicyConfiguration {
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
@@ -93,7 +101,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 	private readonly configurationRegistry: IConfigurationRegistry;
 
-	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
+	private _configurationModel: ConfigurationModel;
 	get configurationModel() { return this._configurationModel; }
 
 	constructor(
@@ -102,6 +110,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 		this.configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	}
 
@@ -134,8 +143,13 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
+				const { value, restrictedValue } = config.policy;
 				keys.push(key);
-				policyDefinitions[config.policy.name] = { type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string' };
+				policyDefinitions[config.policy.name] = {
+					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
+					value,
+					restrictedValue,
+				};
 			}
 		}
 
@@ -157,14 +171,14 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		this.logService.trace('PolicyConfiguration#update', keys);
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
-		const changed: [string, any][] = [];
+		const changed: [string, unknown][] = [];
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
 			const proprety = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			const policyName = proprety?.policy?.name;
 			if (policyName) {
-				let policyValue = this.policyService.getPolicyValue(policyName);
+				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
 				if (isString(policyValue) && proprety.type !== 'string') {
 					try {
 						policyValue = this.parse(policyValue);
@@ -203,16 +217,16 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		}
 	}
 
-	private parse(content: string): any {
-		let raw: any = {};
+	private parse(content: string): ParsedType {
+		let raw: ParsedType = {};
 		let currentProperty: string | null = null;
-		let currentParent: any = [];
-		const previousParents: any[] = [];
+		let currentParent: ParsedType = [];
+		const previousParents: Array<ParsedType> = [];
 		const parseErrors: json.ParseError[] = [];
 
-		function onValue(value: any) {
+		function onValue(value: unknown) {
 			if (Array.isArray(currentParent)) {
-				(<any[]>currentParent).push(value);
+				currentParent.push(value);
 			} else if (currentProperty !== null) {
 				if (currentParent[currentProperty] !== undefined) {
 					throw new Error(`Duplicate property found: ${currentProperty}`);
@@ -233,17 +247,17 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 				currentProperty = name;
 			},
 			onObjectEnd: () => {
-				currentParent = previousParents.pop();
+				currentParent = previousParents.pop()!;
 			},
 			onArrayBegin: () => {
-				const array: any[] = [];
+				const array: unknown[] = [];
 				onValue(array);
 				previousParents.push(currentParent);
 				currentParent = array;
 				currentProperty = null;
 			},
 			onArrayEnd: () => {
-				currentParent = previousParents.pop();
+				currentParent = previousParents.pop()!;
 			},
 			onLiteralValue: onValue,
 			onError: (error: json.ParseErrorCode, offset: number, length: number) => {
@@ -253,7 +267,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 		if (content) {
 			json.visit(content, visitor);
-			raw = currentParent[0] || {};
+			raw = (currentParent[0] as ParsedType | undefined) || raw;
 		}
 
 		if (parseErrors.length > 0) {

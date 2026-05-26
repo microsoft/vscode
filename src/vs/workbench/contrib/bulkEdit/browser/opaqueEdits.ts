@@ -13,7 +13,7 @@ import { IUndoRedoService, UndoRedoElementType, UndoRedoGroup, UndoRedoSource } 
 
 export class ResourceAttachmentEdit extends ResourceEdit implements ICustomEdit {
 
-	static is(candidate: any): candidate is ICustomEdit {
+	static is(candidate: unknown): candidate is ICustomEdit {
 		if (candidate instanceof ResourceAttachmentEdit) {
 			return true;
 		} else {

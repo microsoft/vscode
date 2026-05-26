@@ -9,11 +9,12 @@ import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, e
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { GitExtension, API, Repository, Status } from '../api/git';
+import type { GitExtension, API, Repository } from '../api/git';
+import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
 
 suite('git smoke test', function () {
-	const cwd = fs.realpathSync(workspace.workspaceFolders![0].uri.fsPath);
+	const cwd = workspace.workspaceFolders![0].uri.fsPath;
 
 	function file(relativePath: string) {
 		return path.join(cwd, relativePath);
@@ -61,7 +62,7 @@ suite('git smoke test', function () {
 		}
 
 		assert.strictEqual(git.repositories.length, 1);
-		assert.strictEqual(fs.realpathSync(git.repositories[0].rootUri.fsPath), cwd);
+		assert.strictEqual(git.repositories[0].rootUri.fsPath, cwd);
 
 		repository = git.repositories[0];
 	});

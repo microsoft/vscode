@@ -13,7 +13,7 @@ process.env.MOCHA_COLORS = '1';
 const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
-const { existsSync, mkdirSync } = require('fs');
+const { existsSync, mkdirSync, promises } = require('fs');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
@@ -27,9 +27,11 @@ const minimist = require('minimist');
 
 /**
  * @type {{
+ * _: string[];
  * grep: string;
- * run: string;
+ * run: string | string[];
  * runGlob: string;
+ * testSplit: string;
  * dev: boolean;
  * reporter: string;
  * 'reporter-options': string;
@@ -46,7 +48,7 @@ const minimist = require('minimist');
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -61,12 +63,16 @@ const args = minimist(process.argv.slice(2), {
 });
 
 if (args.help) {
-	console.log(`Usage: node ${process.argv[1]} [options]
+	console.log(`Usage: node ${process.argv[1]} [options] [file...]
+
+Bare .ts/.js file paths passed as positional arguments are treated as
+--run arguments.
 
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
 --per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
@@ -79,6 +85,14 @@ Options:
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
+}
+
+// Treat bare .ts/.js positional arguments as --run values
+const bareFiles = (args._ || []).filter(a => typeof a === 'string' && (a.endsWith('.ts') || a.endsWith('.js')));
+if (bareFiles.length > 0) {
+	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
+	args.run = [...existing, ...bareFiles];
+	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
@@ -250,6 +264,62 @@ app.on('ready', () => {
 	// No-op since invoke the IPC as part of IIFE in the preload.
 	ipcMain.handle('vscode:fetchShellEnv', event => { });
 
+	/**
+	 * Validates that a file path is within the project root for security purposes.
+	 * @param {string} filePath - The file path to validate
+	 * @throws {Error} If the path is outside the project root
+	 */
+	function validatePathWithinProject(filePath) {
+		const projectRoot = path.join(__dirname, '../../..');
+		const resolvedPath = path.resolve(filePath);
+		const normalizedRoot = path.resolve(projectRoot);
+
+		// On Windows, paths are case-insensitive
+		const isWindows = process.platform === 'win32';
+		const rel = path.relative(
+			isWindows ? normalizedRoot.toLowerCase() : normalizedRoot,
+			isWindows ? resolvedPath.toLowerCase() : resolvedPath
+		);
+		if (rel.startsWith('..') || path.isAbsolute(rel)) {
+			const error = new Error(`Access denied: Path '${filePath}' is outside the project root`);
+			console.error(error.message);
+			throw error;
+		}
+	}
+
+	// Handle file reading for tests
+	ipcMain.handle('vscode:readFile', async (event, filePath) => {
+		validatePathWithinProject(filePath);
+
+		try {
+			return await promises.readFile(path.resolve(filePath));
+		} catch (error) {
+			console.error(`Error reading file ${filePath}:`, error);
+			throw error;
+		}
+	});
+
+	// Handle file stat for tests
+	ipcMain.handle('vscode:statFile', async (event, filePath) => {
+		validatePathWithinProject(filePath);
+
+		try {
+			const stats = await promises.stat(path.resolve(filePath));
+			return {
+				isFile: stats.isFile(),
+				isDirectory: stats.isDirectory(),
+				isSymbolicLink: stats.isSymbolicLink(),
+				ctimeMs: stats.ctimeMs,
+				mtimeMs: stats.mtimeMs,
+				size: stats.size,
+				isReadonly: (stats.mode & 0o200) === 0 // Check if owner write bit is not set
+			};
+		} catch (error) {
+			console.error(`Error stating file ${filePath}:`, error);
+			throw error;
+		}
+	});
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
@@ -326,12 +396,13 @@ app.on('ready', () => {
 	const reporters = [];
 
 	if (args.tfs) {
+		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
 		reporters.push(
 			new mocha.reporters.Spec(runner),
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
 					testsuitesTitle: `${args.tfs} ${process.platform}`,
-					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 				}
 			}),
 		);

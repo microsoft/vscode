@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { initialize } from '../base/common/worker/simpleWorkerBootstrap.js';
-import { EditorSimpleWorker, IWorkerContext } from './common/services/editorSimpleWorker.js';
+import { initialize } from '../base/common/worker/webWorkerBootstrap.js';
+import { EditorWorker, IWorkerContext } from './common/services/editorWebWorker.js';
 import { EditorWorkerHost } from './common/services/editorWorkerHost.js';
 
 /**
@@ -12,24 +12,37 @@ import { EditorWorkerHost } from './common/services/editorWorkerHost.js';
  * @skipMangle
  * @internal
  */
-export function start<THost extends object, TClient extends object>(client: TClient): IWorkerContext<THost> {
-	const simpleWorker = initialize(() => new EditorSimpleWorker(client));
-	const editorWorkerHost = EditorWorkerHost.getChannel(simpleWorker);
-	const host = new Proxy({}, {
-		get(target, prop, receiver) {
-			if (typeof prop !== 'string') {
-				throw new Error(`Not supported`);
+export function start<THost extends object, TClient extends object>(createClient: (ctx: IWorkerContext<THost>) => TClient): TClient {
+	let client: TClient | undefined;
+	const webWorkerServer = initialize((workerServer) => {
+		const editorWorkerHost = EditorWorkerHost.getChannel(workerServer);
+
+		const host = new Proxy({}, {
+			get(target, prop, receiver) {
+				if (prop === 'then') {
+					// Don't forward the call when the proxy is returned in an async function and the runtime tries to .then it.
+					return undefined;
+				}
+				if (typeof prop !== 'string') {
+					throw new Error(`Not supported`);
+				}
+				return (...args: unknown[]) => {
+					return editorWorkerHost.$fhr(prop, args);
+				};
 			}
-			return (...args: any[]) => {
-				return editorWorkerHost.$fhr(prop, args);
-			};
-		}
+		});
+
+		const ctx: IWorkerContext<THost> = {
+			host: host as THost,
+			getMirrorModels: () => {
+				return webWorkerServer.requestHandler.getModels();
+			}
+		};
+
+		client = createClient(ctx);
+
+		return new EditorWorker(client);
 	});
 
-	return {
-		host: host as THost,
-		getMirrorModels: () => {
-			return simpleWorker.requestHandler.getModels();
-		}
-	};
+	return client!;
 }

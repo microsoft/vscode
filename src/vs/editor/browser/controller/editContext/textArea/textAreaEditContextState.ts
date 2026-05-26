@@ -6,7 +6,8 @@
 import { commonPrefixLength, commonSuffixLength } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { ScreenReaderContentState } from '../screenReaderUtils.js';
+import { SelectionDirection } from '../../../../common/core/selection.js';
+import { ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
 
 export const _debugComposition = false;
 
@@ -225,11 +226,24 @@ export class TextAreaState {
 		};
 	}
 
-	public static fromScreenReaderContentState(screenReaderContentState: ScreenReaderContentState) {
+	public static fromScreenReaderContentState(screenReaderContentState: ISimpleScreenReaderContentState) {
+		let selectionStart;
+		let selectionEnd;
+		const direction = screenReaderContentState.selection.getDirection();
+		switch (direction) {
+			case SelectionDirection.LTR:
+				selectionStart = screenReaderContentState.selectionStart;
+				selectionEnd = screenReaderContentState.selectionEnd;
+				break;
+			case SelectionDirection.RTL:
+				selectionStart = screenReaderContentState.selectionEnd;
+				selectionEnd = screenReaderContentState.selectionStart;
+				break;
+		}
 		return new TextAreaState(
 			screenReaderContentState.value,
-			screenReaderContentState.selectionStart,
-			screenReaderContentState.selectionEnd,
+			selectionStart,
+			selectionEnd,
 			screenReaderContentState.selection,
 			screenReaderContentState.newlineCountBeforeSelection
 		);

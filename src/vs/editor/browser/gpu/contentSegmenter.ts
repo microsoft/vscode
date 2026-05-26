@@ -51,7 +51,7 @@ class GraphemeContentSegmenter implements IContentSegmenter {
 
 	constructor(lineData: ViewLineRenderingData) {
 		const content = lineData.content;
-		const segmenter = safeIntl.Segmenter(undefined, { granularity: 'grapheme' });
+		const segmenter = safeIntl.Segmenter(undefined, { granularity: 'grapheme' }).value;
 		const segmentedContent = Array.from(segmenter.segment(content));
 		let segmenterIndex = 0;
 

@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use chrono::Local;
-use opentelemetry::{
-	sdk::trace::{Tracer, TracerProvider},
-	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
-};
+use jiff::Zoned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::{
@@ -103,7 +99,6 @@ pub fn new_rpc_prefix() -> String {
 // Base logger implementation
 #[derive(Clone)]
 pub struct Logger {
-	tracer: Arc<Tracer>,
 	sink: Vec<Box<dyn LogSink>>,
 	prefix: Option<String>,
 }
@@ -199,26 +194,16 @@ impl LogSink for FileLogSink {
 impl Logger {
 	pub fn test() -> Self {
 		Self {
-			tracer: Arc::new(TracerProvider::builder().build().tracer("codeclitest")),
 			sink: vec![],
 			prefix: None,
 		}
 	}
 
-	pub fn new(tracer: Tracer, level: Level) -> Self {
+	pub fn new(level: Level) -> Self {
 		Self {
-			tracer: Arc::new(tracer),
 			sink: vec![Box::new(StdioLogSink { level })],
 			prefix: None,
 		}
-	}
-
-	pub fn span(&self, name: &str) -> SpanBuilder {
-		self.tracer.span_builder(format!("serverlauncher/{name}"))
-	}
-
-	pub fn tracer(&self) -> &Tracer {
-		&self.tracer
 	}
 
 	pub fn emit(&self, level: Level, message: &str) {
@@ -305,8 +290,8 @@ impl crate::util::io::ReportCopyProgress for DownloadLogger<'_> {
 }
 
 fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String {
-	let current = Local::now();
-	let timestamp = current.format("%Y-%m-%d %H:%M:%S").to_string();
+	let current = Zoned::now();
+	let timestamp = current.strftime("%Y-%m-%d %H:%M:%S").to_string();
 
 	let name = level.name().unwrap();
 
@@ -421,42 +406,3 @@ macro_rules! warning {
          $logger.emit(log::Level::Warn, &format!($($fmt),+))
      };
  }
-
-#[macro_export]
-macro_rules! span {
-	($logger:expr, $span:expr, $func:expr) => {{
-		use opentelemetry::trace::TraceContextExt;
-
-		let span = $span.start($logger.tracer());
-		let cx = opentelemetry::Context::current_with_span(span);
-		let guard = cx.clone().attach();
-		let t = $func;
-
-		if let Err(e) = &t {
-			cx.span().record_error(e);
-		}
-
-		std::mem::drop(guard);
-
-		t
-	}};
-}
-
-#[macro_export]
-macro_rules! spanf {
-	($logger:expr, $span:expr, $func:expr) => {{
-		use opentelemetry::trace::{FutureExt, TraceContextExt};
-
-		let span = $span.start($logger.tracer());
-		let cx = opentelemetry::Context::current_with_span(span);
-		let t = $func.with_context(cx.clone()).await;
-
-		if let Err(e) = &t {
-			cx.span().record_error(e);
-		}
-
-		cx.span().end();
-
-		t
-	}};
-}

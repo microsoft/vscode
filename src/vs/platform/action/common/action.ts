@@ -22,11 +22,11 @@ export interface ILocalizedString {
 	original: string;
 }
 
-export function isLocalizedString(thing: any): thing is ILocalizedString {
-	return thing
+export function isLocalizedString(thing: unknown): thing is ILocalizedString {
+	return !!thing
 		&& typeof thing === 'object'
-		&& typeof thing.original === 'string'
-		&& typeof thing.value === 'string';
+		&& typeof (thing as ILocalizedString).original === 'string'
+		&& typeof (thing as ILocalizedString).value === 'string';
 }
 
 export interface ICommandActionTitle extends ILocalizedString {

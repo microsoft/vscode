@@ -4,8 +4,8 @@ web/**
 test/**
 test-workspace/**
 out/**
-tsconfig.json
-extension.webpack.config.js
-extension-browser.webpack.config.js
+tsconfig*.json
+**/*.tsbuildinfo
+esbuild*.mts
 cgmanifest.json
 package-lock.json

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Quality } from './application';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 import { QuickInput } from './quickinput';
 
-const activeRowSelector = `.notebook-editor .monaco-list-row.focused`;
+const anyRowSelector = `.notebook-editor .monaco-list-row`;
+const activeRowSelector = `${anyRowSelector}.focused`;
+const activeMarkdownRowSelector = `${activeRowSelector}.markdown-cell-row`;
 
 export class Notebook {
 
@@ -19,15 +20,19 @@ export class Notebook {
 	}
 
 	async openNotebook() {
+		await this.code.whenWorkbenchRestored();
 		await this.quickAccess.openFileQuickAccessAndWait('notebook.ipynb', 1);
 		await this.quickInput.selectQuickInputElement(0);
 
-		await this.code.waitForElement(activeRowSelector);
+		await this.code.waitForElement(anyRowSelector);
 		await this.focusFirstCell();
+		await this.code.waitForElement(activeRowSelector);
 	}
 
 	async focusNextCell() {
-		await this.code.sendKeybinding('down');
+		await this.code.dispatchKeybinding('down', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async focusFirstCell() {
@@ -35,7 +40,9 @@ export class Notebook {
 	}
 
 	async editCell() {
-		await this.code.sendKeybinding('enter');
+		await this.code.dispatchKeybinding('enter', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async stopEditingCell() {
@@ -47,7 +54,7 @@ export class Notebook {
 
 		await this.code.waitForElement(editor);
 
-		const editContext = `${editor} ${this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context'}`;
+		const editContext = `${editor} ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`;
 		await this.code.waitForActiveElement(editContext);
 
 		await this.code.waitForTypeInEditor(editContext, text);
@@ -65,7 +72,7 @@ export class Notebook {
 	}
 
 	async waitForMarkdownContents(markdownSelector: string, text: string): Promise<void> {
-		const selector = `${activeRowSelector} .markdown ${markdownSelector}`;
+		const selector = `${activeMarkdownRowSelector} ${markdownSelector}`;
 		await this.code.waitForTextContent(selector, text);
 	}
 
@@ -83,7 +90,7 @@ export class Notebook {
 
 	async focusInCellOutput(): Promise<void> {
 		await this.quickAccess.runCommand('notebook.cell.focusInOutput');
-		await this.code.waitForActiveElement('webview, .webview');
+		await this.code.waitForActiveElement('iframe.webview.ready');
 	}
 
 	async focusOutCellOutput(): Promise<void> {

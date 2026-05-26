@@ -34,6 +34,15 @@
 		}
 	}
 
+	> .multi-diff-root-floating-menu {
+		position: absolute;
+		top: auto;
+		right: 28px;
+		bottom: 24px;
+		left: auto;
+		width: auto;
+	}
+
 	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
 	}

@@ -44,7 +44,7 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 		return Promise.resolve();
 	}
 
-	log(eventName: string, data: any): void {
+	log(eventName: string, data: unknown): void {
 		this.logger.trace(`${this.prefix}telemetry/${eventName}`, validateTelemetryData(data));
 	}
 }

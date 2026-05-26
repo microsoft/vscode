@@ -17,7 +17,9 @@ export const additionalDeps = [
 // Dependencies that we can only recommend
 // for now since some of the older distros don't support them.
 export const recommendedDeps = [
-	'libvulkan1' // Move to additionalDeps once support for Trusty and Jessie are dropped.
+	'libvulkan1', // Move to additionalDeps once support for Trusty and Jessie are dropped.
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
@@ -33,12 +35,13 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.2.5)',
 		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
+		'libc6 (>= 2.4)',
 		'libcairo2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.9.14)',
 		'libexpat1 (>= 2.1~beta3)',
 		'libgbm1 (>= 17.1.0~rc2)',
-		'libglib2.0-0 (>= 2.37.3)',
+		'libglib2.0-0 (>= 2.39.4)',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
 		'libnspr4 (>= 2:4.9-2~)',
@@ -75,7 +78,7 @@ export const referenceGeneratedDepsByArch = {
 		'libdbus-1-3 (>= 1.9.14)',
 		'libexpat1 (>= 2.1~beta3)',
 		'libgbm1 (>= 17.1.0~rc2)',
-		'libglib2.0-0 (>= 2.37.3)',
+		'libglib2.0-0 (>= 2.39.4)',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
 		'libnspr4 (>= 2:4.9-2~)',
@@ -86,6 +89,7 @@ export const referenceGeneratedDepsByArch = {
 		'libstdc++6 (>= 5)',
 		'libstdc++6 (>= 5.2)',
 		'libstdc++6 (>= 6)',
+		'libstdc++6 (>= 9)',
 		'libudev1 (>= 183)',
 		'libx11-6',
 		'libx11-6 (>= 2:1.4.99.1)',
@@ -113,7 +117,7 @@ export const referenceGeneratedDepsByArch = {
 		'libdbus-1-3 (>= 1.9.14)',
 		'libexpat1 (>= 2.1~beta3)',
 		'libgbm1 (>= 17.1.0~rc2)',
-		'libglib2.0-0 (>= 2.37.3)',
+		'libglib2.0-0 (>= 2.39.4)',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',
 		'libnspr4 (>= 2:4.9-2~)',
@@ -124,6 +128,7 @@ export const referenceGeneratedDepsByArch = {
 		'libstdc++6 (>= 5)',
 		'libstdc++6 (>= 5.2)',
 		'libstdc++6 (>= 6)',
+		'libstdc++6 (>= 9)',
 		'libudev1 (>= 183)',
 		'libx11-6',
 		'libx11-6 (>= 2:1.4.99.1)',

@@ -14,8 +14,8 @@ export interface ThemeColor {
 }
 
 export namespace ThemeColor {
-	export function isThemeColor(obj: any): obj is ThemeColor {
-		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
+	export function isThemeColor(obj: unknown): obj is ThemeColor {
+		return !!obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
 	}
 }
 
@@ -58,8 +58,8 @@ export namespace ThemeIcon {
 		return '.' + asClassNameArray(icon).join('.');
 	}
 
-	export function isThemeIcon(obj: any): obj is ThemeIcon {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
+	export function isThemeIcon(obj: unknown): obj is ThemeIcon {
+		return !!obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
 	const _regexFromString = new RegExp(`^\\$\\((${ThemeIcon.iconNameExpression}(?:${ThemeIcon.iconModifierExpression})?)\\)$`);
@@ -101,4 +101,17 @@ export namespace ThemeIcon {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}
 
+	/**
+	 * Returns whether specified icon is defined and has 'file' ID.
+	 */
+	export function isFile(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === Codicon.file.id;
+	}
+
+	/**
+	 * Returns whether specified icon is defined and has 'folder' ID.
+	 */
+	export function isFolder(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === Codicon.folder.id;
+	}
 }

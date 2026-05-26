@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { CellKind } from '../notebookCommon.js';
 
 
@@ -15,6 +16,9 @@ type CellEditCountCache = {
 };
 
 type ICell = {
+	internalMetadata?: {
+		internalId?: string;
+	};
 	getValue(): string;
 	getLinesContent(): string[];
 	cellKind: CellKind;
@@ -283,6 +287,16 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 function computeClosestCell({ cell, index: cellIndex }: { cell: ICell; index: number }, arr: readonly ICell[], ignoreEmptyCells: boolean, cache: CellEditCountCache, canOriginalIndexBeMappedToModifiedIndex: (originalIndex: number, value: { editCount: EditCount }) => boolean): { index: number; editCount: number; percentage: number } {
 	let min_edits = Infinity;
 	let min_index = -1;
+
+	// Always give preference to internal Cell Id if found.
+	const internalId = cell.internalMetadata?.internalId;
+	if (internalId) {
+		const internalIdIndex = arr.findIndex(cell => cell.internalMetadata?.internalId === internalId);
+		if (internalIdIndex >= 0) {
+			return { index: internalIdIndex, editCount: 0, percentage: Number.MAX_SAFE_INTEGER };
+		}
+	}
+
 	for (let i = 0; i < arr.length; i++) {
 		// Skip cells that are not of the same kind.
 		if (arr[i].cellKind !== cell.cellKind) {
@@ -327,179 +341,4 @@ function computeNumberOfEdits(modified: ICell, original: ICell) {
 	}
 
 	return computeLevenshteinDistance(modified.getValue(), original.getValue());
-}
-
-/**
- * Precomputed equality array for character codes.
- */
-const precomputedEqualityArray = new Uint32Array(0x10000);
-
-/**
- * Computes the Levenshtein distance for strings of length <= 32.
- * @param firstString - The first string.
- * @param secondString - The second string.
- * @returns The Levenshtein distance.
- */
-const computeLevenshteinDistanceForShortStrings = (firstString: string, secondString: string): number => {
-	const firstStringLength = firstString.length;
-	const secondStringLength = secondString.length;
-	const lastBitMask = 1 << (firstStringLength - 1);
-	let positiveVector = -1;
-	let negativeVector = 0;
-	let distance = firstStringLength;
-	let index = firstStringLength;
-
-	// Initialize precomputedEqualityArray for firstString
-	while (index--) {
-		precomputedEqualityArray[firstString.charCodeAt(index)] |= 1 << index;
-	}
-
-	// Process each character of secondString
-	for (index = 0; index < secondStringLength; index++) {
-		let equalityMask = precomputedEqualityArray[secondString.charCodeAt(index)];
-		const combinedVector = equalityMask | negativeVector;
-		equalityMask |= ((equalityMask & positiveVector) + positiveVector) ^ positiveVector;
-		negativeVector |= ~(equalityMask | positiveVector);
-		positiveVector &= equalityMask;
-		if (negativeVector & lastBitMask) {
-			distance++;
-		}
-		if (positiveVector & lastBitMask) {
-			distance--;
-		}
-		negativeVector = (negativeVector << 1) | 1;
-		positiveVector = (positiveVector << 1) | ~(combinedVector | negativeVector);
-		negativeVector &= combinedVector;
-	}
-
-	// Reset precomputedEqualityArray
-	index = firstStringLength;
-	while (index--) {
-		precomputedEqualityArray[firstString.charCodeAt(index)] = 0;
-	}
-
-	return distance;
-};
-
-/**
- * Computes the Levenshtein distance for strings of length > 32.
- * @param firstString - The first string.
- * @param secondString - The second string.
- * @returns The Levenshtein distance.
- */
-function computeLevenshteinDistanceForLongStrings(firstString: string, secondString: string): number {
-	const firstStringLength = firstString.length;
-	const secondStringLength = secondString.length;
-	const horizontalBitArray = [];
-	const verticalBitArray = [];
-	const horizontalSize = Math.ceil(firstStringLength / 32);
-	const verticalSize = Math.ceil(secondStringLength / 32);
-
-	// Initialize horizontal and vertical bit arrays
-	for (let i = 0; i < horizontalSize; i++) {
-		horizontalBitArray[i] = -1;
-		verticalBitArray[i] = 0;
-	}
-
-	let verticalIndex = 0;
-	for (; verticalIndex < verticalSize - 1; verticalIndex++) {
-		let negativeVector = 0;
-		let positiveVector = -1;
-		const start = verticalIndex * 32;
-		const verticalLength = Math.min(32, secondStringLength) + start;
-
-		// Initialize precomputedEqualityArray for secondString
-		for (let k = start; k < verticalLength; k++) {
-			precomputedEqualityArray[secondString.charCodeAt(k)] |= 1 << k;
-		}
-
-		// Process each character of firstString
-		for (let i = 0; i < firstStringLength; i++) {
-			const equalityMask = precomputedEqualityArray[firstString.charCodeAt(i)];
-			const previousBit = (horizontalBitArray[(i / 32) | 0] >>> i) & 1;
-			const matchBit = (verticalBitArray[(i / 32) | 0] >>> i) & 1;
-			const combinedVector = equalityMask | negativeVector;
-			const combinedHorizontalVector = ((((equalityMask | matchBit) & positiveVector) + positiveVector) ^ positiveVector) | equalityMask | matchBit;
-			let positiveHorizontalVector = negativeVector | ~(combinedHorizontalVector | positiveVector);
-			let negativeHorizontalVector = positiveVector & combinedHorizontalVector;
-			if ((positiveHorizontalVector >>> 31) ^ previousBit) {
-				horizontalBitArray[(i / 32) | 0] ^= 1 << i;
-			}
-			if ((negativeHorizontalVector >>> 31) ^ matchBit) {
-				verticalBitArray[(i / 32) | 0] ^= 1 << i;
-			}
-			positiveHorizontalVector = (positiveHorizontalVector << 1) | previousBit;
-			negativeHorizontalVector = (negativeHorizontalVector << 1) | matchBit;
-			positiveVector = negativeHorizontalVector | ~(combinedVector | positiveHorizontalVector);
-			negativeVector = positiveHorizontalVector & combinedVector;
-		}
-
-		// Reset precomputedEqualityArray
-		for (let k = start; k < verticalLength; k++) {
-			precomputedEqualityArray[secondString.charCodeAt(k)] = 0;
-		}
-	}
-
-	let negativeVector = 0;
-	let positiveVector = -1;
-	const start = verticalIndex * 32;
-	const verticalLength = Math.min(32, secondStringLength - start) + start;
-
-	// Initialize precomputedEqualityArray for secondString
-	for (let k = start; k < verticalLength; k++) {
-		precomputedEqualityArray[secondString.charCodeAt(k)] |= 1 << k;
-	}
-
-	let distance = secondStringLength;
-
-	// Process each character of firstString
-	for (let i = 0; i < firstStringLength; i++) {
-		const equalityMask = precomputedEqualityArray[firstString.charCodeAt(i)];
-		const previousBit = (horizontalBitArray[(i / 32) | 0] >>> i) & 1;
-		const matchBit = (verticalBitArray[(i / 32) | 0] >>> i) & 1;
-		const combinedVector = equalityMask | negativeVector;
-		const combinedHorizontalVector = ((((equalityMask | matchBit) & positiveVector) + positiveVector) ^ positiveVector) | equalityMask | matchBit;
-		let positiveHorizontalVector = negativeVector | ~(combinedHorizontalVector | positiveVector);
-		let negativeHorizontalVector = positiveVector & combinedHorizontalVector;
-		distance += (positiveHorizontalVector >>> (secondStringLength - 1)) & 1;
-		distance -= (negativeHorizontalVector >>> (secondStringLength - 1)) & 1;
-		if ((positiveHorizontalVector >>> 31) ^ previousBit) {
-			horizontalBitArray[(i / 32) | 0] ^= 1 << i;
-		}
-		if ((negativeHorizontalVector >>> 31) ^ matchBit) {
-			verticalBitArray[(i / 32) | 0] ^= 1 << i;
-		}
-		positiveHorizontalVector = (positiveHorizontalVector << 1) | previousBit;
-		negativeHorizontalVector = (negativeHorizontalVector << 1) | matchBit;
-		positiveVector = negativeHorizontalVector | ~(combinedVector | positiveHorizontalVector);
-		negativeVector = positiveHorizontalVector & combinedVector;
-	}
-
-	// Reset precomputedEqualityArray
-	for (let k = start; k < verticalLength; k++) {
-		precomputedEqualityArray[secondString.charCodeAt(k)] = 0;
-	}
-
-	return distance;
-}
-
-/**
- * Computes the Levenshtein distance between two strings.
- * @param firstString - The first string.
- * @param secondString - The second string.
- * @returns The Levenshtein distance.
- */
-function computeLevenshteinDistance(firstString: string, secondString: string): number {
-	if (firstString.length < secondString.length) {
-		const temp = secondString;
-		secondString = firstString;
-		firstString = temp;
-	}
-	if (secondString.length === 0) {
-		return firstString.length;
-	}
-	if (firstString.length <= 32) {
-		return computeLevenshteinDistanceForShortStrings(firstString, secondString);
-	}
-	return computeLevenshteinDistanceForLongStrings(firstString, secondString);
 }

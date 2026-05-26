@@ -14,12 +14,12 @@ const enablementKey = 'sync.enable';
 
 export class UserDataSyncEnablementService extends Disposable implements IUserDataSyncEnablementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private _onDidChangeEnablement = new Emitter<boolean>();
+	private _onDidChangeEnablement = this._register(new Emitter<boolean>());
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
 
-	private _onDidChangeResourceEnablement = new Emitter<[SyncResource, boolean]>();
+	private _onDidChangeResourceEnablement = this._register(new Emitter<[SyncResource, boolean]>());
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]> = this._onDidChangeResourceEnablement.event;
 
 	constructor(
@@ -56,6 +56,12 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		const storedValue = this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION);
 		defaultValue = defaultValue ?? resource !== SyncResource.Prompts;
 		return storedValue ?? defaultValue;
+	}
+
+	isResourceEnablementConfigured(resource: SyncResource): boolean {
+		const storedValue = this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION);
+
+		return (storedValue !== undefined);
 	}
 
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {

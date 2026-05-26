@@ -63,6 +63,9 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh'); // a command that opens a browser on the local machine
 	}
 
+	env.VSCODE_RECONNECTION_GRACE_TIME = String(environmentService.reconnectionGraceTime);
+	logService.trace(`[reconnection-grace-time] Setting VSCODE_RECONNECTION_GRACE_TIME env var for extension host: ${environmentService.reconnectionGraceTime}ms (${Math.floor(environmentService.reconnectionGraceTime / 1000)}s)`);
+
 	removeNulls(env);
 	return env;
 }
@@ -91,6 +94,7 @@ class ConnectionData {
 			skipWebSocketFrames = false;
 			permessageDeflate = this.socket.permessageDeflate;
 			inflateBytes = this.socket.recordedInflateBytes;
+			this.socket.setRecordInflateBytes(false);
 		}
 
 		return {
@@ -105,7 +109,7 @@ class ConnectionData {
 
 export class ExtensionHostConnection extends Disposable {
 
-	private _onClose = new Emitter<void>();
+	private _onClose = this._register(new Emitter<void>());
 	readonly onClose: Event<void> = this._onClose.event;
 
 	private readonly _canSendSocket: boolean;
@@ -130,6 +134,9 @@ export class ExtensionHostConnection extends Disposable {
 		this._remoteAddress = remoteAddress;
 		this._extensionHostProcess = null;
 		this._connectionData = new ConnectionData(socket, initialDataChunk);
+		if (!this._canSendSocket && socket instanceof WebSocketNodeSocket) {
+			socket.setRecordInflateBytes(false);
+		}
 
 		this._log(`New connection established.`);
 	}
@@ -206,6 +213,9 @@ export class ExtensionHostConnection extends Disposable {
 	public acceptReconnection(remoteAddress: string, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): void {
 		this._remoteAddress = remoteAddress;
 		this._log(`The client has reconnected.`);
+		if (!this._canSendSocket && _socket instanceof WebSocketNodeSocket) {
+			_socket.setRecordInflateBytes(false);
+		}
 		const connectionData = new ConnectionData(_socket, initialDataChunk);
 
 		if (!this._extensionHostProcess) {
@@ -237,8 +247,12 @@ export class ExtensionHostConnection extends Disposable {
 	public async start(startParams: IRemoteExtensionHostStartParams): Promise<void> {
 		try {
 			let execArgv: string[] = process.execArgv ? process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)) : [];
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			if (startParams.port && !(<any>process).pkg) {
-				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
+				execArgv = [
+					`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`,
+					'--experimental-network-inspection'
+				];
 			}
 
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
@@ -268,6 +282,9 @@ export class ExtensionHostConnection extends Disposable {
 			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
 			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
+			if (this._configurationService.getValue<boolean>('extensions.supportNodeGlobalNavigator')) {
+				args.push('--supportGlobalNavigator');
+			}
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork').fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;
 			this._log(`<${pid}> Launched Extension Host Process.`);

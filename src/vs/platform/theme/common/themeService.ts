@@ -71,9 +71,20 @@ export interface IColorTheme {
 	readonly tokenColorMap: string[];
 
 	/**
+	 * List of all the fonts used with tokens.
+	 */
+	readonly tokenFontMap: IFontTokenOptions[];
+
+	/**
 	 * Defines whether semantic highlighting should be enabled for the theme.
 	 */
 	readonly semanticHighlighting: boolean;
+}
+
+export class IFontTokenOptions {
+	fontFamily?: string;
+	fontSizeMultiplier?: number;
+	lineHeightMultiplier?: number;
 }
 
 export interface IFileIconTheme {
@@ -134,13 +145,14 @@ export interface IThemingRegistry {
 	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
 }
 
-class ThemingRegistry implements IThemingRegistry {
+class ThemingRegistry extends Disposable implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
 	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
+		super();
 		this.themingParticipants = [];
-		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
+		this.onThemingParticipantAddedEmitter = this._register(new Emitter<IThemingParticipant>());
 	}
 
 	public onColorThemeChange(participant: IThemingParticipant): IDisposable {
@@ -230,15 +242,9 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
-		auxiliarySideBarWidth: number;
+		auxiliaryBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
 	} | undefined;
-}
-
-export interface IPartsSplashWorkspaceOverride {
-	layoutInfo: {
-		auxiliarySideBarWidth: [number, string[] /* workspace identifier the override applies to */];
-	};
 }

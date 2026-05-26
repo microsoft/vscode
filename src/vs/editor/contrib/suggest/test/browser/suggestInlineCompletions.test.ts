@@ -21,6 +21,7 @@ import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } 
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 
 suite('Suggest Inline Completions', function () {
@@ -74,7 +75,7 @@ suite('Suggest Inline Completions', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false };
+	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false, requestUuid: generateUuid(), requestIssuedDateTime: 0, earliestShownDateTime: 0 };
 
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
@@ -84,7 +85,7 @@ suite('Suggest Inline Completions', function () {
 			// (1,3), end of word -> suggestions
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 		{
 			// (1,2), middle of word -> NO suggestions
@@ -100,7 +101,7 @@ suite('Suggest Inline Completions', function () {
 			// unfiltered
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 
 		{
@@ -108,7 +109,7 @@ suite('Suggest Inline Completions', function () {
 			editor.updateOptions({ suggest: { showSnippets: false } });
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 2);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 
 	});

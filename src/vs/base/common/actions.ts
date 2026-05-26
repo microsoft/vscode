@@ -52,10 +52,15 @@ export interface IActionChangeEvent {
 	readonly checked?: boolean;
 }
 
+/**
+ * A concrete implementation of {@link IAction}.
+ *
+ * Note that in most cases you should use the lighter-weight {@linkcode toAction} function instead.
+ */
 export class Action extends Disposable implements IAction {
 
 	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
-	readonly onDidChange = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	protected readonly _id: string;
 	protected _label: string;
@@ -168,10 +173,10 @@ export interface IRunEvent {
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
-	readonly onWillRun = this._onWillRun.event;
+	get onWillRun() { return this._onWillRun.event; }
 
 	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun = this._onDidRun.event;
+	get onDidRun() { return this._onDidRun.event; }
 
 	async run(action: IAction, context?: unknown): Promise<void> {
 		if (!action.enabled) {
@@ -215,6 +220,24 @@ export class Separator implements IAction {
 		return out;
 	}
 
+	/**
+	 * Removes leading, trailing, and consecutive duplicate separators in-place and returns the actions.
+	 */
+	public static clean(actions: IAction[]): IAction[] {
+		while (actions.length > 0 && actions[0].id === Separator.ID) {
+			actions.shift();
+		}
+		while (actions.length > 0 && actions[actions.length - 1].id === Separator.ID) {
+			actions.pop();
+		}
+		for (let i = actions.length - 2; i >= 0; i--) {
+			if (actions[i].id === Separator.ID && actions[i + 1].id === Separator.ID) {
+				actions.splice(i + 1, 1);
+			}
+		}
+		return actions;
+	}
+
 	static readonly ID = 'vs.actions.separator';
 
 	readonly id: string = Separator.ID;
@@ -223,7 +246,7 @@ export class Separator implements IAction {
 	readonly tooltip: string = '';
 	readonly class: string = 'separator';
 	readonly enabled: boolean = false;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 	async run() { }
 }
 

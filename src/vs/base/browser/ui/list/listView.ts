@@ -58,11 +58,13 @@ export const enum ListViewTargetSector {
 	BOTTOM = 3				// [75%-100%)
 }
 
+export type CheckBoxAccessibleState = boolean | 'mixed';
+
 export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
 	getRole?(element: T): AriaRole | undefined;
-	isChecked?(element: T): boolean | IValueWithChangeEvent<boolean> | undefined;
+	isChecked?(element: T): CheckBoxAccessibleState | IValueWithChangeEvent<CheckBoxAccessibleState> | undefined;
 }
 
 export interface IListViewOptionsUpdate {
@@ -150,8 +152,8 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
 export class NativeDragAndDropData implements IDragAndDropData {
 
-	readonly types: any[];
-	readonly files: any[];
+	readonly types: unknown[];
+	readonly files: unknown[];
 
 	constructor() {
 		this.types = [];
@@ -194,10 +196,10 @@ function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined):
 
 class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilityProvider<T>> {
 
-	readonly getSetSize: (element: any, index: number, listLength: number) => number;
-	readonly getPosInSet: (element: any, index: number) => number;
+	readonly getSetSize: (element: T, index: number, listLength: number) => number;
+	readonly getPosInSet: (element: T, index: number) => number;
 	readonly getRole: (element: T) => AriaRole | undefined;
-	readonly isChecked: (element: T) => boolean | IValueWithChangeEvent<boolean> | undefined;
+	readonly isChecked: (element: T) => CheckBoxAccessibleState | IValueWithChangeEvent<CheckBoxAccessibleState> | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
 		if (accessibilityProvider?.getSetSize) {
@@ -330,8 +332,8 @@ export class ListView<T> implements IListView<T> {
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
-	private readonly _onDidChangeContentHeight = new Emitter<number>();
-	private readonly _onDidChangeContentWidth = new Emitter<number>();
+	private readonly _onDidChangeContentHeight = this.disposables.add(new Emitter<number>());
+	private readonly _onDidChangeContentWidth = this.disposables.add(new Emitter<number>());
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event, undefined, this.disposables);
 	readonly onDidChangeContentWidth: Event<number> = Event.latch(this._onDidChangeContentWidth.event, undefined, this.disposables);
 	get contentHeight(): number { return this.rangeMap.size; }
@@ -368,6 +370,7 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElementWidthDelayer.cancel();
 			this.scrollableElement.setScrollDimensions({ width: this.renderWidth, scrollWidth: this.renderWidth });
 			this.rowsContainer.style.width = '';
+			this.domNode.style.removeProperty('--list-scroll-right-offset');
 		}
 	}
 
@@ -650,7 +653,7 @@ export class ListView<T> implements IListView<T> {
 				const renderer = this.renderers.get(item.templateId);
 
 				if (renderer && renderer.disposeElement) {
-					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
+					renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
 				}
 
 				rows.unshift(item.row);
@@ -892,12 +895,17 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElement.setScrollDimensions({
 				width: typeof width === 'number' ? width : getContentWidth(this.domNode)
 			});
+
+			const scrollPos = this.scrollableElement.getScrollPosition();
+			const scrollDims = this.scrollableElement.getScrollDimensions();
+			const rightOffset = Math.max(0, scrollDims.scrollWidth - scrollPos.scrollLeft - this.renderWidth);
+			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
 		}
 	}
 
 	// Render
 
-	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false): void {
+	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false, onScroll: boolean = false): void {
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
 		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange).reverse();
@@ -914,7 +922,7 @@ export class ListView<T> implements IListView<T> {
 		this.cache.transact(() => {
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
-					this.removeItemFromDOM(i);
+					this.removeItemFromDOM(i, onScroll);
 				}
 			}
 
@@ -933,6 +941,8 @@ export class ListView<T> implements IListView<T> {
 
 		if (this.horizontalScrolling && scrollWidth !== undefined) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
+			const rightOffset = Math.max(0, scrollWidth - (renderLeft ?? 0) - this.renderWidth);
+			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
 		}
 
 		this.lastRenderTop = renderTop;
@@ -959,11 +969,12 @@ export class ListView<T> implements IListView<T> {
 		item.row.domNode.setAttribute('role', role);
 
 		const checked = this.accessibilityProvider.isChecked(item.element);
+		const toAriaState = (value: CheckBoxAccessibleState) => value === 'mixed' ? 'mixed' : String(!!value);
 
-		if (typeof checked === 'boolean') {
-			item.row.domNode.setAttribute('aria-checked', String(!!checked));
+		if (typeof checked === 'boolean' || checked === 'mixed') {
+			item.row.domNode.setAttribute('aria-checked', toAriaState(checked));
 		} else if (checked) {
-			const update = (checked: boolean) => item.row!.domNode.setAttribute('aria-checked', String(!!checked));
+			const update = (value: CheckBoxAccessibleState) => item.row!.domNode.setAttribute('aria-checked', toAriaState(value));
 			update(checked.value);
 			item.checkedDisposable = checked.onDidChange(() => update(checked.value));
 		}
@@ -984,7 +995,7 @@ export class ListView<T> implements IListView<T> {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		renderer?.renderElement(item.element, index, item.row.templateData, item.size);
+		renderer?.renderElement(item.element, index, item.row.templateData, { height: item.size });
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
@@ -1041,7 +1052,7 @@ export class ListView<T> implements IListView<T> {
 		item.row!.domNode.classList.toggle('drop-target', item.dropTarget);
 	}
 
-	private removeItemFromDOM(index: number): void {
+	private removeItemFromDOM(index: number, onScroll?: boolean): void {
 		const item = this.items[index];
 		item.dragStartDisposable.dispose();
 		item.checkedDisposable.dispose();
@@ -1050,7 +1061,7 @@ export class ListView<T> implements IListView<T> {
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
-				renderer.disposeElement(item.element, index, item.row.templateData, item.size);
+				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size, onScroll });
 			}
 
 			this.cache.release(item.row);
@@ -1115,9 +1126,9 @@ export class ListView<T> implements IListView<T> {
 	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'mouseover')).event, e => this.toMouseEvent(e), this.disposables); }
 	@memoize get onMouseMove(): Event<IListMouseEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'mousemove')).event, e => this.toMouseEvent(e), this.disposables); }
 	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'mouseout')).event, e => this.toMouseEvent(e), this.disposables); }
-	@memoize get onContextMenu(): Event<IListMouseEvent<T> | IListGestureEvent<T>> { return Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(Event.map(this.disposables.add(new DomEmitter(this.domNode, 'contextmenu')).event, e => this.toMouseEvent(e), this.disposables), Event.map(this.disposables.add(new DomEmitter(this.domNode, TouchEventType.Contextmenu)).event as Event<GestureEvent>, e => this.toGestureEvent(e), this.disposables)); }
+	@memoize get onContextMenu(): Event<IListMouseEvent<T> | IListGestureEvent<T>> { return Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(Event.map(this.disposables.add(new DomEmitter(this.domNode, 'contextmenu')).event, e => this.toMouseEvent(e), this.disposables), Event.map(this.disposables.add(new DomEmitter(this.domNode, TouchEventType.Contextmenu)).event, e => this.toGestureEvent(e), this.disposables)); }
 	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'touchstart')).event, e => this.toTouchEvent(e), this.disposables); }
-	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.rowsContainer, TouchEventType.Tap)).event, e => this.toGestureEvent(e as GestureEvent), this.disposables); }
+	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.rowsContainer, TouchEventType.Tap)).event, e => this.toGestureEvent(e), this.disposables); }
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);
@@ -1151,7 +1162,7 @@ export class ListView<T> implements IListView<T> {
 	private onScroll(e: ScrollEvent): void {
 		try {
 			const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
+			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth, undefined, true);
 
 			if (this.supportDynamicHeights) {
 				this._rerender(e.scrollTop, e.height, e.inSmoothScrolling);
@@ -1363,7 +1374,7 @@ export class ListView<T> implements IListView<T> {
 			}
 
 			for (const index of feedback) {
-				const item = this.items[index]!;
+				const item = this.items[index];
 				item.dropTarget = true;
 
 				item.row?.domNode.classList.add(dragOverEffectPosition);
@@ -1371,7 +1382,7 @@ export class ListView<T> implements IListView<T> {
 
 			this.currentDragFeedbackDisposable = toDisposable(() => {
 				for (const index of feedback) {
-					const item = this.items[index]!;
+					const item = this.items[index];
 					item.dropTarget = false;
 
 					item.row?.domNode.classList.remove(dragOverEffectPosition);
@@ -1609,7 +1620,15 @@ export class ListView<T> implements IListView<T> {
 
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
+		const diff = this.probeDynamicHeightForItem(item, index);
+		if (diff > 0) {
+			this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		}
 
+		return diff;
+	}
+
+	private probeDynamicHeightForItem(item: IItem<T>, index: number): number {
 		if (!!this.virtualDelegate.getDynamicHeight) {
 			const newSize = this.virtualDelegate.getDynamicHeight(item.element);
 			if (newSize !== null) {
@@ -1633,8 +1652,12 @@ export class ListView<T> implements IListView<T> {
 		if (item.row) {
 			item.row.domNode.style.height = '';
 			item.size = item.row.domNode.offsetHeight;
-			if (item.size === 0 && !isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
-				console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
+			if (item.size === 0) {
+				if (!isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
+					console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
+				} else {
+					console.warn('Measured item node at 0px- ensure that ListView is not display:none before measuring row height!', new Error().stack);
+				}
 			}
 			item.lastDynamicHeightWidth = this.renderWidth;
 			return item.size - size;
@@ -1650,11 +1673,9 @@ export class ListView<T> implements IListView<T> {
 			throw new BugIndicatingError('Missing renderer for templateId: ' + item.templateId);
 		}
 
-		renderer.renderElement(item.element, index, row.templateData, undefined);
+		renderer.renderElement(item.element, index, row.templateData);
 		item.size = row.domNode.offsetHeight;
-		renderer.disposeElement?.(item.element, index, row.templateData, undefined);
-
-		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		renderer.disposeElement?.(item.element, index, row.templateData);
 
 		item.lastDynamicHeightWidth = this.renderWidth;
 		row.domNode.remove();

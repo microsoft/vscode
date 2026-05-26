@@ -150,9 +150,9 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const gulpTask = (<any>_task.definition).task;
+		const gulpTask = _task.definition.task;
 		if (gulpTask) {
-			const kind: GulpTaskDefinition = (<any>_task.definition);
+			const kind = _task.definition as GulpTaskDefinition;
 			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			const task = new vscode.Task(kind, this.workspaceFolder, gulpTask, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [gulpTask], options));
 			return task;

@@ -157,12 +157,16 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					tooltip = props.tooltip;
 				}
 				// TODO @jkearl, remove once migration complete.
+				// eslint-disable-next-line local/code-no-any-casts
 				else if (MarkdownStringType.isMarkdownString((props as any).detail)) {
 					console.warn('Using deprecated TimelineItem.detail, migrate to TimelineItem.tooltip');
+					// eslint-disable-next-line local/code-no-any-casts
 					tooltip = MarkdownString.from((props as any).detail);
 				}
+				// eslint-disable-next-line local/code-no-any-casts
 				else if (isString((props as any).detail)) {
 					console.warn('Using deprecated TimelineItem.detail, migrate to TimelineItem.tooltip');
+					// eslint-disable-next-line local/code-no-any-casts
 					tooltip = (props as any).detail;
 				}
 

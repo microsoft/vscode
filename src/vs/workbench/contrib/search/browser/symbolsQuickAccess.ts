@@ -24,6 +24,8 @@ import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from '../../.
 import { IMatch } from '../../../../base/common/filters.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ISymbolVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 
 export interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
@@ -64,7 +66,8 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -129,8 +132,6 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 			}
 
 			const symbolLabel = symbol.name;
-			const symbolLabelWithIcon = `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbolLabel}`;
-			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 			// Score by symbol label if searching
 			let symbolScore: number | undefined = undefined;
@@ -143,7 +144,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				// can be a match on a markdown symbol "change log"). In that
 				// case we want to skip the container query altogether.
 				if (symbolQuery !== query) {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, 0, symbolLabelIconOffset);
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, { ...query, values: undefined /* disable multi-query support */ }, 0, 0);
 					if (typeof symbolScore === 'number') {
 						skipContainerQuery = true; // since we consumed the query, skip any container matching
 					}
@@ -151,7 +152,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				// Otherwise: score on the symbol query and match on the container later
 				if (typeof symbolScore !== 'number') {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, 0, symbolLabelIconOffset);
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, 0);
 					if (typeof symbolScore !== 'number') {
 						continue;
 					}
@@ -192,7 +193,8 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				symbol,
 				resource: symbolUri,
 				score: symbolScore,
-				label: symbolLabelWithIcon,
+				iconClass: ThemeIcon.asClassName(SymbolKinds.toIcon(symbol.kind)),
+				label: symbolLabel,
 				ariaLabel: symbolLabel,
 				highlights: deprecated ? undefined : {
 					label: symbolMatches,
@@ -212,6 +214,26 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					return TriggerAction.CLOSE_PICKER;
 				},
 				accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
+				attach: (keyMods, event) => {
+					// Only support adding context to chat when shift is pressed
+					if (keyMods.shift) {
+						const widget = this.chatWidgetService.lastFocusedWidget;
+						if (widget) {
+							const entry: ISymbolVariableEntry = {
+								kind: 'symbol',
+								id: JSON.stringify({ uri: symbolUri.toString(), range: symbol.location.range }),
+								name: symbol.name,
+								value: symbol.location,
+								symbolKind: symbol.kind,
+							};
+							widget.attachmentModel.addContext(entry);
+						}
+						return;
+					}
+
+					// Fallback to accept behavior.
+					this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground });
+				},
 			});
 
 		}
