@@ -28,7 +28,7 @@ enum TsConfigLinkType {
 
 type OpenExtendsLinkCommandArgs = {
 	readonly resourceUri: vscode.Uri;
-	readonly extendsValue: string;
+	readonly pathValue: string;
 	readonly linkType: TsConfigLinkType;
 };
 
@@ -79,7 +79,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 
 		const args: OpenExtendsLinkCommandArgs = {
 			resourceUri: { ...document.uri.toJSON(), $mid: undefined },
-			extendsValue: node.value,
+			pathValue: node.value,
 			linkType
 		};
 
@@ -200,8 +200,14 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, linkTy
 	]);
 }
 
+// Matches the start of a URI scheme (e.g. `vscode-file:`, `https:`), used to
+// tell apart `vscode.Uri.toString()` results from filesystem paths. Excludes
+// Windows drive paths like `C:\…`, which also start with a letter + colon.
+const URI_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+const WINDOWS_DRIVE_RE = /^[a-zA-Z]:[\\/]/;
+
 function libFileUri(versionPath: string, fileName: string): vscode.Uri {
-	if (versionPath.includes('://')) {
+	if (URI_SCHEME_RE.test(versionPath) && !WINDOWS_DRIVE_RE.test(versionPath)) {
 		// Browser: bundled tsserver path is a URI string
 		return vscode.Uri.joinPath(vscode.Uri.parse(versionPath), '..', fileName);
 	}
@@ -280,14 +286,17 @@ export function register(versionProvider: ITypeScriptVersionProvider, workspaceS
 			.flat();
 
 	return vscode.Disposable.from(
-		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, linkType }: OpenExtendsLinkCommandArgs) => {
+		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, pathValue, linkType }: OpenExtendsLinkCommandArgs) => {
 			const baseDirUri = Utils.dirname(vscode.Uri.from(resourceUri));
 			const target = linkType === TsConfigLinkType.Lib
-				? await resolveLibPath(versionProvider, workspaceState, extendsValue)
-				: await getTsconfigPath(baseDirUri, extendsValue, linkType);
+				? await resolveLibPath(versionProvider, workspaceState, pathValue)
+				: await getTsconfigPath(baseDirUri, pathValue, linkType);
 
 			if (target === undefined) {
-				vscode.window.showErrorMessage(vscode.l10n.t("Failed to resolve {0} as module", extendsValue));
+				const message = linkType === TsConfigLinkType.Lib
+					? vscode.l10n.t("Failed to resolve TypeScript lib {0}", pathValue)
+					: vscode.l10n.t("Failed to resolve {0} as module", pathValue);
+				vscode.window.showErrorMessage(message);
 				return;
 			}
 
