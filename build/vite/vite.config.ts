@@ -9,6 +9,7 @@ import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
+import { pspVitePlugin } from './pspVitePlugin.ts';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -171,6 +172,7 @@ export default defineConfig({
 			include: join(__dirname, '../../src/**/*.fixture.ts'),
 			build: 'all',
 		}),
+		pspVitePlugin({ clientName: 'vite' }),
 	],
 	customLogger: logger,
 	resolve: {

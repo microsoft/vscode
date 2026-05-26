@@ -11,7 +11,6 @@
 import { isString } from '../../../../base/common/types.js';
 import * as monarchCommon from './monarchCommon.js';
 import { IMonarchLanguage, IMonarchLanguageBracket } from './monarchTypes.js';
-
 /*
  * Type helpers
  *

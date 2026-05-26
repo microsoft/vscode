@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IListService, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,7 +26,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
 import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from '../../../../base/browser/ui/list/listView.js';
@@ -56,6 +56,11 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { isObject } from '../../../../base/common/types.js';
+import { ITreeRenderer, ITreeNode, ITreeDragAndDrop, ITreeDragOverReaction, IObjectTreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IProcessStateProtocolService, IPspSession } from '../../processStateProtocol/common/processStateProtocolService.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { OPEN_PSP_SESSION_COMMAND_ID } from '../../processStateProtocol/electron-browser/pspCommands.js';
 
 const $ = DOM.$;
 
@@ -69,7 +74,28 @@ export const enum TerminalTabsListSizes {
 	MaximumWidth = 500
 }
 
-export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
+/**
+ * Marker node placed as a tree child of a terminal instance when a PSP publisher is connected to
+ * that terminal. The row is visible only while the session is live and acts as a shortcut to open
+ * the PSP document.
+ */
+export interface IPspDocNode {
+	readonly kind: 'psp-doc';
+	readonly sessionId: string;
+	readonly terminalInstanceId: number;
+}
+
+export type TerminalTabsElement = ITerminalInstance | IPspDocNode;
+
+export function isPspDocNode(e: TerminalTabsElement | null | undefined): e is IPspDocNode {
+	return !!e && typeof e === 'object' && (e as Partial<IPspDocNode>).kind === 'psp-doc';
+}
+
+export function isTerminalInstanceElement(e: TerminalTabsElement | null | undefined): e is ITerminalInstance {
+	return !!e && !isPspDocNode(e);
+}
+
+export class TerminalTabList extends WorkbenchObjectTree<TerminalTabsElement, void> {
 	private _decorationsProvider: TabDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
@@ -94,34 +120,41 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IProcessStateProtocolService private readonly _processStateProtocolService: IProcessStateProtocolService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
+		const delegate: IListVirtualDelegate<TerminalTabsElement> = {
+			getHeight: () => TerminalTabsListSizes.TabHeight,
+			getTemplateId: (e: TerminalTabsElement) => isPspDocNode(e) ? PspDocRenderer.TEMPLATE_ID : TerminalTabsRenderer.TEMPLATE_ID
+		};
+		const tabsRenderer = instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedTerminals(), {
+			getHasText: () => this.hasText,
+			getHasActionBar: () => this.hasActionBar
+		});
+		const pspRenderer = instantiationService.createInstance(PspDocRenderer);
 		super('TerminalTabsList', container,
-			{
-				getHeight: () => TerminalTabsListSizes.TabHeight,
-				getTemplateId: () => 'terminal.tabs'
-			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), {
-				getHasText: () => this.hasText,
-				getHasActionBar: () => this.hasActionBar
-			})],
+			delegate,
+			[tabsRenderer, pspRenderer],
 			{
 				horizontalScrolling: false,
-				supportDynamicHeights: false,
 				selectionNavigation: true,
 				identityProvider: {
-					getId: e => e?.instanceId
+					getId: (e: TerminalTabsElement) => isPspDocNode(e) ? `psp-${e.sessionId}` : `term-${e.instanceId}`
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
-				openOnSingleClick: true
+				openOnSingleClick: true,
+				expandOnlyOnTwistieClick: false,
+				collapseByDefault: false,
+				allowNonCollapsibleParents: true
 			},
+			instantiationService,
 			contextKeyService,
 			listService,
 			_configurationService,
-			instantiationService,
 		);
 
 		const instanceDisposables: IDisposable[] = [
@@ -136,13 +169,17 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._themeService.onDidColorThemeChange(() => this.refresh()),
 			this._terminalGroupService.onDidChangeActiveInstance(e => {
 				if (e) {
-					const i = this._terminalGroupService.instances.indexOf(e);
-					this.setSelection([i]);
-					this.reveal(i);
+					this.setSelection([e]);
+					this.reveal(e);
 				}
 				this.refresh();
 			}),
 			this._storageService.onDidChangeValue(StorageScope.APPLICATION, TerminalStorageKeys.TabsShowDetailed, this.disposables)(() => this.refresh()),
+			// Refresh whenever PSP sessions change so that child rows appear/disappear.
+			autorun(reader => {
+				this._processStateProtocolService.sessions.read(reader);
+				this.refresh();
+			})
 		];
 
 		// Dispose of instance listeners on shutdown to avoid extra work and so tabs don't disappear
@@ -157,7 +194,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		}));
 
 		this.disposables.add(this.onMouseDblClick(async e => {
-			if (!e.element) {
+			const element = e.element;
+			if (!element) {
 				e.browserEvent.preventDefault();
 				e.browserEvent.stopPropagation();
 				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
@@ -166,27 +204,35 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				return;
 			}
 
-			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element.instanceId) {
+			if (isPspDocNode(element)) {
+				return;
+			}
+
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === element.instanceId) {
 				return;
 			}
 
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
-				e.element.focus(true);
+				element.focus(true);
 			}
 		}));
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
 		this.disposables.add(this.onMouseClick(async e => {
-			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+			const element = e.element;
+			if (isPspDocNode(element)) {
+				return;
+			}
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === element?.instanceId) {
 				return;
 			}
 
-			if (e.browserEvent.altKey && e.element) {
-				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
+			if (e.browserEvent.altKey && element) {
+				await this._terminalService.createTerminal({ location: { parentTerminal: element } });
 			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
-					e.element?.focus(true);
+					element?.focus(true);
 				}
 			}
 		}));
@@ -198,9 +244,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				this.setSelection([]);
 				return;
 			}
-			const selection = this.getSelectedElements();
+			const selection = this.getSelectedTerminals();
 			if (!selection || !selection.find(s => e.element === s)) {
-				this.setFocus(e.index !== undefined ? [e.index] : []);
+				this.setFocus(e.element ? [e.element] : []);
 			}
 		}));
 
@@ -211,13 +257,17 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.disposables.add(this.onDidChangeFocus(() => this._updateContextKey()));
 
 		this.disposables.add(this.onDidOpen(async e => {
-			const instance = e.element;
-			if (!instance) {
+			const element = e.element;
+			if (!element) {
 				return;
 			}
-			this._terminalGroupService.setActiveInstance(instance);
+			if (isPspDocNode(element)) {
+				this._commandService.executeCommand(OPEN_PSP_SESSION_COMMAND_ID, element.sessionId);
+				return;
+			}
+			this._terminalGroupService.setActiveInstance(element);
 			if (!e.editorOptions.preserveFocus) {
-				await instance.focusWhenReady();
+				await element.focusWhenReady();
 			}
 		}));
 		if (!this._decorationsProvider) {
@@ -236,11 +286,32 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this.domFocus();
 		}
 
-		this.splice(0, this.length, this._terminalGroupService.instances.slice());
+		const roots: IObjectTreeElement<TerminalTabsElement>[] = this._terminalGroupService.instances.map(instance => {
+			const session = this._processStateProtocolService.getSessionForTerminal(instance.instanceId);
+			const children: IObjectTreeElement<TerminalTabsElement>[] = session ? [{
+				element: { kind: 'psp-doc', sessionId: session.id, terminalInstanceId: instance.instanceId }
+			}] : [];
+			return { element: instance, children, collapsible: children.length > 0, collapsed: false };
+		});
+		this.setChildren(null, roots);
+	}
+
+	/**
+	 * Returns only the selected terminal instances, filtering out PSP child rows.
+	 */
+	getSelectedTerminals(): ITerminalInstance[] {
+		return this.getSelection().filter(isTerminalInstanceElement);
+	}
+
+	/**
+	 * Returns the focused terminal instances, filtering out PSP child rows.
+	 */
+	getFocusedTerminals(): ITerminalInstance[] {
+		return this.getFocus().filter(isTerminalInstanceElement);
 	}
 
 	focusHover(): void {
-		const instance = this.getSelectedElements()[0];
+		const instance = this.getSelectedTerminals()[0];
 		if (!instance) {
 			return;
 		}
@@ -253,9 +324,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 
 	private _updateContextKey() {
-		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
-		const instance = this.getFocusedElements();
-		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
+		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedTerminals().length === 1);
+		const focused = this.getFocusedTerminals();
+		this._isSplitContextKey.set(focused.length > 0 && this._terminalGroupService.instanceIsSplit(focused[0]));
 	}
 
 	override layout(height?: number, width?: number): void {
@@ -271,8 +342,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 }
 
-class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
-	templateId = 'terminal.tabs';
+class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, void, ITerminalTabEntryTemplate> {
+	static readonly TEMPLATE_ID = 'terminal.tabs';
+	templateId = TerminalTabsRenderer.TEMPLATE_ID;
 
 	constructor(
 		_container: HTMLElement,
@@ -343,7 +415,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		};
 	}
 
-	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
+	renderElement(node: ITreeNode<ITerminalInstance, void>, index: number, template: ITerminalTabEntryTemplate): void {
+		const instance = node.element;
 		const hasText = this._getVisibilityState.getHasText();
 		const hasActionBar = this._getVisibilityState.getHasActionBar();
 
@@ -512,7 +585,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		});
 	}
 
-	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
+	disposeElement(node: ITreeNode<ITerminalInstance, void>, index: number, templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables.clear();
 		templateData.actionBar.clear();
 	}
@@ -580,8 +653,60 @@ interface ITerminalTabEntryTemplate {
 	readonly templateDisposables: DisposableStore;
 }
 
+interface IPspDocTemplate {
+	readonly element: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly label: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
+}
 
-class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
+class PspDocRenderer implements ITreeRenderer<IPspDocNode, void, IPspDocTemplate> {
+	static readonly TEMPLATE_ID = 'terminal.psp-doc';
+	templateId = PspDocRenderer.TEMPLATE_ID;
+
+	constructor(
+		@IProcessStateProtocolService private readonly _processStateProtocolService: IProcessStateProtocolService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IPspDocTemplate {
+		const element = DOM.append(container, $('.terminal-tabs-psp-doc'));
+		const icon = DOM.append(element, $('span.codicon.codicon-info'));
+		const label = DOM.append(element, $('span.label'));
+		return {
+			element,
+			icon,
+			label,
+			elementDisposables: new DisposableStore(),
+			templateDisposables: new DisposableStore()
+		};
+	}
+
+	renderElement(node: ITreeNode<IPspDocNode, void>, index: number, template: IPspDocTemplate): void {
+		const session: IPspSession | undefined = this._processStateProtocolService.getSessionForTerminal(node.element.terminalInstanceId);
+		if (!session) {
+			template.label.textContent = localize('pspDoc.disconnected', "(disconnected)");
+			return;
+		}
+		template.elementDisposables.add(autorun(reader => {
+			const doc = session.doc.read(reader);
+			const status = typeof doc.status === 'string' ? doc.status : 'unknown';
+			template.label.textContent = localize('pspDoc.label', "Process state: {0}", status);
+		}));
+	}
+
+	disposeElement(node: ITreeNode<IPspDocNode, void>, index: number, template: IPspDocTemplate): void {
+		template.elementDisposables.clear();
+	}
+
+	disposeTemplate(template: IPspDocTemplate): void {
+		template.elementDisposables.dispose();
+		template.templateDisposables.dispose();
+	}
+}
+
+
+class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<TerminalTabsElement> {
 	constructor(
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) { }
@@ -590,7 +715,11 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 		return localize('terminal.tabs', "Terminal tabs");
 	}
 
-	getAriaLabel(instance: ITerminalInstance): string {
+	getAriaLabel(element: TerminalTabsElement): string {
+		if (isPspDocNode(element)) {
+			return localize('pspDoc.ariaLabel', "Process state document for terminal {0}", element.terminalInstanceId);
+		}
+		const instance = element;
 		let ariaLabel: string = '';
 		const tab = this._terminalGroupService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
@@ -617,7 +746,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 	}
 }
 
-class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITerminalInstance> {
+class TerminalTabsDragAndDrop extends Disposable implements ITreeDragAndDrop<TerminalTabsElement> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 	private _primaryBackend: ITerminalBackend | undefined;
@@ -632,7 +761,11 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
 
-	getDragURI(instance: ITerminalInstance): string | null {
+	getDragURI(element: TerminalTabsElement): string | null {
+		if (isPspDocNode(element)) {
+			return null;
+		}
+		const instance = element;
 		if (this._terminalEditingService.getEditingTerminal()?.instanceId === instance.instanceId) {
 			return null;
 		}
@@ -640,8 +773,9 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		return instance.resource.toString();
 	}
 
-	getDragLabel?(elements: ITerminalInstance[], originalEvent: DragEvent): string | undefined {
-		return elements.length === 1 ? elements[0].title : undefined;
+	getDragLabel?(elements: TerminalTabsElement[], originalEvent: DragEvent): string | undefined {
+		const instances = elements.filter(isTerminalInstanceElement);
+		return instances.length === 1 ? instances[0].title : undefined;
 	}
 
 	onDragLeave() {
@@ -665,7 +799,11 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: TerminalTabsElement | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		// PSP doc children are not valid drop targets; treat as dropping on the parent terminal.
+		const targetInstance: ITerminalInstance | undefined = isPspDocNode(targetElement)
+			? this._terminalService.instances.find(t => t.instanceId === targetElement.terminalInstanceId)
+			: targetElement;
 		if (data instanceof NativeDragAndDropData) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
 				return false;
@@ -696,7 +834,10 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		};
 	}
 
-	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
+	async drop(data: IDragAndDropData, targetElement: TerminalTabsElement | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
+		const targetInstance: ITerminalInstance | undefined = isPspDocNode(targetElement)
+			? this._terminalService.instances.find(t => t.instanceId === targetElement.terminalInstanceId)
+			: targetElement;
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 

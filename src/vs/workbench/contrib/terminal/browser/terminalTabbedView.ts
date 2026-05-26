@@ -441,8 +441,8 @@ export class TerminalTabbedView extends Disposable {
 				}
 
 				// Put the focused item first as it's used as the first positional argument
-				const selectedInstances = this._tabList.getSelectedElements();
-				const focusedInstance = this._tabList.getFocusedElements()?.[0];
+				const selectedInstances = this._tabList.getSelectedTerminals();
+				const focusedInstance = this._tabList.getFocusedTerminals()[0];
 				if (focusedInstance) {
 					selectedInstances.splice(selectedInstances.findIndex(e => e.instanceId === focusedInstance.instanceId), 1);
 					selectedInstances.unshift(focusedInstance);
@@ -531,19 +531,17 @@ export class TerminalTabbedView extends Disposable {
 			return;
 		}
 		if (!sourceInstances || !sourceInstances.length) {
-			sourceInstances = this._tabList.getSelectedElements();
+			sourceInstances = this._tabList.getSelectedTerminals();
 			if (!sourceInstances.length) {
 				return;
 			}
 		}
 		this._terminalGroupService.moveGroupToEnd(sourceInstances);
 		this._terminalService.setActiveInstance(sourceInstances[0]);
-		const indexes = sourceInstances
-			.map(instance => this._terminalGroupService.instances.indexOf(instance))
-			.filter(index => index >= 0);
-		if (indexes.length) {
-			this._tabList.setSelection(indexes);
-			this._tabList.setFocus([indexes[0]]);
+		const moved = sourceInstances.filter(instance => this._terminalGroupService.instances.includes(instance));
+		if (moved.length) {
+			this._tabList.setSelection(moved);
+			this._tabList.setFocus([moved[0]]);
 		}
 	}
 

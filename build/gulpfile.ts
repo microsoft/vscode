@@ -11,9 +11,15 @@ import { createRequire } from 'node:module';
 import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.ts';
 import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.ts';
 import * as compilation from './lib/compilation.ts';
+import { attachPspGulpReporter } from './lib/pspGulpReporter.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
 import { runEsbuildTranspile } from './lib/esbuild.ts';
+
+// Centralized Process State Protocol reporter. Attaches to gulp's lifecycle events and
+// publishes one aggregated doc covering every running task. No-op outside a PSP-enabled
+// terminal (env vars missing).
+attachPspGulpReporter(gulp, 'gulp');
 
 // Extension point names
 gulp.task(compilation.compileExtensionPointNamesTask);

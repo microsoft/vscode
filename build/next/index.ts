@@ -18,6 +18,7 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
+import { connectPspPublisher, type IPspPublisher } from '@vscode/psp';
 
 const globAsync = promisify(glob);
 
@@ -1094,20 +1095,77 @@ async function watch(): Promise<void> {
 
 	const outDir = OUT_DIR;
 
+	const psp: IPspPublisher = await connectPspPublisher({ client: { name: 'watch-client-transpile' } });
+
+	interface IBuildError {
+		readonly file?: string;
+		readonly line?: number;
+		readonly column?: number;
+		readonly message: string;
+	}
+	interface ILastBuild {
+		readonly filesTranspiled: number;
+		readonly filesCopied: number;
+		readonly durationMs: number;
+		readonly errors: readonly IBuildError[];
+		readonly finishedAt: string;
+	}
+
+	let lastBuild: ILastBuild | undefined;
+
+	const publish = (status: 'transpiling' | 'idle' | 'error') => {
+		psp.setDoc({ status, lastBuild });
+	};
+
+	// esbuild's `transform` rejects with an Error whose `errors` getter yields esbuild Message
+	// objects ({ text, location: { file, line, column } | null }). Other errors (fs etc.) get a
+	// plain `message` entry. Stay loose on the types — we only consume a few fields.
+	const collectErrors = (err: unknown): IBuildError[] => {
+		const out: IBuildError[] = [];
+		const e = err as { errors?: Array<{ text?: string; location?: { file?: string; line?: number; column?: number } | null }>; message?: string };
+		if (Array.isArray(e?.errors) && e.errors.length > 0) {
+			for (const m of e.errors) {
+				out.push({
+					file: m.location?.file,
+					line: m.location?.line,
+					column: m.location?.column,
+					message: m.text ?? String(m),
+				});
+			}
+		} else {
+			out.push({ message: e?.message ?? String(err) });
+		}
+		return out;
+	};
+
+	publish('transpiling');
+
 	// Initial setup
 	await cleanDir(outDir);
 	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
 
 	// Initial full build
-	const t1 = Date.now();
-	try {
-		await transpile(outDir, false);
-		await copyAllNonTsFiles(outDir, false);
-		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
-	} catch (err) {
-		console.error('[watch] Initial build failed:', err);
-		console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
-		// Continue watching anyway
+	{
+		const t1 = Date.now();
+		let errors: IBuildError[] = [];
+		try {
+			await transpile(outDir, false);
+			await copyAllNonTsFiles(outDir, false);
+			console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
+		} catch (err) {
+			console.error('[watch] Initial build failed:', err);
+			errors = collectErrors(err);
+			console.log(`Finished transpilation with ${errors.length} errors after ${Date.now() - t1} ms`);
+			// Continue watching anyway
+		}
+		lastBuild = {
+			filesTranspiled: 0,
+			filesCopied: 0,
+			durationMs: Date.now() - t1,
+			errors,
+			finishedAt: new Date().toISOString(),
+		};
+		publish(errors.length > 0 ? 'error' : 'idle');
 	}
 
 	let pendingTsFiles: Set<string> = new Set();
@@ -1121,6 +1179,8 @@ async function watch(): Promise<void> {
 		pendingTsFiles = new Set();
 		pendingCopyFiles = new Set();
 
+		publish('transpiling');
+		let errors: IBuildError[] = [];
 		try {
 			// Transform changed TypeScript files in parallel
 			if (tsFiles.length > 0) {
@@ -1148,9 +1208,18 @@ async function watch(): Promise<void> {
 			}
 		} catch (err) {
 			console.error('[watch] Rebuild failed:', err);
-			console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
+			errors = collectErrors(err);
+			console.log(`Finished transpilation with ${errors.length} errors after ${Date.now() - t1} ms`);
 			// Continue watching
 		}
+		lastBuild = {
+			filesTranspiled: tsFiles.length,
+			filesCopied: filesToCopy.length,
+			durationMs: Date.now() - t1,
+			errors,
+			finishedAt: new Date().toISOString(),
+		};
+		publish(errors.length > 0 ? 'error' : 'idle');
 	};
 
 	// Watch src directory using existing gulp-watch based watcher
@@ -1177,6 +1246,7 @@ async function watch(): Promise<void> {
 	// Keep process alive
 	process.on('SIGINT', () => {
 		console.log('\n[watch] Stopping...');
+		psp.close();
 		watchStream.end();
 		process.exit(0);
 	});
