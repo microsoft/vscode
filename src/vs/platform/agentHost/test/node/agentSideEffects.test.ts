@@ -52,7 +52,10 @@ class FakeChangesetService implements IAgentHostChangesetService {
 
 	registerStaticChangesets(): void { /* no-op for routing tests */ }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly unknown[]): void { /* no-op */ }
+	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	applyPersistedStaticChangesets(): void { /* no-op */ }
 	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshUncommittedChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
 	setTurnSubscriberProbe(): void { /* no-op */ }

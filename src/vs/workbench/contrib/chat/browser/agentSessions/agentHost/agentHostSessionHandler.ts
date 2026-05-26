@@ -2833,6 +2833,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			text: item.text,
 			resourceUri: item.resourceUri.toString(),
 			range: this._toTextRange(item.range),
+			...(item.replies?.length ? { replies: [...item.replies] } : {}),
 		}));
 		return this._toSimpleAttachment(
 			v.name,

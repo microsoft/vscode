@@ -729,6 +729,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
+		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
+			const tc = createToolCallState({
+				toolInput: 'grep -n foo',
+				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+				],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				toolInput: 'grep -n foo',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran grep -n foo',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+					{ type: ToolResultContentType.Text, text: 'line1\nline2\r\nline3\n' },
+				],
+			});
+
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput.text, 'line1\r\nline2\r\nline3\r\n');
+		});
+
 		test('finalizes generic tool with input/output details', () => {
 			const tc = createToolCallState({
 				status: ToolCallStatus.Running,
