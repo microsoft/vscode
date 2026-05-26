@@ -202,13 +202,19 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	} else {
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-		const allEndpoints = await endpointProvider.getAllChatEndpoints().catch(() => [] as IChatEndpoint[]);
+
+		// Only look up endpoints when a subagent that depends on model availability
+		// could actually be enabled, since the lookup is otherwise unnecessary.
+		const allEndpoints = isGptOrAnthropic && (searchSubagentEnabled || executionSubagentEnabled)
+			? await endpointProvider.getAllChatEndpoints().catch(() => [] as IChatEndpoint[])
+			: [];
+
 		const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
 		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
 		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 
-		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 		// The execution subagent is powered by gemini-3-flash, so it can only be
 		// offered when that model is actually available to the user. If it isn't
 		// in the user's endpoints, keep the tool disabled regardless of the setting.
