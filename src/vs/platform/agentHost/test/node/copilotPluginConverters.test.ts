@@ -251,7 +251,7 @@ suite('copilotPluginConverters', () => {
 			];
 			const result = toSdkInstructionDirectories(instructions);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0], '/plugins/rules');
+			assert.strictEqual(result[0].replaceAll('\\', '/'), '/plugins/rules');
 		});
 
 		test('deduplicates directories', () => {
