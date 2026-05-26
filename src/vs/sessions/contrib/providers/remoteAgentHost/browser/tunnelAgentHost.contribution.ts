@@ -230,16 +230,23 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _updateConnectionStatuses(): void {
 		for (const [address, provider] of this._providerInstances) {
-			// Preserve incompatible state until the user retries — otherwise
-			// the catch in `_connectTunnel` would set it and the `finally`
-			// block immediately overwrite it back to `disconnected`.
+			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
+			if (connectionInfo) {
+				// Service has an entry — its status is authoritative
+				// (including incompatible from the WebSocket connect
+				// failure path, and connecting/connected from a fresh
+				// reconnect after an upgrade).
+				provider.setConnectionStatus(connectionInfo.status);
+				continue;
+			}
+			// Preserve incompatible state set by `_connectTunnel`'s catch
+			// (where the failure happens before the service ever has an
+			// entry) until the user retries — otherwise the `finally`
+			// block would immediately overwrite it back to `disconnected`.
 			if (RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
 				continue;
 			}
-			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
-			if (connectionInfo) {
-				provider.setConnectionStatus(connectionInfo.status);
-			} else if (this._pendingConnects.has(address)) {
+			if (this._pendingConnects.has(address)) {
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 			} else if (!this._initialStatusChecked) {
 				// Keep the initial "Connecting" state so the picker doesn't
