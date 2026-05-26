@@ -10,6 +10,8 @@ import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
 	let didLogWslDiagnostics = false;
+	let wslVersion: number | undefined;
+	const patchedWslNodePaths = new Set<string>();
 
 	context.test('wsl-server-arm64', ['windows', 'arm64', 'wsl'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-arm64');
@@ -63,10 +65,12 @@ export function setup(context: TestContext) {
 		}
 
 		logWslDiagnostics();
+		const wslEntryPoint = context.toWslPath(entryPoint);
+		applyWsl1Node24Workaround(wslEntryPoint);
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
 				'--host', '0.0.0.0',
@@ -103,10 +107,12 @@ export function setup(context: TestContext) {
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
 
 		logWslDiagnostics();
+		const wslEntryPoint = context.toWslPath(entryPoint);
+		applyWsl1Node24Workaround(wslEntryPoint);
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', token,
 				'--host', '0.0.0.0',
@@ -177,6 +183,65 @@ export function setup(context: TestContext) {
 			} else if (result.status !== 0) {
 				context.warn(`${commandLine} exited with code ${result.status}`);
 			}
+		}
+	}
+
+	function getUbuntuWslVersion(): number | undefined {
+		if (wslVersion !== undefined) {
+			return wslVersion;
+		}
+
+		const result = context.runNoErrors('wsl', '--list', '--verbose');
+		for (const rawLine of result.stdout.split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line || /^NAME\s+STATE\s+VERSION$/i.test(line)) {
+				continue;
+			}
+
+			const normalizedLine = line.replace(/^\*\s*/, '');
+			const columns = normalizedLine.split(/\s+/);
+			if (columns.length < 3 || columns[0] !== 'Ubuntu') {
+				continue;
+			}
+
+			const version = Number(columns[columns.length - 1]);
+			if (!Number.isNaN(version)) {
+				wslVersion = version;
+				return wslVersion;
+			}
+		}
+
+		return undefined;
+	}
+
+	function applyWsl1Node24Workaround(wslEntryPoint: string): void {
+		if (getUbuntuWslVersion() !== 1) {
+			return;
+		}
+
+		const wslNodePath = wslEntryPoint.replace(/\/bin\/[^/]+$/, '/node');
+		if (patchedWslNodePaths.has(wslNodePath)) {
+			return;
+		}
+
+		patchedWslNodePaths.add(wslNodePath);
+		context.warn(`Applying WSL1 Node 24 workaround for ${wslNodePath}`);
+
+		const shellScript = [
+			'set -e',
+			`node_path='${wslNodePath}'`,
+			'backup_path="${node_path}.orig"',
+			'if [ -f "${backup_path}" ]; then exit 0; fi',
+			'if ! command -v objcopy >/dev/null 2>&1; then apt-get update && apt-get install -y binutils; fi',
+			'cp "${node_path}" "${backup_path}"',
+			'objcopy --remove-section .note.ABI-tag --remove-section .note.gnu.build-id --remove-section .note.gnu.property "${backup_path}" "${node_path}"',
+			'chmod +x "${node_path}"',
+		].join('; ');
+
+		try {
+			context.runNoErrors('wsl', '-d', 'Ubuntu', 'sh', '-lc', shellScript);
+		} catch (error) {
+			context.warn(`WSL1 Node 24 workaround failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
