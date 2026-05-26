@@ -423,10 +423,6 @@
 	opacity: 1;
 }
 
-.ai-customization-group-header.collapsed .group-label {
-	opacity: 0.7;
-}
-
 /* List item styling */
 .ai-customization-list-item {
 	display: flex;
@@ -1325,9 +1321,8 @@
 .ai-customization-management-editor .embedded-editor-container {
 	flex: 1;
 	margin-top: 8px;
-	/* border: 1px solid var(--vscode-widget-border);
-	border-radius: 4px; */
 	min-height: 0;
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .editor-preview-container {
@@ -1472,10 +1467,6 @@
 .ai-customization-management-editor .editor-preview-issues-list {
 	margin: 0;
 	padding-left: 18px;
-}
-
-.ai-customization-management-editor .embedded-editor-container {
-	overflow: hidden;
 }
 
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {

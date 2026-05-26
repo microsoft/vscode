@@ -476,9 +476,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.pluginListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
-					if (this.viewMode === 'editor' && this.embeddedEditor) {
-						const editorHeaderHeight = 50;
-						this.embeddedEditor.layout({ width: Math.max(0, width), height: Math.max(0, height - editorHeaderHeight) });
+					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
+						// Use the actual rendered size of the embedded editor container so
+						// the Monaco editor (and its scrollbars) stay within the rounded
+						// panel chrome regardless of header/margin changes.
+						const { clientWidth, clientHeight } = this.embeddedEditorContainer;
+						this.embeddedEditor.layout({ width: clientWidth, height: clientHeight });
 					}
 					// Embedded MCP/plugin detail panes use a plain DOM widget that flows with
 					// the container; no explicit layout call is needed here.
@@ -1322,6 +1325,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override updateStyles(): void {
+		// The modal provides its own panel chrome, so the split view separator
+		// is intentionally hidden here regardless of theme.
 		this.splitView?.style({ separatorBorder: Color.transparent });
 	}
 
