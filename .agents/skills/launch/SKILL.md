@@ -18,8 +18,8 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 ## Prerequisites
 
-- macOS or Linux. The launcher is a bash script and depends on `rsync`, `lsof`, `jq`, `nohup`, and Node on `PATH`.
-- A VS Code checkout with sources built. Run `npm run watch` in another terminal (or rely on `./scripts/code.sh` to compile the first time).
+- macOS or Linux. The launcher is a bash script and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
+- A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** the Copilot extension. The launcher also runs `node build/lib/preLaunch.ts` before starting Code OSS, which auto-runs `npm run compile` if `out/` is missing and downloads Electron + built-in extensions.
 - An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev`, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
@@ -61,13 +61,13 @@ Excluded (transient, regenerable, or known-not-needed):
 
 > If the launched window says "language model unavailable" or otherwise looks unauthed, ask the user to sign in.
 
-The script prints one JSON line on stdout (logs go to stderr):
+The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
 
 ```json
 {"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false}
 ```
 
-Capture it with `jq`:
+Capture it with `jq` — no retry loop needed, CDP is already up when the JSON is printed:
 
 ```bash
 INFO=$("$LAUNCH" | tail -n1)
@@ -93,11 +93,8 @@ PID=$(jq -r .pid            <<<"$INFO")
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 
 ```bash
-# Wait for Code OSS to start, retry until attached
-for i in 1 2 3 4 5; do
-	npx @playwright/cli attach --cdp=http://127.0.0.1:$CDP 2>/dev/null && break || sleep 3
-done
-
+# launch.sh blocks until CDP is ready, so a single attach is enough.
+npx @playwright/cli attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli tab-list
 npx @playwright/cli snapshot
 ```
@@ -234,9 +231,7 @@ kill "$PID" 2>/dev/null || true
 INFO=$("$LAUNCH" | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
 PID=$(jq -r .pid <<<"$INFO")
-for i in 1 2 3 4 5; do
-  npx @playwright/cli attach --cdp=http://127.0.0.1:$CDP 2>/dev/null && break || sleep 3
-done
+npx @playwright/cli attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli tab-list
 npx @playwright/cli snapshot
 ```
@@ -266,8 +261,8 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
-- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run watch-extensions` (or `npm run compile-extensions`).
-- **CDP connect refused** - give it a few seconds; the launcher returns before the renderer is ready. Use the retry loop above.
+- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds the Copilot extension) or `npm run watch` (incremental).
+- **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - focus chat with the platform shortcut, use `press` or clipboard paste rather than `fill` / `type`, then verify the input state before sending.
 - **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). Some auth lives in the OS keychain - that's per-user, so it follows automatically as long as you're running as the same user.

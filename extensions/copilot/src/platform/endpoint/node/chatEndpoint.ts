@@ -126,6 +126,7 @@ function normalizePriceTier(tier: IModelTokenPriceTier, scale: number): ITokenPr
 		inputPrice: tier.input_price * scale,
 		outputPrice: tier.output_price * scale,
 		cacheReadTokenPrice: tier.cache_price * scale,
+		contextMax: tier.context_max,
 	};
 }
 

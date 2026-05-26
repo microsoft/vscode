@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as os from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -294,6 +295,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			port: 22,
 			user: 'testuser',
 			identityFile: [],
+			identityAgent: undefined,
 			forwardAgent: false,
 		};
 	}
@@ -1266,6 +1268,25 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 	const ED = Buffer.from('ed25519-key-bytes');
 	const EXPLICIT = Buffer.from('explicit-key-bytes');
 
+	function sshString(value: string): Buffer {
+		const valueBuffer = Buffer.from(value, 'utf8');
+		const lengthBuffer = Buffer.alloc(4);
+		lengthBuffer.writeUInt32BE(valueBuffer.length, 0);
+		return Buffer.concat([lengthBuffer, valueBuffer]);
+	}
+
+	function openSSHPrivateKeyWithCipher(cipher: string): Buffer {
+		const data = Buffer.concat([
+			Buffer.from('openssh-key-v1\0', 'utf8'),
+			sshString(cipher),
+		]);
+		return Buffer.from([
+			'-----BEGIN OPENSSH PRIVATE KEY-----',
+			data.toString('base64'),
+			'-----END OPENSSH PRIVATE KEY-----',
+		].join('\n'));
+	}
+
 	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa, then keyboard-interactive', async () => {
 		service.agentSock = undefined;
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -1319,7 +1340,50 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
-	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → explicit, agent, id_rsa, keyboard-interactive', async () => {
+	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: '//./pipe/pageant.user.1234',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '//./pipe/pageant.user.1234' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent SSH_AUTH_SOCK uses the default agent endpoint', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: 'SSH_AUTH_SOCK',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent none disables the default SSH_AUTH_SOCK fallback', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: 'none',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → agent first, then explicit, id_rsa, keyboard-interactive', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('/some/explicit/key', EXPLICIT);
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -1330,8 +1394,8 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		}));
 
 		assert.deepStrictEqual(attempts, [
-			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
 			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
@@ -1354,6 +1418,27 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
+	test('Agent + explicit privateKeyPath as absolute default path → agent first, key added once', async () => {
+		// Regression: `ssh -G` always returns absolute identity-file paths, so
+		// /Users/<me>/.ssh/id_ed25519 must be recognized as a default and not
+		// promoted to an explicit (encrypted) attempt that would fire a
+		// passphrase prompt before the agent ever gets a chance.
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_ed25519', ED);
+		const absoluteDefault = `${os.homedir()}/.ssh/id_ed25519`;
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: absoluteDefault,
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
 	test('KeyFile + explicit path → publickey only', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('/some/explicit/key', EXPLICIT);
@@ -1366,6 +1451,20 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
+		]);
+	});
+
+	test('KeyFile + encrypted OpenSSH key marks attempt as encrypted', async () => {
+		const encryptedKey = openSSHPrivateKeyWithCipher('aes256-ctr');
+		service.keyFiles.set('/some/encrypted/key', encryptedKey);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/some/encrypted/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: encryptedKey, keyPath: '/some/encrypted/key', encrypted: true },
 		]);
 	});
 
@@ -1475,5 +1574,23 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		(callsWithKbi[0] as { prompt: Function }).prompt('n', 'i', 'lang', [{ prompt: 'Password:', echo: false }], (responses: ReadonlyArray<string>) => finishCalls.push(responses));
 		assert.deepStrictEqual(promptArgs, { name: 'n', instructions: 'i', prompts: [{ prompt: 'Password:', echo: false }] });
 		assert.deepStrictEqual(finishCalls, [['secret']]);
+	});
+
+	test('encrypted publickey requests passphrase and passes it to ssh2', () => {
+		const encryptedAttempts: SSHAuthAttempt[] = [
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa', encrypted: true },
+		];
+
+		const calls: Array<object | false> = [];
+		const handler = makeAuthHandler(encryptedAttempts, new NullLogService(), undefined, (keyPath, finish) => {
+			assert.strictEqual(keyPath, '~/.ssh/id_rsa');
+			finish('passphrase');
+		});
+
+		handler(null, false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [
+			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
+		]);
 	});
 });

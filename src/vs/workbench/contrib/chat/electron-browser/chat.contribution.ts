@@ -336,13 +336,6 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 	}));
 }
 
-// Register command for opening a new Agent Host session from the session type picker
-CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostCopilot}`,
-	(accessor, chatSessionPosition: string) =>
-		openNewAgentHostSession(accessor, chatSessionPosition === 'editor' ? ChatSessionPosition.Editor : ChatSessionPosition.Sidebar)
-);
-
 // Static sidebar/editor open commands for the Agent Host umbrella scheme.
 // The dynamic per-agent commands (e.g. `agent-host-copilot`) are only
 // registered after the agent host starts and surfaces an AgentInfo, which

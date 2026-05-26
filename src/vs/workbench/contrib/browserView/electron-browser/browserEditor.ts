@@ -140,8 +140,6 @@ export interface IContainerLayout {
 	readonly width: number;
 	readonly height: number;
 	readonly emulation?: {
-		readonly viewportWidth: number;
-		readonly viewportHeight: number;
 		readonly scale: number;
 	};
 }

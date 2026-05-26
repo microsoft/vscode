@@ -364,13 +364,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined> {
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		const providerId = await delegate.create(authorizationServer, serverMetadata, resource, clientId);
+		const providerId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret);
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
