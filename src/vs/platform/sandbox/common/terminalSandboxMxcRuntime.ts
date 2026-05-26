@@ -132,7 +132,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	wrapCommand(executablePath: string, configPath: string): string {
-		return `& ${this._quotePowerShellArgument(executablePath)} --debug ${this._quotePowerShellArgument(configPath)}`;
+		return `& ${this._quotePowerShellArgument(executablePath)} ${this._quotePowerShellArgument(configPath)}`;
 	}
 
 	wrapUnsandboxedCommand(command: string): string {
