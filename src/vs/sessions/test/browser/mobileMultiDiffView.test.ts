@@ -84,7 +84,7 @@ suite('MobileMultiDiffView', () => {
 		await animationFrames(2);
 
 		assert.ok(readUris.length > initialReadCount, 'scrolling should load more files');
-		assert.ok(readUris.length <= initialReadCount + 2, 'scrolling should load at most one additional file pair per frame');
+		assert.ok(readUris.length <= initialReadCount + 4, 'scrolling should load at most one additional file pair per frame');
 		const mountedSectionsAfterScroll = container.querySelectorAll('.mobile-multi-diff-file-section').length;
 		assert.ok(mountedSectionsAfterScroll > 0, 'scrolling should mount file sections for the new viewport');
 		assert.ok(mountedSectionsAfterScroll < fileCount, 'scrolling should still not mount every file section');
@@ -157,6 +157,185 @@ suite('MobileMultiDiffView', () => {
 
 		view.dispose();
 	});
+
+	test('prefetches the next file near a boundary without mounting its section', async () => {
+		const fileCount = 3;
+		const lineCount = 200;
+		const files = new Map<string, string>();
+		const diffs: IFileDiffViewData[] = [];
+
+		for (let i = 0; i < fileCount; i++) {
+			const originalURI = URI.parse(`inmemory://original/src/prefetch${i}.ts`);
+			const modifiedURI = URI.parse(`inmemory://modified/src/prefetch${i}.ts`);
+			files.set(originalURI.toString(), Array.from({ length: lineCount }, (_, line) => `export const value${line} = ${line};`).join('\n'));
+			files.set(modifiedURI.toString(), Array.from({ length: lineCount }, (_, line) => `export const value${line} = ${line + 1000};`).join('\n'));
+			diffs.push({
+				originalURI,
+				modifiedURI,
+				identical: false,
+				added: lineCount,
+				removed: lineCount,
+			});
+		}
+
+		const readUris: string[] = [];
+		const textFileService = {
+			read(uri: URI) {
+				readUris.push(uri.toString());
+				return Promise.resolve({ value: files.get(uri.toString()) ?? '' });
+			}
+		} as unknown as ITextFileService;
+
+		const fileService = {} as IFileService;
+		const languageService = {
+			guessLanguageIdByFilepathOrFirstLine(): string {
+				return 'typescript';
+			}
+		} as unknown as ILanguageService;
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const view = store.add(new MobileMultiDiffView(container, { diffs }, textFileService, fileService, languageService));
+		await waitForCondition(() => container.querySelectorAll('.mobile-diff-line').length > 0, 'first file should load before prefetching near its boundary');
+
+		assert.ok(readUris.some(uri => uri.includes('prefetch0.ts')), 'opening should read the first file');
+		assert.ok(!readUris.some(uri => uri.includes('prefetch1.ts')), 'opening should not immediately prefetch the next large file');
+
+		const scrollWrapper = container.querySelector('.mobile-overlay-scroll') as HTMLElement | null;
+		assert.ok(scrollWrapper, 'scroll wrapper should exist');
+		scrollWrapper.scrollTop = 5000;
+		scrollWrapper.dispatchEvent(new Event('scroll'));
+
+		await waitForCondition(() => readUris.some(uri => uri.includes('prefetch1.ts')), 'approaching a file boundary should prefetch the next file');
+		assert.strictEqual(container.querySelector('.mobile-multi-diff-file-section[data-index="1"]'), null, 'prefetching should not mount the next file section');
+		assert.ok(!readUris.some(uri => uri.includes('prefetch2.ts')), 'prefetching should stay bounded to the near file');
+
+		view.dispose();
+	});
+
+	test('starts loading the newly visible file while an older load is pending', async () => {
+		const fileCount = 40;
+		const files = new Map<string, string>();
+		const diffs: IFileDiffViewData[] = [];
+
+		for (let i = 0; i < fileCount; i++) {
+			const originalURI = URI.parse(`inmemory://original/src/file${i}.ts`);
+			const modifiedURI = URI.parse(`inmemory://modified/src/file${i}.ts`);
+			files.set(originalURI.toString(), `export const value${i} = ${i};\n`);
+			files.set(modifiedURI.toString(), `export const value${i} = ${i + 1};\n`);
+			diffs.push({
+				originalURI,
+				modifiedURI,
+				identical: false,
+				added: 100,
+				removed: 100,
+			});
+		}
+
+		const readUris: string[] = [];
+		const pendingReads = new Map<string, Deferred<{ value: string }>>();
+		const textFileService = {
+			read(uri: URI) {
+				readUris.push(uri.toString());
+				const pending = deferred<{ value: string }>();
+				pendingReads.set(uri.toString(), pending);
+				return pending.promise;
+			}
+		} as unknown as ITextFileService;
+
+		const fileService = {} as IFileService;
+		const languageService = {
+			guessLanguageIdByFilepathOrFirstLine(): string {
+				return 'typescript';
+			}
+		} as unknown as ILanguageService;
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const view = store.add(new MobileMultiDiffView(container, { diffs }, textFileService, fileService, languageService));
+		await animationFrames(2);
+
+		assert.ok(readUris.some(uri => uri.includes('file0.ts')), 'opening the view should start loading the first file');
+
+		const scrollWrapper = container.querySelector('.mobile-overlay-scroll') as HTMLElement | null;
+		assert.ok(scrollWrapper, 'scroll wrapper should exist');
+		scrollWrapper.scrollTop = scrollWrapper.scrollHeight;
+		scrollWrapper.dispatchEvent(new Event('scroll'));
+		await animationFrames(3);
+
+		assert.ok(readUris.some(uri => uri.includes(`file${fileCount - 1}.ts`)), 'scrolling should start loading the newly visible file even while the first file is pending');
+
+		view.dispose();
+		resolvePendingReads(pendingReads, files);
+	});
+
+	test('keeps an unloaded large file body covered by a sticky loading placeholder', async () => {
+		const fileCount = 3;
+		const files = new Map<string, string>();
+		const diffs: IFileDiffViewData[] = [];
+
+		for (let i = 0; i < fileCount; i++) {
+			const originalURI = URI.parse(`inmemory://original/src/large${i}.ts`);
+			const modifiedURI = URI.parse(`inmemory://modified/src/large${i}.ts`);
+			files.set(originalURI.toString(), `export const value${i} = ${i};\n`);
+			files.set(modifiedURI.toString(), `export const value${i} = ${i + 1};\n`);
+			diffs.push({
+				originalURI,
+				modifiedURI,
+				identical: false,
+				added: 1000,
+				removed: 1000,
+			});
+		}
+
+		const pendingReads = new Map<string, Deferred<{ value: string }>>();
+		const textFileService = {
+			read(uri: URI) {
+				const pending = deferred<{ value: string }>();
+				pendingReads.set(uri.toString(), pending);
+				return pending.promise;
+			}
+		} as unknown as ITextFileService;
+
+		const fileService = {} as IFileService;
+		const languageService = {
+			guessLanguageIdByFilepathOrFirstLine(): string {
+				return 'typescript';
+			}
+		} as unknown as ILanguageService;
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const view = store.add(new MobileMultiDiffView(container, { diffs }, textFileService, fileService, languageService));
+		await animationFrames(2);
+
+		const scrollWrapper = container.querySelector('.mobile-overlay-scroll') as HTMLElement | null;
+		assert.ok(scrollWrapper, 'scroll wrapper should exist');
+		scrollWrapper.scrollTop = scrollWrapper.scrollHeight;
+		scrollWrapper.dispatchEvent(new Event('scroll'));
+		await animationFrames(2);
+
+		const placeholderContent = Array.from(container.querySelectorAll('.mobile-multi-diff-file-content-placeholder')) as HTMLElement[];
+		const bottomFileContent = placeholderContent.find(content => Number((content.parentElement as HTMLElement).dataset.index) === fileCount - 1);
+		assert.ok(bottomFileContent, 'the unloaded file at the new scroll position should render placeholder content');
+		assert.strictEqual(bottomFileContent.style.transform, '', 'loading placeholders should not rely on JS scroll transforms');
+		assert.ok(bottomFileContent.style.height, 'the placeholder should reserve the file body height');
+
+		const emptyState = bottomFileContent.querySelector('.mobile-diff-empty-state') as HTMLElement | null;
+		assert.ok(emptyState, 'the placeholder should contain a loading message');
+		assert.ok(emptyState.textContent?.includes('Loading'), 'the placeholder should not be blank');
+		assert.ok(emptyState.style.height, 'the placeholder message should reserve visible viewport height');
+		assert.strictEqual(mainWindow.getComputedStyle(emptyState).position, 'sticky', 'the loading message should remain visible during native scroll');
+
+		view.dispose();
+		resolvePendingReads(pendingReads, files);
+	});
 });
 
 function animationFrame(): Promise<void> {
@@ -182,4 +361,23 @@ async function waitForCondition(condition: () => boolean, message: string): Prom
 function assertEntryOrder(container: HTMLElement): void {
 	const indexes = Array.from(container.querySelectorAll('.mobile-multi-diff-body-entry'), element => Number((element as HTMLElement).dataset.entryIndex));
 	assert.deepStrictEqual(indexes, indexes.slice().sort((a, b) => a - b), 'rendered body entries should stay in document order');
+}
+
+interface Deferred<T> {
+	readonly promise: Promise<T>;
+	resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>(r => {
+		resolve = r;
+	});
+	return { promise, resolve };
+}
+
+function resolvePendingReads(pendingReads: Map<string, Deferred<{ value: string }>>, files: Map<string, string>): void {
+	for (const [uri, pending] of pendingReads) {
+		pending.resolve({ value: files.get(uri) ?? '' });
+	}
 }

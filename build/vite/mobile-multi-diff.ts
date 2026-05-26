@@ -12,6 +12,7 @@ import '../../src/vs/sessions/browser/parts/mobile/contributions/media/mobileMul
 import { URI } from '../../src/vs/base/common/uri.js';
 import { MobileMultiDiffView, IMobileMultiDiffViewData } from '../../src/vs/sessions/browser/parts/mobile/contributions/mobileMultiDiffView.js';
 import { IFileDiffViewData } from '../../src/vs/sessions/browser/parts/mobile/contributions/mobileDiffView.js';
+import { computeUnifiedDiff, type IDiffHunk } from '../../src/vs/sessions/browser/parts/mobile/contributions/mobileDiffHelpers.js';
 import { ITextFileService } from '../../src/vs/workbench/services/textfile/common/textfiles.js';
 import { ILanguageService } from '../../src/vs/editor/common/languages/language.js';
 import { IFileService } from '../../src/vs/platform/files/common/files.js';
@@ -214,6 +215,197 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number):
 }`,
 };
 
+// --- Worker-backed diff computer ---
+
+interface IWorkerDiffResponse {
+	readonly id?: number;
+	readonly type?: 'ready';
+	readonly hunks?: readonly IDiffHunk[];
+	readonly error?: string;
+}
+
+interface IWorkerDiffPending {
+	readonly resolve: (hunks: readonly IDiffHunk[]) => void;
+	readonly reject: (error: Error) => void;
+	readonly timeout: number;
+	readonly prewarm: boolean;
+}
+
+const workerDiffStats = {
+	requestCount: 0,
+	completedCount: 0,
+	prewarmRequestCount: 0,
+	prewarmCompletedCount: 0,
+	errorCount: 0,
+	fallbackCount: 0,
+	timeoutCount: 0,
+};
+
+const workerPrewarmOriginal = 'export const mobileDiffWorkerWarmup = 1;\n';
+const workerPrewarmModified = 'export const mobileDiffWorkerWarmup = 2;\n';
+
+function updateWorkerDiffStatsDataset(): void {
+	const dataset = document.documentElement.dataset;
+	dataset.mobileMultiDiffWorkerRequestCount = String(workerDiffStats.requestCount);
+	dataset.mobileMultiDiffWorkerCompletedCount = String(workerDiffStats.completedCount);
+	dataset.mobileMultiDiffWorkerPrewarmRequestCount = String(workerDiffStats.prewarmRequestCount);
+	dataset.mobileMultiDiffWorkerPrewarmCompletedCount = String(workerDiffStats.prewarmCompletedCount);
+	dataset.mobileMultiDiffWorkerErrorCount = String(workerDiffStats.errorCount);
+	dataset.mobileMultiDiffWorkerFallbackCount = String(workerDiffStats.fallbackCount);
+	dataset.mobileMultiDiffWorkerTimeoutCount = String(workerDiffStats.timeoutCount);
+}
+
+function createWorkerDiffComputer(): ((originalText: string, modifiedText: string) => Promise<readonly IDiffHunk[]>) | undefined {
+	updateWorkerDiffStatsDataset();
+	if (typeof Worker === 'undefined') {
+		return undefined;
+	}
+
+	let worker: Worker;
+	try {
+		worker = new Worker(new URL('./mobile-multi-diff-worker.ts', import.meta.url), { type: 'module' });
+	} catch {
+		return (originalText: string, modifiedText: string) => fallbackComputeDiff(originalText, modifiedText);
+	}
+
+	const pending = new Map<number, IWorkerDiffPending>();
+	let nextId = 1;
+	let workerFailed: Error | undefined;
+	let resolveReady!: () => void;
+	let rejectReady!: (error: Error) => void;
+	const readyTimeout = window.setTimeout(() => {
+		failWorker(new Error('Mobile multi-diff worker did not become ready.'));
+	}, 2000);
+	const workerReady = new Promise<void>((resolve, reject) => {
+		resolveReady = resolve;
+		rejectReady = reject;
+	});
+	workerReady.catch(() => undefined);
+
+	worker.addEventListener('message', (event: MessageEvent<IWorkerDiffResponse>) => {
+		const { id, hunks, error } = event.data;
+		if (event.data.type === 'ready') {
+			window.clearTimeout(readyTimeout);
+			resolveReady();
+			return;
+		}
+
+		if (id === undefined) {
+			return;
+		}
+
+		const request = pending.get(id);
+		if (!request) {
+			return;
+		}
+		pending.delete(id);
+		window.clearTimeout(request.timeout);
+		workerDiffStats.completedCount++;
+		if (request.prewarm) {
+			workerDiffStats.prewarmCompletedCount++;
+		}
+		updateWorkerDiffStatsDataset();
+		if (error) {
+			request.reject(new Error(error));
+		} else {
+			request.resolve(hunks ?? []);
+		}
+	});
+
+	worker.addEventListener('error', event => {
+		failWorker(new Error(event.message || 'Mobile multi-diff worker failed.'));
+	});
+
+	worker.addEventListener('messageerror', () => {
+		failWorker(new Error('Mobile multi-diff worker could not deserialize a message.'));
+	});
+
+	window.addEventListener('beforeunload', () => worker.terminate(), { once: true });
+
+	function failWorker(error: Error): void {
+		if (workerFailed) {
+			return;
+		}
+
+		workerFailed = error;
+		workerDiffStats.errorCount++;
+		updateWorkerDiffStatsDataset();
+		window.clearTimeout(readyTimeout);
+		rejectReady(error);
+		for (const request of pending.values()) {
+			window.clearTimeout(request.timeout);
+			request.reject(error);
+		}
+		pending.clear();
+		worker.terminate();
+	}
+
+	function fallbackComputeDiff(originalText: string, modifiedText: string): Promise<readonly IDiffHunk[]> {
+		workerDiffStats.fallbackCount++;
+		updateWorkerDiffStatsDataset();
+		return Promise.resolve().then(() => computeUnifiedDiff(originalText, modifiedText));
+	}
+
+	function requestWorkerDiff(originalText: string, modifiedText: string, prewarm: boolean): Promise<readonly IDiffHunk[]> {
+		const id = nextId++;
+		workerDiffStats.requestCount++;
+		if (prewarm) {
+			workerDiffStats.prewarmRequestCount++;
+		}
+		updateWorkerDiffStatsDataset();
+
+		return new Promise<readonly IDiffHunk[]>((resolve, reject) => {
+			const timeout = window.setTimeout(() => {
+				if (!pending.delete(id)) {
+					return;
+				}
+
+				workerDiffStats.timeoutCount++;
+				updateWorkerDiffStatsDataset();
+				fallbackComputeDiff(originalText, modifiedText).then(resolve, reject);
+			}, 5000);
+			pending.set(id, { resolve, reject, timeout, prewarm });
+			try {
+				worker.postMessage({ id, originalText, modifiedText });
+			} catch {
+				window.clearTimeout(timeout);
+				pending.delete(id);
+				fallbackComputeDiff(originalText, modifiedText).then(resolve, reject);
+			}
+		}).catch(() => {
+			return fallbackComputeDiff(originalText, modifiedText);
+		}).finally(() => {
+			const request = pending.get(id);
+			if (request) {
+				window.clearTimeout(request.timeout);
+				pending.delete(id);
+			}
+		});
+	}
+
+	void workerReady.then(() => {
+		window.setTimeout(() => {
+			if (!workerFailed) {
+				void requestWorkerDiff(workerPrewarmOriginal, workerPrewarmModified, true);
+			}
+		}, 0);
+	}, () => undefined);
+
+	return async (originalText: string, modifiedText: string) => {
+		if (workerFailed) {
+			return fallbackComputeDiff(originalText, modifiedText);
+		}
+
+		try {
+			await workerReady;
+		} catch {
+			return fallbackComputeDiff(originalText, modifiedText);
+		}
+
+		return requestWorkerDiff(originalText, modifiedText, false);
+	};
+}
+
 // --- Mock services ---
 
 const readLog: string[] = [];
@@ -254,6 +446,7 @@ const mockLanguageService = {
 Object.assign(globalThis, {
 	__mobileMultiDiffDebug: {
 		readLog,
+		workerDiffStats,
 		get readCount() { return readLog.length; },
 	}
 });
@@ -334,10 +527,13 @@ function init() {
 	const fileCount = Math.max(1, Number(params.get('files') ?? 50));
 	const lineCount = Math.max(1, Number(params.get('lines') ?? 500));
 	const scenarioDiffs = useLargeScenario ? createLargeScenario(fileCount, lineCount) : diffs;
+	const computeDiff = params.get('worker') === '0' ? undefined : createWorkerDiffComputer();
+	document.documentElement.dataset.mobileMultiDiffWorkerDiff = computeDiff ? 'true' : 'false';
 
 	const data: IMobileMultiDiffViewData = {
 		diffs: scenarioDiffs,
 		initialIndex: 0,
+		computeDiff,
 	};
 
 	const view = new MobileMultiDiffView(container, data, mockTextFileService, mockFileService, mockLanguageService);

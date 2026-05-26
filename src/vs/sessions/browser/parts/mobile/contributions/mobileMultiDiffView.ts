@@ -32,6 +32,10 @@ const VIRTUALIZER_METRICS: IMobileMultiDiffVirtualizerMetrics = {
 	bodyVerticalPadding: 0,
 	placeholderHeight: 76,
 };
+const MAX_CONCURRENT_FILE_LOADS = 2;
+const MAX_CONCURRENT_PREFETCH_LOADS = 1;
+const MIN_PREFETCH_DISTANCE = 2400;
+const PREFETCH_VIEWPORT_MULTIPLIER = 4;
 
 /**
  * Data passed to {@link MobileMultiDiffView}.
@@ -40,9 +44,12 @@ export interface IMobileMultiDiffViewData {
 	readonly diffs: readonly IFileDiffViewData[];
 	/** Index of the file to scroll to initially. */
 	readonly initialIndex?: number;
+	/** Optional async diff computation override, used by test/demo hosts that can compute diffs off the UI thread. */
+	readonly computeDiff?: (originalText: string, modifiedText: string) => Promise<readonly IDiffHunk[]>;
 }
 
 type MobileMultiDiffFileLoadState = 'idle' | 'loading' | 'loaded' | 'empty' | 'error';
+type MobileMultiDiffFileLoadKind = 'visible' | 'prefetch';
 
 type MobileMultiDiffBodyEntry = IMobileMultiDiffBodyHunkEntry | IMobileMultiDiffBodyLineEntry;
 
@@ -78,6 +85,8 @@ interface IMobileMultiDiffFileState {
 	sectionStore: DisposableStore | undefined;
 	collapsed: boolean;
 	loadState: MobileMultiDiffFileLoadState;
+	loadKind: MobileMultiDiffFileLoadKind | undefined;
+	loadRequestId: number;
 	readonly estimatedHunkCount: number;
 	readonly estimatedRowCount: number;
 	hunkCount: number;
@@ -85,6 +94,7 @@ interface IMobileMultiDiffFileState {
 	renderData: IMobileMultiDiffFileRenderData | undefined;
 	bodyScrollTop: number;
 	bodyViewportHeight: number;
+	fileMessage: HTMLElement | undefined;
 	bodyInner: HTMLElement | undefined;
 	readonly renderedBodyRows: Map<number, HTMLElement>;
 	renderedBodyStartIndex: number | undefined;
@@ -113,6 +123,7 @@ export class MobileMultiDiffView extends Disposable {
 	private virtualContent!: HTMLElement;
 	private layoutAnimationFrame: number | undefined;
 	private loadVisibleAnimationFrame: number | undefined;
+	private prefetchAnimationFrame: number | undefined;
 	private currentLayout: ReturnType<typeof computeMobileMultiDiffVirtualLayout> | undefined;
 	private readonly mountedIndexes = new Set<number>();
 	private readonly fileStates: IMobileMultiDiffFileState[];
@@ -133,6 +144,8 @@ export class MobileMultiDiffView extends Disposable {
 			sectionStore: undefined,
 			collapsed: false,
 			loadState: 'idle',
+			loadKind: undefined,
+			loadRequestId: 0,
 			estimatedHunkCount: diff.identical || diff.added + diff.removed === 0 ? 0 : 1,
 			estimatedRowCount: diff.added + diff.removed,
 			hunkCount: 0,
@@ -140,6 +153,7 @@ export class MobileMultiDiffView extends Disposable {
 			renderData: undefined,
 			bodyScrollTop: 0,
 			bodyViewportHeight: 0,
+			fileMessage: undefined,
 			bodyInner: undefined,
 			renderedBodyRows: new Map(),
 			renderedBodyStartIndex: undefined,
@@ -310,7 +324,6 @@ export class MobileMultiDiffView extends Disposable {
 			return;
 		}
 
-		this.cancelScheduledLoadVisibleFiles();
 		if (this.layoutAnimationFrame !== undefined) {
 			return;
 		}
@@ -327,16 +340,12 @@ export class MobileMultiDiffView extends Disposable {
 			return;
 		}
 
-		const layout = computeMobileMultiDiffVirtualLayout(this.fileStates.map(state => this.toVirtualItem(state)), {
-			viewportHeight: this.scrollWrapper.clientHeight,
-			scrollTop: this.scrollWrapper.scrollTop,
-			overscan: Math.max(this.scrollWrapper.clientHeight, 480),
-			metrics: VIRTUALIZER_METRICS,
-		});
+		const layout = this.computeCurrentVirtualLayout();
 		this.currentLayout = layout;
 		this.virtualContent.style.height = `${layout.totalHeight}px`;
 
 		const visibleIndexes = new Set(layout.items.map(item => item.index));
+		this.abandonOffscreenLoads(visibleIndexes);
 		for (const index of Array.from(this.mountedIndexes)) {
 			if (!visibleIndexes.has(index)) {
 				this.disposeFileSection(this.fileStates[index]);
@@ -372,9 +381,21 @@ export class MobileMultiDiffView extends Disposable {
 		const bodyOffset = Math.max(0, item.innerOffset - VIRTUALIZER_METRICS.fileHeaderHeight);
 		state.bodyScrollTop = bodyOffset;
 		state.bodyViewportHeight = Math.max(0, this.scrollWrapper.clientHeight - VIRTUALIZER_METRICS.fileHeaderHeight);
-		state.content!.style.transform = state.loadState === 'loaded' ? '' : `translateY(${bodyOffset}px)`;
+		const content = state.content!;
+		content.classList.toggle('mobile-multi-diff-file-content-placeholder', state.loadState !== 'loaded');
 		if (state.loadState === 'loaded') {
+			content.style.height = '';
+			content.style.transform = '';
 			this.renderLoadedFileContent(state);
+		} else {
+			const bodyHeight = Math.max(0, item.renderHeight - VIRTUALIZER_METRICS.fileHeaderHeight);
+			const placeholderHeight = Math.min(
+				bodyHeight || VIRTUALIZER_METRICS.placeholderHeight,
+				Math.max(VIRTUALIZER_METRICS.placeholderHeight, state.bodyViewportHeight),
+			);
+			content.style.height = `${bodyHeight}px`;
+			content.style.transform = '';
+			this.updateFileMessageHeight(state, placeholderHeight);
 		}
 	}
 
@@ -408,7 +429,27 @@ export class MobileMultiDiffView extends Disposable {
 		DOM.clearNode(state.content);
 		this.resetBodyRenderState(state);
 		const empty = DOM.append(state.content, $('div.mobile-diff-empty-state'));
+		state.fileMessage = empty;
 		empty.textContent = message;
+		this.updateFileMessageHeight(state);
+	}
+
+	private updateFileMessageHeight(state: IMobileMultiDiffFileState, placeholderHeight?: number): void {
+		if (!state.content) {
+			return;
+		}
+
+		const empty = state.fileMessage;
+		if (!empty || empty.parentElement !== state.content) {
+			return;
+		}
+
+		const bodyHeight = Number.parseFloat(state.content.style.height) || VIRTUALIZER_METRICS.placeholderHeight;
+		const visibleHeight = placeholderHeight ?? Math.min(
+			bodyHeight,
+			Math.max(VIRTUALIZER_METRICS.placeholderHeight, state.bodyViewportHeight),
+		);
+		empty.style.height = `${visibleHeight}px`;
 	}
 
 	private renderLoadedFileContent(state: IMobileMultiDiffFileState): void {
@@ -447,6 +488,15 @@ export class MobileMultiDiffView extends Disposable {
 		};
 	}
 
+	private computeCurrentVirtualLayout(): ReturnType<typeof computeMobileMultiDiffVirtualLayout> {
+		return computeMobileMultiDiffVirtualLayout(this.fileStates.map(state => this.toVirtualItem(state)), {
+			viewportHeight: this.scrollWrapper.clientHeight,
+			scrollTop: this.scrollWrapper.scrollTop,
+			overscan: Math.max(this.scrollWrapper.clientHeight, 480),
+			metrics: VIRTUALIZER_METRICS,
+		});
+	}
+
 	private computeVirtualTop(index: number): number {
 		let top = 0;
 		const end = Math.min(index, this.fileStates.length);
@@ -465,6 +515,7 @@ export class MobileMultiDiffView extends Disposable {
 		this.loadVisibleAnimationFrame = targetWindow.requestAnimationFrame(() => {
 			this.loadVisibleAnimationFrame = undefined;
 			this.loadVisibleFiles();
+			this.schedulePrefetchFile();
 		});
 	}
 
@@ -475,12 +526,32 @@ export class MobileMultiDiffView extends Disposable {
 		}
 	}
 
+	private schedulePrefetchFile(): void {
+		if (this.disposed || this.prefetchAnimationFrame !== undefined) {
+			return;
+		}
+
+		const targetWindow = DOM.getWindow(this.scrollWrapper);
+		this.prefetchAnimationFrame = targetWindow.requestAnimationFrame(() => {
+			this.prefetchAnimationFrame = undefined;
+			this.prefetchNearFile();
+		});
+	}
+
+	private cancelScheduledPrefetchFile(): void {
+		if (this.prefetchAnimationFrame !== undefined) {
+			DOM.getWindow(this.scrollWrapper).cancelAnimationFrame(this.prefetchAnimationFrame);
+			this.prefetchAnimationFrame = undefined;
+		}
+	}
+
 	private loadVisibleFiles(): void {
 		if (this.disposed) {
 			return;
 		}
 
-		if (this.fileStates.some(state => state.loadState === 'loading')) {
+		const loadingCount = this.fileStates.reduce((count, state) => count + (state.loadState === 'loading' ? 1 : 0), 0);
+		if (loadingCount >= MAX_CONCURRENT_FILE_LOADS) {
 			return;
 		}
 
@@ -516,33 +587,121 @@ export class MobileMultiDiffView extends Disposable {
 		}
 
 		if (nextState) {
-			this.ensureFileLoaded(nextState);
+			this.ensureFileLoaded(nextState, 'visible');
 		}
 	}
 
-	private ensureFileLoaded(state: IMobileMultiDiffFileState): void {
+	private prefetchNearFile(): void {
+		if (this.disposed) {
+			return;
+		}
+
+		const layout = this.currentLayout;
+		if (!layout) {
+			return;
+		}
+
+		const mountedIndexes = new Set(layout.items.map(item => item.index));
+		if (layout.items.some(item => {
+			const state = this.fileStates[item.index];
+			return !state.collapsed && state.loadState === 'idle';
+		})) {
+			return;
+		}
+
+		const loadingCount = this.fileStates.reduce((count, state) => count + (state.loadState === 'loading' ? 1 : 0), 0);
+		const prefetchLoadingCount = this.fileStates.reduce((count, state) => count + (state.loadState === 'loading' && state.loadKind === 'prefetch' ? 1 : 0), 0);
+		if (loadingCount >= MAX_CONCURRENT_FILE_LOADS || prefetchLoadingCount >= MAX_CONCURRENT_PREFETCH_LOADS) {
+			return;
+		}
+
+		const viewportTop = this.scrollWrapper.scrollTop;
+		const viewportBottom = viewportTop + this.scrollWrapper.clientHeight;
+		const prefetchDistance = Math.max(MIN_PREFETCH_DISTANCE, this.scrollWrapper.clientHeight * PREFETCH_VIEWPORT_MULTIPLIER);
+		let virtualTop = 0;
+		let nextState: IMobileMultiDiffFileState | undefined;
+		let nextDistance = Number.POSITIVE_INFINITY;
+
+		for (const state of this.fileStates) {
+			const virtualHeight = computeMobileMultiDiffItemHeight(this.toVirtualItem(state), VIRTUALIZER_METRICS);
+			const virtualBottom = virtualTop + virtualHeight;
+			if (!mountedIndexes.has(state.index) && !state.collapsed && state.loadState === 'idle') {
+				const distance = virtualBottom < viewportTop
+					? viewportTop - virtualBottom
+					: virtualTop > viewportBottom
+						? virtualTop - viewportBottom
+						: 0;
+
+				if (distance <= prefetchDistance && distance < nextDistance) {
+					nextState = state;
+					nextDistance = distance;
+				}
+			}
+
+			virtualTop = virtualBottom;
+		}
+
+		if (nextState) {
+			this.ensureFileLoaded(nextState, 'prefetch');
+		}
+	}
+
+	private ensureFileLoaded(state: IMobileMultiDiffFileState, loadKind: MobileMultiDiffFileLoadKind): void {
 		if (state.loadState !== 'idle') {
 			return;
 		}
 		state.loadState = 'loading';
+		state.loadKind = loadKind;
+		state.loadRequestId++;
+		this.renderCurrentFileContent(state);
 		const generation = this.renderGeneration;
-		void this.loadFileContent(state, generation).catch(() => {
-			if (this.disposed || generation !== this.renderGeneration) {
+		const loadRequestId = state.loadRequestId;
+		void this.loadFileContent(state, generation, loadRequestId).catch(() => {
+			if (!this.isActiveFileLoad(state, generation, loadRequestId)) {
 				return;
 			}
 			state.loadState = 'error';
+			state.loadKind = undefined;
 			this.renderCurrentFileContent(state);
 		}).finally(() => {
-			if (!this.disposed && generation === this.renderGeneration) {
+			if (!this.disposed && generation === this.renderGeneration && state.loadRequestId === loadRequestId) {
 				this.scheduleVirtualLayout();
 			}
 		});
 	}
 
-	private async loadFileContent(state: IMobileMultiDiffFileState, generation: number): Promise<void> {
+	private isActiveFileLoad(state: IMobileMultiDiffFileState, generation: number, loadRequestId: number): boolean {
+		return !this.disposed
+			&& generation === this.renderGeneration
+			&& state.loadRequestId === loadRequestId
+			&& state.loadState === 'loading';
+	}
+
+	private abandonOffscreenLoads(visibleIndexes: ReadonlySet<number>): void {
+		for (const state of this.fileStates) {
+			if (state.loadState !== 'loading' || state.loadKind === 'prefetch' || visibleIndexes.has(state.index)) {
+				continue;
+			}
+
+			state.loadRequestId++;
+			state.loadState = 'idle';
+			state.loadKind = undefined;
+			state.renderData = undefined;
+			state.hunkCount = 0;
+			state.rowCount = 0;
+			this.resetBodyRenderState(state);
+			this.renderCurrentFileContent(state);
+		}
+	}
+
+	private async loadFileContent(state: IMobileMultiDiffFileState, generation: number, loadRequestId: number): Promise<void> {
 		const diff = state.diff;
 		if (diff.identical) {
+			if (!this.isActiveFileLoad(state, generation, loadRequestId)) {
+				return;
+			}
 			state.loadState = 'empty';
+			state.loadKind = undefined;
 			state.renderData = undefined;
 			state.hunkCount = 0;
 			state.rowCount = 0;
@@ -557,13 +716,18 @@ export class MobileMultiDiffView extends Disposable {
 			this.readTextContent(diff.modifiedURI),
 		]);
 
-		if (this.disposed || generation !== this.renderGeneration) {
+		if (!this.isActiveFileLoad(state, generation, loadRequestId)) {
 			return;
 		}
 
-		const hunks = computeUnifiedDiff(originalText, modifiedText);
+		const hunks = await (this.data.computeDiff?.(originalText, modifiedText) ?? Promise.resolve(computeUnifiedDiff(originalText, modifiedText)));
+		if (!this.isActiveFileLoad(state, generation, loadRequestId)) {
+			return;
+		}
+
 		if (hunks.length === 0) {
 			state.loadState = 'empty';
+			state.loadKind = undefined;
 			state.renderData = undefined;
 			state.hunkCount = 0;
 			state.rowCount = 0;
@@ -576,15 +740,20 @@ export class MobileMultiDiffView extends Disposable {
 			tokenizeFileLines(this.languageService, modifiedText, languageId),
 		]);
 
+		if (!this.isActiveFileLoad(state, generation, loadRequestId)) {
+			return;
+		}
+
 		const hasRealTokens = hasMultipleTokenClasses(origLineHtml) || hasMultipleTokenClasses(modLineHtml);
 		const origLines = hasRealTokens ? origLineHtml : regexTokenizeLines(originalText, languageId);
 		const modLines = hasRealTokens ? modLineHtml : regexTokenizeLines(modifiedText, languageId);
 
-		if (this.disposed || generation !== this.renderGeneration) {
+		if (!this.isActiveFileLoad(state, generation, loadRequestId)) {
 			return;
 		}
 
 		state.loadState = 'loaded';
+		state.loadKind = undefined;
 		state.hunkCount = hunks.length;
 		state.rowCount = hunks.reduce((count, hunk) => count + hunk.lines.length, 0);
 		const { bodyEntries, bodyHeight, maxLineCharacterCount } = this.createBodyEntries(hunks);
@@ -709,6 +878,7 @@ export class MobileMultiDiffView extends Disposable {
 	}
 
 	private resetBodyRenderState(state: IMobileMultiDiffFileState): void {
+		state.fileMessage = undefined;
 		state.bodyInner = undefined;
 		state.renderedBodyRows.clear();
 		state.renderedBodyStartIndex = undefined;
@@ -837,6 +1007,9 @@ export class MobileMultiDiffView extends Disposable {
 		}
 		if (this.loadVisibleAnimationFrame !== undefined) {
 			this.cancelScheduledLoadVisibleFiles();
+		}
+		if (this.prefetchAnimationFrame !== undefined) {
+			this.cancelScheduledPrefetchFile();
 		}
 		for (const state of this.fileStates) {
 			this.disposeFileSection(state);

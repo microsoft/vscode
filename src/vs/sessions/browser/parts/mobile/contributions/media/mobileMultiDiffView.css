@@ -160,6 +160,10 @@
 	z-index: 1;
 }
 
+.mobile-multi-diff-file-content-placeholder {
+	overflow-x: hidden;
+}
+
 /*
  * Inner wrapper stretches to the widest line so that shorter lines
  * still have their background color fill the full scrollable width —
@@ -198,4 +202,9 @@
 	height: 76px;
 	padding: 0 32px;
 	box-sizing: border-box;
+}
+
+.mobile-multi-diff-file-content-placeholder .mobile-diff-empty-state {
+	position: sticky;
+	top: 34px;
 }
