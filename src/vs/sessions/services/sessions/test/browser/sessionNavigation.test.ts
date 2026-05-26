@@ -84,6 +84,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
 	readonly onDidChangeSessions = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 
@@ -101,6 +102,8 @@ class MockSessionStore implements ISessionsManagementService {
 			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
 			const active: IActiveSession = {
 				...session,
+				isCreated: constObservable(true),
+				sticky: constObservable(false),
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
 			};
 			this.activeSession.set(active, undefined);
@@ -164,6 +167,10 @@ class MockSessionStore implements ISessionsManagementService {
 	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
+	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
+	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right'): void { throw new Error('not implemented'); }
+	closeSession(_session: ISession): void { throw new Error('not implemented'); }
+	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }

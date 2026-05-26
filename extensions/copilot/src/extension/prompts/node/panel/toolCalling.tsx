@@ -125,7 +125,7 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
-		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses' || this.promptEndpoint.apiType === 'messages';
+		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses';
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
@@ -381,7 +381,6 @@ const toolsCalledInParallel = new Set<ToolName>([
 	ToolName.GetErrors,
 	ToolName.GetScmChanges,
 	ToolName.GetNotebookSummary,
-	ToolName.ReadCellOutput,
 	ToolName.InstallExtension,
 	ToolName.FetchWebPage,
 ]);

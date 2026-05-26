@@ -397,14 +397,7 @@ export class ProtocolServerHandler extends Disposable {
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
-		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
-			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
-			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
-			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
-			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
-			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
-			resourceRequest: (params_) => this._sendReverseRequest(params.clientId, 'resourceRequest', params_),
-		}));
+		this._registerClientFileSystemAuthority(params.clientId, disposables);
 
 
 		const snapshots: IStateSnapshot[] = [];
@@ -518,11 +511,37 @@ export class ProtocolServerHandler extends Disposable {
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
+		// Re-establish the reverse-RPC filesystem authority for this client.
+		// The prior transport's `onClose` disposed the previous registration,
+		// so without this step any subsequent `resourceRead` / `resourceWrite`
+		// / etc. from the agent host would fail with "no connection registered
+		// for authority" until the client disconnected and re-initialized.
+		this._registerClientFileSystemAuthority(params.clientId, disposables);
+
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 		return { client, responsePromise };
+	}
+
+	/**
+	 * Wires the reverse-RPC filesystem callbacks for `clientId` and binds
+	 * the unregister to `disposables` (the transport's per-connection
+	 * store). The callbacks dispatch through {@link _sendReverseRequest},
+	 * which looks up the *current* connected client by id — so re-binding
+	 * after a reconnect picks up the new transport without rebuilding the
+	 * closures.
+	 */
+	private _registerClientFileSystemAuthority(clientId: string, disposables: DisposableStore): void {
+		disposables.add(this._clientFileSystemProvider.registerAuthority(clientId, {
+			resourceList: (uri) => this._sendReverseRequest(clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(clientId, 'resourceWrite', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(clientId, 'resourceMove', params_),
+			resourceRequest: (params_) => this._sendReverseRequest(clientId, 'resourceRequest', params_),
+		}));
 	}
 
 	/**

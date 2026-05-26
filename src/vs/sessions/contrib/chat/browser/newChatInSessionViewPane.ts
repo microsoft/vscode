@@ -12,20 +12,11 @@ import { derived } from '../../../../base/common/observable.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IViewDescriptorService } from '../../../../workbench/common/views.js';
-import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -38,7 +29,7 @@ const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
  * Reuses {@link NewChatInputWidget} but without workspace/session type pickers,
  * since the session already exists.
  */
-class NewChatInSessionWidget extends Disposable {
+export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
@@ -156,64 +147,6 @@ class NewChatInSessionWidget extends Disposable {
 
 	focusInput(): void {
 		this._newChatInput.focus();
-	}
-}
-
-// #endregion
-
-// #region --- New Chat In Session View Pane ---
-
-export const NewChatInSessionViewId = 'workbench.view.sessions.newChatInSession';
-
-/**
- * A view pane that hosts the new-chat-in-session widget.
- * Shown when the user wants to compose a secondary chat within the active session.
- */
-export class NewChatInSessionViewPane extends ViewPane {
-
-	private _widget: NewChatInSessionWidget | undefined;
-
-	constructor(
-		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-	}
-
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
-
-		this._widget = this._register(this.instantiationService.createInstance(
-			NewChatInSessionWidget,
-		));
-
-		this._widget.render(container);
-		this._widget.focusInput();
-	}
-
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this._widget?.layout(height, width);
-	}
-
-	override focus(): void {
-		super.focus();
-		this._widget?.focusInput();
-	}
-
-	override setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible) {
-			this._widget?.focusInput();
-		}
 	}
 }
 
