@@ -706,7 +706,13 @@ class ConversationHistorySummarizer {
 			) : undefined;
 
 			stripCacheBreakpoints(summarizationPrompt);
-			replaceImageContentWithPlaceholders(summarizationPrompt);
+			// Replace image content parts with text placeholders when sending to a
+			// non-vision compaction model (e.g. trajectory-compaction). Gated on
+			// cross-endpoint — the main agent model handles images natively, and
+			// only the trajectory-compaction route requires this conversion.
+			if (compactionEndpoint !== this.props.endpoint) {
+				replaceImageContentWithPlaceholders(summarizationPrompt);
+			}
 
 			let messages = ToolCallingLoop.stripInternalToolCallIds(summarizationPrompt);
 
@@ -901,7 +907,7 @@ function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.map(part => {
 			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
-				return { type: Raw.ChatCompletionContentPartKind.Text, text: '[Image was attached]' };
+				return { type: Raw.ChatCompletionContentPartKind.Text, text: '[User shared an image]' };
 			}
 			return part;
 		});
