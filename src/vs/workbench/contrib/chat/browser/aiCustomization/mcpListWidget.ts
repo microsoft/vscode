@@ -185,8 +185,10 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
-		if (element.server.description) {
-			templateData.description.textContent = truncateToFirstLine(element.server.description);
+		const hasDescription = !!element.server.description;
+		templateData.container.classList.toggle('has-detail', hasDescription);
+		if (hasDescription) {
+			templateData.description.textContent = truncateToFirstLine(element.server.description!);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -563,7 +565,10 @@ export class McpListWidget extends Disposable {
 				if (e.element.type === 'group-header') {
 					this.toggleGroup(e.element);
 				} else if (e.element.type === 'server-item') {
-					this._onDidSelectServer.fire(e.element.server);
+					// Only open the detail view when the server has something to show beyond what the row already displays.
+					if (e.element.server.description) {
+						this._onDidSelectServer.fire(e.element.server);
+					}
 				}
 				// builtin-item: no action on click (read-only)
 			}

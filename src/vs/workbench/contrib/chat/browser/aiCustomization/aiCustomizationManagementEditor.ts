@@ -2248,9 +2248,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		// Back button header
-		const detailHeader = DOM.append(this.mcpDetailContainer, $('.editor-header'));
-		const backButton = DOM.append(detailHeader, $('button.editor-back-button'));
+		// Container for the compact MCP detail component
+		const detailBody = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
+
+		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
+
+		// Back button inlined as the first child of the detail header row
+		const headerEl = this.embeddedMcpDetail.headerElement;
+		const backButton = $('button.editor-back-button');
+		headerEl.insertBefore(backButton, headerEl.firstChild);
 		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpListTooltip', "Back to MCP servers")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
@@ -2258,11 +2264,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
 			this.goBackFromMcpDetail();
 		}));
-
-		// Container for the compact MCP detail component
-		const detailBody = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
-
-		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
 	}
 
 	private async showEmbeddedMcpDetail(server: IWorkbenchMcpServer): Promise<void> {
@@ -2302,9 +2303,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		// Back button header
-		const detailHeader = DOM.append(this.pluginDetailContainer, $('.editor-header'));
-		const backButton = DOM.append(detailHeader, $('button.editor-back-button'));
+		// Container for the compact plugin detail component
+		const detailBody = DOM.append(this.pluginDetailContainer, $('.plugin-detail-editor-container'));
+
+		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
+
+		// Back button inlined as the first child of the detail header row
+		const headerEl = this.embeddedPluginDetail.headerElement;
+		const backButton = $('button.editor-back-button');
+		headerEl.insertBefore(backButton, headerEl.firstChild);
 		backButton.setAttribute('aria-label', localize('backToPluginList', "Back to plugins"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToPluginListTooltip', "Back to plugins")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
@@ -2312,11 +2319,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
 			this.goBackFromPluginDetail();
 		}));
-
-		// Container for the compact plugin detail component
-		const detailBody = DOM.append(this.pluginDetailContainer, $('.plugin-detail-editor-container'));
-
-		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
 	}
 
 	private async showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void> {

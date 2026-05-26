@@ -772,11 +772,12 @@
 
 /* Embedded MCP server detail view */
 .ai-customization-management-editor .mcp-detail-container {
+	position: relative;
 	height: 100%;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	padding: 40px 40px 16px;
+	padding: 16px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);
 	border-radius: 6px;
@@ -792,16 +793,33 @@
 
 /* Embedded plugin detail view */
 .ai-customization-management-editor .plugin-detail-container {
+	position: relative;
 	height: 100%;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	padding: 40px 40px 16px;
+	padding: 16px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);
 	border-radius: 6px;
 	overflow: hidden;
 	box-sizing: border-box;
+}
+
+/* Inline back button with the embedded detail header */
+.ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail {
+	padding: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header {
+	align-items: center;
+}
+
+.ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header > .editor-back-button,
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header > .editor-back-button {
+	margin-right: 4px;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container {
@@ -828,7 +846,7 @@
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header {
 	display: flex;
 	align-items: flex-start;
-	gap: 12px;
+	gap: 4px;
 	min-width: 0;
 }
 
@@ -880,6 +898,7 @@
 	line-height: 1.4;
 	white-space: pre-wrap;
 	word-break: break-word;
+	padding-left: 32px;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
@@ -1049,6 +1068,10 @@
 	border-radius: 4px;
 	min-height: 32px;
 	gap: 10px;
+}
+
+.mcp-server-item:not(.has-detail):not(.builtin) {
+	cursor: default;
 }
 
 .mcp-server-item:hover {
@@ -1471,6 +1494,29 @@
 
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {
 	border-radius: 4px;
+}
+
+/* Initial open transition: a subtle fade + lift plays once when the editor
+pane is first mounted. View switches inside the modal are not animated. */
+.ai-customization-management-editor {
+	animation: ai-customization-view-enter 160ms ease-out;
+}
+
+@keyframes ai-customization-view-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ai-customization-management-editor {
+		animation: none;
+	}
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
