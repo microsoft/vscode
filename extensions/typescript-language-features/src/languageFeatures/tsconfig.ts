@@ -118,6 +118,64 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
+class TsconfigLinkProviderRegistration implements vscode.Disposable {
+
+	private static readonly configSection = 'js/ts';
+	private static readonly configKey = 'projectConfig.additionalFilePatterns';
+	private static readonly languages: readonly string[] = ['json', 'jsonc'];
+	private static readonly defaultPatterns: readonly string[] = [
+		'**/[jt]sconfig.json',
+		'**/[jt]sconfig.*.json',
+	];
+
+	private readonly _configListener: vscode.Disposable;
+	private _providerRegistration: vscode.Disposable | undefined;
+
+	constructor(private readonly _provider: vscode.DocumentLinkProvider) {
+		this.update();
+		this._configListener = vscode.workspace.onDidChangeConfiguration(e => {
+			const fullKey = `${TsconfigLinkProviderRegistration.configSection}.${TsconfigLinkProviderRegistration.configKey}`;
+			if (e.affectsConfiguration(fullKey)) {
+				this.update();
+			}
+		});
+	}
+
+	dispose(): void {
+		this._configListener.dispose();
+		this._providerRegistration?.dispose();
+		this._providerRegistration = undefined;
+	}
+
+	private update(): void {
+		this._providerRegistration?.dispose();
+		this._providerRegistration = vscode.languages.registerDocumentLinkProvider(this.buildSelector(), this._provider);
+	}
+
+	private buildSelector(): vscode.DocumentSelector {
+		const patterns = this.readPatterns();
+		return TsconfigLinkProviderRegistration.languages.flatMap(
+			language => patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern })));
+	}
+
+	private readPatterns(): string[] {
+		const patterns = new Set<string>(TsconfigLinkProviderRegistration.defaultPatterns);
+		const configured = vscode.workspace
+			.getConfiguration(TsconfigLinkProviderRegistration.configSection)
+			.get(TsconfigLinkProviderRegistration.configKey);
+
+		if (Array.isArray(configured)) {
+			for (const value of configured) {
+				if (typeof value === 'string' && value.length > 0) {
+					patterns.add(value);
+				}
+			}
+		}
+
+		return Array.from(patterns);
+	}
+}
+
 async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
 	let currentUri = baseDirUri;
 	const baseCandidate = pathCandidates[0];
@@ -191,17 +249,6 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, linkTy
 }
 
 export function register() {
-	const patterns: vscode.GlobPattern[] = [
-		'**/[jt]sconfig.json',
-		'**/[jt]sconfig.*.json',
-	];
-
-	const languages = ['json', 'jsonc'];
-
-	const selector: vscode.DocumentSelector =
-		languages.map(language => patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern })))
-			.flat();
-
 	return vscode.Disposable.from(
 		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, linkType }: OpenExtendsLinkCommandArgs) => {
 			const tsconfigPath = await getTsconfigPath(Utils.dirname(vscode.Uri.from(resourceUri)), extendsValue, linkType);
@@ -212,6 +259,7 @@ export function register() {
 			// Will suggest to create a .json variant if it doesn't exist yet (but only for relative paths)
 			await vscode.commands.executeCommand('vscode.open', tsconfigPath);
 		}),
-		vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider()),
+		new TsconfigLinkProviderRegistration(new TsconfigLinkProvider()),
 	);
 }
+
