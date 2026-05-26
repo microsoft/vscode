@@ -175,6 +175,21 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 }
 
 /**
+ * Per-chip rendering behavior. Today the only knob is whether the chip
+ * label should always include the schema title (e.g. `Sandbox Workspace
+ * Write`) instead of bare values (e.g. `Workspace Write`). Dedicated
+ * chips have icons and short value labels so they read well on their own;
+ * generic chips don't, so they opt in to title-prefixed labels.
+ */
+export interface IAgentHostChatInputPickerOptions {
+	readonly labelStyle?: 'value' | 'titledValue';
+}
+
+const DEFAULT_PICKER_OPTIONS: Required<IAgentHostChatInputPickerOptions> = {
+	labelStyle: 'value',
+};
+
+/**
  * One workbench chat-input chip bound to a single agent-host session-config
  * property. Used both for dedicated well-known property chips
  * (`SessionConfigKey.Mode`, `.Isolation`, `.Branch`, `.AutoApprove`) and for
@@ -194,6 +209,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	constructor(
 		private readonly _widget: IChatWidget,
 		private readonly _property: string,
+		private readonly _options: IAgentHostChatInputPickerOptions = DEFAULT_PICKER_OPTIONS,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -333,6 +349,28 @@ export class AgentHostChatInputPicker extends Disposable {
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
 		}
+		// Hide chips for schemas the picker can't drive interactively. The
+		// picker only knows how to render fixed choices: a static `enum`,
+		// dynamic completions via `enumDynamic`, or a boolean (synthetic
+		// On/Off enum). Arrays, free-form strings, numbers and objects must
+		// be edited via the per-session JSON settings editor instead — a
+		// dead chip in this lane would be a footgun.
+		if (!this._isPickable(ctx.schema)) {
+			this._container.style.display = 'none';
+			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
+			return;
+		}
+		// Hide chips whose effect depends on another property being in a
+		// specific state. Currently this only covers the two codex
+		// workspace-write-only knobs (writable roots + network access),
+		// which the codex CLI ignores under `read-only` and treats as
+		// already-on under `danger-full-access`. Showing a dead toggle in
+		// either case is worse than hiding it.
+		if (this._isHiddenByDependency()) {
+			this._container.style.display = 'none';
+			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
+			return;
+		}
 		this._container.style.display = '';
 		this._container.classList.remove('agent-host-chat-input-picker-host-hidden');
 
@@ -366,11 +404,91 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (schema.type === 'boolean') {
+			// Booleans render as "<title> <On|Off>" so the chip is
+			// self-describing — unlike enum chips (where the value is
+			// distinctive on its own) "On" / "Off" alone is ambiguous
+			// when multiple boolean chips share the lane.
+			const state = value ? localize('agentHostChatInputPicker.on', "On") : localize('agentHostChatInputPicker.off', "Off");
+			return localize('agentHostChatInputPicker.booleanLabel', "{0} {1}", schema.title, state);
+		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
-			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
+			const valueLabel = index >= 0 ? schema.enumLabels?.[index] ?? value : value;
+			if (this._options.labelStyle === 'titledValue') {
+				// Prefix the schema title for generic chips that lack a
+				// per-property icon (e.g. codex's sandbox / approvals /
+				// web search). Without the prefix, values like "Disabled"
+				// or "Workspace Write" are not self-describing.
+				return localize('agentHostChatInputPicker.titledValueLabel', "{0} {1}", schema.title, valueLabel);
+			}
+			return valueLabel;
 		}
 		return schema.title;
+	}
+
+	/**
+	 * Whether this picker has any actual choices to offer for the given
+	 * schema. Used to suppress dead chips for property types we don't
+	 * surface in the chip lane (arrays, objects, numbers, free-form
+	 * strings without an enum). Those are still editable via the
+	 * per-session JSON settings editor.
+	 */
+	private _isPickable(schema: SessionConfigPropertySchema): boolean {
+		if (schema.type === 'boolean') {
+			return true;
+		}
+		if (schema.type !== 'string') {
+			return false;
+		}
+		return !!schema.enumDynamic || (Array.isArray(schema.enum) && schema.enum.length > 0);
+	}
+
+	/**
+	 * Returns `true` when this chip should be hidden because another
+	 * session-config property is in a state that makes this one a no-op.
+	 *
+	 * Today this covers the two codex workspace-write-only knobs:
+	 * `codex.additionalDirectories` and `codex.networkAccessEnabled` are
+	 * scoped under the codex CLI's `sandbox_workspace_write` config
+	 * namespace, so they only have an effect when `codex.sandboxMode ===
+	 * 'workspace-write'`. Under `read-only` they're ignored; under
+	 * `danger-full-access` the sandbox is bypassed entirely.
+	 *
+	 * Property names are inlined (rather than imported from
+	 * `codexSessionConfigKeys.ts`) because that module lives under
+	 * `src/vs/platform/agentHost/node/...` and this widget is browser code.
+	 */
+	private _isHiddenByDependency(): boolean {
+		if (this._property !== 'codex.additionalDirectories' && this._property !== 'codex.networkAccessEnabled') {
+			return false;
+		}
+		const sandbox = this._readSiblingValue('codex.sandboxMode');
+		return sandbox !== undefined && sandbox !== 'workspace-write';
+	}
+
+	/**
+	 * Read another property's current value from the same session config.
+	 * Mirrors the lookup precedence in {@link _readContext}: provisional
+	 * overlay → backend state → initial resolve → schema default.
+	 */
+	private _readSiblingValue(property: string): unknown {
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		if (this._subRef.value) {
+			const state = this._subRef.value.sub.value;
+			if (state && !(state instanceof Error)) {
+				const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
+				const schema = (overlay?.schema ?? state.config?.schema)?.properties[property];
+				return overlay?.values?.[property]
+					?? state.config?.values?.[property]
+					?? schema?.default;
+			}
+		}
+		if (this._initialResolved && sessionResource && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
+			const schema = this._initialResolved.result.schema.properties[property];
+			return this._initialResolved.result.values?.[property] ?? schema?.default;
+		}
+		return undefined;
 	}
 
 	private _readContext(): { backendSession: URI; schema: SessionConfigPropertySchema; value: unknown | undefined } | undefined {
@@ -481,6 +599,12 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private async _getItems(schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		if (schema.type === 'boolean') {
+			return [
+				{ value: 'true', label: localize('agentHostChatInputPicker.on', "On") },
+				{ value: 'false', label: localize('agentHostChatInputPicker.off', "Off") },
+			];
+		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const backendSession = this._subRef.value?.backendSession
 			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
@@ -534,7 +658,12 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		const partial = { [this._property]: value };
+		// Per-schema value coercion: chip items always carry string values,
+		// but boolean properties need real booleans on the wire so the reducer
+		// and downstream consumers see the right type.
+		const schema = this._readContext()?.schema;
+		const coerced: unknown = schema?.type === 'boolean' ? value === 'true' : value;
+		const partial = { [this._property]: coerced };
 
 		if (isUntitledChatSession(sessionResource)) {
 			// Route through the provisional service so the workbench-owned

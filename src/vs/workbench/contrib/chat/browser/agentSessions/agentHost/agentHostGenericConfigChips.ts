@@ -35,6 +35,25 @@ function toBackendSessionUri(sessionResource: URI): URI | undefined {
 }
 
 /**
+ * Visual ordering rank for generic chips. Lower numbers render leftmost.
+ * Properties not listed here keep their schema-declared order and sort
+ * after any explicitly ranked ones.
+ *
+ * Codex chips are ordered so always-visible knobs (sandbox, approvals,
+ * web search) sit on the left, and the chips that only render under
+ * `sandbox=workspace-write` (writable roots, network access) come after.
+ * Hardcoding the property names keeps this widget free of a runtime
+ * dependency on the codex node-side keys.
+ */
+const CHIP_ORDER = new Map<string, number>([
+	['codex.sandboxMode', 0],
+	['codex.approvalPolicy', 1],
+	['codex.webSearchMode', 2],
+	['codex.additionalDirectories', 3],
+	['codex.networkAccessEnabled', 4],
+]);
+
+/**
  * Direct-render chip lane for agent-host session-config properties that are
  * advertised by the agent's schema but are NOT handled by a dedicated
  * well-known picker (e.g. Claude's custom approval-mode property).
@@ -182,10 +201,18 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const entries = this._readSchemaProperties();
 		const desired = new Set<string>();
 		if (entries) {
-			for (const [property, schema] of entries) {
-				if (isClaimedByDedicatedPicker(property, schema)) {
-					continue;
-				}
+			// Order chips so always-visible knobs sit on the left and
+			// conditional ones (e.g. codex's workspace-write-only writable
+			// roots / network access) follow. Properties not in
+			// {@link CHIP_ORDER} keep their schema-declared order, slotting
+			// in after the explicitly-ranked ones. AgentHostChatInputPicker
+			// hides itself when its dependency check fails, so reserving a
+			// slot here is harmless when the chip is invisible.
+			const ranked = [...entries]
+				.filter(([property, schema]) => !isClaimedByDedicatedPicker(property, schema))
+				.map(([property], index) => ({ property, index, rank: CHIP_ORDER.get(property) ?? Number.MAX_SAFE_INTEGER }))
+				.sort((a, b) => a.rank - b.rank || a.index - b.index);
+			for (const { property } of ranked) {
 				desired.add(property);
 			}
 		}
@@ -203,7 +230,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 			if (this._chips.has(property)) {
 				continue;
 			}
-			const chip = this._instantiationService.createInstance(AgentHostChatInputPicker, this._widget, property);
+			const chip = this._instantiationService.createInstance(AgentHostChatInputPicker, this._widget, property, { labelStyle: 'titledValue' });
 			// `chat-input-picker-item` matches the class that
 			// `ChatInputPickerActionViewItem` applies to the dedicated
 			// chips' container — required so the secondary-toolbar styling

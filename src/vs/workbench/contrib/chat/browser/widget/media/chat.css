@@ -255,6 +255,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon,
 	.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon {
 		transform: none;
@@ -1016,6 +1017,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	.monaco-workbench .interactive-session .chat-input-container.working,
 	.monaco-workbench .interactive-session .chat-input-container.working::before,
 	.monaco-workbench .interactive-session .chat-input-container.working::after {
@@ -1670,7 +1672,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
-	flex: 1 1 0;
+	/*
+	 * Shrink to fit content instead of grabbing the whole available row.
+	 * This lets the generic-chip lane that follows in the DOM sit
+	 * immediately to the right of the toolbar's dedicated chips
+	 * (e.g. the session-target "Codex - Agent Host" picker), so all chips
+	 * pack flush on the left. The context-usage widget on the far right
+	 * still pins itself there via `margin-left: auto`.
+	 */
+	flex: 0 1 auto;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {
