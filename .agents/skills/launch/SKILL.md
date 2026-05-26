@@ -18,7 +18,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 ## Prerequisites
 
-- macOS or Linux. The launcher is a bash script and depends on `rsync`, `lsof`, `jq`, `curl`, `nohup`, and Node on `PATH`.
+- macOS or Linux. The launcher is a bash script and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** the Copilot extension. The launcher also runs `node build/lib/preLaunch.ts` before starting Code OSS, which auto-runs `npm run compile` if `out/` is missing and downloads Electron + built-in extensions.
 - An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev`, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
