@@ -50,7 +50,7 @@ const BATCH_INTERVAL_MS = 500;
 
 /**
  * Safety-net interval for buffered events that did not trigger a terminal
- * flush. Mirrors the CLI's `NON_STEERABLE_SAFETY_INTERVAL_MS`.
+ * flush.
  */
 const SAFETY_INTERVAL_MS = 60_000;
 
@@ -1139,7 +1139,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/**
 	 * Buffer events, drop streaming deltas, and schedule a flush.
 	 *
-	 * Scheduling matches the CLI's non-steerable cadence:
+	 * Scheduling cadence:
 	 * - terminal event present in the batch → fast flush ({@link BATCH_INTERVAL_MS})
 	 * - buffer at/over {@link MAX_EVENTS_PER_FLUSH} → fast flush
 	 * - otherwise → safety flush ({@link SAFETY_INTERVAL_MS})

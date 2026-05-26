@@ -9,12 +9,6 @@ import type { ICompletedSpanData } from '../../../platform/otel/common/otelServi
 import type { IDebugLogEntry } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import type { SessionEvent, WorkingDirectoryContext } from './cloudSessionTypes';
 
-// ── Event classification (flush cadence) ────────────────────────────────────────
-// Mirrors the CLI's `STREAMING_EVENT_TYPES` / `TERMINAL_FLUSH_EVENT_TYPES` sets
-// in copilot-agent-runtime so VS Code's session-sync exporter applies the same
-// non-steerable flush cadence (terminal-event-driven with a 60s safety net) and
-// the same delta filtering.
-
 /**
  * Per-token streaming events that must never be forwarded to the cloud. The
  * current `translateSpan` does not emit any of these (assistant text is read
