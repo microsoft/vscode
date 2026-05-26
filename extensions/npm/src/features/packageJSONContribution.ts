@@ -300,7 +300,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	 * Sets up cwd from resource, applies corepack env vars, and handles win32 shell quoting.
 	 * Pass ignoreError=true to return stdout even when the command exits with a non-zero code.
 	 */
-	private async runNpmCommand(npmCommandPath: string, args: string[], resource: Uri | undefined): Promise<string | undefined> {
+	private async runNpmCommand(npmCommandPath: string, args: string[], resource: Uri | undefined, ignoreError?: boolean): Promise<string | undefined> {
 		const cp = await import('child_process');
 		return new Promise((resolve, _reject) => {
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
@@ -317,7 +317,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				commandPath = `"${npmCommandPath}"`;
 			}
 			cp.execFile(commandPath, args, options, (error, stdout) => {
-				resolve(error ? undefined : stdout);
+				resolve(error && !ignoreError ? undefined : stdout);
 			});
 		});
 	}
@@ -325,7 +325,6 @@ export class PackageJSONContribution implements IJSONContribution {
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		// Request @latest to avoid fetching publish timestamps for all versions in the time field.
 		const args = ['view', '--json', '--', `${pack}@latest`, 'description', 'homepage', 'version', 'time'];
-
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		if (stdout) {
 			try {
@@ -333,8 +332,29 @@ export class PackageJSONContribution implements IJSONContribution {
 				const version = content['version'];
 				return {
 					description: content['description'],
-					version: content['version'],
+					version,
 					time: version ? content['time']?.[version] : undefined,
+					homepage: content['homepage']
+				};
+			} catch (e) {
+				// ignore
+			}
+		}
+		// Fall back for custom registries that may not support @latest dist-tag resolution.
+		// Do not request the time field here, as it would contain timestamps for all versions.
+		return this.npmViewFallback(npmCommandPath, pack, resource);
+	}
+
+	private async npmViewFallback(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage'];
+		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
+		if (stdout) {
+			try {
+				const content = JSON.parse(stdout);
+				return {
+					description: content['description'],
+					version: content['dist-tags.latest'],
+					time: undefined,
 					homepage: content['homepage']
 				};
 			} catch (e) {
@@ -368,7 +388,9 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private async npmListInstalledVersion(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<string | undefined> {
 		const args = ['ls', '--json', '--depth=0', '--', pack];
-		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
+		// npm ls can exit with a non-zero code (e.g. due to peer dependency issues) even when
+		// the package is installed and the output JSON is valid, so use ignoreError=true.
+		const stdout = await this.runNpmCommand(npmCommandPath, args, resource, true);
 		if (stdout) {
 			try {
 				const content = JSON.parse(stdout);
