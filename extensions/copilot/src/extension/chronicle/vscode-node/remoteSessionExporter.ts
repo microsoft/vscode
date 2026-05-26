@@ -1333,9 +1333,12 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					}
 				} else if (result.reason === 'rate_limited') {
 					// Client is already self-backing-off; don't trip the circuit breaker.
-					// Requeue the unsent events so they're retried after the backoff.
+					// Requeue the unsent events so they're retried after the backoff, and
+					// fall into the safety cadence (60s) so we don't busy-poll the
+					// isRateLimited() flag at the fast batch interval until it lifts.
 					rateLimitedSessions++;
 					requeueOnRateLimit.push(...slot.entries);
+					flushFailed = true;
 				} else {
 					hadTransientError = true;
 				}
@@ -1424,10 +1427,11 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 
 		// Re-arm after a flush:
-		//  - transient failure → back off at safety cadence (60s) so we don't
-		//    busy-loop against a failing endpoint; the circuit breaker still
-		//    short-circuits attempts during its own backoff window
-		//  - buffer still has work (re-queued orphans / rate-limited entries) → fast flush
+		//  - transient failure or rate limit → back off at safety cadence (60s)
+		//    so we don't busy-loop against a failing or throttled endpoint;
+		//    the circuit breaker (for failures) and the client's own backoff
+		//    (for rate limits) still gate the actual request independently
+		//  - buffer still has work (re-queued orphans) → fast flush
 		//  - otherwise, keep a safety timer running while any cloud session is active
 		//    so late spans are caught even without a terminal event
 		if (flushFailed && this._eventBuffer.length > 0) {
