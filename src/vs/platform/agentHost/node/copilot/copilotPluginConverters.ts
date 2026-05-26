@@ -126,11 +126,22 @@ export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]
  * The SDK expects directory paths; we extract the parent directory of each SKILL.md.
  */
 export function toSdkSkillDirectories(skills: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(skills);
+}
+
+/**
+ * Converts parsed plugin instructions into the SDK's
+ * `instructionDirectories` config.
+ */
+export function toSdkInstructionDirectories(instructions: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(instructions);
+}
+
+function toSdkResourceDirectories(resources: readonly INamedPluginResource[]): string[] {
 	const seen = new Set<string>();
 	const result: string[] = [];
-	for (const skill of skills) {
-		// SKILL.md parent directory is the skill directory
-		const dir = dirname(skill.uri.fsPath);
+	for (const resource of resources) {
+		const dir = dirname(resource.uri.fsPath);
 		if (!seen.has(dir)) {
 			seen.add(dir);
 			result.push(dir);
@@ -373,6 +384,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
 			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));
 	};
 	return serialize(a) === serialize(b);
