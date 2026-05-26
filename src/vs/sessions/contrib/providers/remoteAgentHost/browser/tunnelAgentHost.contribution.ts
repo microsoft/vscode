@@ -17,7 +17,7 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
-import { logTunnelConnectAttempt, logTunnelConnectResolved, TunnelConnectErrorCategory, TunnelConnectFailureReason } from '../../../../common/sessionsTelemetry.js';
+import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryResult, TunnelConnectErrorCategory, TunnelConnectFailureReason, TunnelDiscoveryTrigger } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -604,7 +604,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (added) {
 			this._logService.info(`[TunnelAgentHost] ${e.providerId} session added; resuming reconnects and rediscovering.`);
 			this._resumeReconnects('sessionAdded');
-			this._silentStatusCheck();
+			this._silentStatusCheck('sessionChange');
 		}
 	}
 
@@ -766,15 +766,27 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	// -- Silent status check --
 
-	private async _silentStatusCheck(): Promise<void> {
-		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		if (!enabled) {
+	private async _silentStatusCheck(trigger?: TunnelDiscoveryTrigger): Promise<void> {
+		const resolvedTrigger: TunnelDiscoveryTrigger = trigger ?? (this._initialStatusChecked ? 'rediscover' : 'startup');
+		const hostsEnabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		const autoConnectEnabled = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
+		if (!hostsEnabled) {
 			this._initialStatusChecked = true;
 			this._updateConnectionStatuses();
+			logTunnelDiscoveryResult(this._telemetryService, {
+				trigger: resolvedTrigger,
+				totalFound: 0,
+				withActiveHost: 0,
+				cachedBefore: this._tunnelService.getCachedTunnels().length,
+				autoConnectEnabled,
+				hostsEnabled,
+				success: true,
+			});
 			return;
 		}
 
 		this._lastStatusCheck = Date.now();
+		const cachedBefore = this._tunnelService.getCachedTunnels().length;
 
 		// Fetch tunnel list silently to check online status
 		let onlineTunnels: ITunnelInfo[] | undefined;
@@ -784,6 +796,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// No cached token or network error — leave statuses as-is
 			this._initialStatusChecked = true;
 			this._updateConnectionStatuses();
+			logTunnelDiscoveryResult(this._telemetryService, {
+				trigger: resolvedTrigger,
+				totalFound: 0,
+				withActiveHost: 0,
+				cachedBefore,
+				autoConnectEnabled,
+				hostsEnabled,
+				success: false,
+			});
 			return;
 		}
 
@@ -797,13 +818,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				}
 			}
 
-			// Auto-cache online tunnels that aren't cached yet so they
-			// appear in the UI on first discovery (e.g. fresh web session).
-			// Pass 'github' as authProvider so _handleSessionsChange can
-			// match these tunnels for teardown on session removal.
+			// Auto-cache every discovered tunnel that isn't cached yet so
+			// it appears in the picker on first discovery (e.g. fresh web
+			// session), including tunnels whose host process is currently
+			// offline — those render grayed-out via the status-update loop
+			// below. Pass 'github' as authProvider so _handleSessionsChange
+			// can match these tunnels for teardown on session removal.
 			const cachedIds = new Set(cached.map(t => t.tunnelId));
 			for (const tunnel of onlineTunnels) {
-				if (!cachedIds.has(tunnel.tunnelId) && tunnel.hostConnectionCount > 0) {
+				if (!cachedIds.has(tunnel.tunnelId)) {
 					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}
@@ -873,6 +896,21 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._initialStatusChecked = true;
 		this._updateConnectionStatuses();
+
+		const totalFound = onlineTunnels?.length ?? 0;
+		const withActiveHost = onlineTunnels?.filter(t => t.hostConnectionCount > 0).length ?? 0;
+		this._logService.info(
+			`[TunnelAgentHost] Silent status check (${resolvedTrigger}): totalFound=${totalFound}, withActiveHost=${withActiveHost}, cachedBefore=${cachedBefore}, autoConnect=${autoConnectEnabled}`
+		);
+		logTunnelDiscoveryResult(this._telemetryService, {
+			trigger: resolvedTrigger,
+			totalFound,
+			withActiveHost,
+			cachedBefore,
+			autoConnectEnabled,
+			hostsEnabled,
+			success: true,
+		});
 	}
 }
 
