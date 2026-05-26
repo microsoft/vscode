@@ -49,12 +49,19 @@ import { reindexSessions, reindexCloudSessions, type CloudReindexResult } from '
 const BATCH_INTERVAL_MS = 500;
 
 /**
- * Safety-net interval for buffered events that did not trigger a terminal
- * flush.
+ * Default safety-net interval for buffered events that did not trigger a
+ * terminal flush. The effective value is read from
+ * {@link ConfigKey.SessionSyncSafetyIntervalMs} at runtime; this constant is
+ * only used as the fallback when no configuration service is available
+ * (e.g. in tests that bypass the constructor).
  */
 export const SAFETY_INTERVAL_MS = 60_000;
 
-/** Max events per flush request — also acts as a buffer-size flush trigger. */
+/**
+ * Default max events per flush request — also acts as a buffer-size flush
+ * trigger. The effective value is read from
+ * {@link ConfigKey.SessionSyncMaxEventsPerFlush} at runtime.
+ */
 const MAX_EVENTS_PER_FLUSH = 500;
 
 /** Hard cap on buffered events (drop oldest beyond this). */
@@ -187,6 +194,26 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/** Invalidate the cached local synced count (call after cloud session set/delete). */
 	private _invalidateLocalSyncedCount(): void {
 		this._cachedLocalSyncedCount = undefined;
+	}
+
+	/**
+	 * Effective safety-net interval (ms), read from configuration. Falls back to
+	 * {@link SAFETY_INTERVAL_MS} when the configuration service is unavailable
+	 * (e.g. tests that bypass the constructor).
+	 */
+	private _getSafetyIntervalMs(): number {
+		return this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncSafetyIntervalMs, this._expService)
+			?? SAFETY_INTERVAL_MS;
+	}
+
+	/**
+	 * Effective max events per flush request, read from configuration. Falls back
+	 * to {@link MAX_EVENTS_PER_FLUSH} when the configuration service is
+	 * unavailable.
+	 */
+	private _getMaxEventsPerFlush(): number {
+		return this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncMaxEventsPerFlush, this._expService)
+			?? MAX_EVENTS_PER_FLUSH;
 	}
 
 	/**
@@ -1172,10 +1199,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			});
 		}
 
-		if (hasTerminal || this._eventBuffer.length >= MAX_EVENTS_PER_FLUSH) {
+		if (hasTerminal || this._eventBuffer.length >= this._getMaxEventsPerFlush()) {
 			this._scheduleFlush(BATCH_INTERVAL_MS);
 		} else {
-			this._scheduleFlush(SAFETY_INTERVAL_MS);
+			this._scheduleFlush(this._getSafetyIntervalMs());
 		}
 	}
 
@@ -1186,7 +1213,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	 * downgraded by a later safety request.
 	 */
 	private _scheduleFlush(intervalMs: number): void {
-		const kind: 'fast' | 'safety' = intervalMs === SAFETY_INTERVAL_MS ? 'safety' : 'fast';
+		const kind: 'fast' | 'safety' = intervalMs === this._getSafetyIntervalMs() ? 'safety' : 'fast';
 
 		if (this._flushTimer !== undefined) {
 			if (kind === 'safety' || this._flushTimerKind === 'fast') {
@@ -1236,7 +1263,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			}
 			// Re-arm at the safety cadence so buffered events are retried once the
 			// breaker transitions to HALF_OPEN, even if no new spans arrive.
-			this._scheduleFlush(SAFETY_INTERVAL_MS);
+			this._scheduleFlush(this._getSafetyIntervalMs());
 			return;
 		}
 
@@ -1250,12 +1277,12 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._circuitBreaker.cancelProbe();
 			// Re-arm at the safety cadence so buffered events are retried once the
 			// client's Retry-After window elapses, even if no new spans arrive.
-			this._scheduleFlush(SAFETY_INTERVAL_MS);
+			this._scheduleFlush(this._getSafetyIntervalMs());
 			return;
 		}
 
 		this._isFlushing = true;
-		const batch = this._eventBuffer.splice(0, MAX_EVENTS_PER_FLUSH);
+		const batch = this._eventBuffer.splice(0, this._getMaxEventsPerFlush());
 		const batchStart = Date.now();
 		const uniqueSessionsInBatch = new Set(batch.map(e => e.chatSessionId)).size;
 		this._setSyncState({ kind: 'syncing', sessionCount: uniqueSessionsInBatch });
@@ -1441,11 +1468,11 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		//  - otherwise, keep a safety timer running while any cloud session is active
 		//    so late spans are caught even without a terminal event
 		if (flushFailed && this._eventBuffer.length > 0) {
-			this._scheduleFlush(SAFETY_INTERVAL_MS);
+			this._scheduleFlush(this._getSafetyIntervalMs());
 		} else if (this._eventBuffer.length > 0) {
 			this._scheduleFlush(BATCH_INTERVAL_MS);
 		} else if (this._cloudSessions.size > 0) {
-			this._scheduleFlush(SAFETY_INTERVAL_MS);
+			this._scheduleFlush(this._getSafetyIntervalMs());
 		}
 	}
 

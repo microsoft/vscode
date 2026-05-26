@@ -1066,6 +1066,12 @@ export namespace ConfigKey {
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/
 	export const LocalIndexEnabled = defineSetting<boolean>('chat.localIndex.enabled', ConfigType.ExperimentBased, false);
+
+	/** Max events per cloud session sync flush request — also acts as a buffer-size flush trigger. */
+	export const SessionSyncMaxEventsPerFlush = defineSetting<number>('chat.sessionSync.maxEventsPerFlush', ConfigType.ExperimentBased, 500);
+
+	/** Safety-net interval (ms) for buffered cloud session sync events that did not trigger a terminal flush. */
+	export const SessionSyncSafetyIntervalMs = defineSetting<number>('chat.sessionSync.safetyIntervalMs', ConfigType.ExperimentBased, 60_000);
 }
 
 export function getAllConfigKeys(): string[] {
