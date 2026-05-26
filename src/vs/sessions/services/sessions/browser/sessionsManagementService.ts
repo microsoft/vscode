@@ -135,7 +135,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _handleActiveSessionContextKeys(session: IActiveSession | undefined): void {
 		// Update context keys from session data
-		this._isNewChatSessionContext.set(session === undefined);
+		this._isNewChatSessionContext.set(session === undefined || this._pendingNewSession !== undefined);
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
@@ -455,6 +455,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		this._pendingNewSession = undefined;
+		this._isNewChatSessionContext.set(false);
 
 		const setActiveChatToLast = () => {
 			const activeSession = this._visibility.activeSession.get();
