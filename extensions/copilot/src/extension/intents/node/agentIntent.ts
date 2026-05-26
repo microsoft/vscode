@@ -15,6 +15,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
@@ -208,20 +209,16 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
-		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
+		const allEndpoints = await endpointProvider.getAllChatEndpoints().catch(() => [] as IChatEndpoint[]);
+		const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
+		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
+		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 
 		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 		// The execution subagent is powered by gemini-3-flash, so it can only be
 		// offered when that model is actually available to the user. If it isn't
 		// in the user's endpoints, keep the tool disabled regardless of the setting.
-		// Skip the (potentially expensive) endpoint lookup when the tool would be
-		// disabled anyway based on model family or the experiment setting.
-		let hasGemini3Flash = false;
-		if (isGptOrAnthropic && executionSubagentEnabled) {
-			const allEndpoints = await endpointProvider.getAllChatEndpoints();
-			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
-		}
+		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
 		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
 	}
 
