@@ -41,6 +41,13 @@ class WatchInterestReferenceCollection extends ReferenceCollection<string> {
  * debounce mechanics; this coordinator owns the changeset-specific lifecycle:
  * subscription interest, session materialization, repository-root resolution,
  * root-level watcher sharing, and refresh fanout.
+ *
+ * We only monitor roots while at least one client is subscribed to a session or
+ * static changeset that needs fresh changeset counts. We do not monitor while a
+ * session on that root is actively running a turn: agent/tool edits made during
+ * the turn are captured by the turn lifecycle, and the static changesets are
+ * recomputed once when the turn completes. Watching during the turn would add
+ * duplicate file-system noise without improving correctness.
  */
 export class ChangesetFileMonitorCoordinator extends Disposable {
 
