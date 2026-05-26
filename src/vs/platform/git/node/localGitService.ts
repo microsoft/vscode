@@ -16,12 +16,13 @@ export class LocalGitService implements ILocalGitService {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		private readonly _execFile: typeof cp.execFile = cp.execFile,
 	) { }
 
 	private _exec(operationId: string, args: string[], cwd?: string): Promise<string> {
 		return new Promise((resolve, reject) => {
 			this._logService.trace(`[LocalGitService] git ${args.join(' ')}${cwd ? ` (cwd: ${cwd})` : ''}`);
-			const proc = cp.execFile('git', args, { cwd, encoding: 'utf8' }, (err, stdout, stderr) => {
+			const proc = this._execFile('git', args, { cwd, encoding: 'utf8' }, (err, stdout, stderr) => {
 				if (!this._runningProcesses.delete(operationId)) {
 					reject(new CancellationError());
 					return;
