@@ -28,7 +28,7 @@ import { SessionType } from '../../../../../../workbench/contrib/chat/common/cha
 function makeModel(id: string, sessionType: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
 		identifier: id,
-		metadata: { targetChatSessionType: sessionType } as ILanguageModelChatMetadata,
+		metadata: { id: id.includes('/') ? id.substring(id.indexOf('/') + 1) : id, targetChatSessionType: sessionType } as ILanguageModelChatMetadata,
 	};
 }
 
@@ -379,5 +379,26 @@ suite('SessionModelPicker', () => {
 		}), undefined);
 
 		assert.deepStrictEqual(calls, [{ sessionId: 'new-session', modelId: 'cli-b' }]);
+	});
+
+	test('resolves stored raw model id when carrying selection into a new session', () => {
+		const models = [makeModel('copilotcli/cli-b', CopilotCLISessionType.id)];
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, activeSession } = stubServices(disposables, {
+			models,
+			activeSession: {
+				providerId: 'default-copilot',
+				sessionId: 'existing-session',
+				sessionType: CopilotCLISessionType.id,
+				modelId: observableValue<string | undefined>('rawModelId', 'cli-b'),
+				status: observableValue<SessionStatus>('existingStatus', SessionStatus.Completed),
+			},
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+
+		activeSession.set(makeActiveSession({ providerId: 'default-copilot', sessionId: 'new-session', sessionType: CopilotCLISessionType.id }), undefined);
+
+		assert.deepStrictEqual(calls, [{ sessionId: 'new-session', modelId: 'copilotcli/cli-b' }]);
 	});
 });

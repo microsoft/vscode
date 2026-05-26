@@ -239,6 +239,15 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this.updateMetadataFields(sessionId, { repositoryProperties: properties });
 	}
 
+	async getSessionSelectedModelId(sessionId: string): Promise<string | undefined> {
+		const metadata = await this.getSessionMetadata(sessionId, false);
+		return metadata?.selectedModelId;
+	}
+
+	async setSessionSelectedModelId(sessionId: string, modelId: string): Promise<void> {
+		await this.updateMetadataFields(sessionId, { selectedModelId: modelId });
+	}
+
 	async getRepositoryProperties(sessionId: string): Promise<RepositoryProperties | undefined> {
 		const metadata = await this.getSessionMetadata(sessionId);
 		return metadata?.repositoryProperties;

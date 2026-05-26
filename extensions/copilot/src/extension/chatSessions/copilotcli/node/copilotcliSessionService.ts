@@ -251,6 +251,7 @@ export interface ICopilotCLISessionItem {
 	readonly timing: ChatSessionItem['timing'];
 	readonly status?: ChatSessionStatus;
 	readonly workingDirectory?: Uri;
+	readonly modelId?: string;
 }
 export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
@@ -626,6 +627,23 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return metadata?.summary ?? '';
 	}
 
+	private async getSelectedModelId(sessionId: string, wrappedSession?: RefCountedSession): Promise<string | undefined> {
+		if (wrappedSession) {
+			const selectedModelId = await wrappedSession.object.getSelectedModelId().catch(error => {
+				this.logService.error(`[CopilotCLISessionService] Failed to get selected model for session ${sessionId}: ${error}`);
+				return undefined;
+			});
+			if (selectedModelId) {
+				return selectedModelId;
+			}
+		}
+
+		return this._chatSessionMetadataStore.getSessionSelectedModelId(sessionId).catch(error => {
+			this.logService.error(`[CopilotCLISessionService] Failed to read selected model metadata for session ${sessionId}: ${error}`);
+			return undefined;
+		});
+	}
+
 
 	private _getAllSessionsProgress: Promise<readonly ICopilotCLISessionItem[]> | undefined;
 	private _isGettingSessions: number = 0;
@@ -663,11 +681,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					if (!label) {
 						return;
 					}
+					const modelId = await this.getSelectedModelId(id);
 					return {
 						id,
 						label,
 						timing: { created: startTime, startTime, endTime },
-						workingDirectory
+						workingDirectory,
+						modelId,
 					};
 				})
 			));
@@ -685,11 +705,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					}
 
 					const createTime = Date.now();
+					const modelId = await this.getSelectedModelId(session.object.sessionId, session);
 					return {
 						id: session.object.sessionId,
 						label,
 						status: session.object.status,
 						timing: { created: createTime, startTime: createTime },
+						modelId,
 					};
 				})));
 
@@ -723,11 +745,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private async constructSessionItemFromWrappedSession(session: RefCountedSession, token: CancellationToken): Promise<ICopilotCLISessionItem | undefined> {
 		const label = (await this.getSessionTitle(session.object.sessionId, token)) || this._cachedSessionItems.get(session.object.sessionId)?.label || labelFromPrompt(session.object.pendingPrompt ?? '');
 		const createTime = Date.now();
+		const modelId = await this.getSelectedModelId(session.object.sessionId, session);
 		return {
 			id: session.object.sessionId,
 			label,
 			status: session.object.status,
 			timing: this._cachedSessionItems.get(session.object.sessionId)?.timing ?? { created: createTime, startTime: createTime },
+			modelId,
 		};
 	}
 
@@ -745,12 +769,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token) ?? labelFromPrompt(metadata.summary ?? '');
 
 		if (label) {
+			const modelId = await this.getSelectedModelId(id);
 			return {
 				id,
 				label,
 				timing: { created: startTime, startTime, endTime },
 				workingDirectory,
-				status: this._sessionWrappers.get(id)?.object?.status
+				status: this._sessionWrappers.get(id)?.object?.status,
+				modelId,
 			};
 		}
 	}

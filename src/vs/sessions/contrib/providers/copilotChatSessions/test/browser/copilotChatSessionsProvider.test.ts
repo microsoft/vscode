@@ -24,7 +24,7 @@ import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { type ILanguageModelChatMetadata, type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
@@ -71,6 +71,13 @@ function createMockAgentSession(resource: URI, opts?: {
 	}();
 }
 
+function makeLanguageModel(identifier: string, id: string, sessionType: string): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier,
+		metadata: { id, name: id, targetChatSessionType: sessionType } as ILanguageModelChatMetadata,
+	};
+}
+
 // ---- Mock Agent Sessions Service --------------------------------------------
 
 class MockAgentSessionsModel {
@@ -113,7 +120,7 @@ class MockAgentSessionsModel {
 function createProvider(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; languageModels?: readonly ILanguageModelChatMetadataAndIdentifier[] },
 ): CopilotChatSessionsProvider {
 	return createProviderWithConfig(disposables, model, opts).provider;
 }
@@ -121,7 +128,7 @@ function createProvider(
 function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; languageModels?: readonly ILanguageModelChatMetadataAndIdentifier[] },
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -176,8 +183,10 @@ function createProviderWithConfig(
 		lastFocusedWidget: undefined,
 		onDidChangeFocusedSession: Event.None,
 	});
+	const languageModels = opts?.languageModels ?? [];
 	instantiationService.stub(ILanguageModelsService, {
-		lookupLanguageModel: () => undefined,
+		getLanguageModelIds: () => languageModels.map(model => model.identifier),
+		lookupLanguageModel: (id: string) => languageModels.find(model => model.identifier === id)?.metadata,
 	});
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
@@ -207,7 +216,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService; languageModels?: readonly ILanguageModelChatMetadataAndIdentifier[] },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -253,7 +262,11 @@ function createProviderForSendTests(
 		lastFocusedWidget: undefined,
 		onDidChangeFocusedSession: Event.None,
 	});
-	instantiationService.stub(ILanguageModelsService, { lookupLanguageModel: () => undefined });
+	const languageModels = opts?.languageModels ?? [];
+	instantiationService.stub(ILanguageModelsService, {
+		getLanguageModelIds: () => languageModels.map(model => model.identifier),
+		lookupLanguageModel: (id: string) => languageModels.find(model => model.identifier === id)?.metadata,
+	});
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
@@ -382,6 +395,25 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 2);
+	});
+
+	test('getSessions hydrates selected Copilot CLI model from metadata', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
+		const selectedModel = makeLanguageModel('copilotcli/gpt-5.5-xhigh', 'gpt-5.5-xhigh', CopilotCLISessionType.id);
+		model.addSession(createMockAgentSession(resource, {
+			metadata: { repositoryPath: '/test/repo', selectedModelId: 'gpt-5.5-xhigh' },
+		}));
+
+		const provider = createProvider(disposables, model, { languageModels: [selectedModel] });
+		const session = provider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			modelId: session.modelId.get(),
+			chatModelId: session.mainChat.get().modelId.get(),
+		}, {
+			modelId: selectedModel.identifier,
+			chatModelId: selectedModel.identifier,
+		});
 	});
 
 	test('getSessions excludes Local sessions (now owned by LocalChatSessionsProvider)', () => {

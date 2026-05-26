@@ -1699,6 +1699,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
 			}
+			await this._chatSessionMetadataStore.setSessionSelectedModelId(this.sessionId, modelId).catch(error => {
+				this.logService.error(`[CopilotCLISession] Failed to persist selected model for session ${this.sessionId}: ${error}`);
+			});
 		}
 	}
 

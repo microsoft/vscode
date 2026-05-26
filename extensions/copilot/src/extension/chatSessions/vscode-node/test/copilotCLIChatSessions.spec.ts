@@ -317,6 +317,19 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 		expect(octoKitService.findPullRequestByHeadBranch).not.toHaveBeenCalled();
 		expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
 	});
+
+	it('includes selected model id in session item metadata', async () => {
+		const { provider } = createProvider();
+
+		const item = await provider.toChatSessionItem({
+			id: 'session-1',
+			label: 'Session 1',
+			timing: { created: 1, startTime: 1, endTime: 2 },
+			modelId: 'gpt-5.5-xhigh',
+		});
+
+		expect(item.metadata).toMatchObject({ selectedModelId: 'gpt-5.5-xhigh' });
+	});
 });
 
 describe('CopilotCLIChatSessionParticipant', () => {

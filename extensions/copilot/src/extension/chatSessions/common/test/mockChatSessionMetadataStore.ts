@@ -19,6 +19,7 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 	private readonly _additionalWorkspaces = new Map<string, IWorkspaceInfo[]>();
 	private readonly _firstUserMessages = new Map<string, string>();
 	private readonly _customTitles = new Map<string, string>();
+	private readonly _selectedModelIds = new Map<string, string>();
 	private readonly _requestDetails = new Map<string, RequestDetails[]>();
 	private readonly _sessionOrigins = new Map<string, 'vscode' | 'other'>();
 
@@ -28,6 +29,7 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._additionalWorkspaces.delete(sessionId);
 		this._firstUserMessages.delete(sessionId);
 		this._customTitles.delete(sessionId);
+		this._selectedModelIds.delete(sessionId);
 		this._requestDetails.delete(sessionId);
 	}
 
@@ -90,6 +92,14 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._customTitles.set(sessionId, title);
 	}
 
+	async getSessionSelectedModelId(sessionId: string): Promise<string | undefined> {
+		return this._selectedModelIds.get(sessionId);
+	}
+
+	async setSessionSelectedModelId(sessionId: string, modelId: string): Promise<void> {
+		this._selectedModelIds.set(sessionId, modelId);
+	}
+
 	async getRequestDetails(sessionId: string): Promise<RequestDetails[]> {
 		return this._requestDetails.get(sessionId) ?? [];
 	}
@@ -134,6 +144,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		const firstMsg = this._firstUserMessages.get(sourceSessionId);
 		if (firstMsg) {
 			this._firstUserMessages.set(targetSessionId, firstMsg);
+		}
+		const selectedModelId = this._selectedModelIds.get(sourceSessionId);
+		if (selectedModelId) {
+			this._selectedModelIds.set(targetSessionId, selectedModelId);
 		}
 	}
 

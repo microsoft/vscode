@@ -393,7 +393,7 @@ export class SessionModelPicker extends Disposable {
 
 		const current = this._currentModel.get();
 		const sessionModelId = session?.modelId.get();
-		const sessionModel = sessionModelId ? models.find(m => m.identifier === sessionModelId) : undefined;
+		const sessionModel = sessionModelId ? models.find(m => m.identifier === sessionModelId || m.metadata.id === sessionModelId) : undefined;
 		const isNewSession = session?.status.get() === SessionStatus.Untitled;
 		this._settingModelInternally = true;
 		try {

@@ -65,6 +65,8 @@ export interface ICopilotCLIChatSessionItemProvider extends IDisposable {
 
 const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
 const CHECK_FOR_STEERING_DELAY = 100; // ms
+// Keep in sync with SELECTED_MODEL_METADATA_KEY in src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts.
+const SELECTED_MODEL_METADATA_KEY = 'selectedModelId';
 
 const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
 
@@ -411,7 +413,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 		const [badge, metadata] = await Promise.all([
 			this.buildBadge(worktreeProperties, workingDirectory),
-			this.buildMetadata(session.id, worktreeProperties, workingDirectory),
+			this.buildMetadata(session.id, worktreeProperties, workingDirectory, session.modelId),
 		]);
 		item.badge = badge;
 		item.metadata = metadata;
@@ -495,12 +497,14 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		sessionId: string,
 		worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>,
 		workingDirectory: vscode.Uri | undefined,
+		selectedModelId: string | undefined,
 	): Promise<{ readonly [key: string]: unknown }> {
 		if (worktreeProperties) {
 			const parentInfo = await this._metadataStore.getSessionParentId(sessionId);
 			const sessionParentId = parentInfo?.kind === 'sub-session' ? parentInfo.parentSessionId : undefined;
 
 			return {
+				...(selectedModelId ? { [SELECTED_MODEL_METADATA_KEY]: selectedModelId } : {}),
 				sessionParentId,
 				autoCommit: worktreeProperties.autoCommit !== false,
 				baseCommit: worktreeProperties?.baseCommit,
@@ -571,6 +575,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			: undefined;
 
 		return {
+			...(selectedModelId ? { [SELECTED_MODEL_METADATA_KEY]: selectedModelId } : {}),
 			sessionParentId,
 			isolationMode: IsolationMode.Workspace,
 			repositoryPath: repositoryProperties?.repositoryPath,

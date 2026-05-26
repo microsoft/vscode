@@ -94,6 +94,8 @@ export interface ChatSessionMetadataFile {
 	firstUserMessage?: string;
 	/** Custom title set by the user or generated for the session. */
 	customTitle?: string;
+	/** Last selected Copilot CLI model for this session. */
+	selectedModelId?: string;
 	/** The creator of this session. */
 	origin?: 'vscode' | 'other';
 	/**
@@ -147,6 +149,8 @@ export interface IChatSessionMetadataStore {
 	setSessionFirstUserMessage(sessionId: string, message: string): Promise<void>;
 	getCustomTitle(sessionId: string): Promise<string | undefined>;
 	setCustomTitle(sessionId: string, title: string): Promise<void>;
+	getSessionSelectedModelId(sessionId: string): Promise<string | undefined>;
+	setSessionSelectedModelId(sessionId: string, modelId: string): Promise<void>;
 	getRequestDetails(sessionId: string): Promise<RequestDetails[]>;
 	updateRequestDetails(sessionId: string, details: (Partial<RequestDetails> & { vscodeRequestId: string })[]): Promise<void>;
 	getSessionAgent(sessionId: string): Promise<string | undefined>;

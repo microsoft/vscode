@@ -33,7 +33,7 @@ import { ILanguageModelToolsService } from '../../../../../workbench/contrib/cha
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -153,6 +153,8 @@ const PARENT_SESSION_OPTION_ID = 'parentSessionId';
 const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
 const AGENT_OPTION_ID = 'agent';
+// Keep in sync with SELECTED_MODEL_METADATA_KEY in extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLIChatSessions.ts.
+const SELECTED_MODEL_METADATA_KEY = 'selectedModelId';
 
 type NewSession = CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession;
 
@@ -976,6 +978,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		session: IAgentSession,
 		providerId: string,
 		private readonly _gitHubService: IGitHubService,
+		private readonly _languageModelsService?: ILanguageModelsService,
 	) {
 		this.sessionId = toSessionId(providerId, session.resource);
 		this.resource = session.resource;
@@ -1017,7 +1020,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractCheckpoints(session));
 		this.checkpoints = this._checkpoints;
 
-		this._modelId = observableValue<string | undefined>(this, undefined);
+		this._modelId = observableValue<string | undefined>(this, this._resolveModelId(session));
 		this.modelId = this._modelId;
 		this.mode = observableValue(this, undefined);
 		this.loading = observableValue(this, false);
@@ -1057,6 +1060,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		transaction(tx => {
 			this._title.set(session.label, tx);
 			this._workspace.set(this._buildWorkspace(session), tx);
+			this._modelId.set(this._resolveModelId(session), tx);
 			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);
@@ -1068,6 +1072,34 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 			this._baseGitHubInfo.set(this._extractGitHubInfo(session), tx);
 		});
+	}
+
+	private _resolveModelId(session: IAgentSession): string | undefined {
+		const rawModelId = session.metadata?.[SELECTED_MODEL_METADATA_KEY];
+		if (typeof rawModelId !== 'string' || rawModelId.length === 0) {
+			return undefined;
+		}
+
+		if (this._languageModelsService?.lookupLanguageModel(rawModelId)) {
+			return rawModelId;
+		}
+
+		return this._getSessionModels(session.providerType).find(model => {
+			return model.metadata.id === rawModelId || model.identifier.endsWith(`/${rawModelId}`);
+		})?.identifier ?? rawModelId;
+	}
+
+	private _getSessionModels(sessionType: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const languageModelsService = this._languageModelsService;
+		if (!languageModelsService) {
+			return [];
+		}
+		return languageModelsService.getLanguageModelIds()
+			.map(id => {
+				const metadata = languageModelsService.lookupLanguageModel(id);
+				return metadata ? { identifier: id, metadata } : undefined;
+			})
+			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model && model.metadata.targetChatSessionType === sessionType);
 	}
 
 	private _getSessionTypeIcon(session: IAgentSession): ThemeIcon {
@@ -1936,6 +1968,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 				// Wait for _refreshSessionCache to populate the committed adapter
 				const committedChat = await this._waitForSessionInCache(committedResource, cts.token);
+				if (session.selectedModelId && !committedChat.modelId.get()) {
+					committedChat.setModelId(session.selectedModelId);
+				}
 				this._sessionCache.delete(session.resource.toString());
 				this._clearCurrentNewSessionIfMatch(session);
 
@@ -2435,7 +2470,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				existing.update(session);
 				changedData.push(existing);
 			} else {
-				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
+				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService, this.languageModelsService);
 				this._sessionCache.set(key, adapter);
 				addedData.push(adapter);
 				cacheChanged = true;
