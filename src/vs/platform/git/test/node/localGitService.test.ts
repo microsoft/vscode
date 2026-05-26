@@ -24,7 +24,7 @@ function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFil
 		assert.ok(expectation, `Unexpected git call: ${(args as string[]).join(' ')}`);
 		assert.deepStrictEqual(args, expectation.args);
 
-		callback(expectation.error ?? null, expectation.stdout ?? '', expectation.stderr ?? '');
+		queueMicrotask(() => callback(expectation.error ?? null, expectation.stdout ?? '', expectation.stderr ?? ''));
 
 		return {} as cp.ChildProcess;
 	}) as typeof cp.execFile;
