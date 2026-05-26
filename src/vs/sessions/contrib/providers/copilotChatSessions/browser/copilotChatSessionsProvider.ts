@@ -1341,6 +1341,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		const worktreeUri = typeof metadata?.worktreePath === 'string'
 			? URI.file(metadata.worktreePath)
 			: undefined;
+		// workingDirectoryPath is a local filesystem path set from the CLI session's cwd
 		const folderUri = !repoUri && typeof metadata?.workingDirectoryPath === 'string'
 			? URI.file(metadata.workingDirectoryPath)
 			: undefined;
