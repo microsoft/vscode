@@ -49,7 +49,7 @@
 	},
 	"onEnterRules": [
 		{
-			"beforeText": "^\\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*?:\\s*$",
+			"beforeText": "^\\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async|match|case|as).*?:\\s*$",
 			"action": { "indent": "indent" }
 		}
 	]
