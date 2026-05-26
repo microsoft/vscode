@@ -995,10 +995,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 
 			if (models.status === 'fulfilled' && models.value.length > 0) {
+				const isUBB = !!this._authenticationService.copilotToken?.isUsageBasedBilling;
 				const modelItems: vscode.ChatSessionProviderOptionItem[] = models.value.map(model => ({
 					id: model.id,
 					name: model.name,
-					...(model.billing?.multiplier !== undefined ? { description: `${model.billing.multiplier}x` } : {}),
+					...(!isUBB && model.billing?.multiplier !== undefined ? { description: `${model.billing.multiplier}x` } : {}),
 				}));
 				if (!models.value.find(m => m.id === DEFAULT_MODEL_ID)) {
 					modelItems.unshift({ id: DEFAULT_MODEL_ID, name: vscode.l10n.t('Auto'), description: vscode.l10n.t('Automatically select the best model') });
