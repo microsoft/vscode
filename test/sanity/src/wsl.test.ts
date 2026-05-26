@@ -9,6 +9,8 @@ import { TestContext } from './context.js';
 import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
+	let didLogWslDiagnostics = false;
+
 	context.test('wsl-server-arm64', ['windows', 'arm64', 'wsl'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-arm64');
 		const entryPoint = context.getServerEntryPoint(dir, true);
@@ -60,6 +62,8 @@ export function setup(context: TestContext) {
 			return;
 		}
 
+		logWslDiagnostics();
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
 				context.toWslPath(entryPoint),
@@ -97,6 +101,8 @@ export function setup(context: TestContext) {
 		const wslExtensionsDir = context.createWslTempDir();
 		const token = context.getRandomToken();
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
+
+		logWslDiagnostics();
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[
@@ -136,6 +142,42 @@ export function setup(context: TestContext) {
 				return true;
 			}
 		);
+	}
+
+	function logWslDiagnostics(): void {
+		if (didLogWslDiagnostics) {
+			return;
+		}
+
+		didLogWslDiagnostics = true;
+
+		const diagnosticCommands = [
+			['--list', '--verbose'],
+			['--status'],
+			['-d', 'Ubuntu', 'uname', '-a'],
+			['-d', 'Ubuntu', 'cat', '/proc/version'],
+		];
+
+		for (const args of diagnosticCommands) {
+			const result = context.run('wsl', ...args);
+			const commandLine = `wsl ${args.join(' ')}`;
+			const stdout = result.stdout.trim();
+			const stderr = result.stderr.trim();
+
+			if (stdout) {
+				context.log(`${commandLine} stdout:\n${stdout}`);
+			}
+
+			if (stderr) {
+				context.log(`${commandLine} stderr:\n${stderr}`);
+			}
+
+			if (result.error) {
+				context.warn(`${commandLine} failed: ${result.error.message}`);
+			} else if (result.status !== 0) {
+				context.warn(`${commandLine} exited with code ${result.status}`);
+			}
+		}
 	}
 
 	async function testDesktopApp(entryPoint: string, dataDir: string) {
