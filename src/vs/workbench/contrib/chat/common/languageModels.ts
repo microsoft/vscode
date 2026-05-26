@@ -978,10 +978,18 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 
+			// Track whether this is the first resolution for the vendor.
+			// Consumers (e.g. the chat input model cache) bridge startup races
+			// by retaining cached models for vendors that haven't resolved yet;
+			// once a vendor resolves — even with zero models (e.g. a BYOK
+			// provider whose configuration was removed) — those cached entries
+			// become stale and must be evicted. We fire a change event on
+			// first resolution so consumers can recompute their model lists.
+			const wasUnresolved = !this._modelsGroups.has(vendorId);
 			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			const oldModels = this._clearModelCache(vendorId);
-			let hasChanges = false;
+			let hasChanges = wasUnresolved;
 			for (const model of allModels) {
 				if (this._modelCache.has(model.identifier)) {
 					this._logService.warn(`[LM] Model ${model.identifier} is already registered. Skipping.`);

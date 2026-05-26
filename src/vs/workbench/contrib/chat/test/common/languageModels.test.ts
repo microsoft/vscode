@@ -594,6 +594,37 @@ suite('LanguageModels - Model Change Events', function () {
 		assert.strictEqual(eventFired, false, 'Should not fire event when models are unchanged');
 	});
 
+	test('fires onChange event when a vendor first resolves with zero models', async function () {
+		// Regression test: when a vendor resolves for the first time but produces no
+		// models (e.g. a BYOK provider whose configuration / API key was removed),
+		// consumers that cache models per-vendor need to be notified so they can
+		// evict stale cached entries. Without this event firing, a previously
+		// persisted BYOK model could remain selected in the chat input even after
+		// it is no longer available.
+		const eventPromise = new Promise<string>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModels((vendorId) => {
+				resolve(vendorId);
+			}));
+		});
+
+		const onDidChangeEmitter = new Emitter<void>();
+		disposables.add(onDidChangeEmitter);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: onDidChangeEmitter.event,
+			// Provider returns no models (e.g. no API key configured)
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		// First resolution with zero models
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		const firedVendorId = await eventPromise;
+		assert.strictEqual(firedVendorId, 'test-vendor', 'Should fire event on first resolution even when no models are produced');
+	});
+
 	test('fires onChange event when model metadata changes', async function () {
 		const initialModels = [{
 			metadata: {
