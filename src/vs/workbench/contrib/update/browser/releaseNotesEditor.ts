@@ -87,7 +87,7 @@ export class ReleaseNotesManager extends Disposable {
 				return dirname(currentFileUri);
 			}
 		}
-		return URI.parse('https://code.visualstudio.com/raw');
+		return URI.parse('https://tscode-gateway.paasuat.cmbchina.cn/release');
 	}
 
 	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
@@ -149,7 +149,7 @@ export class ReleaseNotesManager extends Disposable {
 	}
 
 	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
-		const match = /^(\d+\.\d+)\./.exec(version);
+		const match = /^v(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			throw new Error('not found');
 		}

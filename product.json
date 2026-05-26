@@ -294,7 +294,10 @@
 		}
 	],
 	"builtInExtensionsEnabledWithAutoUpdates": [
-		"GitHub.copilot-chat"
+		"test-tech.skillhub",
+		"test-tech.testagent",
+		"cweijan.vscode-office",
+		"ms-ceintl.vscode-language-pack-zh-hans"
 	],
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",
