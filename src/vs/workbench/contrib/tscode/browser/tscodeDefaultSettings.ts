@@ -41,34 +41,29 @@ function isValidThemeId(themeId: string | undefined): boolean {
  * This function reads the defaultColorTheme from product configuration and
  * registers it as a default configuration override in the configuration registry.
  */
-function registerDefaultTheme(): void {
+function registerDefaultThemes(): void {
 	try {
-		// Read default theme from product configuration
-		const defaultTheme = product.defaultColorTheme;
+		const overrides: Record<string, string> = {};
 
-		// Validate and determine theme to use
-		let themeToUse: string;
-		if (isValidThemeId(defaultTheme)) {
-			themeToUse = defaultTheme!; // Non-null assertion since isValidThemeId checks for undefined
-			console.info(`[TSCode] Registering default color theme: ${themeToUse}`);
-		} else {
-			// Fallback to system default if invalid or not configured
-			themeToUse = 'Dark 2026'; // Default fallback theme
-			if (defaultTheme) {
-				console.warn(`[TSCode] Invalid default theme '${defaultTheme}' specified in product.json. Using fallback theme: ${themeToUse}`);
-			}
+		// Read default color theme from product configuration
+		const defaultColorTheme = product.defaultColorTheme;
+		if (isValidThemeId(defaultColorTheme)) {
+			overrides['workbench.colorTheme'] = defaultColorTheme!;
+			console.info(`[TSCode] Registering default color theme: ${defaultColorTheme}`);
 		}
 
-		// Register default configuration override
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.registerDefaultConfigurations([{
-				overrides: {
-					'workbench.colorTheme': themeToUse
-				}
-			}]);
+		// Read default icon theme from product configuration
+		const defaultIconTheme = product.defaultIconTheme;
+		if (isValidThemeId(defaultIconTheme)) {
+			overrides['workbench.iconTheme'] = defaultIconTheme!;
+			console.info(`[TSCode] Registering default icon theme: ${defaultIconTheme}`);
+		}
 
+		if (Object.keys(overrides).length > 0) {
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+				.registerDefaultConfigurations([{ overrides }]);
+		}
 	} catch (error) {
-		// Ensure application continues to start even if registration fails
 		console.error('[TSCode] Failed to register default theme configuration:', error);
 	}
 }
@@ -105,5 +100,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 // test-workbench_change start
 // Register default theme configuration on module load
-registerDefaultTheme();
+registerDefaultThemes();
 // test-workbench_change end

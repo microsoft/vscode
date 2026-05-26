@@ -251,6 +251,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/tscode",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/trust",
 			"project": "vscode-workbench"
 		},
