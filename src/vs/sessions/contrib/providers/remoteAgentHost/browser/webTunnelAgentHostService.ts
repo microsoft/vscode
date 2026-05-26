@@ -225,7 +225,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			authProvider,
 		});
 		this.clearAutoConnectSuppression(tunnel.tunnelId);
-		this._storeCachedTunnels(filtered.slice(0, 20));
+		this._storeCachedTunnels(filtered);
 		this._onDidChangeTunnels.fire();
 	}
 
