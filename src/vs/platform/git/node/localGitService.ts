@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import { CancellationError } from '../../../base/common/errors.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { ILocalGitService } from '../common/localGitService.js';
+import { IGitPullOptions, ILocalGitService } from '../common/localGitService.js';
 import { ILogService } from '../../log/common/log.js';
 
 export class LocalGitService implements ILocalGitService {
@@ -47,18 +47,23 @@ export class LocalGitService implements ILocalGitService {
 		await this._exec(operationId, args);
 	}
 
-	async pull(operationId: string, repoPath: string): Promise<boolean> {
+	async pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean> {
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 
 		try {
 			await this._exec(operationId, ['pull', '--ff-only'], repoPath);
 		} catch (err) {
-			this._logService.warn(`[LocalGitService] Fast-forward pull failed for ${repoPath}. Retrying after fetch.`);
+			const error = err as { message?: string };
+			this._logService.warn(`[LocalGitService] Fast-forward pull failed for ${repoPath}: ${error?.message ?? String(err)}. Retrying after fetch.`);
 			await this._exec(operationId, ['fetch', '--prune'], repoPath);
 
 			try {
 				await this._exec(operationId, ['pull', '--ff-only'], repoPath);
 			} catch (retryErr) {
+				if (!options?.allowHardResetOnDivergence) {
+					throw retryErr;
+				}
+
 				const upstream = await this._getSafeHardResetTarget(operationId, repoPath);
 				if (!upstream) {
 					throw retryErr;
@@ -88,16 +93,22 @@ export class LocalGitService implements ILocalGitService {
 
 		const behind = await this._revListCount(operationId, repoPath, 'HEAD', '@{u}');
 		const ahead = await this._revListCount(operationId, repoPath, '@{u}', 'HEAD');
-		if (ahead <= 0 || behind <= 0) {
+		if (ahead === undefined || behind === undefined || ahead <= 0 || behind <= 0) {
 			return undefined;
 		}
 
 		return upstream;
 	}
 
-	private async _revListCount(operationId: string, repoPath: string, fromRef: string, toRef: string): Promise<number> {
+	private async _revListCount(operationId: string, repoPath: string, fromRef: string, toRef: string): Promise<number | undefined> {
 		const result = await this._exec(operationId, ['rev-list', '--count', `${fromRef}..${toRef}`], repoPath);
-		return Number(result.trim()) || 0;
+		const parsed = Number(result.trim());
+		if (!Number.isFinite(parsed)) {
+			this._logService.warn(`[LocalGitService] Failed to parse rev-list count for ${fromRef}..${toRef} in ${repoPath}: ${result}`);
+			return undefined;
+		}
+
+		return parsed;
 	}
 
 	async checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void> {

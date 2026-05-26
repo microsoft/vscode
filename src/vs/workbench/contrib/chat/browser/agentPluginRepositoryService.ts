@@ -176,14 +176,15 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
 				const primaryActions = [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => this._commandService.executeCommand('git.showOutput'))];
+				const failureLabel = options?.failureLabel ?? updateLabel;
 
 				if (marketplace.kind !== MarketplaceReferenceKind.LocalFileUri) {
-					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, updateLabel)));
+					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, failureLabel)));
 				}
 
 				this._notificationService.notify({
 					severity: Severity.Error,
-					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
+					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
 					actions: {
 						primary: primaryActions,
 					},
@@ -209,7 +210,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				async () => {
 					const exists = await this._fileService.exists(repoDir);
 					if (exists) {
-						await this._fileService.del(repoDir, { recursive: true });
+						await this._fileService.del(repoDir, { recursive: true, useTrash: false });
 					}
 					await this.ensureRepository(marketplace, {
 						marketplaceType,
@@ -226,7 +227,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				message: localize('purgeMarketplaceFailed', "Failed to purge plugin marketplace '{0}': {1}", marketplace.displayLabel, err?.message ?? String(err)),
 				actions: {
 					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
+						return this._commandService.executeCommand('git.showOutput');
 					})],
 				},
 			});

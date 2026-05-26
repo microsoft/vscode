@@ -74,7 +74,7 @@ suite('LocalGitService', () => {
 		stubExecFile(expectations);
 
 		const service = new LocalGitService(new NullLogService());
-		const changed = await service.pull('test-op', 'C:\\repo');
+		const changed = await service.pull('test-op', 'C:\\repo', { allowHardResetOnDivergence: true });
 
 		assert.strictEqual(changed, true);
 		assert.strictEqual(expectations.length, 0);
@@ -93,7 +93,7 @@ suite('LocalGitService', () => {
 		const service = new LocalGitService(new NullLogService());
 
 		await assert.rejects(
-			() => service.pull('test-op', 'C:\\repo'),
+			() => service.pull('test-op', 'C:\\repo', { allowHardResetOnDivergence: true }),
 			/Not possible to fast-forward/
 		);
 		assert.strictEqual(expectations.length, 0);
@@ -118,7 +118,7 @@ suite('LocalGitService', () => {
 		const service = new LocalGitService(new NullLogService());
 
 		await assert.rejects(
-			() => service.pull('test-op', 'C:\\repo'),
+			() => service.pull('test-op', 'C:\\repo', { allowHardResetOnDivergence: true }),
 			/Failed to pull/
 		);
 		assert.strictEqual(expectations.length, 0);
@@ -138,6 +138,43 @@ suite('LocalGitService', () => {
 		const changed = await service.pull('test-op', 'C:\\repo');
 
 		assert.strictEqual(changed, true);
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('pull without hard-reset option does not attempt destructive recovery', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },
+			{ args: ['pull', '--ff-only'], error: createDivergedPullError() },
+			{ args: ['fetch', '--prune'] },
+			{ args: ['pull', '--ff-only'], error: createDivergedPullError() },
+		];
+		stubExecFile(expectations);
+
+		const service = new LocalGitService(new NullLogService());
+		await assert.rejects(
+			() => service.pull('test-op', 'C:\\repo'),
+			/Not possible to fast-forward/
+		);
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('pull rethrows when upstream cannot be resolved during recovery', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },
+			{ args: ['pull', '--ff-only'], error: createDivergedPullError() },
+			{ args: ['fetch', '--prune'] },
+			{ args: ['pull', '--ff-only'], error: createDivergedPullError() },
+			{ args: ['status', '--porcelain'], stdout: '' },
+			{ args: ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], error: new Error('no upstream configured') as cp.ExecFileException },
+		];
+		stubExecFile(expectations);
+
+		const service = new LocalGitService(new NullLogService());
+
+		await assert.rejects(
+			() => service.pull('test-op', 'C:\\repo', { allowHardResetOnDivergence: true }),
+			/Not possible to fast-forward/
+		);
 		assert.strictEqual(expectations.length, 0);
 	});
 });
