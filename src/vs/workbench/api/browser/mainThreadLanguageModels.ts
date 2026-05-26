@@ -45,6 +45,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
+
+		// Bridge workbench-side language-model changes to extensions via `vscode.lm.onDidChangeChatModels`.
+		this._store.add(this._chatProviderService.onDidChangeLanguageModels(() => {
+			this._proxy.$onChatModelsChange();
+		}));
 	}
 
 	dispose(): void {

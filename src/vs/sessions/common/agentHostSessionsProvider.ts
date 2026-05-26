@@ -134,7 +134,15 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  * reserved provider ID (`local-agent-host` or `agenthost-*` prefix).
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
-	return provider.id === LOCAL_AGENT_HOST_PROVIDER_ID || provider.id.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
+	return isAgentHostProviderId(provider.id);
+}
+
+/**
+ * Checks whether a provider ID is for an agent host provider
+ * (`local-agent-host` or any `agenthost-*` provider).
+ */
+export function isAgentHostProviderId(providerId: string): boolean {
+	return providerId === LOCAL_AGENT_HOST_PROVIDER_ID || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
 }
 
 /**

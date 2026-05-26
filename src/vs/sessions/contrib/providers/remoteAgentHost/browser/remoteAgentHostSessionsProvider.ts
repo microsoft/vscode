@@ -375,6 +375,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			return;
 		}
 
+		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
@@ -396,7 +397,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 		// Always refresh sessions when a connection is (re)established
 		this._cacheInitialized = true;
-		this._refreshSessions();
+		this._refreshSessions(wasUnpublished);
 	}
 
 	/**
@@ -450,9 +451,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			return;
 		}
 		this._unpublished = true;
-		const removed: ISession[] = Array.from(this._sessionCache.values());
-		if (removed.length > 0) {
-			this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
+		if (this._sessionCache.size > 0) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 		}
 	}
 

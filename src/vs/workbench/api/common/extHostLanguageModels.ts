@@ -525,6 +525,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
+	$onChatModelsChange(): void {
+		this._onDidChangeProviders.fire();
+	}
+
 	async $acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void> {
 		const data = this._pendingRequest.get(requestId);
 		if (!data) {
