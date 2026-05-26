@@ -373,14 +373,10 @@ async function connectToConfiguredSSHHost(
 	const port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
 	const suggestedName = hostAlias;
 
-	let defaultKeyPath: string | undefined;
-	if (resolvedConfig.identityFile.length > 0) {
-		const firstKey = resolvedConfig.identityFile[0];
-		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
-		if (!defaultKeys.includes(firstKey)) {
-			defaultKeyPath = firstKey;
-		}
-	}
+	// Pass through the first resolved IdentityFile (if any) as the explicit
+	// key. The main process is responsible for de-duplicating against its
+	// default-key scan, so we don't need to filter here.
+	const defaultKeyPath = resolvedConfig.identityFile[0];
 
 	if (username) {
 		const config: ISSHAgentHostConfig = {
@@ -389,6 +385,7 @@ async function connectToConfiguredSSHHost(
 			username,
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath: defaultKeyPath,
+			identityAgent: resolvedConfig.identityAgent,
 			agentForward: resolvedConfig.forwardAgent || undefined,
 			name: suggestedName,
 			sshConfigHost: hostAlias,
@@ -404,7 +401,7 @@ async function connectToConfiguredSSHHost(
 
 	// Fallback: alias resolved without a user — fall through to manual flow
 	await instantiationService.invokeFunction(accessor =>
-		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath)
+		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath, resolvedConfig.identityAgent)
 	);
 }
 
@@ -415,6 +412,7 @@ async function promptForCredentialsAndConnect(
 	port: number | undefined,
 	suggestedName?: string,
 	defaultKeyPath?: string,
+	identityAgent?: string,
 ): Promise<void> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const instantiationService = accessor.get(IInstantiationService);
@@ -510,6 +508,7 @@ async function promptForCredentialsAndConnect(
 		username,
 		authMethod,
 		privateKeyPath,
+		identityAgent,
 		password,
 		name: name.trim(),
 	};
