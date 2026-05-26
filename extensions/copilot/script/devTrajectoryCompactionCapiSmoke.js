@@ -176,17 +176,26 @@ function sendChatRequest(url, token, stream) {
 	});
 
 	return new Promise((resolve, reject) => {
+		const headers = {
+			'Authorization': `Bearer ${token}`,
+			'Content-Type': 'application/json',
+			'User-Agent': 'GitHubCopilotChat/0.0.0',
+			'Editor-Plugin-Version': 'copilot-chat/0.0.0',
+			'Editor-Version': 'vscode/1.97.0',
+			'X-GitHub-Api-Version': '2026-01-09',
+			'OpenAI-Intent': 'conversation-compaction',
+		};
+		// The production chat-completions call does NOT set
+		// `Copilot-Integration-Id` for HTTP requests — only WebSocket
+		// connections. CAPI derives the integrator from `User-Agent`
+		// (`GitHubCopilotChat/...`). Allow an opt-in override via env var
+		// to investigate "model not available for integrator" errors.
+		if (process.env.COPILOT_INTEGRATION_ID) {
+			headers['Copilot-Integration-Id'] = process.env.COPILOT_INTEGRATION_ID;
+		}
 		const req = https.request(url, {
 			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${token}`,
-				'Content-Type': 'application/json',
-				'Copilot-Integration-Id': 'vscode-chat',
-				'Editor-Plugin-Version': 'copilot-chat/0.0.0',
-				'Editor-Version': 'vscode/1.97.0',
-				'X-GitHub-Api-Version': '2026-01-09',
-				'OpenAI-Intent': 'conversation-compaction',
-			},
+			headers,
 		}, (res) => {
 			const chunks = [];
 			res.on('data', (c) => chunks.push(c));
