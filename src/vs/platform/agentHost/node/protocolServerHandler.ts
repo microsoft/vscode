@@ -34,7 +34,7 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationTargetKind, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -867,30 +867,7 @@ export class ProtocolServerHandler extends Disposable {
 			return null;
 		},
 		invokeChangesetOperation: async (_client, params) => {
-			// v1 wires the request/response infrastructure but does not
-			// register any concrete operation handlers. The body validates
-			// the request shape against the current changeset state so that
-			// future producers slotting in handlers don't need to repeat
-			// boilerplate, then rejects the request with a JSON-RPC error
-			// for the "no handler" case. See the Changesets spec section
-			// "Changeset Operations" for the contract.
-			const state = this._stateManager.getChangesetState(params.channel);
-			if (!state) {
-				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Changeset not found: ${params.channel}`);
-			}
-			const op = state.operations?.find(o => o.id === params.operationId);
-			if (!op) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unknown operation '${params.operationId}' on changeset ${params.channel}`);
-			}
-			const targetKind: ChangesetOperationScope = params.target?.kind === ChangesetOperationTargetKind.Resource
-				? ChangesetOperationScope.Resource
-				: params.target?.kind === ChangesetOperationTargetKind.Range
-					? ChangesetOperationScope.Range
-					: ChangesetOperationScope.Changeset;
-			if (!op.scopes.includes(targetKind)) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' does not support scope '${targetKind}' (allowed: ${op.scopes.join(', ')})`);
-			}
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.channel}`);
+			return this._agentService.invokeChangesetOperation(params);
 		},
 	};
 

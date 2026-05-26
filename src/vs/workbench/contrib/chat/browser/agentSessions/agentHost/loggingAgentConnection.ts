@@ -12,6 +12,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import { StateComponents, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -210,6 +211,10 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	async disposeTerminal(terminal: URI): Promise<void> {
 		return this._logCall('disposeTerminal', terminal, () => this._inner.disposeTerminal(terminal));
+	}
+
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._logCall('invokeChangesetOperation', params, () => this._inner.invokeChangesetOperation(params));
 	}
 
 	get rootState(): IAgentSubscription<RootState> {

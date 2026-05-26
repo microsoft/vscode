@@ -15,6 +15,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
@@ -339,6 +340,26 @@ export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 	authorization_servers: ['https://github.com/login/oauth'],
 	scopes_supported: ['read:user', 'user:email'],
 	required: true,
+};
+
+/**
+ * Canonical {@link ProtectedResourceMetadata} for GitHub repository write
+ * operations (e.g. creating a pull request). Distinct from
+ * {@link GITHUB_COPILOT_PROTECTED_RESOURCE} so that the broader `repo`
+ * scope is only requested when a session actually needs it (e.g. when a
+ * changeset operation handler throws `AHP_AUTH_REQUIRED` with this
+ * resource), rather than at session create for every agent.
+ *
+ * `required: false` reflects that the resource is only needed on demand —
+ * agents do not have to advertise it eagerly. The workbench-side auth
+ * contributor resolves it lazily in response to operation invocations.
+ */
+export const GITHUB_REPO_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
+	resource: 'https://api.github.com/repos',
+	resource_name: 'GitHub Repository',
+	authorization_servers: ['https://github.com/login/oauth'],
+	scopes_supported: ['repo'],
+	required: false,
 };
 
 export interface IAgentCreateSessionConfig {
@@ -738,6 +759,15 @@ export interface IAgentService {
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
+	/**
+	 * Returns the most recently pushed token for {@link resource}, or
+	 * `undefined` when no token has been pushed (or after the entry was
+	 * cleared). Used by service-level consumers (e.g. changeset operation
+	 * handlers) that need bearer tokens for resources not tied to a
+	 * specific agent — typically {@link GITHUB_REPO_PROTECTED_RESOURCE}.
+	 */
+	getAuthToken(resource: string): string | undefined;
+
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
@@ -779,6 +809,9 @@ export interface IAgentService {
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
+
+	/** Invoke a server-defined changeset operation. */
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
@@ -921,6 +954,9 @@ export interface IAgentConnection {
 	// ---- Terminal lifecycle -------------------------------------------------
 	createTerminal(params: CreateTerminalParams): Promise<void>;
 	disposeTerminal(terminal: URI): Promise<void>;
+
+	// ---- Changeset operations -----------------------------------------------
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
 	resourceList(uri: URI): Promise<ResourceListResult>;
