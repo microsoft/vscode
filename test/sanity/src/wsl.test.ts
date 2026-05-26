@@ -8,8 +8,6 @@ import { _electron } from 'playwright';
 import { TestContext } from './context.js';
 import { UITest } from './uiTest.js';
 
-const serverNodeOptions = 'NODE_OPTIONS=--no-deprecation';
-
 export function setup(context: TestContext) {
 	context.test('wsl-server-arm64', ['windows', 'arm64', 'wsl'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-arm64');
@@ -64,7 +62,6 @@ export function setup(context: TestContext) {
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				'env', serverNodeOptions,
 				context.toWslPath(entryPoint),
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
@@ -103,7 +100,6 @@ export function setup(context: TestContext) {
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				'env', serverNodeOptions,
 				context.toWslPath(entryPoint),
 				'--accept-server-license-terms',
 				'--connection-token', token,

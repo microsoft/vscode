@@ -6,8 +6,6 @@
 import { TestContext } from './context.js';
 import { UITest } from './uiTest.js';
 
-const serverEnv = { NODE_OPTIONS: '--no-deprecation' };
-
 export function setup(context: TestContext) {
 	context.test('server-web-alpine-arm64', ['alpine', 'arm64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-alpine-arm64-web');
@@ -104,8 +102,7 @@ export function setup(context: TestContext) {
 
 				test.validate();
 				return true;
-			},
-			{ env: serverEnv }
+			}
 		);
 	}
 }

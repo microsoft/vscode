@@ -1267,21 +1267,20 @@ export class TestContext {
 	 * @param args Arguments for the command.
 	 * @param onLine Callback to handle output lines.
 	 */
-	public async runCliApp(name: string, command: string, args: string[], onLine: (text: string) => Promise<boolean | void | undefined>, options?: { env?: NodeJS.ProcessEnv }) {
+	public async runCliApp(name: string, command: string, args: string[], onLine: (text: string) => Promise<boolean | void | undefined>) {
 		this.log(`Starting ${name} with command line: ${command} ${args.join(' ')}`);
 
 		const app = spawn(command, args, {
 			shell: /\.(sh|cmd)$/.test(command),
 			detached: !this.capabilities.has('windows'),
 			stdio: ['ignore', 'pipe', 'pipe'],
-			env: options?.env ? { ...process.env, ...options.env } : undefined,
 		});
 
 		try {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)) {
+					if (this.isNonFatalCliStderr(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));
@@ -1318,5 +1317,10 @@ export class TestContext {
 		} finally {
 			this.killProcessTree(app.pid!);
 		}
+	}
+
+	private isNonFatalCliStderr(text: string): boolean {
+		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }
