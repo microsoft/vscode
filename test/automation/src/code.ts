@@ -37,6 +37,14 @@ export interface LaunchOptions {
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
 	readonly extensionDevelopmentPath?: string;
+
+	/**
+	 * Extra environment variables merged on top of the inherited `process.env`
+	 * when launching the Electron child process. Set a value to `undefined`
+	 * to unset the variable. Used by tests that need to inject env-based
+	 * mocks (e.g. `VSCODE_COPILOT_CHAT_TOKEN`).
+	 */
+	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
 }
 
 interface ICodeInstance {

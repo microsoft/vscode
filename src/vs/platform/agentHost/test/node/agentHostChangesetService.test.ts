@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -19,7 +19,8 @@ import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { createNoopGitService, createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { META_CHECKPOINT_WORKING_DIR } from '../../node/agentHostCheckpointService.js';
 
 suite('AgentHostChangesetService', () => {
 
@@ -439,6 +440,49 @@ suite('AgentHostChangesetService', () => {
 		const bDiff = { after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 2, removed: 0 } };
 		const sessionStr = sessionUri.toString();
 
+		test('parsePersistedStaticChangesets parses without mutating state', () => {
+			setupSession();
+			changesetService.registerStaticChangesets(sessionStr);
+
+			const result = changesetService.parsePersistedStaticChangesets(sessionStr, {
+				uncommittedRaw: JSON.stringify([aDiff]),
+				sessionRaw: JSON.stringify([bDiff]),
+			});
+
+			assert.deepStrictEqual({
+				uncommitted: result.uncommitted?.map(d => d.after?.uri),
+				session: result.session?.map(d => d.after?.uri),
+				uncommittedState: stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr)),
+				sessionState: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)),
+			}, {
+				uncommitted: ['file:///wd/a.ts'],
+				session: ['file:///wd/b.ts'],
+				uncommittedState: { status: 'computing', files: [] },
+				sessionState: { status: 'computing', files: [] },
+			});
+		});
+
+		test('applyPersistedStaticChangesets seeds parsed diffs', () => {
+			setupSession();
+			changesetService.registerStaticChangesets(sessionStr);
+			const parsed = changesetService.parsePersistedStaticChangesets(sessionStr, {
+				uncommittedRaw: JSON.stringify([aDiff]),
+				sessionRaw: JSON.stringify([bDiff]),
+			});
+
+			changesetService.applyPersistedStaticChangesets(sessionStr, parsed);
+
+			const uncommitted = stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
+			const session = stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
+			assert.deepStrictEqual({
+				uncommitted: uncommitted && { status: uncommitted.status, files: uncommitted.files.map(f => f.id) },
+				session: session && { status: session.status, files: session.files.map(f => f.id) },
+			}, {
+				uncommitted: { status: 'ready', files: ['file:///wd/a.ts'] },
+				session: { status: 'ready', files: ['file:///wd/b.ts'] },
+			});
+		});
+
 		test('new uncommitted key restores only uncommitted state', () => {
 			setupSession();
 			changesetService.registerStaticChangesets(sessionStr);
@@ -536,6 +580,85 @@ suite('AgentHostChangesetService', () => {
 				deletions: 0,
 				files: 2,
 			}, 'catalogue counts must reflect restored files');
+		});
+	});
+
+	suite('idle changeset LRU eviction', () => {
+
+		const sessionStr = sessionUri.toString();
+
+		test('idle changeset states are evicted over the soft limit', () => {
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 2 } }));
+			const first = `${sessionStr}/changeset/session`;
+			const second = `${sessionStr}/changeset/uncommitted`;
+			const third = `${sessionStr}/changeset/turn/turn-1`;
+
+			localStateManager.registerChangeset(first);
+			localStateManager.registerChangeset(second);
+			localStateManager.registerChangeset(third);
+
+			assert.deepStrictEqual({
+				first: localStateManager.getChangesetState(first),
+				second: localStateManager.getChangesetState(second)?.status,
+				third: localStateManager.getChangesetState(third)?.status,
+			}, {
+				first: undefined,
+				second: 'computing',
+				third: 'computing',
+			});
+		});
+
+		test('evictability probe protects subscribed changesets', () => {
+			const first = `${sessionStr}/changeset/session`;
+			const second = `${sessionStr}/changeset/uncommitted`;
+			const third = `${sessionStr}/changeset/turn/turn-1`;
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 2, canEvict: changeset => changeset !== first } }));
+
+			localStateManager.registerChangeset(first);
+			localStateManager.registerChangeset(second);
+			localStateManager.registerChangeset(third);
+
+			assert.deepStrictEqual({
+				first: localStateManager.getChangesetState(first)?.status,
+				second: localStateManager.getChangesetState(second),
+				third: localStateManager.getChangesetState(third)?.status,
+			}, {
+				first: 'computing',
+				second: undefined,
+				third: 'computing',
+			});
+		});
+
+		test('LRU eviction is silent and does not dispatch ChangesetCleared', () => {
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 1 } }));
+			const envelopes: ActionEnvelope[] = [];
+			const listener = disposables.add(localStateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			localStateManager.registerChangeset(`${sessionStr}/changeset/session`);
+			localStateManager.registerChangeset(`${sessionStr}/changeset/uncommitted`);
+
+			assert.deepStrictEqual(envelopes.map(e => e.action.type), []);
+			listener.dispose();
+		});
+
+		test('trimming reconsiders entries after they become evictable', () => {
+			let canEvict = false;
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 1, canEvict: () => canEvict } }));
+			const first = `${sessionStr}/changeset/session`;
+			const second = `${sessionStr}/changeset/uncommitted`;
+
+			localStateManager.registerChangeset(first);
+			localStateManager.registerChangeset(second);
+			canEvict = true;
+			localStateManager.onChangesetLivenessChanged();
+
+			assert.deepStrictEqual({
+				first: localStateManager.getChangesetState(first),
+				second: localStateManager.getChangesetState(second)?.status,
+			}, {
+				first: undefined,
+				second: 'computing',
+			});
 		});
 	});
 
@@ -678,6 +801,136 @@ suite('AgentHostChangesetService', () => {
 				envelopes.some(e => e.action.type === ActionType.ChangesetStatusChanged),
 				'onTurnComplete must drive at least one downstream changeset status transition',
 			);
+		});
+	});
+
+	suite('computeCompareTurnsChangeset', () => {
+
+		function makeCheckpointService(pairs: Record<string, { parent: string; current: string } | undefined>) {
+			return {
+				...NULL_CHECKPOINT_SERVICE,
+				getTurnCheckpointPair: async (_session: URI, turnId: string) => pairs[turnId],
+			};
+		}
+
+		test('publishes diffs as Ready when both checkpoints resolve and git returns diffs', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
+
+			const expectedDiffs = [
+				{ after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 4, removed: 1 } },
+			];
+			const calls: Array<{ fromRef: string; toRef: string }> = [];
+			const gitService = createNoopGitService();
+			gitService.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+				calls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+				return expectedDiffs;
+			};
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(db),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
+					'mod': { parent: 'ref-orig', current: 'ref-mod' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			assert.strictEqual(compareUri, `${sessionStr}/changeset/compare/orig/mod`);
+			assert.deepStrictEqual(calls, [{ fromRef: 'ref-orig', toRef: 'ref-mod' }]);
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; files: Array<{ id: string }> } | undefined;
+			assert.deepStrictEqual({ status: state?.status, ids: state?.files.map(f => f.id) }, {
+				status: 'ready',
+				ids: ['file:///wd/a.ts'],
+			});
+		});
+
+		test('transitions to Error when either checkpoint is missing', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const gitService = createNoopGitService();
+			let gitCalls = 0;
+			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(new TestSessionDatabase()),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
+					// 'mod' is intentionally absent
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; error?: { message: string } } | undefined;
+			assert.strictEqual(state?.status, 'error');
+			assert.ok(state?.error?.message.includes('modified turn'), `expected error to name the missing side, got ${state?.error?.message}`);
+			assert.strictEqual(gitCalls, 0, 'git must not be invoked when a checkpoint is missing');
+		});
+
+		test('returns empty Ready snapshot when both checkpoints point at the same ref', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const gitService = createNoopGitService();
+			let gitCalls = 0;
+			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(new TestSessionDatabase()),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'p1', current: 'same-ref' },
+					'mod': { parent: 'same-ref', current: 'same-ref' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; files: Array<unknown> } | undefined;
+			assert.deepStrictEqual({ status: state?.status, files: state?.files }, { status: 'ready', files: [] });
+			assert.strictEqual(gitCalls, 0, 'git diff must be short-circuited when both refs match');
+		});
+
+		test('transitions to Error when the git diff returns undefined (git failure, not empty)', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
+
+			const gitService = createNoopGitService();
+			gitService.computeFileDiffsBetweenRefs = async () => undefined;
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(db),
+				gitService,
+				makeCheckpointService({
+					'orig': { parent: 'p', current: 'ref-orig' },
+					'mod': { parent: 'ref-orig', current: 'ref-mod' },
+				}),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
+
+			const snapshot = stateManager.getSnapshot(compareUri);
+			const state = snapshot?.state as { status: string; error?: { message: string } } | undefined;
+			assert.strictEqual(state?.status, 'error');
+			assert.ok(state?.error?.message.includes('git'), `expected git-failure error message, got ${state?.error?.message}`);
 		});
 	});
 });

@@ -82,26 +82,44 @@
           "order": 0,
           "type": "string",
           "enum": [
+            "vscode",
             "base",
             "forest",
             "dark",
             "default",
             "neutral"
           ],
-          "default": "default",
+          "enumDescriptions": [
+            "%config.markdown-mermaid.theme.vscode.description%",
+            "%config.markdown-mermaid.theme.base.description%",
+            "%config.markdown-mermaid.theme.forest.description%",
+            "%config.markdown-mermaid.theme.dark.description%",
+            "%config.markdown-mermaid.theme.default.description%",
+            "%config.markdown-mermaid.theme.neutral.description%"
+          ],
+          "default": "vscode",
           "description": "%config.markdown-mermaid.lightModeTheme.description%"
         },
         "markdown-mermaid.darkModeTheme": {
           "order": 1,
           "type": "string",
           "enum": [
+            "vscode",
             "base",
             "forest",
             "dark",
             "default",
             "neutral"
           ],
-          "default": "dark",
+          "enumDescriptions": [
+            "%config.markdown-mermaid.theme.vscode.description%",
+            "%config.markdown-mermaid.theme.base.description%",
+            "%config.markdown-mermaid.theme.forest.description%",
+            "%config.markdown-mermaid.theme.dark.description%",
+            "%config.markdown-mermaid.theme.default.description%",
+            "%config.markdown-mermaid.theme.neutral.description%"
+          ],
+          "default": "vscode",
           "description": "%config.markdown-mermaid.darkModeTheme.description%"
         },
         "markdown-mermaid.languages": {
@@ -170,6 +188,7 @@
       {
         "id": "vscode.markdown-it.mermaid-extension",
         "displayName": "Markdown-It Mermaid Renderer",
+        "requiresMessaging": "optional",
         "entrypoint": {
           "extends": "vscode.markdown-it-renderer",
           "path": "./notebook-out/index.js"

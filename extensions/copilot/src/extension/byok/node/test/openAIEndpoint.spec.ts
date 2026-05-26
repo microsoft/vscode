@@ -111,6 +111,20 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 		disposables.clear();
 	});
 
+	describe('ownsAuthorization', () => {
+		it('declares ownsAuthorization=true so the chat fetcher does not attach the CAPI Copilot token or raise a missing-key error for BYOK endpoints', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			expect(endpoint.ownsAuthorization).toBe(true);
+		});
+	});
+
 	describe('CAPI mode (useResponsesApi = false)', () => {
 		it('should set cot_id and cot_summary properties when processing thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,

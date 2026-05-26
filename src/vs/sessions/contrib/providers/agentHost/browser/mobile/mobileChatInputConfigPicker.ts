@@ -278,6 +278,12 @@ class MobileChatInputConfigPicker extends Disposable {
 			"Pick Mode and Model, {0}",
 			ariaParts.join(', '),
 		);
+
+		// Sheet's mode row writes through `setSessionConfigValue`, so
+		// disable the chip while a resolve is in flight.
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
+		this._slotElement.classList.toggle('disabled', isResolving);
+		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
 	/**
@@ -307,13 +313,20 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!this._triggerElement) {
 			return;
 		}
+		// Sheet's mode row writes through `setSessionConfigValue`; the
+		// chip retains its tap target while visually disabled, so
+		// guard explicitly.
+		const ctx = this._getContext();
+		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get()) {
+			return;
+		}
 		// Delegate sheet construction to the shared phone presenter so
 		// the new-session chip and the opened-chat chip render the exact
 		// same Mode + Model rows. The presenter's agent-host branch
 		// reads the active session's config + filtered models and
 		// handles the writes (provider mode/model + shared storage key).
 		const trigger = this._triggerElement;
-		const beforeCtx = this._getContext();
+		const beforeCtx = ctx;
 		const beforeMode = beforeCtx?.currentMode;
 		const beforeModeItem = beforeCtx?.modeItems.find(i => i.value === beforeMode);
 		const beforeModelId = beforeCtx?.currentModelId;

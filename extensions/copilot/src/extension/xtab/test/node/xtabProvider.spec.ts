@@ -164,6 +164,8 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
 		PromptingStrategy.Xtab275EditIntent,
 		PromptingStrategy.Xtab275EditIntentShort,
 	])('returns xtab275SystemPrompt for %s', (strategy) => {

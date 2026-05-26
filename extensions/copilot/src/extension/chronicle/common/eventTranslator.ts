@@ -223,6 +223,36 @@ export function translateSpan(
 		}
 	}
 
+	if (operationName === GenAiOperationName.CHAT) {
+		const inputTokens = span.attributes[GenAiAttr.USAGE_INPUT_TOKENS] as number | undefined;
+		const outputTokens = span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS] as number | undefined;
+		const model = (span.attributes[GenAiAttr.RESPONSE_MODEL] as string | undefined)
+			?? (span.attributes[GenAiAttr.REQUEST_MODEL] as string | undefined);
+
+		if (typeof inputTokens === 'number' && typeof outputTokens === 'number') {
+			const data: Record<string, unknown> = {
+				model: model ?? 'unknown',
+				inputTokens,
+				outputTokens,
+			};
+
+			// Optional fields — include when available
+			const cacheReadTokens = span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS] as number | undefined;
+			if (typeof cacheReadTokens === 'number') {
+				data.cacheReadTokens = cacheReadTokens;
+			}
+			const timeToFirstToken = span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN] as number | undefined;
+			if (typeof timeToFirstToken === 'number') {
+				data.timeToFirstTokenMs = timeToFirstToken;
+			}
+			if (span.endTime > span.startTime) {
+				data.duration = span.endTime - span.startTime;
+			}
+
+			pushEvent(events, state, 'assistant.usage', data, /*ephemeral*/ true, subagentId);
+		}
+	}
+
 	return events;
 }
 
@@ -339,6 +369,31 @@ export function translateDebugLogEntry(
 						code: 'failure',
 					} : undefined,
 				});
+			}
+			break;
+		}
+
+		case 'llm_request': {
+			const inputTokens = entry.attrs.inputTokens;
+			const outputTokens = entry.attrs.outputTokens;
+			if (typeof inputTokens === 'number' && typeof outputTokens === 'number') {
+				const data: Record<string, unknown> = {
+					model: typeof entry.attrs.model === 'string' ? entry.attrs.model : 'unknown',
+					inputTokens,
+					outputTokens,
+				};
+				const cacheReadTokens = entry.attrs.cacheReadTokens ?? entry.attrs.cachedTokens;
+				if (typeof cacheReadTokens === 'number') {
+					data.cacheReadTokens = cacheReadTokens;
+				}
+				const ttft = entry.attrs.ttft;
+				if (typeof ttft === 'number') {
+					data.timeToFirstTokenMs = ttft;
+				}
+				if (typeof entry.dur === 'number' && entry.dur > 0) {
+					data.duration = entry.dur;
+				}
+				pushEventAt(events, state, ts, 'assistant.usage', data, /*ephemeral*/ true);
 			}
 			break;
 		}

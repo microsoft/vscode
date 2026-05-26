@@ -13,7 +13,7 @@ interface IWorkbenchTestHarness {
 		auxiliaryBar: boolean;
 		editor: boolean;
 		panel: boolean;
-		chatBar: boolean;
+		sessions: boolean;
 	};
 	_editorMaximized: boolean;
 	_restoreAttachedEditorMaximizedOnShow: boolean;
@@ -36,7 +36,7 @@ suite('Sessions - Workbench', () => {
 				auxiliaryBar: true,
 				editor: true,
 				panel: false,
-				chatBar: true,
+				sessions: true,
 			},
 			_editorMaximized: false,
 			_restoreAttachedEditorMaximizedOnShow: false,

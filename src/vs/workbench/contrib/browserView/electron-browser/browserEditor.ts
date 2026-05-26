@@ -103,11 +103,48 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * Called when the editor is laid out with a new dimension.
 	 */
 	layout(_width: number): void { }
+
+	/**
+	 * Called once after the editor's browser container DOM has been created.
+	 * Use to do setup that needs to attach to `editor.browserContainer`.
+	 */
+	onContainerReady(_container: HTMLElement): void { }
+
+	/**
+	 * Return an override to customize how the editor sizes the browser
+	 * container. Returning `undefined` falls through to the next contribution
+	 * (and finally to the default: container fills the wrapper's content area).
+	 * The first contribution to return a non-undefined override wins.
+	 */
+	getContainerLayoutOverride(): IContainerLayoutOverride | undefined { return undefined; }
 }
 
-/**
- * A widget that can be contributed to the browser editor URL bar.
- */
+/** Customization returned by {@link BrowserEditorContribution.getContainerLayoutOverride}. */
+export interface IContainerLayoutOverride {
+	/**
+	 * Wrapper padding (CSS px) — typically used to reserve space for widgets
+	 * that sit outside the container (e.g. resize sashes). Applied as inline
+	 * style before the pane is measured for {@link compute}.
+	 */
+	readonly padding: {
+		top?: number;
+		right?: number;
+		bottom?: number;
+		left?: number;
+	};
+	/** Compute the container layout given the measured pane size. */
+	compute(paneWidth: number, paneHeight: number): IContainerLayout;
+}
+
+export interface IContainerLayout {
+	readonly width: number;
+	readonly height: number;
+	readonly emulation?: {
+		readonly scale: number;
+	};
+}
+
+/** A widget that can be contributed to the browser editor URL bar. */
 export interface IBrowserEditorWidgetContribution {
 	readonly element: HTMLElement;
 	/** Ordering value — lower numbers appear first (left). */
@@ -366,6 +403,7 @@ export class BrowserEditor extends EditorPane {
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
 	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
+	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 3, bottom: 3, left: 3 };
 
 	constructor(
 		group: IEditorGroup,
@@ -410,6 +448,7 @@ export class BrowserEditor extends EditorPane {
 
 		// Create root container
 		const root = $('.browser-root');
+		root.tabIndex = -1; // Click focusable (for kb shortcuts), but not in tab order
 		parent.appendChild(root);
 
 		// Create navbar with navigation buttons and URL input
@@ -443,6 +482,12 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
 		this._browserContainerWrapper.appendChild(this._browserContainer);
+
+		// Notify contributions that the container DOM is ready (used e.g. by
+		// the device feature to attach resize sashes to the container).
+		for (const contribution of this._contributionInstances.values()) {
+			contribution.onContainerReady(this._browserContainer);
+		}
 
 		// Create additional wrapper around placeholder contents for applying border radius clipping.
 		const placeholderContents = $('.browser-placeholder-contents');
@@ -610,6 +655,10 @@ export class BrowserEditor extends EditorPane {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
 				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
+				// Re-push container bounds and emulation: zoom-factor affects
+				// both the screen-px conversion in main and the Chromium
+				// emulation scale (so the emulated viewport fills the WCV).
+				this.layoutBrowserContainer();
 			}
 		}));
 
@@ -1002,32 +1051,90 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Recompute the layout of the browser container and update the model with the new bounds.
-	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
+	 * Recompute the layout of the browser container and push the resulting
+	 * bounds + emulation to the WebContentsView. Should generally only be
+	 * called via {@link layout} so the container is fully styled first.
 	 */
 	layoutBrowserContainer(retries = 2): void {
-		if (this._model) {
-			this.checkOverlays();
-
-			const containerRect = this._browserContainer.getBoundingClientRect();
-			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
-
-			// This can happen under certain conditions. Keep trying for a couple of frames to allow things to stabilize.
-			if ((containerRect.width === 0 || containerRect.height === 0) && retries > 0) {
-				this.window.requestAnimationFrame(() => this.layoutBrowserContainer(retries - 1));
-				return;
-			}
-
-			void this._model.layout({
-				windowId: this.group.windowId,
-				x: containerRect.left,
-				y: containerRect.top,
-				width: containerRect.width,
-				height: containerRect.height,
-				zoomFactor: getZoomFactor(this.window),
-				cornerRadius: parseFloat(cornerRadius)
-			});
+		if (!this._model) {
+			return;
 		}
+		this.checkOverlays();
+
+		// Pick the first contribution that wants to override sizing.
+		let override: IContainerLayoutOverride | undefined;
+		for (const c of this._contributionInstances.values()) {
+			const o = c.getContainerLayoutOverride();
+			if (o) {
+				override = o;
+				break;
+			}
+		}
+
+		// Apply the wrapper padding the editor will assume below. Inline style
+		// is the single source of truth — the wrapper's CSS has no padding.
+		// Right/bottom/left are clamped so the container always has breathing
+		// room (and resize sashes that sit on those edges remain reachable).
+		const raw = override?.padding;
+		const padding = {
+			top: raw?.top ?? 0,
+			right: Math.max(3, raw?.right ?? 0),
+			bottom: Math.max(3, raw?.bottom ?? 0),
+			left: Math.max(3, raw?.left ?? 0),
+		};
+		this._currentPadding = padding;
+		this._browserContainerWrapper.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`;
+
+		const wrapperRect = this._browserContainerWrapper.getBoundingClientRect();
+		if ((wrapperRect.width === 0 || wrapperRect.height === 0) && retries > 0) {
+			// Wrapper not measured yet; retry on the next frame.
+			this.window.requestAnimationFrame(() => this.layoutBrowserContainer(retries - 1));
+			return;
+		}
+
+		const paneWidth = Math.max(0, wrapperRect.width - padding.left - padding.right);
+		const paneHeight = Math.max(0, wrapperRect.height - padding.top - padding.bottom);
+		let layout: IContainerLayout;
+		if (override) {
+			layout = override.compute(paneWidth, paneHeight);
+		} else {
+			const z = getZoomFactor(this.window);
+			const snap = (v: number) => Math.floor(v * z) / z;
+			layout = { width: snap(paneWidth), height: snap(paneHeight) };
+		}
+
+		// Size the container, then derive its absolute screen rect analytically:
+		// the wrapper's flex rules center the container within the pane.
+		this._browserContainer.style.width = `${layout.width}px`;
+		this._browserContainer.style.height = `${layout.height}px`;
+		const containerLeft = wrapperRect.left + padding.left + (paneWidth - layout.width) / 2;
+		const containerTop = wrapperRect.top + padding.top + (paneHeight - layout.height) / 2;
+		const cornerRadius = parseFloat(this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0');
+		void this._model.layout({
+			windowId: this.group.windowId,
+			x: containerLeft,
+			y: containerTop,
+			width: layout.width,
+			height: layout.height,
+			zoomFactor: getZoomFactor(this.window),
+			cornerRadius,
+			emulation: layout.emulation,
+		});
+	}
+
+	/**
+	 * Wrapper content-area size in CSS px — the maximum room the container
+	 * can occupy after the active padding is applied. Derived from the last
+	 * padding we wrote to the wrapper, so it stays in sync without re-reading
+	 * the computed style.
+	 */
+	get paneSize(): { width: number; height: number } {
+		const r = this._browserContainerWrapper.getBoundingClientRect();
+		const p = this._currentPadding;
+		return {
+			width: Math.max(0, r.width - p.left - p.right),
+			height: Math.max(0, r.height - p.top - p.bottom),
+		};
 	}
 
 	override clearInput(): void {

@@ -55,6 +55,9 @@ export interface ISessionsSetUpService {
 // ---------------------------------------------------------------------------
 
 function shouldSkipSessionsWelcome(environmentService: IWorkbenchEnvironmentService): boolean {
+	if (environmentService.enableSmokeTestDriver) {
+		return true;
+	}
 	const envArgs = (environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args;
 	if (envArgs?.['skip-sessions-welcome']) {
 		return true;

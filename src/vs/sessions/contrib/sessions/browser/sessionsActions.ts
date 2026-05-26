@@ -14,12 +14,14 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 
 // -- Show Sessions Picker --
 
@@ -129,7 +131,7 @@ registerAction2(class GoBackAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
-				when: IsSessionsWindowContext,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
 				id: Menus.TitleBarLeftLayout,
@@ -169,7 +171,7 @@ registerAction2(class GoForwardAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus },
-				when: IsSessionsWindowContext,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
 				id: Menus.TitleBarLeftLayout,
@@ -187,5 +189,106 @@ registerAction2(class GoForwardAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		await sessionsManagementService.openNextSession();
+	}
+});
+
+registerAction2(class AddChatToSessionBarAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.addChat',
+			title: localize2('chatCompositeBar.addChat', "New Chat"),
+			icon: Codicon.add,
+			menu: {
+				id: Menus.SessionBarInlineToolbar,
+				when: SessionIsCreatedContext,
+				group: 'navigation',
+				order: 10,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsManagementService).openNewChatInSession(session);
+	}
+});
+
+registerAction2(class TogglePinSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.togglePin',
+			title: localize2('chatCompositeBar.pin', "Pin Session"),
+			icon: Codicon.pin,
+			toggled: {
+				condition: SessionIsStickyContext,
+				icon: Codicon.pinned,
+				title: localize('chatCompositeBar.unpin', "Unpin Session"),
+			},
+			menu: {
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 10,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsManagementService).toggleSessionStickiness(session);
+	}
+});
+
+registerAction2(class CloseSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.close',
+			title: localize2('chatCompositeBar.close', "Close"),
+			icon: Codicon.close,
+			menu: {
+				id: Menus.SessionBarToolbar,
+				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+				group: 'navigation',
+				order: 30,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsManagementService).closeSession(session);
+	}
+});
+
+registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.toggleMaximize',
+			title: localize2('chatCompositeBar.maximize', "Maximize Session"),
+			icon: Codicon.screenFull,
+			toggled: {
+				condition: SessionIsMaximizedContext,
+				icon: Codicon.screenNormal,
+				title: localize('chatCompositeBar.unmaximize', "Restore Session"),
+			},
+			menu: {
+				id: Menus.SessionBarToolbar,
+				when: MultipleSessionsVisibleContext,
+				group: 'navigation',
+				order: 20,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 	}
 });
