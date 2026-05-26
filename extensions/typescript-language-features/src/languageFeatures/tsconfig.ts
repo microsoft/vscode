@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import { isAbsolute, posix } from 'path';
+import { dirname, isAbsolute, join, posix } from 'path';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
+import { useWorkspaceTsdkStorageKey } from '../tsServer/versionManager';
+import { ITypeScriptVersionProvider, TypeScriptVersion } from '../tsServer/versionProvider';
 import { coalesce } from '../utils/arrays';
 import { exists, looksLikeAbsoluteWindowsPath } from '../utils/fs';
 
@@ -20,7 +22,8 @@ const openExtendsLinkCommandId = '_typescript.openExtendsLink';
 
 enum TsConfigLinkType {
 	Extends,
-	References
+	References,
+	Lib,
 }
 
 type OpenExtendsLinkCommandArgs = {
@@ -44,8 +47,15 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		return coalesce([
 			this.getExtendsLink(document, root),
 			...this.getFilesLinks(document, root),
-			...this.getReferencesLinks(document, root)
+			...this.getReferencesLinks(document, root),
+			...this.getLibLinks(document, root)
 		]);
+	}
+
+	private getLibLinks(document: vscode.TextDocument, root: jsonc.Node) {
+		return mapChildren(
+			jsonc.findNodeAtLocation(root, ['compilerOptions', 'lib']),
+			child => this.tryCreateTsConfigLink(document, child, TsConfigLinkType.Lib));
 	}
 
 	private getExtendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
@@ -190,7 +200,74 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, linkTy
 	]);
 }
 
-export function register() {
+function libFileUri(versionPath: string, fileName: string): vscode.Uri {
+	if (versionPath.includes('://')) {
+		// Browser: bundled tsserver path is a URI string
+		return vscode.Uri.joinPath(vscode.Uri.parse(versionPath), '..', fileName);
+	}
+
+	// Electron: fs path to tsserver.js
+	return vscode.Uri.file(join(dirname(versionPath), fileName));
+}
+
+function getActiveVersion(versionProvider: ITypeScriptVersionProvider, workspaceState: vscode.Memento): TypeScriptVersion | undefined {
+	const useWorkspaceTsdk = workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
+
+	if (useWorkspaceTsdk && vscode.workspace.isTrusted) {
+		const local = versionProvider.localVersion;
+
+		if (local) {
+			return local;
+		}
+	}
+
+	try {
+		return versionProvider.defaultVersion;
+	} catch {
+		return undefined;
+	}
+}
+
+async function resolveLibPath(versionProvider: ITypeScriptVersionProvider, workspaceState: vscode.Memento, libValue: string): Promise<vscode.Uri | undefined> {
+	const fileName = `lib.${libValue.toLowerCase()}.d.ts`;
+
+	// Priority: the version the TS service is actively using, then any
+	// other locally available versions, then the bundled TS as a final fallback.
+	const versions: TypeScriptVersion[] = [];
+	const active = getActiveVersion(versionProvider, workspaceState);
+
+	if (active) {
+		versions.push(active);
+	}
+
+	versions.push(...versionProvider.localVersions);
+
+	try {
+		versions.push(versionProvider.bundledVersion);
+	} catch {
+		// bundled TS missing; nothing more we can try
+	}
+
+	const seen = new Set<string>();
+
+	for (const version of versions) {
+		if (seen.has(version.path)) {
+			continue;
+		}
+
+		seen.add(version.path);
+
+		const candidate = libFileUri(version.path, fileName);
+
+		if (await exists(candidate)) {
+			return candidate;
+		}
+	}
+
+	return undefined;
+}
+
+export function register(versionProvider: ITypeScriptVersionProvider, workspaceState: vscode.Memento) {
 	const patterns: vscode.GlobPattern[] = [
 		'**/[jt]sconfig.json',
 		'**/[jt]sconfig.*.json',
@@ -204,13 +281,18 @@ export function register() {
 
 	return vscode.Disposable.from(
 		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, linkType }: OpenExtendsLinkCommandArgs) => {
-			const tsconfigPath = await getTsconfigPath(Utils.dirname(vscode.Uri.from(resourceUri)), extendsValue, linkType);
-			if (tsconfigPath === undefined) {
+			const baseDirUri = Utils.dirname(vscode.Uri.from(resourceUri));
+			const target = linkType === TsConfigLinkType.Lib
+				? await resolveLibPath(versionProvider, workspaceState, extendsValue)
+				: await getTsconfigPath(baseDirUri, extendsValue, linkType);
+
+			if (target === undefined) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Failed to resolve {0} as module", extendsValue));
 				return;
 			}
+
 			// Will suggest to create a .json variant if it doesn't exist yet (but only for relative paths)
-			await vscode.commands.executeCommand('vscode.open', tsconfigPath);
+			await vscode.commands.executeCommand('vscode.open', target);
 		}),
 		vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider()),
 	);

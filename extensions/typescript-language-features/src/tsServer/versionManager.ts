@@ -12,7 +12,7 @@ import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
 
 
-const useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
+export const useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 const suppressPromptWorkspaceTsdkStorageKey = 'typescript.suppressPromptWorkspaceTsdk';
 
 interface QuickPickItem extends vscode.QuickPickItem {
