@@ -19,6 +19,7 @@ export interface IAgentFeedbackAttachmentItemMetadata {
 	readonly text: string;
 	readonly resourceUri: string;
 	readonly range: TextRange;
+	readonly replies?: readonly string[];
 }
 
 export function isAgentFeedbackAttachment(attachment: MessageAttachment): attachment is SimpleMessageAttachment {
@@ -56,12 +57,22 @@ function parseAgentFeedbackAttachmentItem(item: unknown): IAgentFeedbackAttachme
 	if (!range) {
 		return undefined;
 	}
+	const replies = parseReplies(item.replies);
 	return {
 		id: item.id,
 		text: item.text,
 		resourceUri: item.resourceUri,
 		range,
+		replies,
 	};
+}
+
+function parseReplies(value: unknown): readonly string[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const replies = value.filter(isString);
+	return replies.length > 0 ? replies : undefined;
 }
 
 function parseTextRange(range: unknown): TextRange | undefined {
