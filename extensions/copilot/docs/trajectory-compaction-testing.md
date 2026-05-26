@@ -179,6 +179,26 @@ usage: { prompt_tokens: ..., completion_tokens: ... }
 The token is short-lived (typically ~25 minutes) — grab a fresh one if you
 see `401 invalid token: token expired`.
 
+### 9b. CAPI reachability via OAuth sign-in (no proxy token needed)
+
+The current default route for trajectory compaction is **CAPI** (model id
+`trajectory-compaction`), not the proxy. To validate that path without a
+running VS Code instance, use the OAuth smoke. On first run it does a
+GitHub device-flow sign-in, caches the GitHub token at
+`~/.copilot-capi-smoke-auth.json` (mode 600), and on every run mints a
+fresh short-lived Copilot token via `/copilot_internal/v2/token`:
+
+```bash
+node extensions/copilot/script/devTrajectoryCompactionCapiSmoke.js
+```
+
+Subsequent runs reuse the cached token; clear it with `--logout`. The
+script reads the per-account CAPI base URL (`endpoints.api`) directly out
+of the token-exchange response, so it hits the same host the extension
+would (typically `https://api.individual.githubcopilot.com`). It sends the
+**same conversation body** as the proxy smoke, so a green CAPI smoke means
+the extension's compaction-applier will also succeed against this route.
+
 ## 10. Disable the flight
 
 Either remove the setting or set:
