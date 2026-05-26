@@ -2725,7 +2725,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								: action.id === OpenAgentHostPermissionModePickerAction.ID
 									? ClaudeSessionConfigKey.PermissionMode
 									: SessionConfigKey.Mode;
-					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
+					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, undefined);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item

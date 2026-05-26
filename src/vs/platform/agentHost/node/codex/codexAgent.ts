@@ -5,6 +5,8 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Codex, Thread, ModelReasoningEffort, ApprovalMode, SandboxMode, WebSearchMode } from '@openai/codex-sdk';
+import { promises as fs } from 'fs';
+import { homedir } from 'os';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -23,7 +25,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { type ConfigSchema, type ModelSelection, type ToolDefinition, PolicyState } from '../../common/state/protocol/state.js';
-import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationRef, ResponsePartKind, SessionInputResponseKind, TurnState, type MessageAttachment, type PendingMessage, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ICodexProxyHandle, ICodexProxyService } from './codexProxyService.js';
 import { ICodexAgentSdkService } from './codexAgentSdkService.js';
@@ -136,6 +138,14 @@ interface ICodexSession {
 	 * rebuilding the wrapper.
 	 */
 	threadOptionsKey: string | undefined;
+	/**
+	 * `true` when this session was hydrated from an on-disk rollout (no
+	 * in-memory codex `Thread` exists yet, but one can be reattached via
+	 * `codex.resumeThread(sessionId, options)`). Cleared once the thread
+	 * has been (re)created. Without this flag a `_sendMessageCore` call
+	 * would start a brand new thread, losing the prior history.
+	 */
+	resumeFromDisk: boolean;
 	abortController: AbortController;
 	/** Steering prompt buffered by {@link CodexAgent.setPendingMessages}. Consumed on next `sendMessage`. */
 	pendingSteeringPrompt: string | undefined;
@@ -346,6 +356,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			networkAccessEnabled: narrowBoolean(config.config?.[CodexSessionConfigKey.NetworkAccessEnabled]),
 			webSearchMode: narrowWebSearchMode(config.config?.[CodexSessionConfigKey.WebSearchMode]),
 			threadOptionsKey: undefined,
+			resumeFromDisk: false,
 			abortController: new AbortController(),
 			pendingSteeringPrompt: undefined,
 		});
@@ -476,7 +487,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				// Session exists on disk (e.g. after an agent-host restart)
 				// but not in memory. Try to resume it. Mirrors Claude's
 				// `_resumeSession` path in `sendMessage`.
-				entry = this._resumeSession(sessionId, sessionUri);
+				entry = await this._resumeSession(sessionId, sessionUri);
 			}
 		}
 
@@ -515,8 +526,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex:${sessionId}] threadOptions: ${JSON.stringify(threadOptions)}`);
 
 		if (!entry.state.thread) {
-			this._logService.info(`[Codex:${sessionId}] creating NEW thread (no existing thread)`);
-			entry.state.thread = codex.startThread(threadOptions);
+			if (entry.state.resumeFromDisk) {
+				// Session was hydrated from disk (e.g. agent-host restart
+				// or a session started by the `codex` CLI). Reattach to the
+				// on-disk thread so prior history is preserved instead of
+				// starting a fresh one.
+				this._logService.info(`[Codex:${sessionId}] resuming EXISTING thread from disk`);
+				entry.state.thread = codex.resumeThread(sessionId, threadOptions);
+				entry.state.resumeFromDisk = false;
+			} else {
+				this._logService.info(`[Codex:${sessionId}] creating NEW thread (no existing thread)`);
+				entry.state.thread = codex.startThread(threadOptions);
+			}
 			entry.state.threadOptionsKey = desiredKey;
 		} else if (entry.state.threadOptionsKey !== desiredKey) {
 			const existingId = entry.state.thread.id;
@@ -583,32 +604,55 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/**
 	 * Reconstruct a session entry for a session id that exists on disk
-	 * but not in memory (e.g. after an agent-host restart). Mirrors
-	 * Claude's `_resumeSession`. The codex SDK's `resumeThread(id)`
-	 * re-attaches to an existing thread's JSONL on disk, so
-	 * `sendMessage` can continue the conversation.
+	 * but not in memory (e.g. after an agent-host restart, or a session
+	 * that was started by the `codex` CLI itself). The codex SDK's
+	 * `resumeThread(id)` re-attaches to an existing thread's JSONL on
+	 * disk, so `sendMessage` can continue the conversation. We pre-load
+	 * the working directory and the last-known model from disk so the UI
+	 * has something to render before the user sends their first message,
+	 * and set {@link ICodexSession.resumeFromDisk} so the first
+	 * `_sendMessageCore` call takes the `resumeThread` path instead of
+	 * starting a fresh thread.
 	 */
-	private _resumeSession(sessionId: string, sessionUri: URI): ICodexSessionEntry {
+	private async _resumeSession(sessionId: string, sessionUri: URI): Promise<ICodexSessionEntry> {
 		this._logService.info(`[Codex:${sessionId}] resuming session from disk`);
+		let workingDirectory: URI | undefined;
+		let model: ModelSelection | undefined;
+		try {
+			const candidates = await this._enumerateRolloutFiles();
+			const match = candidates.find(c => c.uuid === sessionId);
+			if (match) {
+				const parsed = await readSessionMetaFromHead(match.path);
+				if (parsed) {
+					workingDirectory = parsed.cwd ? URI.file(parsed.cwd) : undefined;
+					if (parsed.model) {
+						model = { id: parsed.model };
+					}
+				}
+			}
+		} catch (err) {
+			this._logService.warn(`[Codex:${sessionId}] failed to read on-disk metadata: ${err instanceof Error ? err.message : String(err)}`);
+		}
 		const state: ICodexSession = {
 			sessionId,
 			sessionUri,
-			workingDirectory: undefined,
+			workingDirectory,
 			thread: undefined,
-			model: undefined,
+			model,
 			approvalPolicy: undefined,
 			sandboxMode: undefined,
 			additionalDirectories: undefined,
 			networkAccessEnabled: undefined,
 			webSearchMode: undefined,
 			threadOptionsKey: undefined,
+			resumeFromDisk: true,
 			abortController: new AbortController(),
 			pendingSteeringPrompt: undefined,
 		};
 		const entry = this._createSessionEntry(state);
 		this._onDidMaterializeSession.fire({
 			session: sessionUri,
-			workingDirectory: undefined,
+			workingDirectory,
 			project: undefined,
 		});
 		return entry;
@@ -626,6 +670,98 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessions.set(state.sessionId, entry);
 		return entry;
 	}
+
+	// #region Disk-backed session enumeration
+
+	/**
+	 * Walk `~/.codex/sessions/YYYY/MM/DD/` and return rollout file paths
+	 * paired with the uuid + filename timestamp parsed out of the name.
+	 *
+	 * Capped at {@link _MAX_LISTED_SESSIONS} entries so a long-running
+	 * codex install can't make `listSessions` unbounded.
+	 */
+	private async _enumerateRolloutFiles(): Promise<readonly IRolloutCandidate[]> {
+		const rootUri = URI.joinPath(URI.file(homedir()), '.codex', 'sessions');
+		const root = rootUri.fsPath;
+		const candidates: IRolloutCandidate[] = [];
+		// Sessions are bucketed by year/month/day. Read newest year first so
+		// the result is naturally sorted; we still sort at the end to be
+		// resilient to gaps.
+		const years = await fs.readdir(root).catch(() => [] as string[]);
+		years.sort((a, b) => b.localeCompare(a));
+		outer: for (const year of years) {
+			if (!/^\d{4}$/.test(year)) { continue; }
+			const yearPath = URI.joinPath(rootUri, year).fsPath;
+			const months = await fs.readdir(yearPath).catch(() => [] as string[]);
+			months.sort((a, b) => b.localeCompare(a));
+			for (const month of months) {
+				if (!/^\d{2}$/.test(month)) { continue; }
+				const monthPath = URI.joinPath(rootUri, year, month).fsPath;
+				const days = await fs.readdir(monthPath).catch(() => [] as string[]);
+				days.sort((a, b) => b.localeCompare(a));
+				for (const day of days) {
+					if (!/^\d{2}$/.test(day)) { continue; }
+					const dayUri = URI.joinPath(rootUri, year, month, day);
+					const names = await fs.readdir(dayUri.fsPath).catch(() => [] as string[]);
+					for (const name of names) {
+						const parsed = parseRolloutFileName(name);
+						if (!parsed) { continue; }
+						candidates.push({
+							path: URI.joinPath(dayUri, name).fsPath,
+							uuid: parsed.uuid,
+							filenameTimestamp: parsed.timestamp,
+						});
+						if (candidates.length >= _MAX_LISTED_SESSIONS) {
+							break outer;
+						}
+					}
+				}
+			}
+		}
+		candidates.sort((a, b) => b.filenameTimestamp - a.filenameTimestamp);
+		return candidates;
+	}
+
+	/**
+	 * Read the head `session_meta` record from a rollout file and project
+	/**
+	 * Read the head of a rollout file and project it into the platform's
+	 * {@link IAgentSessionMetadata} shape. Returns `undefined` when no
+	 * `session_meta` is found (file mid-write or non-codex content) or
+	 * when the file represents a session that was created but never
+	 * received a user message — codex writes `session_meta` eagerly, so
+	 * filtering on "saw at least one user_message" hides ghost entries
+	 * from cancelled / never-prompted sessions.
+	 */
+	private async _readRolloutMeta(candidate: IRolloutCandidate): Promise<IAgentSessionMetadata | undefined> {
+		const parsed = await readSessionMetaFromHead(candidate.path);
+		if (!parsed) {
+			return undefined;
+		}
+		if (!parsed.sawUserMessage) {
+			// Hide ghost rollouts (codex writes meta on creation, so a
+			// freshly-opened thread is on disk before the user types).
+			return undefined;
+		}
+		const stat = await fs.stat(candidate.path).catch(() => undefined);
+		const modifiedTime = stat?.mtimeMs ?? candidate.filenameTimestamp;
+		const startTime = parsed.timestampMs ?? candidate.filenameTimestamp;
+		const workingDirectory = parsed.cwd ? URI.file(parsed.cwd) : undefined;
+		return {
+			session: AgentSession.uri(this.id, parsed.id),
+			startTime,
+			modifiedTime,
+			workingDirectory,
+			// Title shown in the sessions list comes from the first user
+			// message in the rollout — codex itself derives `preview`
+			// from `event_msg_preview(UserMessage)` for its `codex resume`
+			// list. We use the same source so the UI matches.
+			...(parsed.firstUserMessage ? { summary: parsed.firstUserMessage } : {}),
+			...(parsed.model ? { model: { id: parsed.model } } : {}),
+		};
+	}
+
+	// #endregion
 
 	/**
 	 * Build the final prompt string from the raw user prompt, protocol
@@ -649,28 +785,85 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._onDidSessionProgress.fire({ kind: 'action', session: sessionUri, action });
 	}
 
-	getSessionMessages(_session: URI): Promise<readonly Turn[]> {
-		// Codex SDK does not currently expose a transcript-replay API; on
-		// reload, sessions come back empty. Resume via `Codex.resumeThread`
-		// can rebuild the in-memory conversation but not the protocol turns.
-		return Promise.resolve([]);
+	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		// The codex SDK has no transcript API, so replay turns from the
+		// on-disk JSONL rollout written by the rust CLI. Without this,
+		// any session that isn't in our in-memory map (after reload, or
+		// for sessions started outside this process such as via ahpx)
+		// would render as 0 turns even though the conversation exists.
+		const sessionId = AgentSession.id(session);
+		if (this._provisionalSessions.has(sessionId)) {
+			return [];
+		}
+		try {
+			const candidates = await this._enumerateRolloutFiles();
+			const match = candidates.find(c => c.uuid === sessionId);
+			if (!match) {
+				this._logService.warn(`[Codex:${sessionId}] getSessionMessages: no rollout file on disk`);
+				return [];
+			}
+			const turns = await readTurnsFromRollout(match.path);
+			this._logService.info(`[Codex:${sessionId}] getSessionMessages: replayed ${turns.length} turns from ${match.path}`);
+			return turns;
+		} catch (err) {
+			this._logService.warn(`[Codex:${sessionId}] getSessionMessages failed: ${err instanceof Error ? err.message : String(err)}`);
+			return [];
+		}
 	}
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
-		// The SDK persists threads under `~/.codex/sessions` but exposes no
-		// enumeration API. Surface an empty list rather than reading that
-		// directory directly — schema/format are not part of the SDK contract.
-		return Promise.resolve([]);
+		// The codex SDK doesn't expose an enumeration API, but the underlying
+		// Rust CLI persists threads as JSONL rollouts on disk in a stable layout:
+		//   ~/.codex/sessions/YYYY/MM/DD/rollout-<iso-ts>-<uuid>.jsonl
+		// The first line of each file is a `session_meta` record carrying
+		// the canonical session id, cwd, originator, model provider, etc.
+		// We mirror the CLI's listing semantics here (no archived dir,
+		// newest-first by filename timestamp) so the host UI and ahpx can
+		// surface sessions created outside this process.
+		return this._listSessionsFromDisk();
+	}
+
+	private async _listSessionsFromDisk(): Promise<IAgentSessionMetadata[]> {
+		try {
+			const candidates = await this._enumerateRolloutFiles();
+			const results: IAgentSessionMetadata[] = [];
+			for (const candidate of candidates) {
+				try {
+					const meta = await this._readRolloutMeta(candidate);
+					if (meta) {
+						results.push(meta);
+					}
+				} catch (err) {
+					this._logService.debug(`[Codex] Skipping unreadable rollout ${candidate.path}: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+			return results;
+		} catch (err) {
+			// Missing `~/.codex/sessions` is expected on a fresh install. Any
+			// other error is degraded gracefully so a sibling provider's
+			// listing (in `AgentService.listSessions`'s `Promise.all`) is
+			// unaffected.
+			if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+				this._logService.warn('[Codex] listSessions failed; returning empty list', err);
+			}
+			return [];
+		}
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId);
-		if (!entry) {
-			const provisional = this._provisionalSessions.get(sessionId);
-			if (!provisional) {
-				return undefined;
-			}
+		if (entry) {
+			return {
+				session: entry.state.sessionUri,
+				startTime: Date.now(),
+				modifiedTime: Date.now(),
+				model: entry.state.model,
+				workingDirectory: entry.state.workingDirectory,
+			};
+		}
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
 			return {
 				session: provisional.sessionUri,
 				startTime: Date.now(),
@@ -679,13 +872,22 @@ export class CodexAgent extends Disposable implements IAgent {
 				workingDirectory: provisional.workingDirectory,
 			};
 		}
-		return {
-			session: entry.state.sessionUri,
-			startTime: Date.now(),
-			modifiedTime: Date.now(),
-			model: entry.state.model,
-			workingDirectory: entry.state.workingDirectory,
-		};
+		// Fall back to walking `~/.codex/sessions/` for a matching uuid.
+		// This lets the host surface sessions whose in-memory entry was
+		// dropped (agent-host restart) or that were created by a different
+		// codex client (e.g. the `codex` CLI itself).
+		try {
+			const candidates = await this._enumerateRolloutFiles();
+			const match = candidates.find(c => c.uuid === sessionId);
+			if (match) {
+				return (await this._readRolloutMeta(match)) ?? undefined;
+			}
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+				this._logService.debug(`[Codex] getSessionMetadata disk-scan failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+		return undefined;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -819,4 +1021,368 @@ interface ICodexSessionEntry extends IDisposable {
 	readonly state: ICodexSession;
 	readonly sessionUri: URI;
 	readonly workingDirectory: URI | undefined;
+}
+
+// ---- Disk-backed enumeration helpers ----------------------------------------
+
+/** Cap on entries returned by {@link CodexAgent.listSessions}. */
+const _MAX_LISTED_SESSIONS = 500;
+
+/** Parsed `(uuid, timestamp)` for one rollout JSONL file on disk. */
+interface IRolloutCandidate {
+	readonly path: string;
+	readonly uuid: string;
+	/** Filename-encoded creation time (epoch millis). */
+	readonly filenameTimestamp: number;
+}
+
+/** Strict UUID regex (codex always emits canonical 8-4-4-4-12 lowercase). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Match `rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl` and return the trailing
+ * uuid plus a millis-epoch timestamp parsed from the file name. The codex
+ * CLI uses second precision in the filename; we reflect that here.
+ */
+function parseRolloutFileName(name: string): { uuid: string; timestamp: number } | undefined {
+	if (!name.startsWith('rollout-') || !name.endsWith('.jsonl')) {
+		return undefined;
+	}
+	const core = name.slice('rollout-'.length, -'.jsonl'.length);
+	// Filename has six '-' inside the timestamp segment, then a single '-'
+	// before the uuid. Scan from the right for the first '-' where the
+	// remainder parses as a uuid (mirrors codex-rs `parse_timestamp_uuid_from_filename`).
+	for (let i = core.length - 1; i >= 0; i--) {
+		if (core[i] !== '-') { continue; }
+		const candidateUuid = core.slice(i + 1);
+		if (!UUID_RE.test(candidateUuid)) { continue; }
+		const tsRaw = core.slice(0, i);
+		// Convert `YYYY-MM-DDTHH-MM-SS` to ISO-8601 (`YYYY-MM-DDTHH:MM:SSZ`)
+		// by replacing the last three '-' separators with ':'.
+		const isoLike = tsRaw.replace(/^(\d{4}-\d{2}-\d{2}T)(\d{2})-(\d{2})-(\d{2})$/, '$1$2:$3:$4Z');
+		const ms = Date.parse(isoLike);
+		if (Number.isNaN(ms)) { continue; }
+		return { uuid: candidateUuid, timestamp: ms };
+	}
+	return undefined;
+}
+
+/**
+ * Maximum number of records to scan from the start of a rollout file when
+ * looking for the head `session_meta`. In practice the first record is the
+ * `session_meta`, but the rust impl tolerates a few non-meta records
+ * (e.g. a leading `turn_context`) before giving up.
+ */
+const HEAD_RECORD_LIMIT = 10;
+
+/**
+ * Once we've seen `session_meta`, keep scanning this many additional
+ * records looking for the first user message and turn context.
+ * Mirrors `USER_EVENT_SCAN_LIMIT` in codex-rs (the rust impl uses 50).
+ */
+const USER_EVENT_SCAN_LIMIT = 50;
+
+/**
+ * Read complete newline-delimited records from the head of a JSONL file
+ * and project them into the head-summary shape codex itself produces.
+ *
+ * Returns `undefined` when no `session_meta` is found (file empty,
+ * mid-write, or not a codex rollout).
+ */
+async function readSessionMetaFromHead(path: string): Promise<IParsedSessionMeta | undefined> {
+	const handle = await fs.open(path, 'r').catch(() => undefined);
+	if (!handle) {
+		return undefined;
+	}
+	try {
+		const CHUNK = 16 * 1024;
+		const chunk = Buffer.alloc(CHUNK);
+		let pending = '';
+		let recordsScanned = 0;
+		let offset = 0;
+
+		let sessionMeta: IParsedSessionMeta | undefined;
+		let model: string | undefined;
+		let firstUserMessage: string | undefined;
+		let sawUserMessage = false;
+
+		const processLine = (line: string): void => {
+			let envelope: unknown;
+			try {
+				envelope = JSON.parse(line);
+			} catch {
+				return;
+			}
+			if (!envelope || typeof envelope !== 'object') {
+				return;
+			}
+			const e = envelope as { type?: unknown; payload?: unknown };
+			if (e.type === 'session_meta') {
+				const meta = parseSessionMetaPayload(e.payload);
+				if (meta && !sessionMeta) {
+					sessionMeta = meta;
+				}
+				return;
+			}
+			if (e.type === 'turn_context' && !model && e.payload && typeof e.payload === 'object') {
+				const tc = e.payload as { model?: unknown };
+				if (typeof tc.model === 'string' && tc.model.length > 0) {
+					model = tc.model;
+				}
+				return;
+			}
+			if (e.type === 'event_msg' && e.payload && typeof e.payload === 'object') {
+				const ev = e.payload as { type?: unknown; message?: unknown };
+				if (ev.type === 'user_message' && typeof ev.message === 'string') {
+					sawUserMessage = true;
+					if (!firstUserMessage) {
+						const trimmedMessage = ev.message.trim();
+						if (trimmedMessage.length > 0) {
+							firstUserMessage = trimmedMessage;
+						}
+					}
+				}
+			}
+		};
+
+		while (true) {
+			const lineEnd = pending.indexOf('\n');
+			if (lineEnd < 0) {
+				const { bytesRead } = await handle.read(chunk, 0, CHUNK, offset);
+				if (bytesRead === 0) {
+					// EOF — try the trailing fragment as a last-line candidate.
+					if (pending.trim().length > 0) {
+						processLine(pending.trim());
+					}
+					break;
+				}
+				offset += bytesRead;
+				pending += chunk.subarray(0, bytesRead).toString('utf8');
+				continue;
+			}
+			const line = pending.slice(0, lineEnd);
+			pending = pending.slice(lineEnd + 1);
+			const trimmed = line.trim();
+			if (trimmed.length === 0) {
+				continue;
+			}
+			recordsScanned++;
+			processLine(trimmed);
+
+			// Stop conditions mirror codex's `read_head_summary`:
+			//   1. No session_meta within HEAD_RECORD_LIMIT records.
+			//   2. Once we have meta + first user message + model, we're done.
+			//   3. After meta is seen we may scan up to USER_EVENT_SCAN_LIMIT
+			//      additional records hunting for the user message / model.
+			if (!sessionMeta && recordsScanned >= HEAD_RECORD_LIMIT) {
+				break;
+			}
+			if (sessionMeta && firstUserMessage && model) {
+				break;
+			}
+			if (sessionMeta && recordsScanned >= HEAD_RECORD_LIMIT + USER_EVENT_SCAN_LIMIT) {
+				break;
+			}
+		}
+
+		if (!sessionMeta) {
+			return undefined;
+		}
+		return {
+			...sessionMeta,
+			model,
+			firstUserMessage,
+			sawUserMessage,
+		};
+	} finally {
+		await handle.close();
+	}
+}
+
+/**
+ * Projection of the codex JSONL head line. Schema is documented at
+ * `codex-rs/protocol/src/protocol.rs` (`SessionMetaLine`/`SessionMeta`),
+ * pinned to the format codex_sdk_ts uses.
+ */
+interface IParsedSessionMeta {
+	readonly id: string;
+	readonly cwd?: string;
+	readonly timestampMs?: number;
+	readonly model?: string;
+	readonly firstUserMessage?: string;
+	readonly sawUserMessage?: boolean;
+}
+
+/**
+ * Parse the `payload` of a `session_meta` envelope into the canonical
+ * fields we project into {@link IAgentSessionMetadata}.
+ *
+ * The codex CLI's on-disk schema is documented in
+ * `codex-rs/protocol/src/protocol.rs` (`SessionMetaLine` / `SessionMeta`).
+ * We tolerate missing optional fields by returning `undefined` for them.
+ */
+function parseSessionMetaPayload(payload: unknown): IParsedSessionMeta | undefined {
+	if (!payload || typeof payload !== 'object') {
+		return undefined;
+	}
+	const p = payload as { id?: unknown; cwd?: unknown; timestamp?: unknown };
+	if (typeof p.id !== 'string' || !UUID_RE.test(p.id)) {
+		return undefined;
+	}
+	const cwd = typeof p.cwd === 'string' ? p.cwd : undefined;
+	const timestampMs = typeof p.timestamp === 'string' ? Date.parse(p.timestamp) : NaN;
+	return {
+		id: p.id,
+		cwd,
+		timestampMs: Number.isNaN(timestampMs) ? undefined : timestampMs,
+	};
+}
+
+/**
+ * Stream-read a codex rollout JSONL and reconstruct {@link Turn}s.
+ *
+ * Each `event_msg.user_message` record opens a new turn; subsequent
+ * assistant `response_item` and `reasoning` records are appended to it
+ * until the next user message (or EOF). Mirrors the in-memory shape
+ * produced by {@link mapCodexEvent} during live runs so restored
+ * sessions render identically.
+ */
+async function readTurnsFromRollout(path: string): Promise<readonly Turn[]> {
+	const handle = await fs.open(path, 'r').catch(() => undefined);
+	if (!handle) {
+		return [];
+	}
+	const turns: Turn[] = [];
+	let current: { id: string; userMessage: string; parts: ResponsePart[]; usage: UsageInfo | undefined } | undefined;
+
+	const finalizeCurrent = (): void => {
+		if (!current) {
+			return;
+		}
+		turns.push({
+			id: current.id,
+			userMessage: { text: current.userMessage },
+			responseParts: current.parts,
+			usage: current.usage,
+			state: TurnState.Complete,
+		});
+		current = undefined;
+	};
+
+	const extractAssistantText = (content: unknown): string => {
+		if (!Array.isArray(content)) {
+			return '';
+		}
+		const parts: string[] = [];
+		for (const item of content) {
+			if (item && typeof item === 'object') {
+				const text = (item as { text?: unknown }).text;
+				if (typeof text === 'string') {
+					parts.push(text);
+				}
+			}
+		}
+		return parts.join('');
+	};
+
+	const extractReasoningText = (summary: unknown): string => {
+		if (!Array.isArray(summary)) {
+			return '';
+		}
+		const parts: string[] = [];
+		for (const item of summary) {
+			if (item && typeof item === 'object') {
+				const text = (item as { text?: unknown }).text;
+				if (typeof text === 'string') {
+					parts.push(text);
+				}
+			}
+		}
+		return parts.join('\n\n');
+	};
+
+	const processLine = (line: string): void => {
+		let envelope: unknown;
+		try {
+			envelope = JSON.parse(line);
+		} catch {
+			return;
+		}
+		if (!envelope || typeof envelope !== 'object') {
+			return;
+		}
+		const e = envelope as { type?: unknown; payload?: unknown };
+
+		if (e.type === 'event_msg' && e.payload && typeof e.payload === 'object') {
+			const ev = e.payload as { type?: unknown; message?: unknown; info?: unknown };
+			if (ev.type === 'user_message' && typeof ev.message === 'string') {
+				finalizeCurrent();
+				current = { id: generateUuid(), userMessage: ev.message, parts: [], usage: undefined };
+				return;
+			}
+			if (ev.type === 'token_count' && current && ev.info && typeof ev.info === 'object') {
+				const info = ev.info as { last_token_usage?: unknown; total_token_usage?: unknown };
+				const usage = (info.last_token_usage ?? info.total_token_usage) as { input_tokens?: unknown; output_tokens?: unknown; cached_input_tokens?: unknown } | undefined;
+				if (usage && typeof usage === 'object') {
+					current.usage = {
+						...(typeof usage.input_tokens === 'number' ? { inputTokens: usage.input_tokens } : {}),
+						...(typeof usage.output_tokens === 'number' ? { outputTokens: usage.output_tokens } : {}),
+						...(typeof usage.cached_input_tokens === 'number' ? { cacheReadTokens: usage.cached_input_tokens } : {}),
+					};
+				}
+				return;
+			}
+			return;
+		}
+
+		if (e.type === 'response_item' && e.payload && typeof e.payload === 'object' && current) {
+			const p = e.payload as { type?: unknown; role?: unknown; content?: unknown; summary?: unknown };
+			if (p.type === 'message' && p.role === 'assistant') {
+				const text = extractAssistantText(p.content);
+				if (text.length > 0) {
+					current.parts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: text });
+				}
+				return;
+			}
+			if (p.type === 'reasoning') {
+				const text = extractReasoningText(p.summary);
+				if (text.length > 0) {
+					current.parts.push({ kind: ResponsePartKind.Reasoning, id: generateUuid(), content: text });
+				}
+				return;
+			}
+		}
+	};
+
+	try {
+		const CHUNK = 64 * 1024;
+		const chunk = Buffer.alloc(CHUNK);
+		let pending = '';
+		let offset = 0;
+		while (true) {
+			const lineEnd = pending.indexOf('\n');
+			if (lineEnd < 0) {
+				const { bytesRead } = await handle.read(chunk, 0, CHUNK, offset);
+				if (bytesRead === 0) {
+					if (pending.trim().length > 0) {
+						processLine(pending.trim());
+					}
+					break;
+				}
+				offset += bytesRead;
+				pending += chunk.subarray(0, bytesRead).toString('utf8');
+				continue;
+			}
+			const line = pending.slice(0, lineEnd).trim();
+			pending = pending.slice(lineEnd + 1);
+			if (line.length === 0) {
+				continue;
+			}
+			processLine(line);
+		}
+		finalizeCurrent();
+	} finally {
+		await handle.close();
+	}
+	return turns;
 }
