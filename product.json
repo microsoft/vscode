@@ -298,6 +298,7 @@
 	],
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",
+	"defaultIconTheme": "office-material-icon-theme",
 	"gitVersion": "v1.0.3",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
@@ -308,5 +309,6 @@
 		"controlUrl": "",
 		"nlsBaseUrl": "",
 		"publisherUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/publisher"
-	}
+	},
+	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes"
 }
