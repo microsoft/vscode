@@ -100,7 +100,7 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 		});
 	}
 
-	private _createEntry(key: string, folder: URI, excludes: readonly string[], debounceMs: number): IMonitorEntry {
+	private _createEntry(_key: string, folder: URI, excludes: readonly string[], debounceMs: number): IMonitorEntry {
 		const disposable = new DisposableStore();
 		try {
 			const debounce = disposable.add(new MutableDisposable<IDisposable>());
