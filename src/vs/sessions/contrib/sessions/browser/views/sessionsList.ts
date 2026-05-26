@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -17,7 +17,7 @@ import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -42,11 +42,17 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { buildSessionHoverContent } from '../sessionHoverContent.js';
 
 const $ = DOM.$;
 
@@ -192,7 +198,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _motionReducedSignal;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -200,6 +206,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly hoverService: IHoverService,
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly accessibilityService: IAccessibilityService,
+		private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		this._motionReducedSignal = observableSignalFromEvent('reduceMotion', this.accessibilityService.onDidChangeReducedMotion);
 	}
@@ -258,6 +265,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// visible in the viewport (O(visible rows), not O(all sessions)).
 		this.agentSessionsService.model.observeSession(element.resource);
 
+		// Rich hover on the row showing folder, branch, diff stats and provider.
+		// Shown to the right of the row, similar to the extensions list.
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
+			content: buildSessionHoverContent(element, this.sessionsProvidersService),
+			appearance: { showPointer: true },
+			position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+			persistence: { hideOnHover: false },
+		}), { groupId: 'sessions-list' }));
+
 		// Toolbar context
 		template.titleToolbar.context = element;
 
@@ -274,6 +290,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', isArchived);
 			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
+		}));
+
+		// Sticky styling — reactive on the wrapper's sticky observable
+		template.elementDisposables.add(autorun(reader => {
+			const wrapper = this.options.visibleSessions.read(reader).find(s => s?.sessionId === element.sessionId);
+			const isSticky = wrapper ? wrapper.sticky.read(reader) : false;
+			template.container.classList.toggle('sticky', isSticky);
 		}));
 
 		// Icon — reactive based on status, read state, PR, and motion preference.
@@ -707,6 +730,61 @@ class SessionsAccessibilityProvider {
 
 //#endregion
 
+//#region Drag and Drop
+
+class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
+
+	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+
+	getDragURI(element: SessionListItem): string | null {
+		if (isSessionSection(element) || isSessionShowMore(element)) {
+			return null;
+		}
+		return element.resource.toString();
+	}
+
+	getDragLabel(elements: SessionListItem[]): string | undefined {
+		const sessions = elements.filter((e): e is ISession => !isSessionSection(e) && !isSessionShowMore(e));
+		if (sessions.length === 0) {
+			return undefined;
+		}
+		if (sessions.length === 1) {
+			return sessions[0].title.get();
+		}
+		return localize('sessions.dragLabel', "{0} sessions", sessions.length);
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const elements = (data instanceof ElementsDragAndDropData ? data.elements : []) as SessionListItem[];
+		const sessions = elements.filter((e): e is ISession => !isSessionSection(e) && !isSessionShowMore(e));
+		if (sessions.length === 0) {
+			return;
+		}
+
+		const identifiers = sessions.map(s => new DraggedSessionIdentifier(s.sessionId, s.resource));
+		this._transfer.setData(identifiers, DraggedSessionIdentifier.prototype);
+
+		if (originalEvent.dataTransfer) {
+			// Expose the first dragged session as a typed payload as well so external
+			// drop handlers can read it without using the local transfer.
+			const payload = JSON.stringify({ sessionId: sessions[0].sessionId, resource: sessions[0].resource.toString() });
+			originalEvent.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+		}
+	}
+
+	onDragEnd(): void {
+		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+	}
+
+	onDragOver(): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	drop(): void { }
+}
+
+//#endregion
+
 //#region Sessions List Control
 
 export interface ISessionsListControlOptions {
@@ -714,7 +792,7 @@ export interface ISessionsListControlOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
-	onSessionOpen(resource: URI, preserveFocus: boolean): void;
+	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 }
 
 /**
@@ -826,8 +904,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
+		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsManagementService.visibleSessions },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -835,6 +914,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			hoverService,
 			agentSessionsService,
 			accessibilityService,
+			sessionsProvidersService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
@@ -857,6 +937,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(),
+				dnd: this._register(new SessionsListDragAndDrop()),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
 						if (isSessionSection(element)) {
@@ -918,7 +999,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (!isSessionSection(element)) {
 				this.markRead(element);
-				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false);
+				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false, e.sideBySide);
 			}
 		}));
 

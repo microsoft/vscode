@@ -264,6 +264,10 @@
 	visibility: hidden;
 }
 
+.models-widget .models-table-container .models-gutter-column .monaco-action-bar .action-item:has(.model-visibility-toggle) {
+	margin-right: 4px;
+}
+
 .models-widget .models-table-container .monaco-list-row.focused .monaco-table-td .models-gutter-column .model-visibility-toggle,
 .models-widget .models-table-container .monaco-list-row.selected .monaco-table-td .models-gutter-column .model-visibility-toggle,
 .models-widget .models-table-container .monaco-list-row:hover .monaco-table-td .models-gutter-column .model-visibility-toggle,

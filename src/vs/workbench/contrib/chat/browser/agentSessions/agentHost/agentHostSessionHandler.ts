@@ -53,7 +53,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { AgentHostEditingSession } from './agentHostEditingSession.js';
+import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -471,7 +471,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			{
 				createEditingSession: (chatSessionResource: URI) => {
 					return this._instantiationService.createInstance(
-						AgentHostEditingSession,
+						AgentHostSnapshotController,
 						chatSessionResource,
 						config.connectionAuthority,
 					);
@@ -701,12 +701,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._ensureActiveClientForMessage(resolvedSession);
 
 			// If there are historical turns with file edits, eagerly create
-			// the editing session once the ChatModel is available so that
-			// edit pills render with diff info on session restore.
+			// the snapshot controller once the ChatModel is available so that
+			// restore-to-checkpoint works after session restore.
 			if (this._pendingHistoryTurns.has(sessionResource)) {
 				session.registerDisposable(Event.once(this._chatService.onDidCreateModel)(model => {
 					if (isEqual(model.sessionResource, sessionResource)) {
-						this._ensureEditingSession(sessionResource);
+						this._ensureSnapshotController(sessionResource);
 					}
 				}));
 			}
@@ -1160,10 +1160,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		this._config.connection.dispatch(session.toString(), turnAction);
 
-		// Ensure the editing session records a sentinel checkpoint for this
+		// Ensure the snapshot controller records a sentinel checkpoint for this
 		// request so it appears in requestDisablement even if the turn
 		// produces no file edits.
-		this._ensureEditingSession(request.sessionResource)
+		this._ensureSnapshotController(request.sessionResource)
 			?.ensureRequestCheckpoint(request.requestId);
 
 		// Wait for the turn to reach a terminal state. The observable graph
@@ -2173,7 +2173,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 									const tc = rp.toolCall;
 									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 										const completedTc = tc as ICompletedToolCall;
-										const fileEditParts = completedToolCallToEditParts(completedTc);
+										const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
 										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
 										if (fileEditParts.length > 0) {
 											serialized.presentation = ToolInvocationPresentation.Hidden;
@@ -2329,29 +2329,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	// ---- File edit routing ---------------------------------------------------
 
 	/**
-	 * Ensures the chat model has an editing session and returns it if it's an
-	 * {@link AgentHostEditingSession}. The editing session is created via the
-	 * provider registered in the constructor if one doesn't exist yet.
+	 * Ensures the chat model has a snapshot controller bound (creating one
+	 * via our registered editing-session provider if needed) and returns it.
+	 * Hydrates the controller from any pending history turns on first access.
 	 */
-	private _ensureEditingSession(sessionResource: URI): AgentHostEditingSession | undefined {
+	private _ensureSnapshotController(sessionResource: URI): AgentHostSnapshotController | undefined {
 		const chatModel = this._chatService.getSession(sessionResource);
 		if (!chatModel) {
 			return undefined;
 		}
 
 		// Start the editing session if not already started — this will use
-		// our registered provider to create an AgentHostEditingSession.
+		// our registered provider to create an AgentHostSnapshotController.
 		if (!chatModel.editingSession) {
 			chatModel.startEditingSession();
 		}
 
 		const editingSession = chatModel.editingSession;
-		if (!(editingSession instanceof AgentHostEditingSession)) {
+		if (!(editingSession instanceof AgentHostSnapshotController)) {
 			return undefined;
 		}
 
 		// Hydrate from historical turns if this is the first time
-		// the editing session is accessed for this chat session.
+		// the controller is accessed for this chat session.
 		const pendingTurns = this._pendingHistoryTurns.get(sessionResource);
 		if (pendingTurns) {
 			this._pendingHistoryTurns.delete(sessionResource);
@@ -2368,19 +2368,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Hydrates the editing session with file edits from a completed tool call
-	 * and returns progress parts for the file edit pills.
+	 * Records snapshot data for a completed tool call (so restore-snapshot
+	 * works) and returns the {@link IChatExternalEdit} progress parts to
+	 * render the per-file edit pills.
 	 */
 	private _hydrateFileEdits(
 		sessionResource: URI,
 		requestId: string,
 		tc: ToolCallState,
 	): IChatProgress[] {
-		const editingSession = this._ensureEditingSession(sessionResource);
-		if (editingSession) {
-			return editingSession.addToolCallEdits(requestId, tc);
+		const controller = this._ensureSnapshotController(sessionResource);
+		controller?.addToolCallEdits(requestId, tc);
+		if (tc.status !== ToolCallStatus.Completed) {
+			return [];
 		}
-		return [];
+		return completedToolCallToEditParts(tc as ICompletedToolCall, this._config.connectionAuthority);
 	}
 
 	// ---- Session resolution -------------------------------------------------
@@ -2831,6 +2833,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			text: item.text,
 			resourceUri: item.resourceUri.toString(),
 			range: this._toTextRange(item.range),
+			...(item.replies?.length ? { replies: [...item.replies] } : {}),
 		}));
 		return this._toSimpleAttachment(
 			v.name,
