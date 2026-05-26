@@ -24,14 +24,14 @@ type SessionIsolationKind = 'worktree' | 'folder';
 // --- Field group: session (derived from ISession) ---
 
 type SessionFields = {
-	sessionId: string;
+	agentSessionId: string;
 	providerId: string;
 	providerType: string;
 	chatCount: number;
 };
 
 type SessionFieldsClassification = {
-	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Globally unique session id (providerId:resourceUri), used to correlate events for the same session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Globally unique session id (providerId:resourceUri), used to correlate events for the same session.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sessions provider identifier (e.g., remote agent host or local).' };
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
 	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
@@ -257,7 +257,7 @@ export class SessionsTelemetryReporter extends Disposable {
 
 	private _getSessionFields(session: ISession): SessionFields {
 		return {
-			sessionId: session.sessionId,
+			agentSessionId: session.sessionId,
 			providerId: session.providerId,
 			providerType: session.sessionType,
 			chatCount: session.chats.get().length,
