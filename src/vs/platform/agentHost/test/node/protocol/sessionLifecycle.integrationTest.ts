@@ -7,10 +7,10 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { SessionAddedNotification, SessionRemovedNotification } from '../../../common/state/sessionActions.js';
+import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import type { ListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, type MarkdownResponsePart, type SessionState, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
+import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponsePart, type SessionState, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -48,14 +48,14 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	test('create session triggers sessionAdded notification', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-create-session' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-create-session' });
 
-		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock' });
 
 		const notif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
-		const notification = (notif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
+		const notification = notif.params as SessionAddedParams;
 		assert.strictEqual(URI.parse(notification.summary.resource).scheme, 'mock');
 		assert.strictEqual(notification.summary.provider, 'mock');
 	});
@@ -63,14 +63,14 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	test('listSessions returns sessions', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-list-sessions' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-list-sessions' });
 
-		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock' });
 		await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
 
-		const result = await client.call<ListSessionsResult>('listSessions');
+		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		assert.ok(Array.isArray(result.items));
 		assert.ok(result.items.length >= 1, 'should have at least one session');
 	});
@@ -79,25 +79,25 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-dispose');
-		await client.call('disposeSession', { session: sessionUri });
+		await client.call('disposeSession', { channel: sessionUri });
 
 		const notif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+			n.method === 'root/sessionRemoved'
 		);
-		const removed = (notif.params as INotificationBroadcastParams).notification as SessionRemovedNotification;
+		const removed = notif.params as SessionRemovedParams;
 		assert.strictEqual(removed.session.toString(), sessionUri.toString());
 	});
 
 	test('subscribe to a pre-existing session restores turns from agent history', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-restore' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-restore' });
 
 		// The mock agent seeds a pre-existing session that was never created
 		// through the server's handleCreateSession -- simulating a session
 		// from a previous server lifetime.
 		const preExistingUri = PRE_EXISTING_SESSION_URI.toString();
-		const list = await client.call<ListSessionsResult>('listSessions');
+		const list = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		const preExisting = list.items.find(s => s.resource === preExistingUri);
 		assert.ok(preExisting, 'listSessions should include the pre-existing session');
 
@@ -106,8 +106,8 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Subscribing to this session should trigger the restore path: the
 		// server fetches message history from the agent and reconstructs turns.
-		const result = await client.call<SubscribeResult>('subscribe', { resource: preExistingUri });
-		const state = result.snapshot.state as SessionState;
+		const result = await client.call<SubscribeResult>('subscribe', { channel: preExistingUri });
+		const state = result.snapshot!.state as SessionState;
 
 		assert.strictEqual(state.lifecycle, 'ready', 'restored session should be in ready state');
 		assert.ok(state.turns.length >= 1, `expected at least 1 restored turn but got ${state.turns.length}`);
@@ -125,7 +125,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		// (the session is already known to clients via listSessions).
 		await new Promise(resolve => setTimeout(resolve, 200));
 		const sessionAddedNotifs = client.receivedNotifications(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
 		assert.strictEqual(sessionAddedNotifs.length, 0, 'restore should not emit sessionAdded');
 	});
@@ -137,10 +137,10 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Dispatch isArchived=true
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/isArchivedChanged',
-				session: sessionUri,
 				isArchived: true,
 			},
 		});
@@ -149,10 +149,10 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Dispatch isRead=true
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 2,
 			action: {
 				type: 'session/isReadChanged',
-				session: sessionUri,
 				isRead: true,
 			},
 		});
@@ -160,8 +160,8 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'session/isReadChanged'));
 
 		// Verify the flags are reflected in the subscribed session state
-		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as SessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.summary.status & SessionStatus.IsArchived, 'IsArchived flag should be set in snapshot');
 		assert.ok(state.summary.status & SessionStatus.IsRead, 'IsRead flag should be set in snapshot');
 
@@ -169,11 +169,11 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		client.close();
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-read-archived-flags-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-read-archived-flags-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client2.call<ListSessionsResult>('listSessions');
+			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session && (session.status & SessionStatus.IsArchived) && (session.status & SessionStatus.IsRead)) {
 				break;
@@ -196,10 +196,10 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		// isRead=false should persist the value so that listSessions
 		// returns an explicit `false` rather than omitting the field.
 		client.notify('dispatchAction', {
+			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: 'session/isReadChanged',
-				session: sessionUri,
 				isRead: false,
 			},
 		});
@@ -209,11 +209,11 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		client.close();
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-isread-false-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-isread-false-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client2.call<ListSessionsResult>('listSessions');
+			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session && !(session.status & SessionStatus.IsRead)) {
 				break;

@@ -11,9 +11,10 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -25,6 +26,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 	) {
 		super();
 		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
@@ -59,16 +61,15 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private tryResolveAndSelect(folderUri: URI): boolean {
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			const workspace = provider.resolveWorkspace(folderUri);
-			if (workspace) {
-				this.viewsService.openView<NewChatViewPane>(SessionsViewId).then(view => {
-					view?.selectWorkspace({ providerId: provider.id, workspace });
-				});
-				return true;
-			}
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
+		if (!resolved) {
+			return false;
 		}
-		return false;
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
+			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
+		}
+		return true;
 	}
 }
 

@@ -79,11 +79,12 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
 
 // #region Tool data
 
@@ -714,6 +715,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const executionOptions = this._resolveExecutionOptions(args);
 
 		const chatSessionResource = context.chatSessionResource;
+		const sandboxPrecheckInputs = this._getSandboxPrecheckInputs(chatSessionResource, context.chatRequestId);
 		let instance: ITerminalInstance | undefined;
 		if (chatSessionResource) {
 			const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
@@ -740,7 +742,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				return cwd;
 			})(),
-			this._terminalSandboxService.checkForSandboxingPrereqs()
+			this._terminalSandboxService.checkForSandboxingPrereqs(false, sandboxPrecheckInputs)
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 		const isSandboxEnabled = sandboxPrereqs.enabled;
@@ -787,6 +789,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isBackground: executionOptions.persistentSession,
 			requestUnsandboxedExecution: allowUnsandboxedCommands ? requiresUnsandboxConfirmation : false,
 			requestUnsandboxedExecutionReason,
+			sandboxPrecheckInputs,
 		});
 		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
 		const forDisplayCommand: string | undefined = rewriteResult.forDisplayCommand;
@@ -1057,6 +1060,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		isBackground: boolean;
 		requestUnsandboxedExecution: boolean;
 		requestUnsandboxedExecutionReason?: string;
+		sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
 	}): Promise<{
 		rewrittenCommand: string;
 		forDisplayCommand: string | undefined;
@@ -1080,6 +1084,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				os: options.os,
 				isBackground: options.isBackground,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+				sandboxPrecheckInputs: options.sandboxPrecheckInputs,
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
@@ -1108,6 +1113,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestUnsandboxedExecutionReason,
 			blockedDomains,
 		};
+	}
+
+	private _getSandboxPrecheckInputs(chatSessionResource: URI | undefined, chatRequestId: string | undefined): ITerminalSandboxPrecheckInputs | undefined {
+		return getSandboxPrecheckInputsForToolInvocation(chatSessionResource, chatRequestId, this._chatWidgetService, this._chatService);
 	}
 
 	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
@@ -1342,7 +1351,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
-		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
+		const sandboxPrecheckInputs = this._getSandboxPrecheckInputs(invocation.context.sessionResource, invocation.chatRequestId);
+		const isSandboxEnabled = await this._terminalSandboxService.isEnabled(sandboxPrecheckInputs);
 		if (this._shouldRejectUnsandboxedExecutionRequest(isSandboxEnabled, allowUnsandboxedCommands, args)) {
 			const message = this._getUnsandboxedExecutionDisabledMessage();
 			return {

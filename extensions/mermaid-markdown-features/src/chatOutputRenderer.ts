@@ -8,6 +8,7 @@ import { MermaidCommandContext, MermaidWebviewManager } from './webviewManager';
 import { escapeHtmlText } from './util/html';
 import { generateUuid } from './util/uuid';
 import { disposeAll } from './util/dispose';
+import { renderMermaidConfigSpan } from './markdownMermaid/config';
 
 /**
  * Mime type used to identify Mermaid diagram data in chat output.
@@ -116,6 +117,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 			</head>
 
 			<body data-vscode-context='${JSON.stringify({ preventDefaultContextMenuItems: true, mermaidWebviewId: webviewId })}' data-vscode-mermaid-webview-id="${webviewId}">
+				${renderMermaidConfigSpan()}
 				<button class="open-in-editor-btn" title="${openInEditorLabel}" aria-label="${openInEditorLabel}"><i class="codicon codicon-open-preview" aria-hidden="true"></i></button>
 				<pre class="mermaid">
 					${escapeHtmlText(mermaidSource)}

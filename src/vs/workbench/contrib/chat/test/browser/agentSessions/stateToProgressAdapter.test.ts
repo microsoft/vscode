@@ -322,6 +322,55 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('terminal tool call in history does not set pastTenseMessage (avoids duplicate render)', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'terminal' },
+						toolInput: 'echo hi',
+						pastTenseMessage: 'Ran echo hi',
+						content: [
+							{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///past', title: 'Terminal' },
+							{ type: ToolResultContentType.Text, text: 'hi' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			assert.strictEqual(serialized.pastTenseMessage, undefined);
+		});
+
+		test('terminal tool call (by toolKind only) in history does not set pastTenseMessage', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'terminal' },
+						toolInput: 'echo hi',
+						pastTenseMessage: 'Ran echo hi',
+						content: [
+							{ type: ToolResultContentType.Text, text: 'hi' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			assert.strictEqual(serialized.pastTenseMessage, undefined);
+		});
+
 		test('subagent tool call in history has correct subagent data', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -678,6 +727,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
+		});
+
+		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
+			const tc = createToolCallState({
+				toolInput: 'grep -n foo',
+				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+				],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				toolInput: 'grep -n foo',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran grep -n foo',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+					{ type: ToolResultContentType.Text, text: 'line1\nline2\r\nline3\n' },
+				],
+			});
+
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput.text, 'line1\r\nline2\r\nline3\r\n');
 		});
 
 		test('finalizes generic tool with input/output details', () => {

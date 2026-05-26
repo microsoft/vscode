@@ -79,11 +79,22 @@ export enum ModelSupportedEndpoint {
 	Messages = '/v1/messages'
 }
 
-export interface IModelTokenPrices {
-	batch_size: number;
-	cache_price: number;
+export interface IModelTokenPriceTier {
 	input_price: number;
 	output_price: number;
+	cache_price: number;
+	/**
+	 * The maximum context window size (in tokens) for this pricing tier.
+	 * Present on the `default` tier only when a `long_context` tier also
+	 * exists; always present on the `long_context` tier itself.
+	 */
+	context_max?: number;
+}
+
+export interface IModelTokenPrices {
+	batch_size: number;
+	default: IModelTokenPriceTier;
+	long_context?: IModelTokenPriceTier;
 }
 
 export interface IModelBilling {
