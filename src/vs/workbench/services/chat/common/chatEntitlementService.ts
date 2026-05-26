@@ -193,6 +193,18 @@ export interface IChatEntitlementService {
 	readonly anonymous: boolean;
 	readonly anonymousObs: IObservable<boolean>;
 
+	/**
+	 * Accept quota data, updating the internal state and context keys.
+	 * When `silent` is set, change events are suppressed to prevent
+	 * notification loops (e.g. when the extension pushes data it already has).
+	 */
+	acceptQuotas(quotas: IQuotas, options?: { silent?: boolean }): void;
+
+	/**
+	 * Clear all quota state.
+	 */
+	clearQuotas(): void;
+
 	markAnonymousRateLimited(): void;
 
 	/**
@@ -542,7 +554,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
 	}
 
-	acceptQuotas(quotas: IQuotas): void {
+	acceptQuotas(quotas: IQuotas, options?: { silent?: boolean }): void {
 		const oldQuota = this._quotas;
 		this._quotas = quotas;
 		this.updateContextKeys();
@@ -556,7 +568,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		}
 
 		if (this.logService.getLevel() === LogLevel.Trace) {
-			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}`);
+			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}${options?.silent ? ' (silent)' : ''}`);
+		}
+
+		if (options?.silent) {
+			return;
 		}
 
 		const { changed: chatChanged } = this.compareQuotas(oldQuota.chat, quotas.chat);
@@ -753,7 +769,7 @@ export interface IQuotaSnapshot {
 	readonly quotaRemaining?: number;
 }
 
-interface IQuotas {
+export interface IQuotas {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;
 

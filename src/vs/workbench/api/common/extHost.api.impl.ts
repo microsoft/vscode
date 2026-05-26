@@ -41,6 +41,7 @@ import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
+import { ExtHostChatQuota } from './extHostChatQuota.js';
 import { ExtHostChatInputNotification } from './extHostChatInputNotification.js';
 import { ExtHostClipboard } from './extHostClipboard.js';
 import { ExtHostEditorInsets } from './extHostCodeInsets.js';
@@ -190,6 +191,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostDataChannels, extHostDataChannels);
 	rpcProtocol.set(ExtHostContext.ExtHostMeteredConnection, extHostMeteredConnection);
 	rpcProtocol.set(ExtHostContext.ExtHostGitExtension, extHostGitExtensionService);
+	rpcProtocol.set(ExtHostContext.ExtHostChatQuota, extHostChatQuota);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -264,6 +266,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol, extHostLogService);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostChatStatus = new ExtHostChatStatus(rpcProtocol);
+	const extHostChatQuota = new ExtHostChatQuota(rpcProtocol);
 	const extHostChatInputNotification = new ExtHostChatInputNotification(rpcProtocol);
 
 	// Register API-ish commands
@@ -1708,6 +1711,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidDisposeChatSession: (listeners, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
+			},
+			onDidChangeQuotas: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return _asExtensionEvent(extHostChatQuota.onDidChangeQuotas)(listeners, thisArgs, disposables);
+			},
+			updateQuotas: (quotas: vscode.ChatQuotaSnapshots) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				extHostChatQuota.updateQuotas(quotas);
 			},
 			registerChatSessionItemProvider: (chatSessionType: string, provider: vscode.ChatSessionItemProvider) => {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');

@@ -468,4 +468,54 @@ declare module 'vscode' {
 		 */
 		readonly fullReferenceName?: string;
 	}
+
+	// #region Quota Sync
+
+	/**
+	 * A snapshot of quota usage for a single category (chat, completions, premium chat).
+	 */
+	export interface ChatQuotaSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly hasQuota?: boolean;
+		readonly resetAt?: number;
+		readonly usageBasedBilling?: boolean;
+		readonly entitlement?: number;
+		readonly quotaRemaining?: number;
+	}
+
+	/**
+	 * Quota snapshot data covering all categories. Fired by the core workbench
+	 * when quota state changes (e.g. after a dashboard refresh), and accepted
+	 * by {@link chat.updateQuotas} for extension-to-core sync.
+	 */
+	export interface ChatQuotaSnapshots {
+		readonly resetDate?: string;
+		readonly resetDateHasTime?: boolean;
+		readonly usageBasedBilling?: boolean;
+		readonly canUpgradePlan?: boolean;
+		readonly chat?: ChatQuotaSnapshot;
+		readonly completions?: ChatQuotaSnapshot;
+		readonly premiumChat?: ChatQuotaSnapshot;
+		readonly additionalUsageEnabled?: boolean;
+		readonly additionalUsageCount?: number;
+	}
+
+	export namespace chat {
+		/**
+		 * Fired when the core workbench updates quota data (e.g. from a
+		 * dashboard refresh or entitlements fetch). Extensions should update
+		 * their internal quota state when this fires.
+		 */
+		export const onDidChangeQuotas: Event<ChatQuotaSnapshots>;
+
+		/**
+		 * Push quota snapshot data from the extension to the core workbench.
+		 * This does **not** fire {@link onDidChangeQuotas} — it is a one-way
+		 * push to avoid notification loops.
+		 */
+		export function updateQuotas(quotas: ChatQuotaSnapshots): void;
+	}
+
+	// #endregion
 }

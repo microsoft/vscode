@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { commands, env, Uri } from 'vscode';
+import { chat, commands, env, Uri } from 'vscode';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IExtensionContribution } from '../../common/contributions';
@@ -17,6 +17,12 @@ export class ChatQuotaContribution extends Disposable implements IExtensionContr
 			// the next request they send won't try to downgrade them to the base model.
 			chatQuotaService.clearQuota();
 			env.openExternal(Uri.parse('https://aka.ms/github-copilot-manage-overage'));
+		}));
+
+		// Core → Extension: update internal quota state when the core workbench
+		// refreshes quota data (e.g. dashboard refresh, entitlements fetch).
+		this._register(chat.onDidChangeQuotas(quotas => {
+			chatQuotaService.acceptCoreQuotas(quotas);
 		}));
 	}
 }

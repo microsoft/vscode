@@ -50,6 +50,7 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { AICustomizationManagementSection, AICustomizationSources } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -138,6 +139,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
@@ -527,6 +529,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						outputBuffer: progress.outputBuffer,
 						promptTokenDetails: progress.promptTokenDetails
 					});
+				}
+				if (progress.quotaSnapshots) {
+					this._chatEntitlementService.acceptQuotas(progress.quotaSnapshots, { silent: true });
 				}
 				continue;
 			}
