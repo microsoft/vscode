@@ -130,6 +130,44 @@ export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err);
 }
 
+/**
+ * Connection key passed to {@link ISSHRemoteAgentHostService.disconnect} for
+ * an SSH-backed remote agent host entry. Mirrors the key the SSH service
+ * itself constructs when it stores the connection.
+ */
+export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): string {
+	return connection.sshConfigHost
+		? `ssh:${connection.sshConfigHost}`
+		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
+}
+
+/**
+ * Sequence the steps to disconnect an SSH-backed remote agent host entry
+ * triggered by the user (e.g. clicking X in the workspace picker).
+ *
+ * Order matters: `removeRemoteAgentHost` MUST run before the SSH tunnel
+ * teardown. `sshService.disconnect()` fires `onDidCloseConnection`
+ * synchronously, which the renderer translates into `onDidChangeConnections`
+ * and the contribution's `_reconcile` → `_reconnectSSHEntries`. If the entry
+ * is still in configured storage at that point, the auto-reconnect path
+ * immediately reconnects the host we just told it to disconnect.
+ *
+ * `removeRemoteAgentHost` itself runs the entry's transport disposable
+ * (which calls `_mainService.disconnect(connectionId)`), so the underlying
+ * SSH tunnel is already closed when this returns. The explicit
+ * `sshService.disconnect(connectionKey)` is belt-and-suspenders to clear
+ * the connection by its connection key as well, matching the prior
+ * teardown behavior.
+ */
+export async function disconnectSSHEntry(
+	connection: IRemoteAgentHostSSHConnection,
+	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
+	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
+): Promise<void> {
+	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
+	await sshService.disconnect(sshConnectionKey(connection));
+}
+
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
@@ -410,30 +448,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private async _disconnectSSHOnDemand(connection: IRemoteAgentHostSSHConnection): Promise<void> {
-		const connectionKey = connection.sshConfigHost
-			? `ssh:${connection.sshConfigHost}`
-			: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
 		if (connection.sshConfigHost) {
 			this._sshReconnectStates.deleteAndDispose(connection.sshConfigHost);
 		}
-		// Remove the entry from configured storage BEFORE tearing down the
-		// SSH tunnel. Two reasons:
-		//   1) `_sshService.disconnect` fires `onDidCloseConnection` →
-		//      `notifyConnectionClosed` → `onDidChangeConnections` → our
-		//      `_reconcile` → `_reconnectSSHEntries`, all synchronously
-		//      during the `await` below. If the entry is still in storage at
-		//      that point, the auto-reconnect path immediately reconnects
-		//      the host we just told it to disconnect.
-		//   2) Without removing the entry, it stays in storage and is
-		//      auto-reconnected on the next window reload.
-		// `removeRemoteAgentHost` also runs the entry's transportDisposable
-		// (which itself calls `_mainService.disconnect(connectionId)`), so it
-		// already tears down the underlying SSH tunnel — the explicit
-		// `_sshService.disconnect(connectionKey)` below is belt-and-suspenders
-		// to keep the prior behavior of clearing the connection by its
-		// connection key as well.
-		await this._remoteAgentHostService.removeRemoteAgentHost(connection.address);
-		await this._sshService.disconnect(connectionKey);
+		await disconnectSSHEntry(connection, this._remoteAgentHostService, this._sshService);
 	}
 
 	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
