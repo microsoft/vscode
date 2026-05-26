@@ -60,6 +60,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           lfs: true
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -73,11 +75,11 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-windows-x64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -184,6 +186,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           lfs: true
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -197,11 +201,11 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 arm64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-windows-arm64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-windows-arm64-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -308,6 +312,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           lfs: true
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -320,11 +326,11 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-darwin-x64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
@@ -416,6 +422,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           lfs: true
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -433,11 +441,11 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-linux-x64-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-linux-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'

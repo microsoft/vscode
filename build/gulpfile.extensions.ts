@@ -15,6 +15,7 @@ import filter from 'gulp-filter';
 import plumber from 'gulp-plumber';
 import sourcemaps from 'gulp-sourcemaps';
 import * as path from 'path';
+import * as fs from 'fs'; // test-workbench_change
 import * as nodeUtil from 'util';
 import * as ext from './lib/extensions.ts';
 import { getVersion } from './lib/getVersion.ts';
@@ -253,9 +254,66 @@ gulp.task(compileExtensionMediaBuildTask);
 //#region Azure Pipelines
 
 /**
- * Cleans the build directory for extensions
+ * Get list of prebuilt extension directories that should be preserved during clean
  */
-export const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
+function getPrebuiltExtensions(): string[] {
+	// test-workbench_change start
+	const extensionsDir = path.join(root, '.build/extensions');
+	const prebuiltMarker = '.prebuilt-extension'; // Marker file to identify prebuilt extensions
+
+	if (!fs.existsSync(extensionsDir)) {
+		return [];
+	}
+
+	const entries = fs.readdirSync(extensionsDir, { withFileTypes: true });
+	const prebuiltExtensions: string[] = [];
+
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			const markerPath = path.join(extensionsDir, entry.name, prebuiltMarker);
+			if (fs.existsSync(markerPath)) {
+				prebuiltExtensions.push(entry.name);
+			}
+		}
+	}
+
+	return prebuiltExtensions;
+	// test-workbench_change end
+}
+
+/**
+ * Cleans the build directory for extensions, preserving prebuilt extensions
+ */
+export const cleanExtensionsBuildTask = task.define('clean-extensions-build', async () => {
+	// test-workbench_change start
+	const extensionsDir = path.join(root, '.build/extensions');
+
+	if (!fs.existsSync(extensionsDir)) {
+		return;
+	}
+
+	const prebuiltExtensions = getPrebuiltExtensions();
+	const entries = fs.readdirSync(extensionsDir, { withFileTypes: true });
+
+	for (const entry of entries) {
+		const fullPath = path.join(extensionsDir, entry.name);
+
+		// Skip prebuilt extensions
+		if (prebuiltExtensions.includes(entry.name)) {
+			console.log(`Preserving prebuilt extension: ${entry.name}`);
+			continue;
+		}
+
+		// Remove non-prebuilt extensions
+		if (entry.isDirectory()) {
+			fs.rmSync(fullPath, { recursive: true, force: true });
+		} else if (entry.isFile()) {
+			fs.rmSync(fullPath, { force: true });
+		}
+	}
+	// test-workbench_change end
+});
+gulp.task(cleanExtensionsBuildTask); // test-workbench_change
 
 /**
  * brings in the marketplace extensions for the build
