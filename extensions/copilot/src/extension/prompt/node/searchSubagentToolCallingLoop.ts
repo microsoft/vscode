@@ -91,6 +91,12 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	 * Get the endpoint to use for the search subagent
 	 */
 	private async getEndpoint() {
+		const mainEndpoint = await this.endpointProvider.getChatEndpoint(this.options.request);
+		// BYOK endpoints have no Copilot token for the agentic proxy or override models.
+		if (mainEndpoint.ownsAuthorization) {
+			return mainEndpoint;
+		}
+
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
@@ -107,11 +113,11 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			} catch (error) {
 				// Model not available or doesn't support tool calls, fallback to main agent
 				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
+				return mainEndpoint;
 			}
 		} else {
 			// No model name specified, use main agent endpoint
-			return await this.endpointProvider.getChatEndpoint(this.options.request);
+			return mainEndpoint;
 		}
 	}
 

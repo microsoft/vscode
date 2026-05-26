@@ -113,6 +113,12 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
+		const mainEndpoint = await this.endpointProvider.getChatEndpoint(this.options.request);
+		// BYOK endpoints have no Copilot token for the agentic proxy or override models.
+		if (mainEndpoint.ownsAuthorization) {
+			return mainEndpoint;
+		}
+
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
 		const shellType = this.terminalService.terminalShellType;
@@ -120,7 +126,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		if (useAgenticProxy) {
 			// Our custom models are not trained for PowerShell yet. Fall back to main agent endpoint.
 			if (shellType === 'powershell' || shellType === 'pwsh') {
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
+				return mainEndpoint;
 			}
 			// Use agentic proxy with ExecutionSubagentModel or default to DEFAULT_AGENTIC_PROXY_MODEL
 			const agenticProxyModel = modelName || ExecutionSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
@@ -135,14 +141,14 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 					return endpoint;
 				}
 				// Model does not support tool calls, fallback to main agent endpoint
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
+				return mainEndpoint;
 			} catch (error) {
 				// Model not available, fallback to main agent endpoint
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
+				return mainEndpoint;
 			}
 		} else {
 			// No model name specified, use main agent endpoint
-			return await this.endpointProvider.getChatEndpoint(this.options.request);
+			return mainEndpoint;
 		}
 	}
 
