@@ -355,8 +355,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const originalStoredHeight = template.currentElement.currentRenderedHeight;
 		template.currentElement.currentRenderedHeight = normalizedHeight;
-		if (template.currentElement !== this._elementBeingRendered && typeof originalStoredHeight === 'number') {
+		if (template.currentElement === this._elementBeingRendered) {
+			return;
+		}
+
+		if (typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
+		} else {
+			const element = template.currentElement;
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
+				if (template.currentElement !== element) {
+					return;
+				}
+				this._onDidChangeItemHeight.fire({ element, height: normalizedHeight });
+			});
 		}
 	}
 
