@@ -260,7 +260,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
  * client side. Registered under the `vscode-agent-host` scheme.
  *
  * ```
- * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority][originalPath]
+ * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
  * ```
  */
 export class AgentHostFileSystemProvider extends AHPFileSystemProvider {

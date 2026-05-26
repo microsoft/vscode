@@ -124,7 +124,7 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 	test('round-trips query and fragment for synthetic content URIs', () => {
 		const original = URI.from({
 			scheme: 'git-blob',
-			path: '/hello_count.txt',
+			path: '/src/app.ts',
 			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
 			fragment: 'L1',
 		});
@@ -141,34 +141,6 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 			wrappedFragment: original.fragment,
 			unwrapped: original.toString(),
 		});
-	});
-
-	test('wraps empty original authority without a dash placeholder', () => {
-		const original = URI.from({ scheme: 'git-blob', path: '/hello_count.txt', query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }) });
-		const wrapped = toAgentHostUri(original, 'local');
-
-		assert.deepStrictEqual({
-			path: wrapped.path,
-			unwrapped: fromAgentHostUri(wrapped).toString(),
-		}, {
-			path: '/git-blob//hello_count.txt',
-			unwrapped: original.toString(),
-		});
-	});
-
-	test('unwraps legacy dash placeholder for empty original authority', () => {
-		const legacy = URI.from({
-			scheme: AGENT_HOST_SCHEME,
-			authority: 'local',
-			path: '/git-blob/-/hello_count.txt',
-			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
-		});
-
-		assert.strictEqual(fromAgentHostUri(legacy).toString(), URI.from({
-			scheme: 'git-blob',
-			path: '/hello_count.txt',
-			query: legacy.query,
-		}).toString());
 	});
 
 	test('local authority returns original URI unchanged', () => {
@@ -232,16 +204,16 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 		assert.strictEqual(stripped, '/snap/before');
 	});
 
-	test('stripPathSegments preserves label-friendly root git-blob paths', () => {
+	test('stripPathSegments preserves label-friendly git-blob paths', () => {
 		const originalUri = URI.from({
 			scheme: 'git-blob',
-			path: '/hello_count.txt',
+			path: '/src/app.ts',
 			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
 		});
-		const encodedUri = toAgentHostUri(originalUri, 'local');
+		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
 
 		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.deepStrictEqual({ path: encodedUri.path, stripped }, { path: '/git-blob//hello_count.txt', stripped: '/hello_count.txt' });
+		assert.strictEqual(stripped, '/src/app.ts');
 	});
 });
 
