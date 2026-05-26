@@ -2035,7 +2035,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._refreshSessions();
 	}
 
-	protected async _refreshSessions(): Promise<void> {
+	protected async _refreshSessions(announceExistingAsAdded = false): Promise<void> {
 		const connection = this.connection;
 		if (!connection) {
 			return;
@@ -2052,8 +2052,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 				const existing = this._sessionCache.get(rawId);
 				if (existing) {
+					if (announceExistingAsAdded) {
+						added.push(existing);
+					}
 					if (existing.update(meta)) {
-						changed.push(existing);
+						if (!announceExistingAsAdded) {
+							changed.push(existing);
+						}
 					}
 				} else {
 					const cached = this.createAdapter(meta);
