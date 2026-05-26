@@ -113,7 +113,7 @@ export class BackgroundSummarizer {
 		this.modelMaxPromptTokens = modelMaxPromptTokens;
 	}
 
-	start(work: (token: CancellationToken) => Promise<IBackgroundSummarizationResult>, parentToken?: CancellationToken): void {
+	start(work: (token: CancellationToken) => Promise<IBackgroundSummarizationResult | undefined>, parentToken?: CancellationToken): void {
 		if (this._state !== BackgroundSummarizationState.Idle && this._state !== BackgroundSummarizationState.Failed) {
 			return; // already running or completed
 		}
