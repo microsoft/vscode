@@ -24,17 +24,16 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { NewChatViewPane, SessionsViewId } from '../../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -571,9 +570,9 @@ async function promptForRemoteFolder(
 	accessor: ServicesAccessor,
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
 	// onDidChangeConnections event, so it should exist by now.
@@ -598,8 +597,7 @@ async function promptForRemoteFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace(folderUri);
+	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -919,9 +917,9 @@ async function promptForTunnelFolder(
 	accessor: ServicesAccessor,
 	tunnel: ITunnelInfo,
 ): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 
@@ -948,8 +946,7 @@ async function promptForTunnelFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace(folderUri);
+	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {
