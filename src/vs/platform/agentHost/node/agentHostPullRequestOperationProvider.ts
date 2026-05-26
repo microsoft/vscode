@@ -53,8 +53,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, getSessionState, this.onPullRequestCreated);
-		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, getSessionState, this.onPullRequestCreated);
+		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, getSessionState, this.onPullRequestCreated.bind(this));
+		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, getSessionState, this.onPullRequestCreated.bind(this));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_DRAFT_PR, createDraftPrHandler));
 		store.add({ dispose: () => { this._registry = undefined; } });

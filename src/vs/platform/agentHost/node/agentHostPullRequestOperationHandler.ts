@@ -229,6 +229,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			content: { uri: created.url, contentType: 'text/html' },
 			external: true,
 		};
-		return { message, followUp };
+		return { message: { markdown: message }, followUp };
 	}
 }
