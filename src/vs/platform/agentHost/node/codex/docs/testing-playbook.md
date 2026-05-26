@@ -18,9 +18,21 @@ Use this doc when you have changed anything under
 
 ## 0. Prereqs
 
-- `codex` CLI installed on PATH (the SDK shells out to it).
-  Verify: `which codex && codex --version` — expect `0.132.0` (matches
-  `@openai/codex-sdk` in `package.json`).
+- `@openai/codex-sdk` installed locally (it is **not** bundled with VS Code).
+  Quickest path: `npm install` in this repo already pulls it into
+  `node_modules/@openai/codex-sdk` because it's listed as a devDependency.
+  Then point the workbench setting at it:
+  ```jsonc
+  // settings.json
+  "chat.agentHost.enabled": true,
+  "chat.agentHost.codexAgent.path": "/absolute/path/to/vscode/node_modules/@openai/codex-sdk"
+  ```
+  Without this setting the Codex provider is not registered (the SDK
+  ships a ~190MB native `codex` CLI binary per platform, which is why
+  we don't bundle it).
+- The `codex` CLI is shipped inside that SDK install — no separate
+  PATH install required. Verify with
+  `ls "$SDK_PATH/../codex-darwin-arm64/vendor"` (or matching platform).
 - VS Code dev build is up to date. If the watch tasks (`Core - Transpile`,
   `Ext - Build`) aren't running, start them first or omit
   `VSCODE_SKIP_PRELAUNCH=1` from the launch command.

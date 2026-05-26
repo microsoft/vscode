@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, AgentHostCodexSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -25,6 +25,7 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { CodexAgent } from './codex/codexAgent.js';
+import { CodexAgentSdkService, ICodexAgentSdkService } from './codex/codexAgentSdkService.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
@@ -141,6 +142,8 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
 		diServices.set(ICodexProxyService, codexProxyService);
+		const codexAgentSdkService = instantiationService.createInstance(CodexAgentSdkService);
+		diServices.set(ICodexAgentSdkService, codexAgentSdkService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService);
@@ -161,10 +164,15 @@ async function startAgentHost(): Promise<void> {
 		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
-		// Codex agent is bundled (the `@openai/codex-sdk` npm package is a
-		// direct dependency). It shells out to the `codex` CLI at runtime; if
-		// the CLI isn't installed, the first sendMessage surfaces an error.
-		agentService.registerProvider(instantiationService.createInstance(CodexAgent));
+		// Codex agent provider is opt-in. Gated on the
+		// `chat.agentHost.codexAgent.path` workbench setting being non-empty,
+		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CODEX_SDK_PATH`.
+		// The SDK (and its ~190MB native CLI binary) is intentionally not bundled
+		// with VS Code; the env var holds the absolute path to a locally-installed
+		// `@openai/codex-sdk` package.
+		if (process.env[AgentHostCodexSdkPathEnvVar]) {
+			agentService.registerProvider(instantiationService.createInstance(CodexAgent));
+		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
@@ -373,8 +381,14 @@ async function startWebSocketServer(
 	// port is only known after this point — emitting the requested port
 	// would print `localhost:0` and break the CLI's readiness parser.
 	await wsServer.whenListening;
-	const listenTarget = socketPath ?? `${host}:${wsServer.boundPort ?? port}`;
+	const boundPort = wsServer.boundPort ?? (port ? parseInt(port, 10) : undefined);
+	const listenTarget = socketPath ?? `${host}:${boundPort ?? port}`;
 	logService.info(`[AgentHost] WebSocket server listening on ${listenTarget}`);
+	if (!socketPath && boundPort) {
+		const tokenQuery = connectionToken ? `?tkn=${encodeURIComponent(connectionToken)}` : '';
+		// Surface a copy-paste-able URL for AHP clients (e.g. ahpx).
+		logService.info(`[AgentHost] AHP URL: ws://${host}:${boundPort}${tokenQuery}`);
+	}
 	// Do not change this line. The CLI looks for this in the output.
 	console.log(`Agent host server listening on ${listenTarget}`);
 }

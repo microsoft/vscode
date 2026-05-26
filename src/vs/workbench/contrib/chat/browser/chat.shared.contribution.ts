@@ -9,7 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCodexAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostDevWebSocketPortSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -994,6 +994,20 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
 			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostCodexAgentSdkPathSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.codexAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@openai/codex-sdk` package. When set, the Codex agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. The SDK ships a large native `codex` CLI binary per platform, which is why it is not bundled with VS Code. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostDevWebSocketPortSettingId]: {
+			type: 'number',
+			description: nls.localize('chat.agentHost.devWebSocketPort', "Experimental, for local development only. When set to a positive integer, the agent host process exposes an AHP WebSocket listener on `127.0.0.1:<port>` for external clients such as the `ahpx` CLI. The full `ws://` URL is logged to the agent host output channel on startup. The agent host process must be restarted for changes to take effect. Do not expose this port on a shared network."),
+			default: 0,
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},

@@ -36,12 +36,13 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { CodexAgent } from './codex/codexAgent.js';
+import { CodexAgentSdkService, ICodexAgentSdkService } from './codex/codexAgentSdkService.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
-import { AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, AgentHostCodexSdkPathEnvVar } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -82,6 +83,8 @@ interface IServerOptions {
 	readonly enableMockAgent: boolean;
 	/** Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package, or empty to disable the Claude agent. */
 	readonly claudeSdkPath: string;
+	/** Absolute path to a locally-installed `@openai/codex-sdk` package, or empty to disable the Codex agent. */
+	readonly codexSdkPath: string;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
@@ -102,6 +105,12 @@ function parseServerOptions(): IServerOptions {
 	// The SDK is intentionally not bundled with VS Code.
 	const sdkPathIdx = argv.indexOf('--claude-sdk-path');
 	const claudeSdkPath = (sdkPathIdx >= 0 ? argv[sdkPathIdx + 1] : process.env[AgentHostClaudeSdkPathEnvVar]) ?? '';
+	// Codex agent registration is opt-in via the same mechanism as Claude:
+	// either `--codex-sdk-path <path>` or the `VSCODE_AGENT_HOST_CODEX_SDK_PATH`
+	// env var (the workbench setting `chat.agentHost.codexAgent.path` is
+	// forwarded as that env var by the agent host starters).
+	const codexSdkPathIdx = argv.indexOf('--codex-sdk-path');
+	const codexSdkPath = (codexSdkPathIdx >= 0 ? argv[codexSdkPathIdx + 1] : process.env[AgentHostCodexSdkPathEnvVar]) ?? '';
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
@@ -144,7 +153,7 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, host, enableMockAgent, claudeSdkPath, quiet, connectionToken };
+	return { port, host, enableMockAgent, claudeSdkPath, codexSdkPath, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -230,6 +239,8 @@ async function main(): Promise<void> {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
 		diServices.set(ICodexProxyService, codexProxyService);
+		const codexAgentSdkService = instantiationService.createInstance(CodexAgentSdkService);
+		diServices.set(ICodexAgentSdkService, codexAgentSdkService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
@@ -243,9 +254,14 @@ async function main(): Promise<void> {
 			agentService.registerProvider(claudeAgent);
 			log('ClaudeAgent registered');
 		}
-		const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
-		agentService.registerProvider(codexAgent);
-		log('CodexAgent registered');
+		if (options.codexSdkPath) {
+			// `CodexAgentSdkService` reads `AgentHostCodexSdkPathEnvVar` directly,
+			// so make sure it is set even if the path was provided via CLI flag.
+			process.env[AgentHostCodexSdkPathEnvVar] = options.codexSdkPath;
+			const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
+			agentService.registerProvider(codexAgent);
+			log('CodexAgent registered');
+		}
 	}
 
 	if (options.enableMockAgent) {

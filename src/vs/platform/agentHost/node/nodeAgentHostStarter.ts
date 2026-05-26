@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentSdkPathSettingId, AgentHostCodexSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -83,6 +83,16 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			|| '';
 		if (claudeSdkPath) {
 			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
+		}
+
+		// Codex agent is opt-in via `chat.agentHost.codexAgent.path` for the same
+		// reason as Claude: the SDK ships a ~190MB native binary per platform that
+		// we don't want to bundle with VS Code.
+		const codexSdkPath = this._configurationService.getValue<string>(AgentHostCodexAgentSdkPathSettingId)
+			|| process.env[AgentHostCodexSdkPathEnvVar]
+			|| '';
+		if (codexSdkPath) {
+			env[AgentHostCodexSdkPathEnvVar] = codexSdkPath;
 		}
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by

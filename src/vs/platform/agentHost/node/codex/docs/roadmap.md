@@ -85,17 +85,17 @@ via `Codex.resumeThread(threadId, newOptions)` between turns. See
 
 ## Provider gating
 
-Unlike Claude (which is opt-in via the
-`chat.agentHost.claudeAgent.path` setting because the Anthropic SDK is
-not bundled), the Codex provider is **always registered**. The
-`@openai/codex-sdk` npm package is a hard dependency in
-[`package.json`](../../../../../../../../../package.json), and the SDK
-constructor (`new Codex({…})`) does not spawn the CLI — that only
-happens on the first `startThread().runStreamed()` call. If the user
-hasn't installed the `codex` binary on `PATH`, the first user message
-surfaces a `SessionError` with the spawn failure; the provider remains
-listed in root state with an empty model list until the user
-authenticates.
+The Codex provider is **opt-in**, mirroring Claude. Users set
+`chat.agentHost.codexAgent.path` to the absolute path of a
+locally-installed `@openai/codex-sdk` package; the agent host starters
+forward it as `VSCODE_AGENT_HOST_CODEX_SDK_PATH`, and
+[`agentHostMain.ts`](../../agentHostMain.ts) registers `CodexAgent`
+only when that env var is set. The SDK ships a ~190MB native `codex`
+CLI binary per platform, which is why we deliberately do not bundle it
+with VS Code. The SDK module itself is then loaded via dynamic
+`import()` by [`codexAgentSdkService.ts`](../codexAgentSdkService.ts)
+on first `authenticate()` — equivalent to
+[`claudeAgentSdkService.ts`](../../claude/claudeAgentSdkService.ts).
 
 ## What's intentionally not ported
 

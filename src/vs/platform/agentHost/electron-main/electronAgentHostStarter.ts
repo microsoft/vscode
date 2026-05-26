@@ -19,7 +19,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentSdkPathSettingId, AgentHostCodexSdkPathEnvVar, AgentHostDevWebSocketPortSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -73,6 +73,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			|| process.env[AgentHostClaudeSdkPathEnvVar]
 			|| '';
 
+		// Codex agent is opt-in via `chat.agentHost.codexAgent.path` for the same
+		// reason as Claude: the SDK ships a ~190MB native binary per platform that
+		// we don't want to bundle with VS Code.
+		const codexSdkPath = this._configurationService.getValue<string>(AgentHostCodexAgentSdkPathSettingId)
+			|| process.env[AgentHostCodexSdkPathEnvVar]
+			|| '';
+
+		// Optional TCP WebSocket port for AHP clients (e.g. ahpx). Off by default.
+		const devWsPort = this._configurationService.getValue<number>(AgentHostDevWebSocketPortSettingId);
+		const devWsPortEnv = devWsPort && devWsPort > 0 ? String(devWsPort) : '';
+
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
 		// (developer override) — see `buildAgentHostOTelEnv` for the precedence.
@@ -106,6 +117,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
+				...(codexSdkPath ? { [AgentHostCodexSdkPathEnvVar]: codexSdkPath } : {}),
+				...(devWsPortEnv ? { VSCODE_AGENT_HOST_PORT: devWsPortEnv } : {}),
 				...otelEnv,
 			}
 		});

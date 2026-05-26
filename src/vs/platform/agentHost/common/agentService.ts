@@ -71,6 +71,40 @@ export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.
  */
 export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
 
+/**
+ * Configuration key that holds the absolute path to a locally-installed
+ * `@openai/codex-sdk` package. When non-empty, the Codex agent provider
+ * is registered inside the agent host and the SDK module is loaded via
+ * dynamic `import()` from this path. When empty (the default), the Codex
+ * provider is not registered. The SDK (and its bundled `codex` native CLI
+ * binary, ~190MB per platform) is intentionally not bundled with VS Code;
+ * users opting into the Codex agent install the SDK themselves and point
+ * this setting at it. The agent host process must be restarted for changes
+ * to take effect.
+ */
+export const AgentHostCodexAgentSdkPathSettingId = 'chat.agentHost.codexAgent.path';
+
+/**
+ * Environment variable that holds the absolute path to a locally-installed
+ * `@openai/codex-sdk` package. When set to a non-empty value, the agent
+ * host process registers the Codex agent provider and loads the SDK module
+ * from this path. Set by the agent host starters from
+ * {@link AgentHostCodexAgentSdkPathSettingId}, and may also be set directly
+ * by developers as an override.
+ */
+export const AgentHostCodexSdkPathEnvVar = 'VSCODE_AGENT_HOST_CODEX_SDK_PATH';
+
+/**
+ * Optional TCP port for the agent host's AHP WebSocket server. When set to
+ * a positive integer, the agent host process binds a WebSocket listener on
+ * `127.0.0.1:<port>` that external AHP clients (e.g. the `ahpx` CLI) can
+ * connect to. When 0 or unset (the default), no TCP listener is started —
+ * the workbench still talks to the agent host through MessagePort IPC. The
+ * server is intended for local development only; do not expose it on a
+ * shared network. Restart the agent host process to apply changes.
+ */
+export const AgentHostDevWebSocketPortSettingId = 'chat.agentHost.devWebSocketPort';
+
 // -- OpenTelemetry settings ------------------------------------------------------
 //
 // The `chat.agentHost.otel.*` namespace surfaces the same exporter knobs the CLI

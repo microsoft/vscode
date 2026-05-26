@@ -175,7 +175,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		const rootUri = URI.parse(ROOT_STATE_URI);
 		let delay = 1000;
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			if (this.isDisposed) {
+			if (this._store.isDisposed) {
 				return;
 			}
 			try {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import { Codex, type Thread, type ModelReasoningEffort, type ApprovalMode, type SandboxMode } from '@openai/codex-sdk';
+import type { Codex, Thread, ModelReasoningEffort, ApprovalMode, SandboxMode } from '@openai/codex-sdk';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -26,6 +26,7 @@ import { type ConfigSchema, type ModelSelection, type ToolDefinition, PolicyStat
 import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ICodexProxyHandle, ICodexProxyService } from './codexProxyService.js';
+import { ICodexAgentSdkService } from './codexAgentSdkService.js';
 import { createCodexTurnState, mapCodexEvent } from './codexMapSessionEvents.js';
 import { CodexSessionConfigKey, narrowApprovalPolicy, narrowSandboxMode } from './codexSessionConfigKeys.js';
 import { resolvePromptWithAttachments } from './codexPromptResolver.js';
@@ -143,9 +144,11 @@ function makeThreadOptionsKey(
 }
 
 /**
- * Codex agent provider — wraps the bundled `@openai/codex-sdk`. The SDK
- * shells out to the `codex` CLI under the hood; if the CLI isn't on the
- * user's PATH, the first `sendMessage` will surface a `SessionError`.
+ * Codex agent provider — wraps `@openai/codex-sdk` loaded dynamically
+ * via {@link ICodexAgentSdkService} from the path supplied by the
+ * `chat.agentHost.codexAgent.path` setting. The SDK shells out to a
+ * bundled `codex` native CLI, so the SDK install must include the
+ * platform-matching binary.
  *
  * Mirrors the shape of {@link ClaudeAgent}: protected-resource auth via
  * the GitHub Copilot token, models filtered from CAPI by vendor, and
@@ -179,6 +182,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ICodexAgentSdkService private readonly _codexSdk: ICodexAgentSdkService,
 	) {
 		super();
 	}
@@ -215,7 +219,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// and reads `CODEX_API_KEY` (set from `apiKey`). We also force
 		// `preferred_auth_method=apikey` so the CLI doesn't try to use a
 		// ChatGPT-account WebSocket path.
-		this._codex = new Codex({
+		this._codex = await this._codexSdk.createCodex({
 			apiKey: newHandle.nonce,
 			// Route the codex CLI through our local CAPI proxy via a CUSTOM
 			// model provider. The built-in `openai` provider can't be
