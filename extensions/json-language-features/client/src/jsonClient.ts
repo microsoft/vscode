@@ -9,6 +9,7 @@ import {
 	workspace, window, languages, commands, LogOutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n,
+	DataTransfer, DocumentDropOrPasteEditKind, DocumentPasteEdit, DocumentPasteEditContext, DocumentPasteEditProvider,
 	RelativePattern, CodeAction, CodeActionKind, CodeActionContext
 } from 'vscode';
 import {
@@ -23,6 +24,7 @@ import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 import { matchesUrlPattern } from './utils/urlMatch';
+import { JsonParserService } from './common/jsonStringParser';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -174,6 +176,79 @@ let jsonFoldingLimit = 5000;
 let jsoncFoldingLimit = 5000;
 let jsonColorDecoratorLimit = 5000;
 let jsoncColorDecoratorLimit = 5000;
+
+const jsonParserService = new JsonParserService();
+
+class AutoEscapePasteEditProvider implements DocumentPasteEditProvider {
+	public static readonly kind = DocumentDropOrPasteEditKind.Text.append('json', 'autoEscapePaste');
+
+	async provideDocumentPasteEdits(
+		document: TextDocument,
+		ranges: readonly Range[],
+		dataTransfer: DataTransfer,
+		context: DocumentPasteEditContext,
+		token: CancellationToken
+	): Promise<DocumentPasteEdit[] | undefined> {
+		if (!shouldAutoEscapePaste(document, ranges, context)) {
+			return undefined;
+		}
+
+		const text = await getPlainText(dataTransfer);
+		if (token.isCancellationRequested || text === undefined) {
+			return undefined;
+		}
+
+		const escapedText = escapeJsonString(text);
+		if (escapedText === text) {
+			return undefined;
+		}
+
+		const label = l10n.t('Escape pasted text in JSON string');
+		return [new DocumentPasteEdit(escapedText, label, AutoEscapePasteEditProvider.kind)];
+	}
+}
+
+function shouldAutoEscapePaste(document: TextDocument, ranges: readonly Range[], context: DocumentPasteEditContext): boolean {
+	if (!isAutoEscapePasteEnabled(document)) {
+		return false;
+	}
+
+	if (context.only && !AutoEscapePasteEditProvider.kind.contains(context.only) && !DocumentDropOrPasteEditKind.Text.contains(context.only)) {
+		return false;
+	}
+
+	if (!isJsonLanguage(document.languageId) || !ranges.length) {
+		return false;
+	}
+
+	return ranges.every(range => jsonParserService.isInsideJsonString(document, range.start));
+}
+
+async function getPlainText(dataTransfer: DataTransfer): Promise<string | undefined> {
+	const textItem = dataTransfer.get('text/plain');
+	if (!textItem) {
+		return undefined;
+	}
+
+	try {
+		const text = await textItem.asString();
+		return typeof text === 'string' && text.length > 0 ? text : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isAutoEscapePasteEnabled(document: TextDocument): boolean {
+	return workspace.getConfiguration('json', document).get<boolean>('editor.autoEscapePaste', true);
+}
+
+function isJsonLanguage(languageId: string): boolean {
+	return languageId === 'json' || languageId === 'jsonc';
+}
+
+function escapeJsonString(text: string): string {
+	return JSON.stringify(text).slice(1, -1);
+}
 
 export interface AsyncDisposable {
 	dispose(): Promise<void>;
@@ -453,11 +528,13 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		}
 		return false;
 	};
-	const handleContentClosed = (uriString: string) => {
+	const handleContentClosed = (document: TextDocument) => {
+		const uriString = document.uri.toString();
 		if (handleContentChange(uriString)) {
 			delete schemaDocuments[uriString];
 		}
 		fileSchemaErrors.delete(uriString);
+		jsonParserService.onDidCloseTextDocument(document);
 	};
 
 	const watchers: Map<string, Disposable> = new Map();
@@ -494,8 +571,11 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		}
 	};
 
-	toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri.toString())));
-	toDispose.push(workspace.onDidCloseTextDocument(d => handleContentClosed(d.uri.toString())));
+	toDispose.push(workspace.onDidChangeTextDocument(e => {
+		jsonParserService.onDidChangeTextDocument(e.document, e.contentChanges);
+		handleContentChange(e.document.uri.toString());
+	}));
+	toDispose.push(workspace.onDidCloseTextDocument(handleContentClosed));
 
 	toDispose.push(commands.registerCommand(CommandIds.retryResolveSchemaCommandId, triggerValidation));
 
@@ -540,6 +620,11 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		}
 	}, {
 		providedCodeActionKinds: [CodeActionKind.QuickFix]
+	}));
+
+	toDispose.push(languages.registerDocumentPasteEditProvider(documentSelector, new AutoEscapePasteEditProvider(), {
+		providedPasteEditKinds: [AutoEscapePasteEditProvider.kind, DocumentDropOrPasteEditKind.Text],
+		pasteMimeTypes: ['text/plain', 'text/*']
 	}));
 
 	client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(false));

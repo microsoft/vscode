@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, EndOfLine, env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, deleteFile } from '../utils';
 
 suite('vscode API - editors', () => {
@@ -14,8 +14,8 @@ suite('vscode API - editors', () => {
 		await closeAllEditors();
 	});
 
-	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
-		return createRandomFile(initialContents).then(file => {
+	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>, ext = ''): Thenable<boolean> {
+		return createRandomFile(initialContents, undefined, ext).then(file => {
 			return workspace.openTextDocument(file).then(doc => {
 				return window.showTextDocument(doc).then((editor) => {
 					return run(editor, doc).then(_ => {
@@ -34,6 +34,51 @@ suite('vscode API - editors', () => {
 		});
 	}
 
+	function escapeJsonString(text: string): string {
+		return JSON.stringify(text).slice(1, -1);
+	}
+
+	function normalizeDocumentLineBreaks(text: string, eol: EndOfLine): string {
+		return text.replace(/\n/g, eol === EndOfLine.CRLF ? '\r\n' : '\n');
+	}
+
+	async function activateJsonExtension(): Promise<void> {
+		await commands.executeCommand('json.clearCache');
+	}
+
+	/**
+	 * Helper function to validate clipboard availability and content.
+	 * Returns true if clipboard operations are supported and working.
+	 */
+	async function validateClipboardSupport(testContext: any, testText: string): Promise<boolean> {
+		try {
+			await env.clipboard.writeText(testText);
+			const readBack = await env.clipboard.readText();
+			if (readBack !== testText) {
+				testContext.skip();
+				return false;
+			}
+			return true;
+		} catch {
+			testContext.skip();
+			return false;
+		}
+	}
+
+	/**
+	 * Helper to save and restore clipboard state across a test.
+	 * Automatically restores the original clipboard content after test completes.
+	 */
+	async function withClipboardText<T>(testText: string, callback: () => Promise<T>): Promise<T> {
+		const oldClipboard = await env.clipboard.readText();
+		try {
+			await env.clipboard.writeText(testText);
+			return await callback();
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	}
+
 	test('insert snippet', () => {
 		const snippetString = new SnippetString()
 			.appendText('This is a ')
@@ -48,6 +93,392 @@ suite('vscode API - editors', () => {
 				assert.ok(doc.isDirty);
 			});
 		});
+	});
+
+	test('paste in JSON strings auto-escapes pasted text', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'a"b\\c\nd\t';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"value": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 11, 0, 11);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), `{"value": "${escapeJsonString(clipboardText)}"}`);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSON strings auto-escapes multi-line clipboard text', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'first line\nsecond "line"\nthird\\line';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"value": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 11, 0, 11);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), `{"value": "${escapeJsonString(clipboardText)}"}`);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSON strings can be disabled', async function () {
+		const configuration = workspace.getConfiguration('json');
+		const previousValue = configuration.get<boolean>('editor.autoEscapePaste', true);
+		await configuration.update('editor.autoEscapePaste', false, ConfigurationTarget.Global);
+
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'a"b\\c\nd\t';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"value": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 11, 0, 11);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), `{"value": "${normalizeDocumentLineBreaks(clipboardText, doc.eol)}"}`);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+			await configuration.update('editor.autoEscapePaste', previousValue, ConfigurationTarget.Global);
+		}
+	});
+
+	test('paste in JSON strings handles multiple selections', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'multi"selection\\paste';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"a": "", "b": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selections = [
+					new Selection(0, 7, 0, 7),
+					new Selection(0, 16, 0, 16)
+				];
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const escaped = escapeJsonString(clipboardText);
+				assert.strictEqual(doc.getText(), `{"a": "${escaped}", "b": "${escaped}"}`);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSON strings keeps escaped quotes stable', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'already \\\"escaped\\\" text';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"value": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 11, 0, 11);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), `{"value": "${escapeJsonString(clipboardText)}"}`);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSONC comments is unchanged', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'comment"text\\line';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{\n  // comment: \n  "value": ""\n}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(1, 14, 1, 14);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), '{\n  // comment: comment"text\\line\n  "value": ""\n}');
+			}, '.jsonc');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste outside JSON strings is unchanged', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'a"b\\c\nd\t';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('[]', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 1, 0, 1);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), `[${normalizeDocumentLineBreaks(clipboardText, doc.eol)}]`);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSON array string values are escaped', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'array\\item"value';
+
+		try {
+			await withClipboardText(clipboardText, async () => {
+				if (await validateClipboardSupport(this, clipboardText) === false) {
+					return;
+				}
+
+				await withRandomFileEditor('[""]', async (editor, doc) => {
+					await activateJsonExtension();
+					editor.selection = new Selection(0, 2, 0, 2);
+					await commands.executeCommand('editor.action.clipboardPasteAction');
+
+					const expected = `["${escapeJsonString(clipboardText)}"]`;
+					assert.strictEqual(doc.getText(), expected);
+				}, '.json');
+			});
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste with control characters is properly escaped', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'line1\rline2\bline3\fline4';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"msg": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 9, 0, 9);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const expected = `{"msg": "${escapeJsonString(clipboardText)}"}`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste with unicode characters is preserved', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'emoji: 😀 and symbols: ™€';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"text": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 10, 0, 10);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const expected = `{"text": "${escapeJsonString(clipboardText)}"}`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in nested JSON objects escapes correctly', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'nested"value\\path';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"outer": {"inner": ""}}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 22, 0, 22);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const expected = `{"outer": {"inner": "${escapeJsonString(clipboardText)}"}}`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSONC block comment is unchanged', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'block"comment\\content';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{\n  /* comment: */\n  "value": ""\n}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(1, 13, 1, 13);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				assert.strictEqual(doc.getText(), '{\n  /* comment: block"comment\\content*/\n  "value": ""\n}');
+			}, '.jsonc');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste with consecutive escaped characters', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = '\\\\\\\\""';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"value": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 11, 0, 11);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const expected = `{"value": "${escapeJsonString(clipboardText)}"}`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste at end of string literal is properly escaped', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'end"value\\escaped';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"str": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 9, 0, 9);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const expected = `{"str": "${escapeJsonString(clipboardText)}"}`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste with various quote styles are normalized', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'single\'quote"double';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('{"quotes": ""}', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 12, 0, 12);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const expected = `{"quotes": "${escapeJsonString(clipboardText)}"}`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
+	});
+
+	test('paste in JSON array with multiple items preserves structure', async function () {
+		const oldClipboard = await env.clipboard.readText();
+		const clipboardText = 'item"with\\escape';
+
+		try {
+			await env.clipboard.writeText(clipboardText);
+			if (await env.clipboard.readText() !== clipboardText) {
+				this.skip();
+				return;
+			}
+
+			await withRandomFileEditor('["first", "", "last"]', async (editor, doc) => {
+				await activateJsonExtension();
+				editor.selection = new Selection(0, 10, 0, 10);
+				await commands.executeCommand('editor.action.clipboardPasteAction');
+
+				const escaped = escapeJsonString(clipboardText);
+				const expected = `["first", "${escaped}", "last"]`;
+				assert.strictEqual(doc.getText(), expected);
+			}, '.json');
+		} finally {
+			await env.clipboard.writeText(oldClipboard);
+		}
 	});
 
 	test('insert snippet with clipboard variables', async function () {

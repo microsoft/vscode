@@ -8,9 +8,10 @@ import cp from 'child_process';
 import fs from 'fs';
 import File from 'vinyl';
 import es from 'event-stream';
-import { filter, type FileFunction } from '../gulp/facade.ts';
+import filter from 'gulp-filter';
 import { Stream } from 'stream';
 import { fileURLToPath } from 'url';
+import fallbackWatch from 'vscode-gulp-watch';
 
 const watcherPath = path.join(typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url)), 'watcher.exe');
 
@@ -71,14 +72,18 @@ function watch(root: string): Stream {
 
 const cache: { [cwd: string]: Stream } = Object.create(null);
 
-export default function (pattern: string | string[] | FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
+export default function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());
 	let watcher = cache[cwd];
 
 	if (!watcher) {
-		watcher = cache[cwd] = watch(cwd);
+		try {
+			watcher = cache[cwd] = watch(cwd);
+		} catch {
+			return fallbackWatch(pattern, options);
+		}
 	}
 
 	const rebase = !options.base ? es.through() : es.mapSync(function (f: File) {

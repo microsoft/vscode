@@ -59,17 +59,17 @@
               "url": {
                 "type": "string",
                 "default": "/user.schema.json",
-                "markdownDescription": "%json.schemas.url.desc%"
+                "description": "%json.schemas.url.desc%"
               },
               "fileMatch": {
                 "type": "array",
                 "items": {
                   "type": "string",
                   "default": "MyFile.json",
-                  "markdownDescription": "%json.schemas.fileMatch.item.desc%"
+                  "description": "%json.schemas.fileMatch.item.desc%"
                 },
                 "minItems": 1,
-                "markdownDescription": "%json.schemas.fileMatch.desc%"
+                "description": "%json.schemas.fileMatch.desc%"
               },
               "schema": {
                 "$ref": "http://json-schema.org/draft-07/schema#",
@@ -83,6 +83,12 @@
           "scope": "window",
           "default": true,
           "description": "%json.validate.enable.desc%"
+        },
+        "json.editor.autoEscapePaste": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%json.editor.autoEscapePaste.desc%"
         },
         "json.format.enable": {
           "type": "boolean",
@@ -141,7 +147,7 @@
           "additionalProperties": {
             "type": "boolean"
           },
-          "markdownDescription": "%json.schemaDownload.trustedDomains.desc%",
+          "description": "%json.schemaDownload.trustedDomains.desc%",
           "tags": [
             "usesOnlineServices"
           ]
@@ -193,7 +199,7 @@
     "vscode-languageclient": "^10.0.0-next.20"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",
