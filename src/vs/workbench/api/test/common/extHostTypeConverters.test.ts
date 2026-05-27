@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatRequestModeInstructions, IconPath } from '../../common/extHostTypeConverters.js';
-import { ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatRequestModeInstructions, Diagnostic as DiagnosticConverter, IconPath } from '../../common/extHostTypeConverters.js';
+import { Diagnostic, Position, Range, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
@@ -241,6 +241,62 @@ suite('extHostTypeConverters', function () {
 			assert.strictEqual(backToApi.toolReferences?.[0].range, undefined);
 			assert.strictEqual(backToApi.toolReferences?.[1].name, 'tool2');
 			assert.deepStrictEqual(backToApi.toolReferences?.[1].range, [10, 20]);
+		});
+	});
+
+	suite('Diagnostic', function () {
+		test('from preserves a well-formed range', function () {
+			const diag = new Diagnostic(new Range(2, 4, 6, 8), 'hello');
+			const marker = DiagnosticConverter.from(diag);
+			assert.strictEqual(marker.startLineNumber, 3);
+			assert.strictEqual(marker.startColumn, 5);
+			assert.strictEqual(marker.endLineNumber, 7);
+			assert.strictEqual(marker.endColumn, 9);
+			assert.strictEqual(marker.message, 'hello');
+		});
+
+		test('from sanitizes NaN positions to a valid range', function () {
+			// Extensions may inadvertently construct positions with NaN
+			// (e.g. from arithmetic involving undefined). NaN serializes to
+			// JSON null which breaks LSP code action requests -- see
+			// https://github.com/microsoft/vscode/issues/177094.
+			const diag = new Diagnostic(
+				new Range(new Position(NaN, 0), new Position(NaN, 0)),
+				'broken',
+			);
+			const marker = DiagnosticConverter.from(diag);
+			assert.ok(Number.isFinite(marker.startLineNumber));
+			assert.ok(Number.isFinite(marker.startColumn));
+			assert.ok(Number.isFinite(marker.endLineNumber));
+			assert.ok(Number.isFinite(marker.endColumn));
+			assert.strictEqual(marker.startLineNumber, 1);
+			assert.strictEqual(marker.startColumn, 1);
+			assert.strictEqual(marker.endLineNumber, 1);
+			assert.strictEqual(marker.endColumn, 1);
+		});
+
+		test('from sanitizes a NaN character in an otherwise valid range', function () {
+			const diag = new Diagnostic(
+				new Range(new Position(2, NaN), new Position(2, 5)),
+				'broken',
+			);
+			const marker = DiagnosticConverter.from(diag);
+			assert.ok(Number.isFinite(marker.startLineNumber));
+			assert.ok(Number.isFinite(marker.startColumn));
+			assert.ok(Number.isFinite(marker.endLineNumber));
+			assert.ok(Number.isFinite(marker.endColumn));
+		});
+
+		test('from sanitizes Infinity positions to a valid range', function () {
+			const diag = new Diagnostic(
+				new Range(new Position(0, 0), new Position(Infinity, 0)),
+				'broken',
+			);
+			const marker = DiagnosticConverter.from(diag);
+			assert.ok(Number.isFinite(marker.startLineNumber));
+			assert.ok(Number.isFinite(marker.startColumn));
+			assert.ok(Number.isFinite(marker.endLineNumber));
+			assert.ok(Number.isFinite(marker.endColumn));
 		});
 	});
 });
