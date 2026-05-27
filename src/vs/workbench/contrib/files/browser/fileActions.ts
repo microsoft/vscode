@@ -746,6 +746,27 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 		}
 	}
 
+	// When the new name is a path (contains separators), the first segment
+	// becomes an intermediate directory. Reject if that directory would
+	// collide with the item being renamed (item is not a directory) or with
+	// an existing non-directory sibling that cannot be used as a folder.
+	if (names.length > 1) {
+		const firstSegment = names[0];
+		if (!item.isDirectory && item.name === firstSegment) {
+			return {
+				content: nls.localize('fileNameCollidesWithSelfError', "The name **{0}** cannot contain a path segment that matches the file being renamed.", firstSegment),
+				severity: Severity.Error
+			};
+		}
+		const sibling = parent?.getChild(firstSegment);
+		if (sibling && sibling !== item && !sibling.isDirectory) {
+			return {
+				content: nls.localize('fileNameCollidesWithSiblingError', "A file **{0}** already exists at this location and cannot be used as a folder. Please choose a different name.", firstSegment),
+				severity: Severity.Error
+			};
+		}
+	}
+
 	// Check for invalid file name.
 	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
 		// Escape * characters
