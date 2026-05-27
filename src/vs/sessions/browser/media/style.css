@@ -997,3 +997,122 @@
 		opacity: 1;
 	}
 }
+
+/* -----------------------------------------------------------------------------
+ * Phone Layout: Accessibility Help Dialog
+ *
+ * The accessibility help dialog (Alt+F1) renders through `IAccessibleViewService`
+ * as a context view popup. The desktop chrome (`.accessible-view`) is a small
+ * floating widget anchored under the quickPickTop offset. On phone viewports
+ * we promote it to a full-viewport sheet so the help content is readable on
+ * narrow screens, and we present the existing toolbar close action as a 44px
+ * hit target in the top-right corner.
+ *
+ * This is a CSS-only retarget — the workbench accessible-view widget itself
+ * is untouched. We override layout, sizing, and font scale through descendant
+ * selectors scoped to `.agent-sessions-workbench.phone-layout`.
+ * -------------------------------------------------------------------------- */
+
+.agent-sessions-workbench.phone-layout .context-view:has(.accessible-view-container) {
+position: fixed !important;
+inset: 0 !important;
+width: 100vw !important;
+height: 100dvh !important;
+z-index: 2600;
+display: flex;
+flex-direction: column;
+}
+
+/* Full-viewport backdrop so taps outside the dialog don't fall through to
+ * the workbench. The accessible-view dismisses itself on Escape; the close
+ * action in the toolbar is the primary touch affordance.
+ */
+.agent-sessions-workbench.phone-layout .context-view:has(.accessible-view-container)::before {
+content: '';
+position: fixed;
+inset: 0;
+background: var(--vscode-editor-background, #1e1e1e);
+z-index: -1;
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view-container {
+position: static !important;
+width: 100vw !important;
+height: 100dvh !important;
+max-width: none !important;
+max-height: none !important;
+margin: 0 !important;
+box-sizing: border-box;
+display: flex;
+flex-direction: column;
+padding-top: env(safe-area-inset-top);
+padding-bottom: env(safe-area-inset-bottom);
+padding-left: env(safe-area-inset-left);
+padding-right: env(safe-area-inset-right);
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view {
+position: static !important;
+flex: 1 1 auto;
+width: 100% !important;
+height: 100% !important;
+box-shadow: none !important;
+border: none !important;
+border-radius: 0 !important;
+margin: 0 !important;
+display: flex;
+flex-direction: column;
+background-color: var(--vscode-editor-background);
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view-title-bar {
+flex: 0 0 auto;
+min-height: 56px;
+padding: 0 8px;
+gap: 8px;
+display: flex;
+align-items: center;
+background: var(--vscode-editor-background);
+border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view-title {
+font-size: 16px;
+font-weight: 500;
+text-align: left;
+padding: 0 4px;
+}
+
+/* Promote toolbar buttons (including the close "X") to 44px hit targets so
+ * they meet the touch-target accessibility requirement. The existing toolbar
+ * exposes a Dispose / Close action; we make sure it's visibly large enough.
+ */
+.agent-sessions-workbench.phone-layout .accessible-view-action-bar {
+flex: 0 0 auto;
+margin-right: 0 !important;
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view-action-bar .action-item {
+min-width: 44px;
+min-height: 44px;
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view-action-bar .action-item > .action-label {
+min-width: 44px;
+min-height: 44px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+}
+
+/* Body editor: bump base font to 16px so text is legible on phone and let
+ * the editor consume the remaining viewport with smooth touch scrolling. */
+.agent-sessions-workbench.phone-layout .accessible-view > .monaco-editor,
+.agent-sessions-workbench.phone-layout .accessible-view .monaco-editor .view-lines {
+font-size: 16px !important;
+line-height: 1.5;
+}
+
+.agent-sessions-workbench.phone-layout .accessible-view .monaco-scrollable-element {
+-webkit-overflow-scrolling: touch;
+}

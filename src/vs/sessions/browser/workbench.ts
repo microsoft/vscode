@@ -72,6 +72,7 @@ import {
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
+import { installMobileEdgeSwipeToOpenSidebar } from './parts/mobile/mobileEdgeSwipe.js';
 import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
@@ -788,6 +789,16 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.sessionsManagementService.openNewSessionView();
 			this.closeMobileSidebarDrawer();
 		}));
+
+		// Left-edge swipe alternate-open for the sidebar drawer. The gesture
+		// listens on the main workbench container and only fires when the
+		// phone-layout class is present and the sidebar isn't already open,
+		// so it is safe to keep installed alongside the hamburger button.
+		this.mobileTopBarDisposables.add(installMobileEdgeSwipeToOpenSidebar(
+			this.mainContainer,
+			() => this.openMobileSidebarDrawer(),
+			this,
+		));
 	}
 
 	private toggleMobileSidebarDrawer(): void {

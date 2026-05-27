@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { IFileDiffViewData } from './mobileDiffView.js';
+import { installPulldownDismiss } from './mobilePulldownDismiss.js';
 
 const $ = DOM.$;
 
@@ -173,6 +174,11 @@ export class MobileChangesView extends Disposable {
 		this.emptyEl = DOM.append(body, $('div.mobile-overlay-empty-state'));
 		this.emptyEl.style.display = 'none';
 		this.emptyEl.textContent = localize('changesView.empty', "No changes in this session yet.");
+
+		// Pull-down dismiss on the header drag handle. Back-button taps
+		// still work normally — only downward drags past a small dead
+		// zone are claimed by the gesture.
+		this.viewStore.add(installPulldownDismiss(overlay, header, () => this.dispose()));
 
 		// -- Subscribe to live changes -----------------------------
 		this.viewStore.add(autorun(reader => {

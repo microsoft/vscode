@@ -68,12 +68,6 @@
 	justify-content: center;
 }
 
-.mobile-overlay-header-info.inline {
-	flex-direction: row;
-	align-items: baseline;
-	gap: 8px;
-}
-
 .mobile-overlay-header-title {
 	font-size: 14px;
 	font-weight: 500;
@@ -279,8 +273,8 @@
 .mobile-diff-hunk-header {
 	display: block;
 	color: var(--vscode-descriptionForeground);
-	background: var(--vscode-editor-background, #1e1e1e);
-	padding: 4px 12px;
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	padding: 4px 16px;
 	font-size: 11px;
 	user-select: none;
 	-webkit-user-select: none;
@@ -308,20 +302,19 @@
 
 .mobile-diff-line-num {
 	flex-shrink: 0;
-	width: 28px;
-	padding: 0 4px;
+	width: 40px;
+	padding: 0 8px;
 	color: var(--vscode-editorLineNumber-foreground);
 	text-align: right;
 	user-select: none;
 	-webkit-user-select: none;
-	font-variant-numeric: tabular-nums;
 }
 
 .mobile-diff-gutter {
 	flex-shrink: 0;
-	width: 14px;
+	width: 16px;
 	text-align: center;
-	padding: 0;
+	padding: 0 2px;
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -338,7 +331,7 @@
 	 * token color CSS automatically.
 	 */
 	flex: 0 0 auto;
-	padding: 0 16px 0 2px;
+	padding: 0 16px 0 4px;
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: pre;
@@ -579,4 +572,115 @@
 
 .mobile-changes-row-removed {
 	color: var(--vscode-agentsMobileDiff-deletedForeground);
+}
+
+/* -- Code-block overlay (chat tap-to-expand) ----------------------------- */
+
+.mobile-codeblock-overlay-header-trailing {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+	padding-right: 4px;
+}
+
+.mobile-codeblock-overlay-copy-btn {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 36px;
+	min-width: 44px;
+	padding: 0 10px;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 4px;
+	font-size: 13px;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+.mobile-codeblock-overlay-copy-btn:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-codeblock-overlay-copy-btn .copy-btn-label {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+}
+
+.mobile-codeblock-overlay-copied-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 500;
+	background-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 20%, transparent);
+	color: var(--vscode-testing-iconPassed);
+	white-space: nowrap;
+}
+
+.mobile-codeblock-overlay-pre {
+	/*
+	 * `<pre>` carries margin/padding by default — strip it so the
+	 * `mobile-overlay-scroll` container owns the spacing and the code
+	 * aligns with the diff view's hunk content.
+	 *
+	 * `min-width: max-content` + `white-space: pre` pairs with the
+	 * parent's `overflow-x: auto` so long lines become horizontally
+	 * scrollable instead of clipping at the viewport width — same
+	 * treatment as `.mobile-diff-output`.
+	 */
+	margin: 0;
+	padding: 12px 16px;
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+	font-size: 13px;
+	line-height: 1.5;
+	white-space: pre;
+	min-width: max-content;
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+	user-select: text;
+	-webkit-user-select: text;
+	box-sizing: border-box;
+}
+
+.mobile-codeblock-overlay-code {
+	font-family: inherit;
+	font-size: inherit;
+	color: inherit;
+}
+
+/* -----------------------------------------------------------------------------
+ * Pull-down dismiss affordance.
+ *
+ * The header acts as a drag handle. We surface a small grab pill via a
+ * `::before` pseudo-element so users see the affordance, and we set
+ * `touch-action: pan-x` so vertical drags are claimed by the JS gesture
+ * helper (`installPulldownDismiss`) and not by native scroll.
+ *
+ * Existing horizontal interactions inside the header (back-button presses,
+ * chevron taps) stay responsive because:
+ *  - The pseudo-element does not intercept events (`pointer-events: none`).
+ *  - The gesture helper applies a small dead-zone before claiming the
+ *    pointer and only commits on dominant downward motion.
+ * -------------------------------------------------------------------------- */
+
+.mobile-overlay-header {
+position: relative;
+touch-action: pan-x;
+}
+
+.mobile-overlay-header::before {
+content: '';
+position: absolute;
+top: calc(env(safe-area-inset-top) + 4px);
+left: 50%;
+transform: translateX(-50%);
+width: 36px;
+height: 4px;
+border-radius: 2px;
+background: color-mix(in srgb, var(--vscode-foreground) 35%, transparent);
+pointer-events: none;
 }

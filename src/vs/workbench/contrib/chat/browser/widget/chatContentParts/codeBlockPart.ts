@@ -14,6 +14,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -50,6 +51,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -120,6 +122,25 @@ export interface ICodeBlockRenderOptions {
 
 const defaultCodeblockPadding = 10;
 const defaultChatScrollbarSize = 7;
+
+/**
+ * Number of lines above which the phone-layout "Tap to expand" affordance
+ * is shown beneath the code block. Twelve lines comfortably fits on a
+ * portrait phone viewport without the user having to scroll the code
+ * block in place; anything longer benefits from the full-viewport
+ * overlay (see `MobileCodeBlockOverlay`).
+ */
+const MOBILE_EXPAND_LINE_THRESHOLD = 12;
+
+/**
+ * Command id of the phone-only code-block overlay. Referenced by string
+ * to keep `vs/workbench` from depending on `vs/sessions` (the overlay
+ * lives in the sessions layer, which is allowed to depend on workbench
+ * but not the other way around). The shape of the argument mirrors
+ * `IMobileCodeBlockOverlayData` in `mobileCodeBlockOverlay.ts`.
+ */
+const MOBILE_OPEN_CODEBLOCK_OVERLAY_COMMAND_ID = 'sessions.mobile.openCodeBlockOverlay';
+
 export class CodeBlockPart extends Disposable {
 
 	/**
@@ -152,6 +173,20 @@ export class CodeBlockPart extends Disposable {
 	private _isDropdownVisible = false;
 	private _toolbarElement!: HTMLElement;
 
+	/**
+	 * Phone-only "Tap to expand" affordance row appended at the bottom of
+	 * the code block. Shown only when the rendered code exceeds
+	 * {@link MOBILE_EXPAND_LINE_THRESHOLD} lines AND the phone layout
+	 * context key is set; tapping it opens the {@link MobileCodeBlockOverlay}
+	 * via the `sessions.mobile.openCodeBlockOverlay` command (referenced
+	 * by string to avoid a cross-layer import from `vs/sessions`).
+	 *
+	 * Skipped entirely when {@link isSimpleWidget} is true — the simple
+	 * variant is used for embedded edit-pill / input-bar code blocks that
+	 * neither need nor have room for a tap-to-expand row.
+	 */
+	private _mobileExpandRow: HTMLElement | undefined;
+
 	private isDisposed = false;
 
 	private resourceContextKey: StaticResourceContextKey;
@@ -174,6 +209,7 @@ export class CodeBlockPart extends Disposable {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILogService private readonly logService: ILogService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
@@ -238,6 +274,43 @@ export class CodeBlockPart extends Disposable {
 		}));
 
 		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
+
+		// Phone-only "Tap to expand" affordance. Created lazily here so the
+		// DOM cost is paid once per pooled CodeBlockPart instance; the row
+		// is shown/hidden per render based on line count + phone context.
+		// Skipped entirely for the simple-widget variant (input bar / edit
+		// pill embeddings) which doesn't need a separate expand surface.
+		if (!this.isSimpleWidget) {
+			const expandRow = dom.append(this.element, $('.chat-code-block-mobile-expand'));
+			expandRow.setAttribute('role', 'button');
+			expandRow.setAttribute('tabindex', '0');
+			const expandLabel = localize('chat.codeBlockExpand', "Tap to expand");
+			expandRow.setAttribute('aria-label', expandLabel);
+			const expandIcon = dom.append(expandRow, $('span.chat-code-block-mobile-expand-icon'));
+			expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
+			dom.append(expandRow, $('span.chat-code-block-mobile-expand-label')).textContent = expandLabel;
+			expandRow.style.display = 'none';
+			this._mobileExpandRow = expandRow;
+			const openOverlay = (e: MouseEvent | KeyboardEvent) => {
+				const data = this.currentCodeBlockData;
+				if (!data) {
+					return;
+				}
+				e.preventDefault();
+				e.stopPropagation();
+				const code = this._textModel.getValue(EndOfLinePreference.LF);
+				this.commandService.executeCommand(MOBILE_OPEN_CODEBLOCK_OVERLAY_COMMAND_ID, {
+					code,
+					languageId: this._textModel.getLanguageId(),
+				});
+			};
+			this._register(dom.addDisposableListener(expandRow, dom.EventType.CLICK, openOverlay));
+			this._register(dom.addDisposableListener(expandRow, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					openOverlay(e);
+				}
+			}));
+		}
 
 		this._register(this.vulnsButton.onDidClick(() => {
 			const element = this.currentCodeBlockData!.element as IChatResponseViewModel;
@@ -556,12 +629,34 @@ export class CodeBlockPart extends Disposable {
 
 		this.layout();
 
+		// Update the phone-only expand affordance based on the freshly-set
+		// model. Re-evaluated on every render pass so streaming content
+		// reveals the affordance once the line threshold is crossed, and
+		// hides it again on a pool-reuse with a shorter snippet. No model
+		// change-subscription — we deliberately snapshot the line count
+		// at render time per the design (see field doc).
+		this.updateMobileExpandAffordance();
+
 		// The editor element is typically not yet connected to the live DOM at
 		// this point (the caller still needs to attach it). Any render pass
 		// scheduled by setText/setLanguage/layout is silently dropped by the
 		// editor view when `isConnected` is false. Schedule a deferred render
 		// so the view lines are painted once the element is in the document.
 		this.editor.renderAsync(true);
+	}
+
+	private updateMobileExpandAffordance(): void {
+		const row = this._mobileExpandRow;
+		if (!row) {
+			return;
+		}
+		const lineCount = this._textModel.getLineCount();
+		const isPhone = this.contextKeyService.getContextKeyValue<boolean>('sessionsIsPhoneLayout') === true;
+		if (isPhone && lineCount > MOBILE_EXPAND_LINE_THRESHOLD) {
+			row.style.display = '';
+		} else {
+			row.style.display = 'none';
+		}
 	}
 
 	reset() {
