@@ -127,6 +127,14 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			} else {
 				this._showExhaustedNotification();
 			}
+
+			// Keep the baseline up-to-date so that recovery from exhaustion
+			// does not trigger a spurious threshold notification.
+			const exhaustedSnapshot = this._getRelevantSnapshot();
+			if (exhaustedSnapshot && !exhaustedSnapshot.unlimited) {
+				this._prevQuotaPercentUsed = 100 - exhaustedSnapshot.percentRemaining;
+			}
+
 			return;
 		}
 

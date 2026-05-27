@@ -213,6 +213,23 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(notificationMock.wasDeleted);
 		});
 
+		test('does not show spurious threshold notification after exhaustion recovery', () => {
+			const { entitlementMock, notificationMock } = createContribution({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) }, // 40% used baseline
+			});
+
+			// Exhaust quota
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(0) });
+			assert.ok(notificationMock.lastNotification);
+			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+
+			notificationMock.reset();
+
+			// Recover to 55% used — should NOT trigger "Credits at 50%" from stale baseline
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(45) });
+			assert.strictEqual(notificationMock.lastNotification, undefined);
+		});
+
 		test('does not show exhausted for unlimited quota with hasQuota=true', () => {
 			const { notificationMock } = createContribution({
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: true }) },

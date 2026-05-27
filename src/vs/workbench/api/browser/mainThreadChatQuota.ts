@@ -19,6 +19,6 @@ export class MainThreadChatQuota extends Disposable implements MainThreadChatQuo
 	}
 
 	$updateQuotas(quotas: IQuotaSnapshotsDto): void {
-		this._chatEntitlementService.acceptQuotas(quotas);
+		this._chatEntitlementService.acceptQuotas({ ...this._chatEntitlementService.quotas, ...quotas });
 	}
 }

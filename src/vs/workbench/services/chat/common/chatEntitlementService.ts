@@ -574,7 +574,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+		const sessionRateLimitChanged = oldQuota.sessionRateLimit?.percentRemaining !== quotas.sessionRateLimit?.percentRemaining;
+		const weeklyRateLimitChanged = oldQuota.weeklyRateLimit?.percentRemaining !== quotas.weeklyRateLimit?.percentRemaining;
+
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || sessionRateLimitChanged || weeklyRateLimitChanged || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
