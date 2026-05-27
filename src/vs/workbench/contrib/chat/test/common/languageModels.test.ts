@@ -607,11 +607,8 @@ suite('LanguageModels - Model Change Events', function () {
 			}));
 		});
 
-		const onDidChangeEmitter = new Emitter<void>();
-		disposables.add(onDidChangeEmitter);
-
 		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
-			onDidChange: onDidChangeEmitter.event,
+			onDidChange: Event.None,
 			// Provider returns no models (e.g. no API key configured)
 			provideLanguageModelChatInfo: async () => [],
 			sendChatRequest: async () => { throw new Error(); },
