@@ -75,6 +75,14 @@ export function isDocumentableNode(node: SyntaxNode, language: WASMLanguage) {
 			return node.type.match(/definition|declaration|class_specifier/);
 		case WASMLanguage.Ruby:
 			return node.type.match(/module|class|method|assignment/);
+		case WASMLanguage.Python:
+			// Match only the inner function/class definitions, not the wrapping
+			// `decorated_definition` node. Otherwise the documentable node's range
+			// would include the `@decorator` line, and downstream consumers (e.g.
+			// docstring generation) would treat the decorator as the start of the
+			// function — placing docstrings *before* it and breaking the code.
+			// See https://github.com/microsoft/vscode/issues/283165.
+			return node.type.match(/^(function_definition|class_definition)$/);
 		default:
 			return node.type.match(/definition|declaration|declarator/);
 	}
