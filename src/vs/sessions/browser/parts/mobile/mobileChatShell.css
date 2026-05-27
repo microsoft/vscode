@@ -990,3 +990,39 @@
 	height: 36px;
 	padding: 0;
 }
+
+/* ---- Phone Layout: Hide Chat Row Hover Toolbars ----
+ *
+ * On desktop, each chat row exposes its actions through hover-revealed
+ * toolbars: `.request-hover` (top-right of request bubbles, hosts
+ * `MenuId.ChatMessageTitle`) and `.chat-footer-toolbar` (below
+ * response bubbles, hosts `MenuId.ChatMessageFooter`). Both rely on
+ * `:hover` / `:focus-within` to become visible, and on
+ * `.chat-most-recent-response` to pin the footer toolbar on the last
+ * response — none of which are usable on a touch device.
+ *
+ * On phone we hide both toolbars unconditionally and route the same
+ * actions through a long-press → bottom-sheet presented by
+ * `MobileChatRowActionsPresenter` (see
+ * `src/vs/sessions/contrib/chat/browser/mobile/mobileChatRowActions.ts`)
+ * via the workbench-side `IChatRowActionsPhonePresenter`. The
+ * long-press attachment is wired in `chatListRenderer.renderTemplate`
+ * so it is in place whether or not the user has hovered the row.
+ *
+ * We deliberately do NOT hide:
+ *  - `.checkpoint-container` / `.checkpoint-restore-container` — these
+ *    are always-visible status affordances (the checkpoint
+ *    line/dot/label and the "Restore" button), not hover-revealed
+ *    toolbars.
+ *  - `.chat-footer-details` outside the footer toolbar — these are
+ *    independent text affordances elsewhere on the response row.
+ *
+ * The desktop rules in `chat.css` use plain hover/focus selectors and
+ * are lower specificity than `.agent-sessions-workbench.phone-layout`,
+ * so `!important` is not needed here.
+ */
+
+.agent-sessions-workbench.phone-layout .interactive-session .interactive-item-container .request-hover,
+.agent-sessions-workbench.phone-layout .interactive-session .interactive-item-container .chat-footer-toolbar {
+display: none;
+}
