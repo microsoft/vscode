@@ -333,6 +333,11 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 							notificationsList.updateNotificationHeight(e.item);
 						}
 						break;
+					case NotificationViewItemContentChangeKind.PROGRESS:
+						if (!e.item.hasProgress) {
+							notificationsList.updateNotificationsList(e.index, 1, [e.item]);
+						}
+						break;
 				}
 				break;
 			case NotificationChangeType.EXPAND_COLLAPSE:
