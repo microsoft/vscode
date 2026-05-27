@@ -18,12 +18,11 @@ const DISPLAY_NAME = localize('claude.discovered.displayName', "Discovered in Cl
 const DISCOVERED_DIR = 'claude-discovered';
 
 /**
- * Synthetic URI scheme for SDK-discovered agents. Carried on the
- * {@link SessionCustomization.agents} `CustomizationAgentRef.uri` so the
- * workbench agent picker has a stable identifier per Claude-native agent.
- * The scheme is not filesystem-backed; it exists only as an identity key.
+ * The Claude SDK's built-in default agent. Hidden from the picker:
+ * selecting it would be equivalent to "no selection" since the SDK
+ * uses it as the fallback when `Options.agent` is omitted.
  */
-const SDK_AGENT_SCHEME = 'claude-sdk-agent';
+export const CLAUDE_SDK_DEFAULT_AGENT_NAME = 'general-purpose';
 
 /**
  * Bundles the Claude SDK's currently-resolved customization view
@@ -106,11 +105,19 @@ export class ClaudeSdkCustomizationBundler extends Disposable {
 			this._lastNonce = nonce;
 		}
 
-		const agentRefs: CustomizationAgentRef[] = snapshot.agents.map(agent => ({
-			uri: URI.from({ scheme: SDK_AGENT_SCHEME, path: `/${agent.name}` }).toString(),
-			name: agent.name,
-			description: agent.description,
-		}));
+		// Hide the SDK's built-in default agent — see
+		// {@link CLAUDE_SDK_DEFAULT_AGENT_NAME} for the full rationale.
+		// `uri` is the on-disk path of the file we just wrote — the
+		// workbench's customization harness reads it via `parseNew` to
+		// hydrate `ICustomAgent`, so a synthetic identity scheme would
+		// fail to parse and the agents would never reach the picker.
+		const agentRefs: CustomizationAgentRef[] = snapshot.agents
+			.filter(agent => agent.name !== CLAUDE_SDK_DEFAULT_AGENT_NAME)
+			.map(agent => ({
+				uri: URI.joinPath(this._rootUri, 'agents', `${safeName(agent.name)}.md`).toString(),
+				name: agent.name,
+				description: agent.description,
+			}));
 
 		return {
 			customization: {

@@ -75,7 +75,7 @@ suite('ClaudeSdkCustomizationBundler', () => {
 		assert.match(skillFile.value.toString(), /Usage: `<x>`/);
 	});
 
-	test('agents field is populated from the SDK snapshot with claude-sdk-agent URIs', async () => {
+	test('agents field is populated from the SDK snapshot with on-disk file URIs', async () => {
 		const result = await bundler.bundle(snapshot({
 			agents: [
 				{ name: 'a1', description: 'one', model: 'm' },
@@ -84,7 +84,8 @@ suite('ClaudeSdkCustomizationBundler', () => {
 		}));
 		const agents = result!.agents!;
 		assert.deepStrictEqual(agents.map(a => a.name), ['a1', 'a2']);
-		assert.ok(agents[0].uri.startsWith('claude-sdk-agent:'));
+		assert.ok(agents[0].uri.endsWith('/agents/a1.md'), `expected on-disk path, got ${agents[0].uri}`);
+		assert.ok(agents[1].uri.endsWith('/agents/a2.md'));
 	});
 
 	test('repeated bundle with same snapshot is nonce-stable and does not rewrite', async () => {

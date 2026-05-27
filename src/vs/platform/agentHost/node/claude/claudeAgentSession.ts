@@ -19,7 +19,7 @@ import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PendingMessage, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
@@ -76,6 +76,16 @@ export class ClaudeAgentSession extends Disposable {
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
+	/**
+	 * Pre-materialize custom-agent selection. Mutable; flows into
+	 * `Options.agent` (resolved to the SDK agent name) on materialize
+	 * and on every rematerializer call. Mid-session changes via
+	 * {@link setAgent} flip {@link clientCustomizationsDiff} dirty so the
+	 * next `send()` rebinds and the new agent reaches the SDK on the
+	 * rebuilt `Query`. The SDK's `Options.agent` is captured at startup
+	 * — there is no runtime control-plane equivalent.
+	 */
+	private _provisionalAgent: AgentSelection | undefined;
 	/** Pre-materialize `IAgentCreateSessionConfig.config` bag. Read at materialize time. */
 	readonly provisionalConfig: Record<string, unknown> | undefined;
 	/** Resolved project metadata captured at create time (if any). */
@@ -94,6 +104,7 @@ export class ClaudeAgentSession extends Disposable {
 		workingDirectory: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
+		agent: AgentSelection | undefined,
 		config: Record<string, unknown> | undefined,
 		pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
 		permissionModeFallback: ClaudePermissionMode,
@@ -107,6 +118,7 @@ export class ClaudeAgentSession extends Disposable {
 			workingDirectory,
 			project,
 			model,
+			agent,
 			config,
 			new AbortController(),
 			pendingClientToolCalls,
@@ -175,6 +187,7 @@ export class ClaudeAgentSession extends Disposable {
 		readonly workingDirectory: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
+		agent: AgentSelection | undefined,
 		config: Record<string, unknown> | undefined,
 		abortController: AbortController,
 		private readonly _pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
@@ -190,6 +203,7 @@ export class ClaudeAgentSession extends Disposable {
 		super();
 		this.project = project;
 		this._provisionalModel = model;
+		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
 		this.toolDiff = this._register(toolDiff);
@@ -231,6 +245,7 @@ export class ClaudeAgentSession extends Disposable {
 				isResume: ctx.isResume,
 				mcpServers,
 				plugins: this.clientCustomizationsDiff.consume(),
+				agent: this._resolveAgentName(this._provisionalAgent),
 			},
 			ctx.proxyHandle,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -327,12 +342,13 @@ export class ClaudeAgentSession extends Disposable {
 						isResume: true,
 						mcpServers: rebuildMcp,
 						plugins: this.clientCustomizationsDiff.consume(),
+						agent: this._resolveAgentName(this._provisionalAgent),
 					},
 					ctx.proxyHandle,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 					msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 				);
-				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild`);
+				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
 				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
@@ -468,6 +484,61 @@ export class ClaudeAgentSession extends Disposable {
 			}
 		}
 		await this._metadataStore.write(this.sessionUri, { model });
+	}
+
+	/**
+	 * Pre-materialize custom-agent selection accessor.
+	 */
+	get provisionalAgent(): AgentSelection | undefined { return this._provisionalAgent; }
+
+	/**
+	 * Change (or clear with `undefined`) the selected custom agent for this
+	 * session. The SDK captures `Options.agent` at startup with no
+	 * working runtime control (`applyFlagSettings({ agent })` exists on
+	 * the SDK surface but doesn't actually swap the live agent), so
+	 * post-materialize calls flip {@link clientCustomizationsDiff}
+	 * dirty and the next `send()` pre-flight rebinds with the new agent
+	 * baked into the rebuilt `Query`. Persisted to the per-session
+	 * metadata overlay so a resume picks up the choice.
+	 */
+	async setAgent(agent: AgentSelection | undefined): Promise<void> {
+		if (this._provisionalAgent === agent) {
+			return;
+		}
+		this._provisionalAgent = agent;
+		if (this._pipeline) {
+			// Force a rebind on the next send(); the SDK has no working
+			// runtime hook to swap the agent in place.
+			this.clientCustomizationsDiff.markDirty();
+		}
+		await this._metadataStore.write(this.sessionUri, { agent: agent ?? null });
+	}
+
+	/**
+	 * Resolve an {@link AgentSelection} URI to the SDK agent name the
+	 * SDK expects on `Options.agent`. Every custom agent the picker can
+	 * surface for a Claude session comes from the SDK side
+	 * ({@link ClaudeSdkCustomizationBundler} populates
+	 * `SessionCustomization.agents` from `Query.supportedAgents()`),
+	 * pointing at on-disk `.../agents/<name>.md` files we wrote
+	 * ourselves, so the name is the file basename.
+	 *
+	 * Returns `undefined` when no agent is selected (or the URI doesn't
+	 * resolve to a known agent file) so the SDK falls back to its default
+	 * (no `--agent` flag).
+	 */
+	private _resolveAgentName(agent: AgentSelection | undefined): string | undefined {
+		if (!agent) {
+			return undefined;
+		}
+		const uri = URI.parse(agent.uri);
+		const basename = uri.path.split('/').pop() ?? '';
+		const name = basename.replace(/\.md$/i, '');
+		if (!name) {
+			this._logService.warn(`[Claude:${this.sessionId}] _resolveAgentName: could not extract agent name from URI '${agent.uri}'`);
+			return undefined;
+		}
+		return name;
 	}
 
 	/**

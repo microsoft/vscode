@@ -40,6 +40,15 @@ export interface IBuildOptionsInput {
 	 * {@link SessionClientCustomizationsDiff.consume}.
 	 */
 	readonly plugins?: readonly URI[];
+	/**
+	 * Resolved SDK agent name (matches a key in `Options.agents`, or an
+	 * agent loaded from `~/.claude/agents/**`). Projected onto
+	 * `Options.agent` — the SDK's `--agent` flag. The plugin URI captured
+	 * at startup is the only path the SDK consults, so any `changeAgent`
+	 * after materialize triggers a yield-restart through the rematerializer.
+	 * Omit when no custom agent is selected (SDK default behavior).
+	 */
+	readonly agent?: string;
 }
 
 /**
@@ -99,6 +108,7 @@ export async function buildOptions(
 		...(input.plugins && input.plugins.length > 0
 			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
 			: {}),
+		...(input.agent ? { agent: input.agent } : {}),
 		settingSources: ['user', 'project', 'local'],
 		settings: { env: settingsEnv },
 		systemPrompt: { type: 'preset', preset: 'claude_code' },

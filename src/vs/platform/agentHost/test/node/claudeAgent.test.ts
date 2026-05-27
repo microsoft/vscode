@@ -1109,6 +1109,7 @@ suite('ClaudeAgent', () => {
 			undefined,
 			undefined,
 			undefined,
+			undefined,
 			new PendingRequestRegistry<CallToolResult>(),
 			'default',
 			instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude'),
@@ -1132,6 +1133,7 @@ suite('ClaudeAgent', () => {
 			'test-session',
 			AgentSession.uri('claude', 'test-session'),
 			URI.file('/workspace'),
+			undefined,
 			undefined,
 			undefined,
 			undefined,
@@ -3492,6 +3494,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			undefined,
 			undefined,
 			undefined,
+			undefined,
 			new PendingRequestRegistry<CallToolResult>(),
 			'default',
 			instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude'),
@@ -4930,6 +4933,72 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const customizations = await agent.getSessionCustomizations!(created.session);
 		assert.strictEqual(customizations.length, 1, 'client-pushed projection survives SDK snapshot failure');
 		assert.strictEqual(customizations[0].customization.uri, 'https://a');
+	});
+
+	test('changeAgent on a provisional session stashes the selection (no SDK contact) and lands on Options.agent at materialize', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		await agent.changeAgent!(created.session, { uri: 'file:///foo/agents/code-reviewer.md' });
+		assert.strictEqual(sdk.startupCallCount, 0, 'no SDK startup from changeAgent on provisional');
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'code-reviewer', 'agent name resolved from file URI basename');
+	});
+
+	test('changeAgent on a materialized session triggers a rebind with the new Options.agent on the rebuilt Query', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, undefined, 'no agent on first startup');
+
+		// Mid-session agent change: flips dirty, next send rebinds
+		// (SDK has no working runtime hook to swap the agent in place).
+		await agent.changeAgent!(created.session, { uri: 'file:///foo/agents/planner.md' });
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.strictEqual(sdk.startupCallCount, 2, 'rebind on agent change');
+		assert.strictEqual(sdk.capturedStartupOptions[1]?.agent, 'planner', 'agent baked into rebuilt Options');
+	});
+
+	test('changeAgent(undefined) clears the selection: rebind, Options.agent omitted', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({
+			workingDirectory: URI.file('/work'),
+			agent: { uri: 'file:///foo/agents/planner.md' },
+		});
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'planner');
+
+		await agent.changeAgent!(created.session, undefined);
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.strictEqual(sdk.startupCallCount, 2);
+		assert.strictEqual(sdk.capturedStartupOptions[1]?.agent, undefined, 'cleared agent omitted from rebuilt Options');
 	});
 });
 

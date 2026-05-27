@@ -26,7 +26,7 @@ import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESO
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { CustomizationRef, isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionCustomization, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
@@ -361,6 +361,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			config.workingDirectory,
 			project,
 			config.model,
+			config.agent,
 			config.config,
 			new PendingRequestRegistry<CallToolResult>(),
 			permissionMode,
@@ -474,6 +475,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			workingDirectory,
 			project,
 			overlay.model,
+			overlay.agent,
 			undefined,
 			new PendingRequestRegistry<CallToolResult>(),
 			permissionMode,
@@ -885,6 +887,26 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				await sess.setModel(model);
 			} else {
 				await this._metadataStore.write(session, { model });
+			}
+		});
+	}
+
+	/**
+	 * Switch (or clear with `undefined`) the selected custom agent for an
+	 * existing session. Mirrors {@link changeModel}: session owns its
+	 * provisional/runtime branching and metadata write
+	 * (see {@link ClaudeAgentSession.setAgent}). For external-only
+	 * sessions (no in-memory record), the agent is persisted directly to
+	 * the overlay so a later resume picks it up.
+	 */
+	async changeAgent(session: URI, agent: AgentSelection | undefined): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const sess = this._findAnySession(sessionId);
+			if (sess) {
+				await sess.setAgent(agent);
+			} else {
+				await this._metadataStore.write(session, { agent: agent ?? null });
 			}
 		});
 	}
