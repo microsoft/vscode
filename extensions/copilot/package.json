@@ -6637,6 +6637,13 @@
         ]
       },
       {
+        "path": "./assets/prompts/chronicle-improve.prompt.md",
+        "when": "github.copilot.sessionSearch.enabled",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
         "path": "./assets/prompts/chronicle-reindex.prompt.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
