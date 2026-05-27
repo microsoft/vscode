@@ -8,6 +8,11 @@ import * as Proto from '../tsServer/protocol/protocol';
 import { readUnifiedConfig } from '../utils/configuration';
 import * as objects from '../utils/objects';
 
+export interface NodePathInfo {
+	readonly path: string;
+	readonly isTrusted: boolean;
+}
+
 export enum TsServerLogLevel {
 	Off,
 	Normal,
@@ -140,8 +145,8 @@ export interface TypeScriptServiceConfiguration {
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
-	readonly localNodePath: string | null;
-	readonly globalNodePath: string | null;
+	readonly localNodePath: NodePathInfo | null;
+	readonly globalNodePath: NodePathInfo | null;
 	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
 }
 
@@ -193,8 +198,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	protected abstract readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
 	protected abstract readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
-	protected abstract readLocalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
-	protected abstract readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readLocalNodePath(configuration: vscode.WorkspaceConfiguration): NodePathInfo | null;
+	protected abstract readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): NodePathInfo | null;
 
 	protected readTsServerLogLevel(): TsServerLogLevel {
 		const setting = readUnifiedConfig<string>('tsserver.log', 'off', { fallbackSection: 'typescript' });
