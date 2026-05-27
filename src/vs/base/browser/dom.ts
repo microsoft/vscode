@@ -891,7 +891,7 @@ export function getTotalHeight(element: HTMLElement): number {
 }
 
 // Gets the left coordinate of the specified element relative to the specified parent.
-function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
+function getRelativeLeft(element: HTMLElement | null, parent: HTMLElement): number {
 	if (element === null) {
 		return 0;
 	}
