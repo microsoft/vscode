@@ -45,7 +45,10 @@ const CLIENT_INFO = {
  * `IAgent` surface needs.
  */
 interface ICodexSession {
+	/** Caller-facing session id used in the `codex:/<id>` URI; may differ from the codex thread id. */
 	readonly sessionId: string;
+	/** Codex app-server thread id used in JSON-RPC `thread/*` and `turn/*` calls. */
+	readonly threadId: string;
 	readonly sessionUri: URI;
 	readonly workingDirectory: URI | undefined;
 	readonly mapState: ICodexSessionMapState;
@@ -97,7 +100,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
 
+	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
+	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
+	private readonly _sessionIdByThreadId = new Map<string, string>();
 	private _githubToken: string | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
 
@@ -211,22 +217,41 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		const proxyHandle = await this._codexProxyService.start(token);
 
-		// Build child env: inherit, override OPENAI_BASE_URL / OPENAI_API_KEY
-		// so codex talks to our proxy instead of api.openai.com. CODEX_HOME
-		// from setting overrides the default if set.
+		// Build child env: inherit, override OPENAI_API_KEY so the proxy's
+		// nonce check passes. The proxy provider is plumbed via `-c` CLI
+		// overrides below; we deliberately do NOT write a config.toml,
+		// which would force a managed CODEX_HOME and trip codex's
+		// "refusing to write helper binaries under TMPDIR" warning.
 		const env: NodeJS.ProcessEnv = {
 			...process.env,
-			OPENAI_BASE_URL: `${proxyHandle.baseUrl}/v1`,
 			OPENAI_API_KEY: proxyHandle.nonce,
 		};
-		const codexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
-		if (codexHome) {
-			env.CODEX_HOME = codexHome;
+		const userCodexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
+		if (userCodexHome) {
+			env.CODEX_HOME = userCodexHome;
 		}
+
+		// Define an in-memory `vscode-proxy` provider that points at our
+		// local proxy with WebSocket transport disabled. Using `-c`
+		// overrides composes with the user's ~/.codex/config.toml — their
+		// other settings (model, MCP servers, etc.) still apply.
+		const providerOverrides = [
+			`model_provider="vscode-proxy"`,
+			`model_providers.vscode-proxy.name="VS Code Proxy"`,
+			`model_providers.vscode-proxy.base_url="${proxyHandle.baseUrl}/v1"`,
+			`model_providers.vscode-proxy.wire_api="responses"`,
+			`model_providers.vscode-proxy.env_key="OPENAI_API_KEY"`,
+			`model_providers.vscode-proxy.requires_openai_auth=false`,
+			`model_providers.vscode-proxy.supports_websockets=false`,
+		];
 
 		// Extra args forwarded as JSON from the workbench setting.
 		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
-		const args = ['app-server', ...extraArgs];
+		const args = ['app-server'];
+		for (const kv of providerOverrides) {
+			args.push('-c', kv);
+		}
+		args.push(...extraArgs);
 
 		this._logService.info(`[Codex] spawning ${binaryPath} ${args.join(' ')}`);
 		const child = spawn(binaryPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -258,12 +283,17 @@ export class CodexAgent extends Disposable implements IAgent {
 				capabilities: { experimentalApi: true, requestAttestation: false, optOutNotificationMethods: null },
 			});
 			client.notify<'initialized'>('initialized', undefined as never);
-			// Wire up the apikey auth using the proxy's nonce (Decision 18).
-			// Without this, codex's first turn fails with "requiresOpenaiAuth".
-			await client.request<'account/login/start'>('account/login/start', {
-				type: 'apiKey',
-				apiKey: proxyHandle.nonce,
-			});
+			// With `requires_openai_auth = false` on the proxy provider,
+			// codex does not require a separate login step — the proxy
+			// nonce is read from OPENAI_API_KEY by the provider's env_key.
+			if (userCodexHome) {
+				// User-provided CODEX_HOME may target a provider that
+				// still requires auth; preserve the apiKey login path.
+				await client.request<'account/login/start'>('account/login/start', {
+					type: 'apiKey',
+					apiKey: proxyHandle.nonce,
+				});
+			}
 		} catch (err) {
 			client.dispose();
 			proxyHandle.dispose();
@@ -289,7 +319,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _dispatchByThread(threadId: string, mapFn: (s: ICodexSession) => ReturnType<typeof mapTurnStarted>): void {
-		const session = this._sessions.get(threadId);
+		const sessionId = this._sessionIdByThreadId.get(threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
 			// Notification for a session we don't track — most likely a
 			// prewarmed thread (Phase 6) that hasn't been claimed yet.
@@ -358,16 +389,20 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const conn = await this._ensureConnection();
 
-		// Decision 7: codex's threadId IS our session id. Block until
-		// `thread/start` resolves; no provisional state.
+		// Codex's `thread/start` does not accept a client-supplied id, so
+		// we maintain a sessionId ↔ threadId mapping. The caller-supplied
+		// sessionId (when present) is honored as the URI host so the
+		// session handler's "expected URI" check passes.
 		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 			cwd: config.workingDirectory.fsPath,
 			model: config.model?.id ?? null,
 		});
 		const threadId = startResult.thread.id;
-		const sessionUri = AgentSession.uri(this.id, threadId);
+		const sessionId = config.session ? AgentSession.id(config.session) : threadId;
+		const sessionUri = config.session ?? AgentSession.uri(this.id, threadId);
 		const session: ICodexSession = {
-			sessionId: threadId,
+			sessionId,
+			threadId,
 			sessionUri,
 			workingDirectory: config.workingDirectory,
 			mapState: createCodexSessionMapState(),
@@ -376,7 +411,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			needsResume: false,
 			lastPromptText: '',
 		};
-		this._sessions.set(threadId, session);
+		this._sessions.set(sessionId, session);
+		this._sessionIdByThreadId.set(threadId, sessionId);
 		this._onDidMaterializeSession.fire({
 			session: sessionUri,
 			workingDirectory: config.workingDirectory,
@@ -403,7 +439,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.needsResume) {
 			try {
 				await conn.client.request<'thread/resume'>('thread/resume', {
-					threadId: session.sessionId,
+					threadId: session.threadId,
 				});
 				session.needsResume = false;
 			} catch (err) {
@@ -426,7 +462,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.currentTurnId = effectiveTurnId;
 		try {
 			await conn.client.request<'turn/start'>('turn/start', {
-				threadId: session.sessionId,
+				threadId: session.threadId,
 				input: input.slice(),
 				model: session.model?.id ?? null,
 			});
@@ -483,7 +519,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const { input } = resolveCodexInput(text, steeringMessage.userMessage?.attachments);
 		void conn.client.request<'turn/steer'>('turn/steer', {
-			threadId: sessionId,
+			threadId: session.threadId,
 			input: input.slice(),
 			expectedTurnId: turnId,
 		}).catch(err => {
@@ -508,7 +544,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		try {
 			await conn.client.request<'turn/interrupt'>('turn/interrupt', {
-				threadId: sessionId,
+				threadId: session.threadId,
 				turnId: session.currentTurnId,
 			});
 		} catch (err) {
@@ -523,14 +559,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._sessions.delete(sessionId);
+		this._sessionIdByThreadId.delete(session.threadId);
 		const conn = this._connection;
 		if (conn.kind === 'ready') {
 			// `thread/unsubscribe` is the codex-native way to release a
 			// session. Codex evicts after its 30-minute idle grace.
 			try {
-				await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId: sessionId });
+				await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId: session.threadId });
 			} catch (err) {
-				this._logService.info(`[Codex:${sessionId}] thread/unsubscribe failed: ${err instanceof Error ? err.message : String(err)}`);
+				this._logService.info(`[Codex:${session.threadId}] thread/unsubscribe failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
 	}
@@ -557,17 +594,20 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
-		const threadId = AgentSession.id(session);
+		const sessionId = AgentSession.id(session);
 		const read = await this._readSession(session);
 		if (!read) {
 			return undefined;
 		}
 		// Register the session in our map so subsequent sendMessage triggers
-		// thread/resume (Decision 8).
-		if (!this._sessions.has(threadId)) {
+		// thread/resume (Decision 8). For restored sessions the caller-side
+		// id IS the codex thread id (sessions persisted from a previous
+		// process kept the threadId-as-sessionId mapping).
+		if (!this._sessions.has(sessionId)) {
 			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
-			this._sessions.set(threadId, {
-				sessionId: threadId,
+			this._sessions.set(sessionId, {
+				sessionId,
+				threadId: sessionId,
 				sessionUri: session,
 				workingDirectory,
 				mapState: createCodexSessionMapState(),
@@ -576,12 +616,18 @@ export class CodexAgent extends Disposable implements IAgent {
 				needsResume: true,
 				lastPromptText: '',
 			});
+			this._sessionIdByThreadId.set(sessionId, sessionId);
 		}
 		return this._threadToMetadata(read.thread, session);
 	}
 
 	private async _readSession(session: URI): Promise<ThreadReadResponse | undefined> {
-		const threadId = AgentSession.id(session);
+		const sessionId = AgentSession.id(session);
+		// Use the mapped threadId if we have one (caller-supplied session
+		// id case); otherwise fall back to using the URI host (restored /
+		// native-listed sessions).
+		const existing = this._sessions.get(sessionId);
+		const threadId = existing?.threadId ?? sessionId;
 		try {
 			const conn = await this._ensureConnection();
 			const response = await conn.client.request<'thread/read', ThreadReadResponse>('thread/read', {
@@ -590,7 +636,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 			return response;
 		} catch (err) {
-			this._logService.warn(`[Codex:${threadId}] thread/read failed: ${err instanceof Error ? err.message : String(err)}`);
+			const message = err instanceof Error ? err.message : String(err);
+			// `thread not loaded` is app-server's expected response for any
+			// thread we have not yet resumed in this process; sendMessage's
+			// `thread/resume` path will handle it. Log at info level.
+			if (/thread not loaded/i.test(message)) {
+				this._logService.info(`[Codex:${threadId}] thread/read: not loaded yet (will resume on first send)`);
+			} else {
+				this._logService.warn(`[Codex:${threadId}] thread/read failed: ${message}`);
+			}
 			return undefined;
 		}
 	}
@@ -645,6 +699,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._connection = { kind: 'idle' };
 		this._sessions.clear();
+		this._sessionIdByThreadId.clear();
 	}
 
 	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -669,6 +724,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._connection = { kind: 'idle' };
 		this._sessions.clear();
+		this._sessionIdByThreadId.clear();
 		super.dispose();
 	}
 }
