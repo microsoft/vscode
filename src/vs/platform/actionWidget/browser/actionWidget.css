@@ -305,12 +305,14 @@
 .action-widget .monaco-list-row.action.has-toolbar .action-list-item-toolbar {
 	display: flex;
 	opacity: 0;
+	visibility: hidden;
 	pointer-events: none;
 }
 
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
 .action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
 	opacity: 1;
+	visibility: visible;
 	pointer-events: all;
 }
 

@@ -328,12 +328,6 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 	return !isOrganizationPromptFile(modeUri, mode.source.extensionId, productService);
 }
 
-/**
- * Returns a MarkdownString containing the $(person) codicon for user-scoped
- * agents, and undefined for workspace/extension agents (which are the default).
- * Only personal agents need a visual indicator since workspace agents are
- * implicitly tied to the current repo.
- */
 function getAgentSourceLabel(source: IAgentSource | undefined): MarkdownString | undefined {
 	if (source?.storage === PromptsStorage.user) {
 		return new MarkdownString('$(account)', { supportThemeIcons: true });
