@@ -1117,27 +1117,27 @@
 	flex-shrink: 0;
 	font-size: 11px;
 	padding: 2px 8px;
-	border-radius: 10px;
+	border-radius: 4px;
 	font-weight: 500;
 }
 
 .mcp-server-item .mcp-server-status.running {
-	background-color: var(--vscode-terminal-ansiGreen);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
 	color: var(--vscode-editor-background);
 }
 
 .mcp-server-item .mcp-server-status.starting {
-	background-color: var(--vscode-terminal-ansiYellow);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
 	color: var(--vscode-editor-background);
 }
 
 .mcp-server-item .mcp-server-status.error {
-	background-color: var(--vscode-terminal-ansiRed);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 50%, transparent);
 	color: var(--vscode-editor-background);
 }
 
 .mcp-server-item .mcp-server-status.stopped {
-	background-color: var(--vscode-badge-background);
+	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
 	color: var(--vscode-badge-foreground);
 }
 
@@ -1146,7 +1146,7 @@
 }
 
 .mcp-server-item .mcp-server-status.disabled {
-	background-color: var(--vscode-badge-background);
+	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
 	color: var(--vscode-badge-foreground);
 }
 
