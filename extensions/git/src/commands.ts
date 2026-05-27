@@ -2573,6 +2573,10 @@ export class CommandCenter {
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
 
+			if (!_message && !opts.amend && config.get<boolean>('experimental.generateCommitMessageIfEmpty')) {
+				_message = await this.tryGenerateCommitMessage(repository);
+			}
+
 			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
 				const value: string | undefined = undefined;
 
@@ -2601,6 +2605,22 @@ export class CommandCenter {
 		};
 
 		await this.smartCommit(repository, getCommitMessage, opts);
+	}
+
+	private async tryGenerateCommitMessage(repository: Repository): Promise<string | undefined> {
+		try {
+			const generateCommand = 'github.copilot.git.generateCommitMessage';
+			const availableCommands = await commands.getCommands(true);
+
+			if (!availableCommands.includes(generateCommand)) {
+				return undefined;
+			}
+
+			await commands.executeCommand(generateCommand, Uri.file(repository.root));
+			return repository.inputBox.value || undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	@command('git.commit', { repository: true })
