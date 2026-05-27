@@ -49,8 +49,15 @@ const CLIENT_INFO = {
 interface ICodexSession {
 	/** Caller-facing session id used in the `codex:/<id>` URI; may differ from the codex thread id. */
 	readonly sessionId: string;
-	/** Codex app-server thread id used in JSON-RPC `thread/*` and `turn/*` calls. */
-	readonly threadId: string;
+	/**
+	 * Codex app-server thread id used in JSON-RPC `thread/*` and `turn/*` calls.
+	 * Undefined until the session has been materialized (first `sendMessage`
+	 * triggers `thread/start`). Decoupling materialization from
+	 * `createSession` mirrors the Claude harness's provisional/materialize
+	 * split and avoids spawning an orphan codex thread when the workbench
+	 * rebinds a provisional URI after a chip-selection.
+	 */
+	threadId: string | undefined;
 	readonly sessionUri: URI;
 	readonly workingDirectory: URI | undefined;
 	readonly mapState: ICodexSessionMapState;
@@ -478,28 +485,32 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!config.workingDirectory) {
 			throw new Error('Codex requires a working directory; pass `workingDirectory` to createSession');
 		}
-		const conn = await this._ensureConnection();
 
-		// If the caller didn't pick a model, fall back to the first one
-		// we surface from CAPI — codex's own default (currently `gpt-5.5`)
-		// is not part of the integrator-allowlisted model set and the
-		// `/v1/responses` call will 400 with `model_not_available_for_integrator`.
+		// Provisional / lazy materialize. We DON'T call `thread/start` here
+		// because the workbench may rebind this URI to a fresh one when the
+		// user changes a chip selection, and we'd otherwise leak an
+		// orphan codex thread per rebind. The actual `thread/start` happens
+		// on the first `sendMessage` (or `getSessionMetadata` for restore).
 		const effectiveModel = config.model ?? this._defaultModel();
+		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
+		const sessionUri = config.session ?? AgentSession.uri(this.id, sessionId);
 
-		// Codex's `thread/start` does not accept a client-supplied id, so
-		// we maintain a sessionId ↔ threadId mapping. The caller-supplied
-		// sessionId (when present) is honored as the URI host so the
-		// session handler's "expected URI" check passes.
-		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
-			cwd: config.workingDirectory.fsPath,
-			model: effectiveModel?.id ?? null,
-		});
-		const threadId = startResult.thread.id;
-		const sessionId = config.session ? AgentSession.id(config.session) : threadId;
-		const sessionUri = config.session ?? AgentSession.uri(this.id, threadId);
+		// If the workbench is rebinding this URI (createSession arriving
+		// after a previous dispose for the same id), reuse the existing
+		// entry so we don't lose accumulated state.
+		const existing = this._sessions.get(sessionId);
+		if (existing) {
+			existing.model = effectiveModel ?? existing.model;
+			return {
+				session: sessionUri,
+				workingDirectory: existing.workingDirectory ?? config.workingDirectory,
+				provisional: existing.threadId === undefined,
+			};
+		}
+
 		const session: ICodexSession = {
 			sessionId,
-			threadId,
+			threadId: undefined,
 			sessionUri,
 			workingDirectory: config.workingDirectory,
 			mapState: createCodexSessionMapState(),
@@ -511,17 +522,37 @@ export class CodexAgent extends Disposable implements IAgent {
 			lastPromptText: '',
 		};
 		this._sessions.set(sessionId, session);
-		this._sessionIdByThreadId.set(threadId, sessionId);
-		this._onDidMaterializeSession.fire({
-			session: sessionUri,
-			workingDirectory: config.workingDirectory,
-			project: undefined,
-		});
 		return {
 			session: sessionUri,
 			workingDirectory: config.workingDirectory,
-			provisional: false,
+			provisional: true,
 		};
+	}
+
+	/**
+	 * Lazily start (or resume) a codex thread for `session`. Idempotent:
+	 * if `threadId` is already populated, just returns. Called from
+	 * `sendMessage` before the first `turn/start`.
+	 */
+	private async _materializeIfNeeded(session: ICodexSession): Promise<void> {
+		if (session.threadId !== undefined) {
+			return;
+		}
+		if (!session.workingDirectory) {
+			throw new Error(`Cannot materialize codex session ${session.sessionId}: no working directory`);
+		}
+		const conn = await this._ensureConnection();
+		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
+			cwd: session.workingDirectory.fsPath,
+			model: session.model?.id ?? null,
+		});
+		session.threadId = startResult.thread.id;
+		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
+		this._onDidMaterializeSession.fire({
+			session: session.sessionUri,
+			workingDirectory: session.workingDirectory,
+			project: undefined,
+		});
 	}
 
 	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
@@ -533,12 +564,29 @@ export class CodexAgent extends Disposable implements IAgent {
 		const conn = await this._ensureConnection();
 		const effectiveTurnId = turnId ?? generateUuid();
 
+		// Materialize codex thread on first send (provisional → live).
+		// `_materializeIfNeeded` is idempotent.
+		try {
+			await this._materializeIfNeeded(session);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logService.error(`[Codex:${sessionId}] materialize failed: ${message}`);
+			this._fire(sessionUri, {
+				type: ActionType.SessionError,
+				turnId: effectiveTurnId,
+				error: { errorType: 'CodexMaterializeFailed', message },
+			});
+			this._fire(sessionUri, { type: ActionType.SessionTurnComplete, turnId: effectiveTurnId });
+			return;
+		}
+		const threadId = session.threadId!;
+
 		// Phase 3 resume path: defer to first sendMessage. If this session
 		// was restored, we haven't yet told codex about it.
 		if (session.needsResume) {
 			try {
 				await conn.client.request<'thread/resume'>('thread/resume', {
-					threadId: session.threadId,
+					threadId,
 				});
 				session.needsResume = false;
 			} catch (err) {
@@ -561,7 +609,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.currentTurnId = effectiveTurnId;
 		try {
 			await conn.client.request<'turn/start'>('turn/start', {
-				threadId: session.threadId,
+				threadId,
 				input: input.slice(),
 				model: session.model?.id ?? null,
 			});
@@ -617,8 +665,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const { input } = resolveCodexInput(text, steeringMessage.userMessage?.attachments);
+		if (session.threadId === undefined) {
+			return;
+		}
+		const threadId = session.threadId;
 		void conn.client.request<'turn/steer'>('turn/steer', {
-			threadId: session.threadId,
+			threadId,
 			input: input.slice(),
 			expectedTurnId: turnId,
 		}).catch(err => {
@@ -634,16 +686,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	async abortSession(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (!session || !session.currentTurnId) {
+		if (!session || !session.currentTurnId || session.threadId === undefined) {
 			return;
 		}
+		const threadId = session.threadId;
 		const conn = this._connection;
 		if (conn.kind !== 'ready') {
 			return;
 		}
 		try {
 			await conn.client.request<'turn/interrupt'>('turn/interrupt', {
-				threadId: session.threadId,
+				threadId,
 				turnId: session.currentTurnId,
 			});
 		} catch (err) {
@@ -658,18 +711,21 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._sessions.delete(sessionId);
-		this._sessionIdByThreadId.delete(session.threadId);
+		if (session.threadId !== undefined) {
+			this._sessionIdByThreadId.delete(session.threadId);
+		}
 		// Unpark any pending approvals so codex doesn't deadlock waiting
 		// on a response we will never deliver.
 		session.pendingCommandApprovals.denyAll('decline');
 		const conn = this._connection;
-		if (conn.kind === 'ready') {
+		if (conn.kind === 'ready' && session.threadId !== undefined) {
+			const threadId = session.threadId;
 			// `thread/unsubscribe` is the codex-native way to release a
 			// session. Codex evicts after its 30-minute idle grace.
 			try {
-				await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId: session.threadId });
+				await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
 			} catch (err) {
-				this._logService.info(`[Codex:${session.threadId}] thread/unsubscribe failed: ${err instanceof Error ? err.message : String(err)}`);
+				this._logService.info(`[Codex:${threadId}] thread/unsubscribe failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
 	}
