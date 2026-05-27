@@ -990,3 +990,207 @@
 	height: 36px;
 	padding: 0;
 }
+
+/* ===========================================================================
+ * Phone Layout: Chat Confirmation Widgets
+ * ---------------------------------------------------------------------------
+ *
+ * The chat confirmation widget (used by SimpleChatConfirmationWidget /
+ * BaseChatConfirmationWidget and by tool confirmation subparts) renders as a
+ * compact card on desktop with horizontal button rows. On phone we need:
+ *   - Edge-to-edge width inside the chat message column.
+ *   - 44px-tall buttons stacked vertically when there are 3+ choices
+ *     (matches iOS confirm-sheet pattern).
+ *   - A scrollable message body so a long markdown explanation never pushes
+ *     the action buttons off-screen.
+ *   - Touch-friendly subpart variants for terminal command previews and
+ *     modified-files lists.
+ *
+ * DOM (from chatConfirmationWidget.ts):
+ *   .chat-confirmation-widget-container
+ *     .chat-confirmation-widget   (Simple variant) or .chat-confirmation-widget2 (Base)
+ *       .chat-confirmation-widget-title
+ *       .chat-confirmation-widget-message[-container]
+ *         .chat-confirmation-widget-message-scrollable
+ *       .chat-buttons-container  (Simple) or .chat-confirmation-widget-buttons (Base)
+ *         .chat-buttons > .monaco-button[]
+ *         .chat-toolbar
+ *
+ * Specificity: every selector below prepends
+ * `.agent-sessions-workbench.phone-layout` so we beat the desktop sheet in
+ * `chatConfirmationWidget.css` without `!important`.
+ * ========================================================================= */
+
+/* Make the widget fill the chat message column edge-to-edge on phone. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget2 {
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+/* Title row: bigger type and generous padding so the heading reads as a
+ * focused-sheet title on small viewports. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget-title,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget2 .chat-confirmation-widget-title {
+	padding: 10px 12px;
+	font-size: 15px;
+	line-height: 1.35;
+	min-height: 44px;
+	box-sizing: border-box;
+}
+
+/* Cap the message body's height so a very long explanation can scroll
+ * inside the widget instead of pushing the buttons below the viewport.
+ * `dvh` is used so the cap shrinks when the iOS URL bar collapses. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget-message-scrollable,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget-message {
+	max-height: 45dvh;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+	touch-action: pan-y;
+}
+
+/* Buttons container fills the full row and adopts a comfortable gap. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons-container,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget-buttons {
+	padding: 8px 12px 10px;
+	gap: 8px;
+}
+
+/* All buttons inside the confirmation widget are at least 44px tall to
+ * meet thumb-target guidelines. Row layout (2 or fewer buttons) stays
+ * horizontal and lets each button breathe with min-width. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons > .monaco-button,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons > .monaco-button-dropdown {
+	min-height: 44px;
+	min-width: 44px;
+	box-sizing: border-box;
+	touch-action: manipulation;
+}
+
+/* When there are 3 or more buttons, stack them vertically. `:has()` lets
+ * us detect the third child without any TS-side class toggling. The
+ * leaf-button selector is `.monaco-button` AND `.monaco-button-dropdown`
+ * because dropdowns wrap the leaf button in an extra element. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons:has(> .monaco-button:nth-child(3)),
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons:has(> .monaco-button-dropdown:nth-child(3)) {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons:has(> .monaco-button:nth-child(3)) > .monaco-button,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons:has(> .monaco-button-dropdown:nth-child(3)) > .monaco-button,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons:has(> .monaco-button:nth-child(3)) > .monaco-button-dropdown,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-buttons:has(> .monaco-button-dropdown:nth-child(3)) > .monaco-button-dropdown {
+	width: 100%;
+}
+
+/* Terminal subpart: the embedded code preview is a monospace editor that
+ * may render a very wide command line. Allow horizontal scrolling and pin
+ * `touch-action: pan-x` so the user can swipe the command without iOS
+ * stealing the gesture for pinch-to-zoom. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-message-terminal .chat-confirmation-message-terminal-editor,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-message-terminal .chat-confirmation-message-terminal-editor .interactive-result-code-block {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-x;
+	font-size: 13px;
+}
+
+/* Disclaimer / footer text under the terminal preview gets a touch-friendly
+ * minimum target so risk-badge hovers and "see details" links are tappable. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer {
+	min-height: 44px;
+	padding: 6px 8px;
+	display: flex;
+	align-items: center;
+}
+
+/* Modified-files subpart: turn the overview row and per-file list rows into
+ * 44px touch targets. The overview row already uses flex; we just expand
+ * its vertical bounds and beef up the embedded action buttons. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-modified-files-confirmation-list .chat-editing-session-overview {
+	min-height: 44px;
+	padding: 4px 8px;
+	gap: 8px;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session .chat-modified-files-confirmation-list .chat-editing-session-list .monaco-list-row {
+	min-height: 44px;
+	padding: 4px 0;
+}
+
+/* Per-file accept / reject buttons (the inline diff toolbar). */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-modified-files-confirmation-list .chat-editing-session-actions .monaco-button,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-modified-files-confirmation-list .chat-collapsible-list-action-bar .action-label {
+	min-width: 44px;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	touch-action: manipulation;
+}
+
+/* On phone the per-row action bar is always visible — the desktop UX of
+ * "show on hover" doesn't translate to touch (there is no hover). */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-modified-files-confirmation-list .chat-collapsible-list-action-bar:not(.has-no-actions) {
+	display: inherit;
+}
+
+/* ===========================================================================
+ * Phone Layout: Chat Elicitation
+ * ---------------------------------------------------------------------------
+ *
+ * `ChatElicitationContentPart` reuses `ChatConfirmationWidget` under the hood
+ * (see chatElicitationContentPart.ts), so the DOM is the same as a
+ * confirmation widget. The unique phone work here is:
+ *   - Form `input` / `textarea` / `select` inside the elicitation get a
+ *     16px font (iOS auto-zoom block) and a 44px min-height.
+ *   - Title row tuned for a focused-dialog feel (larger type, generous
+ *     padding). Button-row stacking is already handled by the
+ *     "Chat Confirmation Widgets" section above.
+ *
+ * The selectors target `.chat-confirmation-widget-container` because that's
+ * the elicitation's root in the rendered DOM. Other confirmation widgets
+ * benefit from the same iOS-zoom block harmlessly.
+ * ========================================================================= */
+
+/* Block iOS auto-zoom on focus by keeping all form-control text at 16px+.
+ * The 44px min-height makes the field a comfortable touch target. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container input:not([type='checkbox']):not([type='radio']),
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container textarea,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container select {
+	font-size: 16px;
+	min-height: 44px;
+	box-sizing: border-box;
+	padding: 8px 10px;
+	touch-action: manipulation;
+}
+
+/* Checkbox / radio variants stay compact but get a bigger hit-area via
+ * padding on the surrounding label (handled by Monaco styles). Still
+ * pin a 24px minimum on the control itself so the tap is unambiguous. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container input[type='checkbox'],
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container input[type='radio'] {
+	min-width: 24px;
+	min-height: 24px;
+}
+
+/* Elicitation title row: nudge a notch larger than a confirmation widget's
+ * title so the question reads as the primary thing on screen. */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget-title .chat-query-title-part,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-confirmation-widget-container .chat-confirmation-widget-title .rendered-markdown {
+	font-size: 16px;
+	line-height: 1.4;
+}
+

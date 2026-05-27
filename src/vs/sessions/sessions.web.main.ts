@@ -181,6 +181,18 @@ import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresent
 // without duplicate-registration conflicts.
 import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
 
+// Phone-only presenter for the workbench tool-confirmation carousel.
+// Replaces the inline carousel in the chat message column with a
+// tap-to-review placeholder backed by a bottom sheet on phone-layout
+// viewports. Web-only — desktop keeps the inline carousel.
+import './contrib/chat/browser/mobile/mobileConfirmationCarouselPresenter.js';
+
+// Phone-only presenter for the workbench chat plan-review widget.
+// Replaces the inline plan-review widget in the chat message column
+// with a tap-to-open placeholder backed by a bottom sheet on
+// phone-layout viewports. Web-only — desktop keeps the inline widget.
+import './contrib/chat/browser/mobile/mobilePlanReviewPresenter.js';
+
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
