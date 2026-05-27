@@ -27,7 +27,7 @@ import { registerNotebookContribution } from '../../notebookEditorExtensions.js'
 import { CellUri, NotebookFindScopeType } from '../../../common/notebookCommon.js';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import { CONTEXT_FIND_WIDGET_VISIBLE, ToggleCaseSensitiveKeybinding, ToggleWholeWordKeybinding, ToggleRegexKeybinding } from '../../../../../../editor/contrib/find/browser/findModel.js';
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
@@ -317,3 +317,80 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.toggleFindCaseSensitive',
+			title: localize2('notebookActions.toggleFindCaseSensitive', 'Notebook Find: Toggle Match Case'),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE),
+				primary: ToggleCaseSensitiveKeybinding.primary,
+				mac: ToggleCaseSensitiveKeybinding.mac,
+				weight: KeybindingWeight.WorkbenchContrib + 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+		controller?.toggleCaseSensitive();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.toggleFindWholeWord',
+			title: localize2('notebookActions.toggleFindWholeWord', 'Notebook Find: Toggle Match Whole Word'),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE),
+				primary: ToggleWholeWordKeybinding.primary,
+				mac: ToggleWholeWordKeybinding.mac,
+				weight: KeybindingWeight.WorkbenchContrib + 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+		controller?.toggleWholeWord();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.toggleFindRegex',
+			title: localize2('notebookActions.toggleFindRegex', 'Notebook Find: Toggle Use Regular Expression'),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE),
+				primary: ToggleRegexKeybinding.primary,
+				mac: ToggleRegexKeybinding.mac,
+				weight: KeybindingWeight.WorkbenchContrib + 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+		controller?.toggleRegex();
+	}
+});
