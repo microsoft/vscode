@@ -1147,7 +1147,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Group 2: ways to run and customize agents beyond the default Chat experience
 		const moreGroup = append(features, $('.onboarding-a-sessions-group'));
 		const moreLabel = append(moreGroup, $('div.onboarding-a-sessions-group-label'));
-		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents That Work Your Way");
+		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents that work your way");
 		const moreGrid = append(moreGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(moreGrid, Codicon.rocket,
