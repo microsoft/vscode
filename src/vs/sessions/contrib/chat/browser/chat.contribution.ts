@@ -33,6 +33,7 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
+import './mobile/mobileCodeBlockOverlay.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
 
