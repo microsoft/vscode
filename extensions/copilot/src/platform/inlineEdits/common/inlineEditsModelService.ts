@@ -8,6 +8,11 @@ import { createServiceIdentifier } from '../../../util/common/services';
 import { Event } from '../../../util/vs/base/common/event';
 import { ModelConfiguration } from './dataTypes/xtabPromptOptions';
 
+export interface SelectedModel {
+	readonly config: ModelConfiguration;
+	readonly source: string;
+}
+
 export interface IInlineEditsModelService {
 	readonly _serviceBrand: undefined;
 
@@ -17,7 +22,7 @@ export interface IInlineEditsModelService {
 
 	setCurrentModelId(modelId: string): Promise<void>;
 
-	selectedModelConfiguration(): ModelConfiguration;
+	selectedModel(): SelectedModel;
 
 	defaultModelConfiguration(): ModelConfiguration;
 }

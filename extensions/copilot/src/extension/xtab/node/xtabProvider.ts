@@ -273,9 +273,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.Uncategorized(new Error('NoSelection'));
 		}
 
-		const { promptOptions, modelServiceConfig } = this.determineModelConfiguration(activeDocument);
+		const { promptOptions, modelServiceConfig, modelSource } = this.determineModelConfiguration(activeDocument);
 
-		telemetry.setModelConfig(JSON.stringify(modelServiceConfig));
+		telemetry.setModelConfig(JSON.stringify({ ...modelServiceConfig, source: modelSource }));
 
 		const endpoint = this.getEndpointWithLogging(promptOptions.modelName, logContext, telemetry);
 
@@ -1388,7 +1388,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return new OffsetRange(codeToEditStart, codeToEditEndExcl);
 	}
 
-	private determineModelConfiguration(activeDocument: StatelessNextEditDocument): { promptOptions: ModelConfig; modelServiceConfig: xtabPromptOptions.ModelConfiguration } {
+	private determineModelConfiguration(activeDocument: StatelessNextEditDocument): { promptOptions: ModelConfig; modelServiceConfig: xtabPromptOptions.ModelConfiguration; modelSource: string } {
 		if (this.forceUseDefaultModel) {
 			const defaultOptions = {
 				modelName: undefined,
@@ -1397,7 +1397,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			const defaultModelConfig = this.modelService.defaultModelConfiguration();
 			return {
 				promptOptions: overrideModelConfig(defaultOptions, defaultModelConfig),
-				modelServiceConfig: defaultModelConfig
+				modelServiceConfig: defaultModelConfig,
+				modelSource: 'forceUseDefaultModel',
 			};
 		}
 
@@ -1450,14 +1451,15 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				: undefined,
 		};
 
-		const selectedModelConfig = this.modelService.selectedModelConfiguration();
+		const { config: selectedModelConfig, source: modelSource } = this.modelService.selectedModel();
 		// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard code it to true for CopilotNesXtab strategy
 		const modelConfig: xtabPromptOptions.ModelConfiguration = selectedModelConfig.promptingStrategy === xtabPromptOptions.PromptingStrategy.CopilotNesXtab
 			? { ...selectedModelConfig, includeTagsInCurrentFile: true }
 			: selectedModelConfig;
 		return {
 			promptOptions: overrideModelConfig(sourcedModelConfig, modelConfig),
-			modelServiceConfig: modelConfig
+			modelServiceConfig: modelConfig,
+			modelSource,
 		};
 	}
 

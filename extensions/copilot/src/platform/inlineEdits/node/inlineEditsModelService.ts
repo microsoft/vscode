@@ -11,7 +11,7 @@ import { pushMany } from '../../../util/vs/base/common/arrays';
 import { assertNever, softAssert } from '../../../util/vs/base/common/assert';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { derived, IObservable, observableFromEvent } from '../../../util/vs/base/common/observable';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../util/vs/base/common/observable';
 import { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ConfigKey, ExperimentBasedConfig, IConfigurationService } from '../../configuration/common/configurationService';
@@ -136,6 +136,45 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		this.onModelListUpdated = Event.fromObservableLight(this._modelInfoObs);
+
+		// Diagnostic telemetry: track model changes to diagnose intermittent switching
+		let previousModelName: string | undefined;
+		this._register(autorun(reader => {
+			const currentModel = this._currentModelObs.read(reader);
+			const models = this._modelsObs.read(reader);
+			const modelName = currentModel.modelName;
+			if (previousModelName !== undefined && previousModelName !== modelName) {
+				const fetchedNames = this._proxyModelsService.nesModels?.map(m => m.name).join(',') ?? 'undefined';
+				const copilotToken = this._tokenStore.copilotToken;
+				/* __GDPR__
+					"nesModelChanged" : {
+						"owner": "ulugbekna",
+						"comment": "Track NES model changes within a session to diagnose intermittent switching.",
+						"previousModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model name before the switch." },
+						"newModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model name after the switch." },
+						"newModelSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Source of the new model (fetched, expConfig, hardCodedDefault, etc.)." },
+						"modelListNames": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "All model names in the current aggregated model list." },
+						"modelListSources": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sources of models in the current aggregated model list." },
+						"fetchedNesModels": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "NES model names from the latest /models response." },
+						"hasCopilotToken": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a copilot token is available.", "isMeasurement": true },
+						"isFreeUser": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user is a free tier user.", "isMeasurement": true }
+					}
+				*/
+				this._telemetryService.sendMSFTTelemetryEvent('nesModelChanged', {
+					previousModel: previousModelName,
+					newModel: modelName,
+					newModelSource: currentModel.source,
+					modelListNames: models.map(m => m.modelName).join(','),
+					modelListSources: models.map(m => m.source).join(','),
+					fetchedNesModels: fetchedNames,
+				}, {
+					hasCopilotToken: copilotToken ? 1 : 0,
+					isFreeUser: copilotToken?.isFreeUser ? 1 : 0,
+				});
+				this._logger.info(`NES model changed: ${previousModelName} → ${modelName} (source: ${currentModel.source}, fetched: [${fetchedNames}])`);
+			}
+			previousModelName = modelName;
+		}));
 	}
 
 	get modelInfo(): vscode.InlineCompletionModelInfo | undefined {
@@ -283,8 +322,9 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		return models;
 	}
 
-	public selectedModelConfiguration(): ModelConfiguration {
-		return toModelConfiguration(this._currentModelObs.get());
+	public selectedModel(): { config: ModelConfiguration; source: string } {
+		const model = this._currentModelObs.get();
+		return { config: toModelConfiguration(model), source: model.source };
 	}
 
 	public defaultModelConfiguration(): ModelConfiguration {
