@@ -1723,8 +1723,8 @@ export class SearchView extends ViewPane {
 			if (!query.folderQueries.length || existingFolderQueries.length) {
 				query.folderQueries = existingFolderQueries;
 			} else {
-				const nonExistantPath = query.folderQueries[0].folder.fsPath;
-				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
+				const nonExistentPath = query.folderQueries[0].folder.fsPath;
+				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistentPath);
 				return Promise.reject(new Error(searchPathNotFoundError));
 			}
 
