@@ -9,7 +9,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
@@ -134,19 +134,21 @@ suite('ChatQuotaNotificationContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0]) {
+	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string }) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
 		const contextKeyService = store.add(new MockContextKeyService());
-		// Simulate a Copilot model being selected so notifications are shown
-		contextKeyService.createKey('chatModelId', 'gpt-4.1');
+		const storageService = store.add(new InMemoryStorageService());
+		const vendor = modelOpts?.vendor ?? 'copilot';
+		// Persist model selection in storage (used by getSelectedModelVendor)
+		storageService.store('chat.currentLanguageModel.panel', `${vendor}/test-model`, StorageScope.APPLICATION, StorageTarget.USER);
 		const languageModelsService = {
 			_serviceBrand: undefined,
 			onDidChangeLanguageModelVendors: Event.None,
 			onDidChangeLanguageModels: Event.None,
-			getLanguageModelIds: () => ['gpt-4.1'],
+			getLanguageModelIds: () => ['test-model'],
 			getVendors: () => [],
-			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => ({ vendor: 'copilot' } as ILanguageModelChatMetadata),
+			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => ({ vendor } as ILanguageModelChatMetadata),
 			lookupLanguageModelByQualifiedName: () => undefined,
 		} as unknown as ILanguageModelsService;
 
@@ -160,10 +162,10 @@ suite('ChatQuotaNotificationContribution', () => {
 			notificationMock.service,
 			contextKeyService as IContextKeyService,
 			languageModelsService,
-			store.add(new InMemoryStorageService()),
+			storageService,
 		));
 
-		return { contribution, entitlementMock, notificationMock };
+		return { contribution, entitlementMock, notificationMock, storageService };
 	}
 
 	function updateQuotas(
@@ -545,6 +547,49 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(notificationMock.lastNotification);
 			assert.strictEqual(notificationMock.lastNotification!.description, 'Set additional budget to cover extra usage.');
 			assert.strictEqual(notificationMock.lastNotification!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
+		});
+	});
+
+	// --- BYOK model suppression ---------------------------------------------
+
+	suite('BYOK model suppression', () => {
+		test('defers notifications when BYOK model is selected', () => {
+			const { notificationMock } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				{ vendor: 'customendpoint' },
+			);
+
+			assert.strictEqual(notificationMock.lastNotification, undefined);
+		});
+
+		test('shows notification when Copilot model is selected', () => {
+			const { notificationMock } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				{ vendor: 'copilot' },
+			);
+
+			assert.ok(notificationMock.lastNotification);
+			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+		});
+
+		test('shows notification when switching from BYOK to Copilot model', () => {
+			const { entitlementMock, notificationMock, storageService } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
+				{ vendor: 'customendpoint' },
+			);
+
+			// Initially deferred
+			assert.strictEqual(notificationMock.lastNotification, undefined);
+
+			// Switch to Copilot model via storage
+			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.APPLICATION, StorageTarget.USER);
+
+			// Storage change triggers _update, but quota data hasn't changed so
+			// we need to also fire the quota event to trigger re-evaluation
+			entitlementMock.onDidChangeQuotaRemaining.fire();
+
+			assert.ok(notificationMock.lastNotification);
+			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
 		});
 	});
 });
