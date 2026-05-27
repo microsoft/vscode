@@ -5,10 +5,11 @@
 
 /**
  * Integration tests for {@link CopilotApiService.utilityChatCompletion} that
- * hit live GitHub Copilot CAPI. Requires a real GitHub OAuth token with
- * Copilot access in the `COPILOT_GITHUB_TOKEN` environment variable
- * (falls back to `GITHUB_TOKEN`). When neither is set the tests skip,
- * keeping `scripts/test-integration.sh` green in offline / token-less CI.
+ * hit live GitHub Copilot CAPI. Opt-in only: requires a real GitHub OAuth
+ * token with Copilot entitlement in the `COPILOT_GITHUB_TOKEN` environment
+ * variable. We deliberately do NOT read `GITHUB_TOKEN` — GitHub Actions
+ * sets it for every workflow run but it lacks Copilot access, which would
+ * make `scripts/test-integration.sh` fail on PRs instead of skipping.
  *
  * Run via `scripts/test-integration.sh`.
  */
@@ -23,7 +24,7 @@ import { CopilotApiService } from '../../../node/shared/copilotApiService.js';
 suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const githubToken = process.env.COPILOT_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+	const githubToken = process.env.COPILOT_GITHUB_TOKEN;
 	const hasToken = !!githubToken;
 
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
@@ -60,27 +61,22 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 		assert.strictEqual(answer.trim().toLowerCase(), 'olleh');
 	});
 
-	(hasToken ? test : test.skip)('caches the Copilot session token across calls (second call is faster than the first)', async function () {
+	(hasToken ? test : test.skip)('caches the Copilot session token across calls', async function () {
 		this.timeout(60_000);
 		const service = createService();
 
-		const t0 = Date.now();
 		const first = await service.utilityChatCompletion(githubToken!, {
 			messages: [{ role: 'user', content: 'Say "ok" and nothing else.' }],
 		});
-		const firstMs = Date.now() - t0;
-
-		const t1 = Date.now();
 		const second = await service.utilityChatCompletion(githubToken!, {
 			messages: [{ role: 'user', content: 'Say "ok" and nothing else.' }],
 		});
-		const secondMs = Date.now() - t1;
 
+		// Both calls succeed; the second is served from the cached
+		// Copilot token + resolved model id. Cache-hit assertions live in
+		// the unit-test suite (see copilotApiService.test.ts) where we can
+		// count `RequestType.CopilotToken` calls against a fake fetch.
 		assert.ok(first.toLowerCase().includes('ok'));
 		assert.ok(second.toLowerCase().includes('ok'));
-		// The second call should reuse the cached Copilot token + resolved
-		// model id; we don't assert an exact delta to avoid flakiness, only
-		// that nothing throws and both calls return text.
-		assert.ok(secondMs >= 0 && firstMs >= 0);
 	});
 });

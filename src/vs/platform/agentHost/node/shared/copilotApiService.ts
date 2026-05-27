@@ -49,8 +49,10 @@ export interface ICopilotUtilityChatMessage {
  *
  * `temperature` defaults to `0.1` (matching the Copilot Chat extension's
  * default `IConversationOptions.temperature`). All other parameters
- * (`top_p`, model family, `max_tokens`) are fixed defaults inside the
- * service — callers should not need to tune them for utility flows.
+ * (`top_p`, model family) are fixed defaults inside the service — callers
+ * should not need to tune them for utility flows. `max_tokens` is left
+ * unset so CAPI applies its per-model default, matching what the
+ * extension's `copilot-utility-small` endpoint sends today.
  */
 export interface ICopilotUtilityChatCompletionRequest {
 	readonly messages: readonly ICopilotUtilityChatMessage[];
@@ -770,16 +772,26 @@ export class CopilotApiService implements ICopilotApiService {
 				if (entry.expiresAt - nowSeconds > COPILOT_TOKEN_REFRESH_BUFFER_SECONDS) {
 					return entry.token;
 				}
-				this._copilotTokensByGithub.delete(githubToken);
+				// Stale — evict only if the map still points at this
+				// promise. A concurrent caller may already have raced ahead
+				// and minted a fresh token; deleting unconditionally would
+				// evict that newer entry and cause a redundant re-mint.
+				if (this._copilotTokensByGithub.get(githubToken) === existing) {
+					this._copilotTokensByGithub.delete(githubToken);
+				}
 				return this._getCopilotToken(githubToken);
 			}).catch(err => {
-				this._copilotTokensByGithub.delete(githubToken);
+				if (this._copilotTokensByGithub.get(githubToken) === existing) {
+					this._copilotTokensByGithub.delete(githubToken);
+				}
 				throw err;
 			});
 		}
 
-		const pending = this._buildCopilotToken(githubToken).catch(err => {
-			this._copilotTokensByGithub.delete(githubToken);
+		const pending: Promise<ICachedCopilotToken> = this._buildCopilotToken(githubToken).catch(err => {
+			if (this._copilotTokensByGithub.get(githubToken) === pending) {
+				this._copilotTokensByGithub.delete(githubToken);
+			}
 			throw err;
 		});
 		this._copilotTokensByGithub.set(githubToken, pending);
@@ -816,9 +828,22 @@ export class CopilotApiService implements ICopilotApiService {
 			throw new Error('Copilot session token mint returned malformed envelope');
 		}
 
+		// Prefer `now + refresh_in` over the server-reported `expires_at`:
+		// users with a fast local clock can see `expires_at` already in the
+		// past, which would cause us to re-mint on every call. Mirror what
+		// the Copilot Chat extension's `RefreshableCopilotTokenManager`
+		// does. Floor at `now + 60s` so a malformed/short `refresh_in`
+		// can't trigger a tight re-mint loop.
+		const nowSeconds = Date.now() / 1000;
+		const refreshIn = typeof envelope.refresh_in === 'number' ? envelope.refresh_in : undefined;
+		const expiresAt = Math.max(
+			refreshIn !== undefined ? nowSeconds + refreshIn : envelope.expires_at,
+			nowSeconds + 60,
+		);
+
 		return {
 			token: envelope.token,
-			expiresAt: envelope.expires_at,
+			expiresAt,
 			modelIdsByFamily: new Map(),
 		};
 	}
