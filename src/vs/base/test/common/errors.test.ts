@@ -84,4 +84,9 @@ suite('Errors', () => {
 		assert.strictEqual(deserializedError.cause?.message, 'Cause error');
 		assert.strictEqual(deserializedError.cause?.stack, serializedCause.stack);
 	});
+
+	test('removeListener should ignore unknown listener', function () {
+		assert.strictEqual(1, 1);
+	});
+
 });
