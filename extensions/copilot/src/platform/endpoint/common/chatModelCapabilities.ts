@@ -414,11 +414,13 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
  * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
  * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
  * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
+ * - OpenAI iris-alpha (via Responses API client-side tool search)
  */
 export function modelSupportsToolSearch(modelId: string): boolean {
 	const normalized = modelId.toLowerCase().replace(/\./g, '-');
 	return normalized === 'gpt-5-4' ||
 		normalized === 'gpt-5-5' ||
+		normalized === 'iris-alpha' ||
 		normalized.startsWith('claude-sonnet-4-5') ||
 		normalized.startsWith('claude-sonnet-4-6') ||
 		normalized.startsWith('claude-opus-4-5') ||

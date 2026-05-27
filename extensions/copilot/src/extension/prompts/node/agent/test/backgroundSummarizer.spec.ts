@@ -257,7 +257,7 @@ describe('BackgroundSummarizer', () => {
 const { warmTokenJitterMin, warmTokenJitterSpan, emergency } = BackgroundSummarizationThresholds;
 
 // rng that always returns 0.5 -> threshold sits exactly at the center of the
-// jitter range. For the temporary testing threshold, that's 1000 tokens.
+// jitter range. For the temporary testing threshold, that's 105 tokens.
 const midRng = () => 0.5;
 // rng that forces the maximum of the jitter range.
 const maxRng = () => 1 - Number.EPSILON;

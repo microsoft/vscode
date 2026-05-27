@@ -45,9 +45,9 @@ export interface IBackgroundSummarizationResult {
  */
 export const BackgroundSummarizationThresholds = {
 	/** Temporary testing threshold: minimum of the warm-cache token range. */
-	warmTokenJitterMin: 950,
-	/** Width of the warm-cache token range; together with `warmTokenJitterMin` yields [950, 1050). */
-	warmTokenJitterSpan: 100,
+	warmTokenJitterMin: 100,
+	/** Width of the warm-cache token range; together with `warmTokenJitterMin` yields [100, 110). */
+	warmTokenJitterSpan: 10,
 	/**
 	 * Cold-cache emergency ratio. Above this we kick off even without a warmed
 	 * cache to avoid forcing a foreground sync compaction on the next render.
@@ -62,7 +62,7 @@ export const BackgroundSummarizationThresholds = {
  *
  * Prompt-cache parity matters, so we:
  *   - require a completed tool call in this turn ("warm" cache) before
- *     firing at the temporary testing threshold of ~1000 tokens;
+ *     firing at the temporary testing threshold of ~100 tokens;
  *   - allow an emergency kick-off at >= 0.90 even with a cold cache to
  *     avoid forcing a foreground sync compaction on the next render.
  *

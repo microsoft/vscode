@@ -134,10 +134,12 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		text: verbosity ? { verbosity } : undefined,
 	};
 
-	body.input = [
-		...(body.input ?? []),
-		createResponsesApiCompactionTriggerInputItem(),
-	];
+	if (shouldTriggerResponsesApiCompaction) {
+		body.input = [
+			...(body.input ?? []),
+			createResponsesApiCompactionTriggerInputItem(),
+		];
+	}
 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
@@ -329,12 +331,18 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		markerIndex = undefined;
 	}
 
+	// A compaction item is an explicit retained-history boundary when no stateful
+	// continuation can be used, including the first request after a mode change.
+	// Current system instructions are preserved below so the compacted context is
+	// interpreted using the instructions for this request rather than the old mode.
+	const compactionIndex = markerIndex === undefined ? getLatestCompactionMessageIndex(messages) : undefined;
+
 	const toolSearchCallIds = new Set<string>();
 	const toolSearchLoadedTools = new Set<string>();
 	// Only pre-scan when history will be sliced (matches the slicing block below);
 	// otherwise the serialization loop visits each tool_search_call before its
 	// result and populates these sets in order on its own.
-	const willSliceHistory = markerIndex !== undefined;
+	const willSliceHistory = markerIndex !== undefined || compactionIndex !== undefined;
 	if (willSliceHistory) {
 		for (const message of messages) {
 			if (message.role === Raw.ChatRole.Assistant && message.toolCalls) {
@@ -358,6 +366,13 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 	if (markerIndex !== undefined) {
 		// Requests that resume from previous_response_id send only post-marker history.
 		messages = messages.slice(markerIndex + 1);
+	} else if (compactionIndex !== undefined) {
+		// Compaction replaces the prior conversational history, but current request
+		// instructions must still be sent explicitly (notably after mode changes).
+		messages = [
+			...messages.slice(0, compactionIndex).filter(message => message.role === Raw.ChatRole.System),
+			...messages.slice(compactionIndex),
+		];
 	}
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
@@ -547,6 +562,16 @@ function extractCompactionData(content: Raw.ChatCompletionContentPart[]): OpenAI
 			}
 		}
 	}));
+}
+
+function getLatestCompactionMessageIndex(messages: readonly Raw.ChatMessage[]): number | undefined {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (message.role === Raw.ChatRole.Assistant && extractCompactionData(message.content).length > 0) {
+			return index;
+		}
+	}
+	return undefined;
 }
 
 /**

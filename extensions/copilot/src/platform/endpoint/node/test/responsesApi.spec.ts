@@ -639,6 +639,51 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
+	it('retains compacted context and current instructions when modeChanged invalidates an HTTP marker', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const latestCompaction = createCompactionResponse('cmp_agent', 'enc_agent');
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.System,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'new plan mode instructions' }],
+			},
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'history captured by compaction' }],
+			},
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-agent'),
+			createCompactionAssistantMessage(latestCompaction),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'plan this next step' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), modeChanged: true }, testEndpoint.model, testEndpoint));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toEqual([
+			{
+				role: 'system',
+				content: [{ type: 'input_text', text: 'new plan mode instructions' }],
+			},
+			{
+				type: openAIContextManagementCompactionType,
+				id: 'cmp_agent',
+				encrypted_content: 'enc_agent',
+			},
+			{
+				role: 'user',
+				content: [{ type: 'input_text', text: 'plan this next step' }],
+			},
+		]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('round-trips the newest stored compaction item', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
