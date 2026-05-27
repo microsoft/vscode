@@ -32,6 +32,8 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
 import { BaseTokensPerCompletion } from '../../../platform/tokenizer/node/tokenizer';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
+import { raceCancellation } from '../../../util/vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isBoolean, isDefined, isNumber, isString, isStringArray } from '../../../util/vs/base/common/types';
@@ -232,6 +234,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private _utilityAliasEndpoints: Map<string, IChatEndpoint> = new Map();
 	// Overrides resolved outside model-info publication, reused on the next alias publish.
 	private readonly _resolvedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
+	private readonly _utilityOverrideRefreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _lmWrapper: CopilotLanguageModelWrapper;
 	private _promptBaseCountCache: LanguageModelAccessPromptBaseCountCache;
 
@@ -263,6 +266,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	override dispose(): void {
+		this._cancelUtilityOverrideRefresh();
 		super.dispose();
 	}
 
@@ -436,21 +440,47 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		// Override resolution may hang, so keep it off the model-info request path.
-		void this._refreshUtilityOverrides().catch(err => {
-			this._logService.warn(`[LanguageModelAccess] Failed to refresh utility overrides: ${err}`);
-		});
+		void this._refreshUtilityOverrides();
+	}
+
+	/** Refreshes utility alias overrides in the background. Newer attempts supersede older ones. */
+	private async _refreshUtilityOverrides(): Promise<void> {
+		this._store.assertNotDisposed();
+		this._cancelUtilityOverrideRefresh();
+		const cancellationTokenSource = new CancellationTokenSource();
+		this._utilityOverrideRefreshCancellation.value = cancellationTokenSource;
+		try {
+			await this._doRefreshUtilityOverrides(cancellationTokenSource.token);
+		} catch (err) {
+			this._logService.trace(`[LanguageModelAccess] Skipped utility overrides refresh: ${err}`);
+		} finally {
+			if (this._utilityOverrideRefreshCancellation.value === cancellationTokenSource) {
+				this._utilityOverrideRefreshCancellation.clear();
+			}
+		}
+	}
+
+	private _cancelUtilityOverrideRefresh(): void {
+		this._utilityOverrideRefreshCancellation.value?.cancel();
+		this._utilityOverrideRefreshCancellation.clear();
 	}
 
 	/** Resolves configured utility model overrides for the next alias publish. */
-	private async _refreshUtilityOverrides(): Promise<void> {
-		let didChange = false;
+	private async _doRefreshUtilityOverrides(token: CancellationToken): Promise<void> {
+		const refreshedUtilityEndpoints = new Map<ChatEndpointFamily, { endpoint: IChatEndpoint; baseCount: number }>();
 		for (const family of utilityAliasFamilies) {
+			if (token.isCancellationRequested) {
+				return;
+			}
 			let resolved: IChatEndpoint | undefined;
 			try {
-				resolved = await this._endpointProvider.getChatEndpoint(family);
+				resolved = await raceCancellation(this._endpointProvider.getChatEndpoint(family), token);
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to resolve utility alias '${family}' in background: ${err}`);
 				continue;
+			}
+			if (token.isCancellationRequested) {
+				return;
 			}
 			if (!resolved) {
 				continue;
@@ -461,17 +491,22 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (published && published.model === resolved.model && published.modelProvider === resolved.modelProvider) {
 				continue;
 			}
-			let baseCount: number;
+			let baseCount: number | undefined;
 			try {
-				baseCount = await this._promptBaseCountCache.getBaseCount(resolved);
+				baseCount = await raceCancellation(this._promptBaseCountCache.getBaseCount(resolved), token);
 			} catch (err) {
 				this._logService.warn(`[LanguageModelAccess] Failed to compute baseCount for utility alias '${family}' -> ${resolved.model}; keeping previously-published alias. Error: ${err}`);
 				continue;
 			}
-			this._resolvedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
-			didChange = true;
+			if (token.isCancellationRequested || baseCount === undefined) {
+				return;
+			}
+			refreshedUtilityEndpoints.set(family, { endpoint: resolved, baseCount });
 		}
-		if (didChange) {
+		if (refreshedUtilityEndpoints.size > 0 && !token.isCancellationRequested) {
+			for (const [family, resolvedUtilityEndpoint] of refreshedUtilityEndpoints) {
+				this._resolvedUtilityEndpoints.set(family, resolvedUtilityEndpoint);
+			}
 			this._onDidChange.fire();
 		}
 	}

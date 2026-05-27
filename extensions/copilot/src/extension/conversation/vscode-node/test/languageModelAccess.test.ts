@@ -21,6 +21,7 @@ import { ITestingServicesAccessor } from '../../../../platform/test/node/service
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { DeferredPromise, raceTimeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../util/vs/base/common/errors';
 import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
@@ -209,6 +210,12 @@ suite('LanguageModelAccess model info', () => {
 			assert.ok(aliasLookupStarted.isResolved, 'expected utility alias lookup to have been started in the background');
 		} finally {
 			languageModelAccess.dispose();
+			// Release the stalled alias-resolution promise so it doesn't linger
+			// past the test. Refresh cancellation also unblocks any
+			// `raceCancellation` waiters internally.
+			if (!unresolvedAliasEndpoint.isResolved) {
+				unresolvedAliasEndpoint.error(new Error('test teardown'));
+			}
 			await extensionContext.globalState.update(baseCountCacheKey, undefined);
 		}
 	});
@@ -246,6 +253,134 @@ suite('LanguageModelAccess model info', () => {
 			assert.strictEqual(internals._resolvedUtilityEndpoints.get('copilot-utility-small')?.endpoint, resolvedEndpoint);
 		} finally {
 			languageModelAccess.dispose();
+		}
+	});
+
+	test('cancels stalled background refreshes on dispose', async () => {
+		let callCount = 0;
+		const gate = new DeferredPromise<IChatEndpoint>();
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => {
+				callCount++;
+				return gate.p;
+			},
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = { getBaseCount: async () => 0 };
+		try {
+			const refresh = internals._refreshUtilityOverrides();
+			// Let microtasks settle so the active refresh starts its first await.
+			await new Promise<void>(resolve => setImmediate(resolve));
+			assert.strictEqual(callCount, 1, 'expected a background refresh to start resolving utility overrides');
+
+			// Disposing should cancel the active background refresh, so it
+			// resolves even though the upstream `getChatEndpoint`
+			// promise never settles.
+			languageModelAccess.dispose();
+			const settled = await raceTimeout(refresh.then(() => true), 2_000);
+			assert.ok(settled, 'expected the pending refresh to resolve after dispose cancelled it');
+			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0, 'expected no overrides to be recorded once cancelled');
+		} finally {
+			if (!gate.isResolved) {
+				gate.error(new Error('test teardown'));
+			}
+		}
+	});
+
+	test('does not start utility override refreshes after dispose', async () => {
+		let callCount = 0;
+		const gate = new DeferredPromise<IChatEndpoint>();
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => {
+				callCount++;
+				return gate.p;
+			},
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		const previousUnexpectedErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => { throw error; });
+		languageModelAccess.dispose();
+		try {
+			await assert.rejects(() => internals._refreshUtilityOverrides(), { message: 'Object disposed' });
+			assert.strictEqual(callCount, 0);
+		} finally {
+			setUnexpectedErrorHandler(previousUnexpectedErrorHandler);
+			if (!gate.isResolved) {
+				gate.error(new Error('test teardown'));
+			}
+		}
+	});
+
+	test('lets a newer background refresh supersede a stalled refresh', async () => {
+		let callCount = 0;
+		const stalledRefresh = new DeferredPromise<IChatEndpoint>();
+		const resolvedEndpoint = {
+			model: 'gpt-4o-mini',
+			modelProvider: 'copilot',
+		} as IChatEndpoint;
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => {
+				callCount++;
+				return callCount === 1 ? stalledRefresh.p : resolvedEndpoint;
+			},
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = { getBaseCount: async () => 0 };
+		try {
+			const firstRefresh = internals._refreshUtilityOverrides();
+			await new Promise<void>(resolve => setImmediate(resolve));
+			assert.strictEqual(callCount, 1, 'expected the first refresh to wait on the stalled endpoint lookup');
+
+			const newerRefreshes = Promise.all([
+				internals._refreshUtilityOverrides(),
+				internals._refreshUtilityOverrides(),
+			]);
+			const settledNewerRefreshes = await raceTimeout(newerRefreshes, 2_000);
+			assert.ok(settledNewerRefreshes, 'expected newer refreshes to run without waiting for the stalled lookup');
+			assert.ok(callCount > 1, 'expected utility override resolution to retry after the stalled refresh was superseded');
+
+			const settledFirstRefresh = await raceTimeout(firstRefresh.then(() => true), 2_000);
+			assert.ok(settledFirstRefresh, 'expected the superseded stalled refresh to resolve after cancellation');
+			assert.strictEqual(internals._resolvedUtilityEndpoints.get('copilot-utility-small')?.endpoint, resolvedEndpoint, 'expected the newer refresh to record utility overrides');
+		} finally {
+			languageModelAccess.dispose();
+			if (!stalledRefresh.isResolved) {
+				stalledRefresh.error(new Error('test teardown'));
+			}
 		}
 	});
 });
