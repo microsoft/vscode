@@ -406,6 +406,34 @@ describe('ChatSessionContentProvider', () => {
 			expect(restoredGroup!.selected?.id).toBe('plan');
 		});
 
+		it('uses the last live permission option change for new sessions', async () => {
+			provider.provideHandleOptionsChange(createClaudeSessionUri('changed-session'), [
+				{ optionId: 'permissionMode', value: 'default' }
+			], CancellationToken.None);
+
+			const state = await getInputState();
+
+			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
+		});
+
+		it('uses the last sent permission mode for new sessions', async () => {
+			await runHandlerAndCapture(provider, accessor, 'sent-default-session', mockSessionService, { permissionMode: 'default' });
+
+			const state = await getInputState();
+
+			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
+		});
+
+		it('ignores invalid live permission option changes for new sessions', async () => {
+			provider.provideHandleOptionsChange(createClaudeSessionUri('invalid-session'), [
+				{ optionId: 'permissionMode', value: 'garbage' }
+			], CancellationToken.None);
+
+			const state = await getInputState();
+
+			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('acceptEdits');
+		});
+
 		it('does not include folder group for single-root workspace', async () => {
 			const state = await getInputState();
 			const folderGroup = getGroup(state, 'folder');
