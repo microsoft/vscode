@@ -6,8 +6,11 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
@@ -45,12 +48,21 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
+
+		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK)
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([ChatContextKeys.chatModelId.key]))) {
+				this._update();
+			}
+		}));
 
 		// Check initial state in case quota is already exhausted at startup
 		this._update();
@@ -82,6 +94,12 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const entitlement = this._chatEntitlementService.entitlement;
+
+		// Defer new notifications when a BYOK model is selected — quota only
+		// applies to Copilot models. Already-shown notifications stay visible.
+		if (this._isUsingByokModel()) {
+			return;
+		}
 
 		// Skip quota notifications for PRU users — only show for UBB.
 		const isQuotaNotificationEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
@@ -313,6 +331,18 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	// --- Helpers ------------------------------------------------------------
+
+	private _isUsingByokModel(): boolean {
+		const modelId = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatModelId.key);
+		if (!modelId) {
+			return false; // no model selected — treat as Copilot (show notifications)
+		}
+		const metadata = this._languageModelsService.lookupLanguageModel(modelId);
+		if (!metadata) {
+			return false; // unknown model — treat as Copilot
+		}
+		return metadata.vendor !== COPILOT_VENDOR_ID;
+	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
 		return entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;

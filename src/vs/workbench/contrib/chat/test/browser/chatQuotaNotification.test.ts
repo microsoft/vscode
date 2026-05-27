@@ -7,8 +7,11 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 // --- Mock IChatEntitlementService -------------------------------------------
@@ -133,6 +136,16 @@ suite('ChatQuotaNotificationContribution', () => {
 	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0]) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
+		const contextKeyService = store.add(new MockContextKeyService());
+		const languageModelsService = {
+			_serviceBrand: undefined,
+			onDidChangeLanguageModelVendors: Event.None,
+			onDidChangeLanguageModels: Event.None,
+			getLanguageModelIds: () => [],
+			getVendors: () => [],
+			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => undefined,
+			lookupLanguageModelByQualifiedName: () => undefined,
+		} as unknown as ILanguageModelsService;
 
 		// Track disposables for emitters
 		store.add(entitlementMock.onDidChangeQuotaRemaining);
@@ -142,6 +155,8 @@ suite('ChatQuotaNotificationContribution', () => {
 		const contribution = store.add(new ChatQuotaNotificationContribution(
 			entitlementMock.service,
 			notificationMock.service,
+			contextKeyService as IContextKeyService,
+			languageModelsService,
 		));
 
 		return { contribution, entitlementMock, notificationMock };
