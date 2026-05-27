@@ -1138,7 +1138,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		this._createFeatureCard(chatGrid, Codicon.listOrdered,
 			localize('onboarding.sessions.planMode', "Plan"),
-			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an implementation agent to execute."));
+			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an agent to execute."));
 
 		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
 			localize('onboarding.sessions.agentMode', "Agent"),
