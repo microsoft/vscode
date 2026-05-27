@@ -153,9 +153,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			const sourceLabel = getAgentSourceLabel(mode.source);
-			const sourceTooltip = getAgentSourceTooltip(mode.source);
-			const baseHoverContent = mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
-			const hoverContent = sourceTooltip ? `${baseHoverContent}\n\n${sourceTooltip}` : baseHoverContent;
+			const hoverContent = mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
@@ -339,18 +337,6 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 function getAgentSourceLabel(source: IAgentSource | undefined): MarkdownString | undefined {
 	if (source?.storage === PromptsStorage.user) {
 		return new MarkdownString('$(account)', { supportThemeIcons: true });
-	}
-	return undefined;
-}
-
-/**
- * Returns a localized tooltip string that explains the origin of an agent.
- * Only user-scoped agents need a tooltip since workspace agents are obvious
- * from context.
- */
-function getAgentSourceTooltip(source: IAgentSource | undefined): string | undefined {
-	if (source?.storage === PromptsStorage.user) {
-		return localize('agentSourceUserTooltip', "Personal agent (available across all workspaces)");
 	}
 	return undefined;
 }

@@ -1374,17 +1374,11 @@ export class ActionListWidget<T> extends Disposable {
 		}
 	}
 
-	private _computeToolbarWidth(item: IActionListItem<T>): number {
-		let actionCount = item.toolbarActions?.length ?? 0;
-		if (item.onRemove) {
-			actionCount++;
-		}
-		if (actionCount === 0) {
-			return 0;
-		}
-		// Each toolbar action button is ~22px (16px icon + padding) plus 6px row gap
-		const actionButtonWidth = 22;
-		return actionCount * actionButtonWidth + 6;
+	private _computeToolbarWidth(_item: IActionListItem<T>): number {
+		// Toolbar space is always reserved in the layout via CSS (display: flex; opacity: 0)
+		// for items that have toolbar actions, so the natural DOM measurement already includes
+		// the toolbar width. No additional width needs to be added here.
+		return 0;
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {
