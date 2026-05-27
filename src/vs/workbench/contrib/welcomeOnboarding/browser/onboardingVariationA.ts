@@ -482,7 +482,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to continue with AI-powered development.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to use GitHub Copilot.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 

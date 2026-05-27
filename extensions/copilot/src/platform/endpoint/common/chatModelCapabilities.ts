@@ -458,7 +458,7 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 			n.startsWith('claude-opus-4-6') ||
 			n.startsWith('claude-opus-4-7');
 	};
-	return matches(id) || matches(family) || isHiddenModelM(id);
+	return matches(id) || matches(family) || isHiddenModelM(family);
 }
 
 /**
