@@ -393,6 +393,38 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
+		// Open the current (working tree) version of the file, rather than the
+		// historical snapshot. The historical version is shown when the user
+		// clicks the row in the graph.
+		const currentFileUri = URI.file(historyItemChange.modifiedUri.fsPath);
+		await editorService.openEditor({ resource: currentFileUri });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.openFileAtCommit',
+			title: localize('openFileAtCommit', "Open File at Commit"),
+			icon: Codicon.history,
+			f1: false,
+			menu: [
+				{
+					id: MenuId.SCMHistoryItemChangeContext,
+					group: '0_view',
+					order: 2
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange) {
+		const editorService = accessor.get(IEditorService);
+
+		if (!historyItem || !historyItemChange.modifiedUri) {
+			return;
+		}
+
 		let version: string;
 		if (historyItem.id === SCMIncomingHistoryItemId) {
 			version = localize('incomingChanges', "Incoming Changes");
