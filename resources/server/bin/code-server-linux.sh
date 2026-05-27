@@ -19,4 +19,4 @@ if [ -n "$VSCODE_SERVER_CUSTOM_GLIBC_LINKER" ] && [ -n "$VSCODE_SERVER_CUSTOM_GL
 	echo "Patching complete."
 fi
 
-"$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
+exec "$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
