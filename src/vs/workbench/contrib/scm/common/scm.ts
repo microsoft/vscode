@@ -214,6 +214,7 @@ export interface ISCMMenus {
 
 export const enum ISCMRepositorySortKey {
 	DiscoveryTime = 'discoveryTime',
+	RecentChanges = 'recentChanges',
 	Name = 'name',
 	Path = 'path'
 }
@@ -247,7 +248,6 @@ export interface ISCMViewService {
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;
-	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
 
 	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
 	toggleSelectionMode(selectionMode: ISCMRepositorySelectionMode): void;

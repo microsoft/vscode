@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -18,7 +18,7 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue, runOnChange } from '../../../../base/common/observable.js';
+import { derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -43,7 +43,6 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 
 export const RepositoryContextKeys = {
 	RepositorySortKey: new RawContextKey<ISCMRepositorySortKey>('scmRepositorySortKey', ISCMRepositorySortKey.DiscoveryTime),
-	RepositorySelectionMode: new RawContextKey<ISCMRepositorySelectionMode>('scmRepositorySelectionMode', ISCMRepositorySelectionMode.Single),
 };
 
 export type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
@@ -96,6 +95,7 @@ export class RepositoryPicker {
 interface ISCMRepositoryView {
 	readonly repository: ISCMRepository;
 	readonly discoveryTime: number;
+	lastResourceChangeTime: number;
 	focused: boolean;
 	selectionIndex: number;
 }
@@ -119,6 +119,7 @@ export class SCMViewService implements ISCMViewService {
 	private didSelectRepository: boolean = false;
 	private previousState: ISCMViewServiceState | undefined;
 	private readonly disposables = new DisposableStore();
+	private readonly repositoryDisposables = new DisposableMap<ISCMRepository, DisposableStore>();
 
 	private _repositories: ISCMRepositoryView[] = [];
 
@@ -230,8 +231,6 @@ export class SCMViewService implements ISCMViewService {
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
 
-	private _selectionModelContextKey: IContextKey<ISCMRepositorySelectionMode>;
-
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -243,6 +242,7 @@ export class SCMViewService implements ISCMViewService {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
+		this.disposables.add(this.repositoryDisposables);
 
 		const explorerEnabledConfig = observableConfigValue<boolean>('scm.repositories.explorer', false, this.configurationService);
 		this.graphShowIncomingChangesConfig = observableConfigValue<boolean>('scm.graph.showIncomingChanges', true, this.configurationService);
@@ -323,12 +323,6 @@ export class SCMViewService implements ISCMViewService {
 		this._sortKeyContextKey = RepositoryContextKeys.RepositorySortKey.bindTo(contextKeyService);
 		this._sortKeyContextKey.set(this._repositoriesSortKey);
 
-		this._selectionModelContextKey = RepositoryContextKeys.RepositorySelectionMode.bindTo(contextKeyService);
-		this.disposables.add(autorun(reader => {
-			const selectionMode = this.selectionModeConfig.read(reader);
-			this._selectionModelContextKey.set(selectionMode);
-		}));
-
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
@@ -352,9 +346,18 @@ export class SCMViewService implements ISCMViewService {
 			this.eventuallyFinishLoading();
 		}
 
+		const discoveryTime = Date.now();
+		const hasResources = repository.provider.groups.some(group => group.resources.length > 0);
 		const repositoryView = {
-			repository, discoveryTime: Date.now(), focused: false, selectionIndex: -1
+			repository, discoveryTime, lastResourceChangeTime: hasResources ? discoveryTime : 0, focused: false, selectionIndex: -1
 		} satisfies ISCMRepositoryView;
+
+		const repositoryDisposables = new DisposableStore();
+		repositoryDisposables.add(Event.any(
+			repository.provider.onDidChangeResourceGroups,
+			repository.provider.onDidChangeResources
+		)(() => this.onDidChangeRepository(repository)));
+		this.repositoryDisposables.set(repository, repositoryDisposables);
 
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
@@ -424,10 +427,29 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
+	private onDidChangeRepository(repository: ISCMRepository): void {
+		const repositoryView = this._repositories.find(r => r.repository === repository);
+
+		if (!repositoryView) {
+			return;
+		}
+
+		repositoryView.lastResourceChangeTime = Date.now();
+
+		if (this._repositoriesSortKey !== ISCMRepositorySortKey.RecentChanges) {
+			return;
+		}
+
+		this._repositories.sort(this.compareRepositories.bind(this));
+		this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+	}
+
 	private onDidRemoveRepository(repository: ISCMRepository): void {
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
+
+		this.repositoryDisposables.deleteAndDispose(repository);
 
 		const repositoriesIndex = this._repositories.findIndex(r => r.repository === repository);
 
@@ -465,31 +487,6 @@ export class SCMViewService implements ISCMViewService {
 		return this._repositories.find(r => r.repository === repository)?.selectionIndex !== -1;
 	}
 
-	toggleVisibility(repository: ISCMRepository, visible?: boolean): void {
-		if (typeof visible === 'undefined') {
-			visible = !this.isVisible(repository);
-		} else if (this.isVisible(repository) === visible) {
-			return;
-		}
-
-		if (visible) {
-			if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Single) {
-				this.visibleRepositories = [repository];
-			} else if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple) {
-				this.visibleRepositories = [...this.visibleRepositories, repository];
-			}
-		} else {
-			const index = this.visibleRepositories.indexOf(repository);
-
-			if (index > -1) {
-				this.visibleRepositories = [
-					...this.visibleRepositories.slice(0, index),
-					...this.visibleRepositories.slice(index + 1)
-				];
-			}
-		}
-	}
-
 	toggleSortKey(sortKey: ISCMRepositorySortKey): void {
 		this._repositoriesSortKey = sortKey;
 		this._sortKeyContextKey.set(this._repositoriesSortKey);
@@ -524,6 +521,14 @@ export class SCMViewService implements ISCMViewService {
 			return op1.discoveryTime - op2.discoveryTime;
 		}
 
+		// Sort by recent changes
+		if (this._repositoriesSortKey === ISCMRepositorySortKey.RecentChanges) {
+			const recentChangesComparison = op2.lastResourceChangeTime - op1.lastResourceChangeTime;
+			if (recentChangesComparison !== 0) {
+				return recentChangesComparison;
+			}
+		}
+
 		// Sort by path
 		if (this._repositoriesSortKey === 'path' && op1.repository.provider.rootUri && op2.repository.provider.rootUri) {
 			return comparePaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
@@ -547,10 +552,12 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private getViewSortOrder(): ISCMRepositorySortKey {
-		const sortOder = this.configurationService.getValue<'discovery time' | 'name' | 'path'>('scm.repositories.sortOrder');
+		const sortOder = this.configurationService.getValue<'discovery time' | 'recent changes' | 'name' | 'path'>('scm.repositories.sortOrder');
 		switch (sortOder) {
 			case 'discovery time':
 				return ISCMRepositorySortKey.DiscoveryTime;
+			case 'recent changes':
+				return ISCMRepositorySortKey.RecentChanges;
 			case 'name':
 				return ISCMRepositorySortKey.Name;
 			case 'path':
