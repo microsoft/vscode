@@ -625,7 +625,7 @@ export class BrowserView extends Disposable {
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
-		const buffer = image.toJPEG(quality);
+		const buffer = options?.format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
 		if (!options?.screenRect) {

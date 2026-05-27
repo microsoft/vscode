@@ -92,6 +92,9 @@ export interface IBrowserViewBounds {
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
+	/** Image format. Defaults to `'jpeg'`. */
+	format?: 'jpeg' | 'png';
+	/** Image quality (0-100). Only applies when {@link format} is `'jpeg'`. Defaults to 80. */
 	quality?: number;
 	screenRect?: { x: number; y: number; width: number; height: number };
 	pageRect?: { x: number; y: number; width: number; height: number };

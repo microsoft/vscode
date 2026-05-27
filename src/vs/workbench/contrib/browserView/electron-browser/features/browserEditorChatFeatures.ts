@@ -322,7 +322,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
 		if (attachImages) {
 			const screenshotBuffer = await model.captureScreenshot({
-				quality: 90,
+				format: 'png',
 				pageRect: bounds
 			});
 
