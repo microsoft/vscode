@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapTurnCompleted, mapTurnStarted } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { ResponsePartKind, TurnState } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 import { turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 
 suite('codexMapAppServerEvents', () => {
@@ -130,6 +130,93 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
 		});
 		assert.strictEqual(state.itemToPartId.size, 0);
+	});
+
+	test('item/started for commandExecution emits SessionToolCallStart + Delta and registers tool-call entry', () => {
+		const state = createCodexSessionMapState();
+		const actions = mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_1',
+				command: 'ls -la', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		assert.strictEqual(actions.length, 2);
+		const start = actions[0];
+		const delta = actions[1];
+		assert.strictEqual(start.type, ActionType.SessionToolCallStart);
+		assert.strictEqual(delta.type, ActionType.SessionToolCallDelta);
+		const entry = state.itemToToolCall.get('cmd_1');
+		assert.ok(entry);
+		assert.strictEqual(entry!.toolCallId, (start as { toolCallId: string }).toolCallId);
+		assert.strictEqual(entry!.turnId, 'turn_a');
+		assert.strictEqual((delta as { content: string }).content, 'ls -la');
+	});
+
+	test('item/completed for commandExecution emits SessionToolCallReady + Complete with aggregated output', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_2',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_2')!.toolCallId;
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_2',
+				command: 'echo hi', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: 'hi\n',
+				exitCode: 0, durationMs: 12,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.strictEqual(actions.length, 2);
+		const ready = actions[0] as { type: ActionType; toolCallId: string; confirmed: ToolCallConfirmationReason };
+		const complete = actions[1] as { type: ActionType; toolCallId: string; result: { success: boolean; content?: { type: ToolResultContentType; text: string }[] } };
+		assert.strictEqual(ready.type, ActionType.SessionToolCallReady);
+		assert.strictEqual(ready.toolCallId, toolCallId);
+		assert.strictEqual(ready.confirmed, ToolCallConfirmationReason.NotNeeded);
+		assert.strictEqual(complete.type, ActionType.SessionToolCallComplete);
+		assert.strictEqual(complete.toolCallId, toolCallId);
+		assert.strictEqual(complete.result.success, true);
+		assert.deepStrictEqual(complete.result.content, [{ type: ToolResultContentType.Text, text: 'hi\n' }]);
+		assert.strictEqual(state.itemToToolCall.size, 0);
+	});
+
+	test('item/completed for commandExecution with non-zero exit reports failure', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_3',
+				command: 'false', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_3',
+				command: 'false', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '',
+				exitCode: 1, durationMs: 3,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const complete = actions[1] as { result: { success: boolean; error?: { message: string } } };
+		assert.strictEqual(complete.result.success, false);
+		assert.strictEqual(complete.result.error?.message, 'Exit code 1');
 	});
 
 	test('turn/completed with status=completed emits SessionTurnComplete', () => {

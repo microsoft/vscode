@@ -5,7 +5,7 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, TurnState } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
@@ -23,13 +23,26 @@ import type { TurnStartedNotification } from './protocol/generated/v2/TurnStarte
 export interface ICodexSessionMapState {
 	/** Stable codex `itemId` → our markdown response part id. */
 	readonly itemToPartId: Map<string, string>;
+	/**
+	 * Stable codex `itemId` → tool-call bookkeeping. Phase 4 tracks
+	 * `commandExecution` here so completion/approval handlers can find
+	 * the right toolCallId/turnId for each item.
+	 */
+	readonly itemToToolCall: Map<string, ICodexToolCallEntry>;
 	/** Current turn id (per `turn/started`). */
 	currentTurnId: string | undefined;
+}
+
+export interface ICodexToolCallEntry {
+	readonly toolCallId: string;
+	readonly turnId: string;
+	readonly toolName: string;
 }
 
 export function createCodexSessionMapState(): ICodexSessionMapState {
 	return {
 		itemToPartId: new Map(),
+		itemToToolCall: new Map(),
 		currentTurnId: undefined,
 	};
 }
@@ -51,6 +64,7 @@ export function mapTurnStarted(
 ): SessionAction[] {
 	state.currentTurnId = params.turn.id;
 	state.itemToPartId.clear();
+	state.itemToToolCall.clear();
 	let userText = fallbackUserText;
 	const first = params.turn.items?.[0];
 	if (first && first.type === 'userMessage') {
@@ -85,22 +99,49 @@ export function mapItemStarted(
 	state: ICodexSessionMapState,
 	params: ItemStartedNotification,
 ): SessionAction[] {
-	if (params.item.type !== 'agentMessage') {
-		return [];
-	}
-	const partId = generateUuid();
-	state.itemToPartId.set(params.item.id, partId);
-	return [
-		{
-			type: ActionType.SessionResponsePart,
-			turnId: params.turnId,
-			part: {
-				kind: ResponsePartKind.Markdown,
-				id: partId,
-				content: params.item.text ?? '',
+	if (params.item.type === 'agentMessage') {
+		const partId = generateUuid();
+		state.itemToPartId.set(params.item.id, partId);
+		return [
+			{
+				type: ActionType.SessionResponsePart,
+				turnId: params.turnId,
+				part: {
+					kind: ResponsePartKind.Markdown,
+					id: partId,
+					content: params.item.text ?? '',
+				},
 			},
-		},
-	];
+		];
+	}
+	if (params.item.type === 'commandExecution') {
+		// Phase 4: surface shell commands as tool calls. We allocate a
+		// fresh toolCallId; the `commandExecution` item id only
+		// disambiguates the codex side.
+		const toolCallId = generateUuid();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'shell',
+		});
+		const command = params.item.command ?? '';
+		return [
+			{
+				type: ActionType.SessionToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'shell',
+				displayName: 'Run shell command',
+			},
+			{
+				type: ActionType.SessionToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: command,
+			},
+		];
+	}
+	return [];
 }
 
 export function mapAgentMessageDelta(
@@ -129,6 +170,12 @@ export function mapAgentMessageDelta(
  * side. For Phase 2 we don't need to emit an extra action: the deltas
  * already updated the part's content. We just drop the mapping so the
  * memory pressure stays bounded.
+ *
+ * For `commandExecution`, emit a synthetic `SessionToolCallReady`
+ * (auto-confirmed; the codex server already decided to run the command
+ * — any host-side approval was settled via the `requestApproval`
+ * server-request handler before we got here) followed by a
+ * `SessionToolCallComplete` carrying the aggregated output.
  */
 export function mapItemCompleted(
 	state: ICodexSessionMapState,
@@ -136,6 +183,48 @@ export function mapItemCompleted(
 ): SessionAction[] {
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
+		return [];
+	}
+	if (params.item.type === 'commandExecution') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
+		const output = params.item.aggregatedOutput ?? '';
+		const command = params.item.command ?? '';
+		const exit = params.item.exitCode;
+		const pastTense = success
+			? `Ran \`${command}\``
+			: exit !== null
+				? `Ran \`${command}\` (exit ${exit})`
+				: `Ran \`${command}\` (failed)`;
+		return [
+			{
+				type: ActionType.SessionToolCallReady,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				invocationMessage: command,
+				toolInput: command,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+			{
+				type: ActionType.SessionToolCallComplete,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				result: {
+					success,
+					pastTenseMessage: pastTense,
+					content: output
+						? [{ type: ToolResultContentType.Text, text: output }]
+						: undefined,
+					error: success ? undefined : {
+						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
+					},
+				},
+			},
+		];
 	}
 	return [];
 }

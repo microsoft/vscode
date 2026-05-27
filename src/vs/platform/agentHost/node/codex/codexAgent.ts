@@ -21,11 +21,13 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { type CustomizationRef, type MessageAttachment, type PendingMessage, type SessionInputAnswer, SessionInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
+import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
@@ -52,6 +54,18 @@ interface ICodexSession {
 	readonly sessionUri: URI;
 	readonly workingDirectory: URI | undefined;
 	readonly mapState: ICodexSessionMapState;
+	/**
+	 * Phase 4: parked deferreds for `item/commandExecution/requestApproval`,
+	 * keyed by the host-side toolCallId. Resolved by
+	 * {@link CodexAgent.respondToPermissionRequest}.
+	 */
+	readonly pendingCommandApprovals: PendingRequestRegistry<CommandExecutionApprovalDecision>;
+	/**
+	 * Per-session set of "accept for session" decisions. When the user
+	 * picks Accept-for-Session in a previous approval, subsequent
+	 * approval requests on the same session resolve automatically.
+	 */
+	readonly acceptedForSession: Set<string>;
 	model: ModelSelection | undefined;
 	currentTurnId: string | undefined;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
@@ -324,6 +338,19 @@ export class CodexAgent extends Disposable implements IAgent {
 			return out;
 		})));
 
+		// Phase 4: command-execution approval requests. Park on a
+		// per-session deferred, emit `SessionToolCallReady` in the
+		// PendingConfirmation state, and answer codex when the user
+		// (or accept-for-session memoization) decides.
+		this._register(client.onRequest<'item/commandExecution/requestApproval'>(
+			'item/commandExecution/requestApproval',
+			async params => {
+				const decision = await this._handleCommandApprovalRequest(params);
+				const result: { decision: CommandExecutionApprovalDecision } = { decision };
+				return { result };
+			},
+		));
+
 		return { client, proxyHandle, child };
 	}
 
@@ -342,6 +369,59 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/**
+	 * Phase 4: handle `item/commandExecution/requestApproval` from
+	 * codex. Look up the host-side tool call for the item, emit a
+	 * `SessionToolCallReady` in PendingConfirmation, park on a deferred
+	 * keyed by toolCallId, and resolve when the user (or the
+	 * accept-for-session memo) decides. Unknown sessions / items
+	 * decline silently so codex stops blocking.
+	 */
+	private async _handleCommandApprovalRequest(params: {
+		readonly threadId: string;
+		readonly turnId: string;
+		readonly itemId: string;
+		readonly command?: string | null;
+		readonly reason?: string | null;
+	}): Promise<CommandExecutionApprovalDecision> {
+		const sessionId = this._sessionIdByThreadId.get(params.threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session) {
+			this._logService.warn(`[Codex] commandExecution/requestApproval for unknown threadId=${params.threadId}; declining`);
+			return 'decline';
+		}
+		const entry = session.mapState.itemToToolCall.get(params.itemId);
+		if (!entry) {
+			this._logService.warn(`[Codex:${sessionId}] commandExecution/requestApproval for unknown itemId=${params.itemId}; declining`);
+			return 'decline';
+		}
+		const command = params.command ?? '';
+		// Accept-for-session memo: if the user previously accepted this
+		// exact command for the session, auto-accept without prompting.
+		if (command && session.acceptedForSession.has(command)) {
+			return 'acceptForSession';
+		}
+		const confirmationTitle = params.reason ?? 'Run shell command';
+		// Atomically register the deferred and fire the
+		// PendingConfirmation signal so a synchronous responder can't
+		// miss the registration.
+		const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+			this._fire(session.sessionUri, {
+				type: ActionType.SessionToolCallReady,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				invocationMessage: command,
+				toolInput: command,
+				confirmationTitle,
+			});
+		});
+		// Track accept-for-session decisions for the next request.
+		if (decision === 'acceptForSession' && command) {
+			session.acceptedForSession.add(command);
+		}
+		return decision;
+	}
+
 	private _handleConnectionLost(): void {
 		const conn = this._connection;
 		if (conn.kind !== 'ready') {
@@ -351,6 +431,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Notify every known session with a single SessionError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
 		for (const session of this._sessions.values()) {
+			// Unpark any pending approvals so awaiters unwind.
+			session.pendingCommandApprovals.denyAll('decline');
 			const turnId = session.currentTurnId;
 			session.currentTurnId = undefined;
 			if (turnId) {
@@ -421,6 +503,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionUri,
 			workingDirectory: config.workingDirectory,
 			mapState: createCodexSessionMapState(),
+			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
+			acceptedForSession: new Set<string>(),
 			model: effectiveModel,
 			currentTurnId: undefined,
 			needsResume: false,
@@ -575,6 +659,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._sessions.delete(sessionId);
 		this._sessionIdByThreadId.delete(session.threadId);
+		// Unpark any pending approvals so codex doesn't deadlock waiting
+		// on a response we will never deliver.
+		session.pendingCommandApprovals.denyAll('decline');
 		const conn = this._connection;
 		if (conn.kind === 'ready') {
 			// `thread/unsubscribe` is the codex-native way to release a
@@ -594,9 +681,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
-		// Phase 4 wires this.
-		this._logService.info('[Codex] respondToPermissionRequest called (Phase 4 stub)');
+	respondToPermissionRequest(requestId: string, approved: boolean): void {
+		// `requestId` is the host-side toolCallId; iterate sessions and
+		// resolve the first match. Mirrors the Claude/Copilot agents.
+		for (const session of this._sessions.values()) {
+			if (session.pendingCommandApprovals.respond(requestId, approved ? 'accept' : 'decline')) {
+				return;
+			}
+		}
+		this._logService.info(`[Codex] respondToPermissionRequest: unknown requestId=${requestId}`);
 	}
 
 	respondToUserInputRequest(_requestId: string, _response: SessionInputResponseKind, _answers?: Record<string, SessionInputAnswer>): void {
@@ -626,6 +719,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				sessionUri: session,
 				workingDirectory,
 				mapState: createCodexSessionMapState(),
+				pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
+				acceptedForSession: new Set<string>(),
 				model: undefined,
 				currentTurnId: undefined,
 				needsResume: true,
@@ -713,6 +808,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			try { this._connection.proxyHandle.dispose(); } catch { /* ignore */ }
 		}
 		this._connection = { kind: 'idle' };
+		for (const s of this._sessions.values()) {
+			s.pendingCommandApprovals.denyAll('decline');
+		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
 	}
@@ -738,6 +836,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			try { this._connection.proxyHandle.dispose(); } catch { /* ignore */ }
 		}
 		this._connection = { kind: 'idle' };
+		for (const s of this._sessions.values()) {
+			s.pendingCommandApprovals.denyAll('decline');
+		}
 		this._sessions.clear();
 		this._sessionIdByThreadId.clear();
 		super.dispose();
