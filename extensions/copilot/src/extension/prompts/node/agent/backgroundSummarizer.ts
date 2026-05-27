@@ -63,10 +63,10 @@ export function isBackgroundResponsesApiCompactionResult(result: IBackgroundComp
  * tests can reference the same numbers without repeating them.
  */
 export const BackgroundSummarizationThresholds = {
-	/** Temporary testing threshold: minimum of the warm-cache token range. */
-	warmTokenJitterMin: 100,
-	/** Width of the warm-cache token range; together with `warmTokenJitterMin` yields [100, 110). */
-	warmTokenJitterSpan: 10,
+	/** Minimum of the jittered warm-cache ratio range. */
+	warmJitterMin: 0.78,
+	/** Width of the jittered warm-cache ratio range; together with `warmJitterMin` yields [0.78, 0.82). */
+	warmJitterSpan: 0.04,
 	/**
 	 * Cold-cache emergency ratio. Above this we kick off even without a warmed
 	 * cache to avoid forcing a foreground sync compaction on the next render.
@@ -81,18 +81,18 @@ export const BackgroundSummarizationThresholds = {
  *
  * Prompt-cache parity matters, so we:
  *   - require a completed tool call in this turn ("warm" cache) before
- *     firing at the temporary testing threshold of ~100 tokens;
+ *     firing at the normal, jittered ~0.80 threshold;
  *   - allow an emergency kick-off at >= 0.90 even with a cold cache to
  *     avoid forcing a foreground sync compaction on the next render.
  *
- * The production threshold was historically ratio-based and jittered around
- * 0.80; this local value is lowered for testing.
+ * The jitter range straddles the historical 0.80 threshold (not "lower the
+ * bar") — the goal is to avoid always firing at the exact same boundary,
+ * not to kick off systematically earlier.
  *
  * `rng` is only consumed on the warm-cache branch, which keeps deterministic
  * tests straightforward.
  */
 export function shouldKickOffBackgroundSummarization(
-	postRenderTokenCount: number,
 	postRenderRatio: number,
 	cacheWarm: boolean,
 	rng: () => number,
@@ -101,8 +101,8 @@ export function shouldKickOffBackgroundSummarization(
 	if (!cacheWarm) {
 		return postRenderRatio >= t.emergency;
 	}
-	const jitteredTokenThreshold = t.warmTokenJitterMin + rng() * t.warmTokenJitterSpan;
-	return postRenderTokenCount >= jitteredTokenThreshold;
+	const jittered = t.warmJitterMin + rng() * t.warmJitterSpan;
+	return postRenderRatio >= jittered;
 }
 
 /**

@@ -832,7 +832,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
 
-			const kickOff = shouldKickOffBackgroundSummarization(effectivePostRender, postRenderRatio, cacheWarm, this._thresholdRng);
+			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, cacheWarm, this._thresholdRng);
 
 			if (backgroundSummarizer) {
 				const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle

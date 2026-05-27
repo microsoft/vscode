@@ -278,10 +278,10 @@ describe('BackgroundSummarizer', () => {
 	});
 });
 
-const { warmTokenJitterMin, warmTokenJitterSpan, emergency } = BackgroundSummarizationThresholds;
+const { warmJitterMin, warmJitterSpan, emergency } = BackgroundSummarizationThresholds;
 
 // rng that always returns 0.5 -> threshold sits exactly at the center of the
-// jitter range. For the temporary testing threshold, that's 105 tokens.
+// jitter range. With [0.78, 0.82) that's 0.80.
 const midRng = () => 0.5;
 // rng that forces the maximum of the jitter range.
 const maxRng = () => 1 - Number.EPSILON;
@@ -294,39 +294,40 @@ describe('shouldKickOffBackgroundSummarization', () => {
 	describe('cold cache', () => {
 		test('defers kick-off below the emergency threshold', () => {
 			// Cold turn sitting in the old 0.80 trigger band — must not fire.
-			expect(shouldKickOffBackgroundSummarization(10_000, 0.85, false, unusedRng)).toBe(false);
+			expect(shouldKickOffBackgroundSummarization(0.85, false, unusedRng)).toBe(false);
 		});
 
 		test('kicks off at the emergency threshold', () => {
-			expect(shouldKickOffBackgroundSummarization(1, emergency, false, unusedRng)).toBe(true);
-			expect(shouldKickOffBackgroundSummarization(1, 0.91, false, unusedRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(emergency, false, unusedRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(0.91, false, unusedRng)).toBe(true);
 		});
 
 		test('does not consume the rng on the cold branch', () => {
 			// The unusedRng would throw if consumed — asserting no throw is the check.
-			expect(() => shouldKickOffBackgroundSummarization(10_000, 0.85, false, unusedRng)).not.toThrow();
-			expect(() => shouldKickOffBackgroundSummarization(1, 0.91, false, unusedRng)).not.toThrow();
+			expect(() => shouldKickOffBackgroundSummarization(0.85, false, unusedRng)).not.toThrow();
+			expect(() => shouldKickOffBackgroundSummarization(0.91, false, unusedRng)).not.toThrow();
 		});
 	});
 
 	describe('warm cache', () => {
-		test('kicks off at the configured testing threshold when token count meets it', () => {
-			const threshold = warmTokenJitterMin + midRng() * warmTokenJitterSpan;
-			expect(shouldKickOffBackgroundSummarization(threshold, 0, true, midRng)).toBe(true);
-			expect(shouldKickOffBackgroundSummarization(threshold + 1, 0, true, midRng)).toBe(true);
+		test('kicks off at the jittered midpoint (0.80) when ratio meets it', () => {
+			expect(shouldKickOffBackgroundSummarization(0.80, true, midRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(0.81, true, midRng)).toBe(true);
 		});
 
-		test('defers when token count is under the jittered threshold', () => {
-			const threshold = warmTokenJitterMin + midRng() * warmTokenJitterSpan;
-			expect(shouldKickOffBackgroundSummarization(threshold - 1, 0, true, midRng)).toBe(false);
+		test('defers when ratio is under the jittered threshold', () => {
+			// midRng -> 0.80; 0.77 is below the entire jitter window.
+			expect(shouldKickOffBackgroundSummarization(0.77, true, midRng)).toBe(false);
 			// Also below the minimum of the window regardless of rng.
-			expect(shouldKickOffBackgroundSummarization(warmTokenJitterMin - 1, 0, true, () => 0)).toBe(false);
+			expect(shouldKickOffBackgroundSummarization(warmJitterMin - 0.0001, true, () => 0)).toBe(false);
 		});
 
 		test('respects the top of the jitter range', () => {
-			const threshold = warmTokenJitterMin + warmTokenJitterSpan;
-			expect(shouldKickOffBackgroundSummarization(threshold - 1, 0, true, maxRng)).toBe(false);
-			expect(shouldKickOffBackgroundSummarization(threshold, 0, true, maxRng)).toBe(true);
+			// With maxRng, threshold approaches warmJitterMin + warmJitterSpan = 0.82.
+			// 0.81 lands below it, so we defer.
+			expect(shouldKickOffBackgroundSummarization(0.81, true, maxRng)).toBe(false);
+			// 0.82 meets it.
+			expect(shouldKickOffBackgroundSummarization(warmJitterMin + warmJitterSpan, true, maxRng)).toBe(true);
 		});
 	});
 });
