@@ -48,12 +48,16 @@ export class ChatQuotaContribution extends Disposable implements IExtensionContr
 				entitlement: info.quota,
 			};
 
+			const { session, weekly } = chatQuotaService.rateLimitInfo;
+
 			const quotas = {
 				usageBasedBilling: !!authService.copilotToken?.isUsageBasedBilling,
 				chat: isFree ? snapshot : undefined,
 				premiumChat: isFree ? undefined : snapshot,
 				additionalUsageEnabled: info.additionalUsageEnabled,
 				additionalUsageCount: info.additionalUsageUsed,
+				sessionRateLimit: session ? { percentRemaining: session.percentRemaining, unlimited: session.unlimited, resetDate: session.resetDate.toISOString() } : undefined,
+				weeklyRateLimit: weekly ? { percentRemaining: weekly.percentRemaining, unlimited: weekly.unlimited, resetDate: weekly.resetDate.toISOString() } : undefined,
 			};
 
 			chat.updateQuotas(quotas);

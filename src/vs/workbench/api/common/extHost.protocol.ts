@@ -2733,6 +2733,12 @@ export interface IQuotaSnapshotDto {
 	readonly quotaRemaining?: number;
 }
 
+export interface IRateLimitSnapshotDto {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly resetDate?: string;
+}
+
 export interface IQuotaSnapshotsDto {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;
@@ -2743,6 +2749,8 @@ export interface IQuotaSnapshotsDto {
 	readonly premiumChat?: IQuotaSnapshotDto;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly sessionRateLimit?: IRateLimitSnapshotDto;
+	readonly weeklyRateLimit?: IRateLimitSnapshotDto;
 }
 
 export type ICellEditOperationDto =

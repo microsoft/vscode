@@ -760,6 +760,12 @@ export interface IQuotaSnapshot {
 	readonly quotaRemaining?: number;
 }
 
+export interface IRateLimitSnapshot {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly resetDate?: string;
+}
+
 interface IQuotas {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;
@@ -772,6 +778,9 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+
+	readonly sessionRateLimit?: IRateLimitSnapshot;
+	readonly weeklyRateLimit?: IRateLimitSnapshot;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {

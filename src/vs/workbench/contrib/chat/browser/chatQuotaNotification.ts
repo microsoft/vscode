@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
@@ -22,8 +23,7 @@ const THRESHOLDS = [50, 75, 90, 95];
  *
  * 1. **Quota exhausted** — info, auto-dismissed on next message.
  * 2. **Quota approaching** — info, auto-dismissed on next message.
- *
- * Rate-limit warnings remain in the extension.
+ * 3. **Rate-limit warning** — info, auto-dismissed on next message.
  */
 export class ChatQuotaNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -39,6 +39,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 */
 	private _prevQuotaPercentUsed: number | undefined;
 	private _prevAdditionalUsageEnabled: boolean | undefined;
+	private _prevSessionPercentUsed: number | undefined;
+	private _prevWeeklyPercentUsed: number | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -110,6 +112,13 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				this._showQuotaApproachingWarning(quotaWarning);
 				return;
 			}
+		}
+
+		// Priority 3: Rate-limit warning (session > weekly)
+		const rateLimitWarning = this._computeRateLimitWarning();
+		if (rateLimitWarning) {
+			this._showRateLimitWarning(rateLimitWarning);
+			return;
 		}
 
 		// Nothing new to show — only hide if the exhausted notification is
@@ -244,10 +253,79 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		});
 	}
 
+	// --- Rate-limit warning -------------------------------------------------
+
+	private _computeRateLimitWarning(): { percentUsed: number; type: 'session' | 'weekly'; resetDate: string | undefined } | undefined {
+		const quotas = this._chatEntitlementService.quotas;
+
+		const sessionResult = this._checkRateLimitCrossing(quotas.sessionRateLimit, this._prevSessionPercentUsed);
+		this._prevSessionPercentUsed = sessionResult.newPrev;
+
+		const weeklyResult = this._checkRateLimitCrossing(quotas.weeklyRateLimit, this._prevWeeklyPercentUsed);
+		this._prevWeeklyPercentUsed = weeklyResult.newPrev;
+
+		if (sessionResult.warning) {
+			return { ...sessionResult.warning, type: 'session' };
+		}
+		if (weeklyResult.warning) {
+			return { ...weeklyResult.warning, type: 'weekly' };
+		}
+		return undefined;
+	}
+
+	private _checkRateLimitCrossing(
+		snapshot: IRateLimitSnapshot | undefined,
+		prevPercentUsed: number | undefined,
+	): { newPrev: number | undefined; warning?: { percentUsed: number; resetDate: string | undefined } } {
+		if (!snapshot || snapshot.unlimited) {
+			return { newPrev: undefined };
+		}
+		const percentUsed = 100 - snapshot.percentRemaining;
+		const crossed = this._findCrossedThreshold(percentUsed, prevPercentUsed);
+		return {
+			newPrev: percentUsed,
+			warning: crossed !== undefined
+				? { percentUsed: Math.floor(percentUsed), resetDate: snapshot.resetDate }
+				: undefined,
+		};
+	}
+
+	private _showRateLimitWarning(warning: { percentUsed: number; type: 'session' | 'weekly'; resetDate: string | undefined }): void {
+		this._showingExhausted = false;
+
+		const message = warning.type === 'session'
+			? localize('rateLimit.session', "You've used {0}% of your session rate limit.", warning.percentUsed)
+			: localize('rateLimit.weekly', "You've used {0}% of your weekly rate limit.", warning.percentUsed);
+
+		const description = warning.resetDate
+			? localize('rateLimit.resets', "Resets on {0}.", this._formatResetDate(warning.resetDate))
+			: undefined;
+
+		this._setNotification({
+			id: QUOTA_NOTIFICATION_ID,
+			severity: ChatInputNotificationSeverity.Info,
+			message,
+			description,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: true,
+		});
+	}
+
 	// --- Helpers ------------------------------------------------------------
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
 		return entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
+	}
+
+	private _formatResetDate(isoDate: string): string {
+		const resetDate = new Date(isoDate);
+		const now = new Date();
+		const includeYear = resetDate.getFullYear() !== now.getFullYear();
+		return safeIntl.DateTimeFormat(undefined, includeYear
+			? { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
+			: { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+		).value.format(resetDate);
 	}
 
 	private _setNotification(notification: IChatInputNotification): void {
