@@ -50,9 +50,9 @@ import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/nod
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
-import { buildCompactionToolOpts, formatCompactionFailureError, resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
+import { buildCompactionToolOpts, formatCompactionFailureError, renderCompactionMessages, resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, renderCompactionMessages, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
@@ -467,7 +467,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@ICodeMapperService codeMapperService: ICodeMapperService,
 		@IEnvService envService: IEnvService,
 		@IPromptPathRepresentationService promptPathRepresentationService: IPromptPathRepresentationService,
-		@IEndpointProvider endpointProvider: IEndpointProvider,
+		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IToolsService toolsService: IToolsService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -481,7 +481,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {
@@ -944,16 +944,16 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		backgroundSummarizer.start(async bgToken => {
 			try {
-				// Resolve the trajectory-compaction endpoint. When neither
-				// compaction config is set this returns `this.endpoint`
-				// unchanged. When a custom model/proxy is configured the result
-				// is a different endpoint instance and we MUST re-render the
-				// prompt against it (see `isCrossEndpoint` branch below).
+				// Resolve the trajectory-compaction endpoint. When prism compaction
+				// is disabled this returns `this.endpoint` unchanged and the
+				// pre-existing same-endpoint cache-parity path is used. When the
+				// flag is on the resolved endpoint differs and we re-render the
+				// prompt against it via the cross-endpoint helper.
 				const compactionEndpoint = await resolveCompactionEndpoint(
 					this.endpoint,
 					this.configurationService,
 					this.expService,
-					this.endpointProvider,
+					this._endpointProvider,
 					this.logService,
 				);
 				const isCrossEndpoint = compactionEndpoint !== this.endpoint;
@@ -962,22 +962,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				let messages: Raw.ChatMessage[];
 				let toolOpts: ReturnType<typeof buildCompactionToolOpts> | undefined;
 				if (isCrossEndpoint) {
-					// Cross-endpoint (e.g. trajectory-compaction proxy): re-render
-					// the compaction prompt against the compaction endpoint so the
-					// request body is in its native format. Sacrifices main-agent
-					// cache-prefix parity (impossible across endpoints anyway) for
-					// correctness — the alternative is sending Anthropic/Gemini-shaped
-					// content to a model that doesn't understand it and returns empty
-					// completions (RESPONSE_CONTAINED_NO_CHOICES).
-					// Tools are intentionally omitted: the cross-endpoint render's
-					// summarization prompt is self-contained and `tool_choice: 'none'`
-					// would make the tool schemas dead weight in the request body.
-					const rendered = await renderCompactionMessages(
+					const rendered = await this._renderCrossEndpointCompactionMessages(
 						compactionEndpoint,
 						promptContext,
 						availableTools,
-						this.instantiationService,
-						this.logService,
 						bgToken,
 					);
 					if (!rendered) {
@@ -1156,6 +1144,35 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return undefined;
 		}
 		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens);
+	}
+
+	/**
+	 * Cross-endpoint re-render of the compaction prompt — used when the prism
+	 * compaction model differs from the main agent endpoint. Sacrifices
+	 * cache-prefix parity (impossible across endpoints anyway) for correctness:
+	 * the alternative is sending Anthropic/Gemini-shaped content to a model
+	 * that doesn't understand it and returns empty completions. Tools are
+	 * intentionally omitted; the cross-endpoint render's summarization prompt
+	 * is self-contained.
+	 */
+	private async _renderCrossEndpointCompactionMessages(
+		compactionEndpoint: IChatEndpoint,
+		promptContext: IBuildPromptContext,
+		availableTools: ReadonlyArray<vscode.LanguageModelToolInformation> | undefined,
+		bgToken: vscode.CancellationToken,
+	): Promise<{ messages: Raw.ChatMessage[]; summarizedToolCallRoundId: string } | undefined> {
+		const rendered = await renderCompactionMessages(
+			compactionEndpoint,
+			promptContext,
+			availableTools,
+			this.instantiationService,
+			this.logService,
+			bgToken,
+		);
+		if (!rendered) {
+			return undefined;
+		}
+		return { messages: rendered.messages, summarizedToolCallRoundId: rendered.summarizedToolCallRoundId };
 	}
 
 	/**

@@ -10,7 +10,7 @@ import { DEFAULT_COMPACTION_MODEL, buildCompactionToolOpts, formatCompactionFail
 
 type ConfigValues = {
 	[ConfigKey.Advanced.ConversationCompactionModel.id]?: string;
-	[ConfigKey.Advanced.ConversationCompactionUseAgenticProxy.id]?: boolean;
+	[ConfigKey.Advanced.ConversationUsePrismCompaction.id]?: boolean;
 };
 
 function setup(configValues: ConfigValues = {}) {
@@ -48,9 +48,9 @@ suite('resolveCompactionEndpoint', () => {
 		expect(result).toBe(main);
 	});
 
-	test('routes through endpointProvider (CAPI) with the default model when only useAgenticProxy is set', async () => {
+	test('routes through endpointProvider (CAPI) with the default model when only usePrismCompaction is set', async () => {
 		const { configurationService, experimentationService, logService } = setup({
-			[ConfigKey.Advanced.ConversationCompactionUseAgenticProxy.id]: true,
+			[ConfigKey.Advanced.ConversationUsePrismCompaction.id]: true,
 		});
 		const main = makeMainEndpoint();
 		const capiEndpoint = makeMainEndpoint('trajectory-compaction');
@@ -71,8 +71,7 @@ suite('resolveCompactionEndpoint', () => {
 		);
 
 		// The compaction request is resolved through the standard CAPI endpoint
-		// provider, NOT wrapped in ProxyAgenticEndpoint — even though the gating
-		// flag is named `useAgenticProxy`.
+		// provider using the configured trajectory-compaction model family.
 		expect(calls).toEqual([DEFAULT_COMPACTION_MODEL]);
 		expect(DEFAULT_COMPACTION_MODEL).toBe('trajectory-compaction');
 		expect(result).toBe(capiEndpoint);
@@ -80,7 +79,7 @@ suite('resolveCompactionEndpoint', () => {
 
 	test('routes through endpointProvider with a custom model when both flags are set', async () => {
 		const { configurationService, experimentationService, logService } = setup({
-			[ConfigKey.Advanced.ConversationCompactionUseAgenticProxy.id]: true,
+			[ConfigKey.Advanced.ConversationUsePrismCompaction.id]: true,
 			[ConfigKey.Advanced.ConversationCompactionModel.id]: 'trajectory-compaction-v2',
 		});
 		const main = makeMainEndpoint();
@@ -157,10 +156,10 @@ suite('resolveCompactionEndpoint', () => {
 		expect(warnings[0]).toContain('model not found');
 	});
 
-	test('falls back to main endpoint when the proxy-default model fails to resolve', async () => {
+	test('falls back to main endpoint when the prism-compaction-default model fails to resolve', async () => {
 		const warnings: string[] = [];
 		const { configurationService, experimentationService } = setup({
-			[ConfigKey.Advanced.ConversationCompactionUseAgenticProxy.id]: true,
+			[ConfigKey.Advanced.ConversationUsePrismCompaction.id]: true,
 		});
 		const main = makeMainEndpoint();
 		const endpointProvider = {

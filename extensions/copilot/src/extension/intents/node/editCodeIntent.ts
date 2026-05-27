@@ -325,7 +325,7 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
 		@IEnvService private readonly envService: IEnvService,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
-		@IEndpointProvider protected readonly endpointProvider: IEndpointProvider,
+		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IToolsService protected readonly toolsService: IToolsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,

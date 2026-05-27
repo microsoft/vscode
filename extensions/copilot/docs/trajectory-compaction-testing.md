@@ -94,10 +94,10 @@ Settings (JSON)") and add:
 ```jsonc
 {
   // Route compaction through the Copilot agentic proxy
-  "github.copilot.chat.conversationCompaction.useAgenticProxy": true,
+  "github.copilot.chat.conversationCompaction.usePrismCompaction": true,
 
   // Optional: override the model. Defaults to "trajectory-compaction-v1"
-  // when useAgenticProxy is true.
+  // when usePrismCompaction is true.
   // "github.copilot.chat.conversationCompaction.model": "trajectory-compaction-v1",
 
   // Keep automatic background compaction on (this is the default — listed
@@ -204,7 +204,7 @@ the extension's compaction-applier will also succeed against this route.
 Either remove the setting or set:
 
 ```jsonc
-"github.copilot.chat.conversationCompaction.useAgenticProxy": false
+"github.copilot.chat.conversationCompaction.usePrismCompaction": false
 ```
 
 Compaction reverts to the main agent endpoint.
@@ -214,7 +214,7 @@ Compaction reverts to the main agent endpoint.
 | Symptom | Likely cause |
 |---|---|
 | `401 bad request: invalid token: unknown format` from the proxy | Token expired or missing — re-grab from debug log |
-| Compaction still uses the main agent model | Reload the window after changing settings; verify the key spelling (`github.copilot.chat.conversationCompaction.useAgenticProxy`) |
+| Compaction still uses the main agent model | Reload the window after changing settings; verify the key spelling (`github.copilot.chat.conversationCompaction.usePrismCompaction`) |
 | Native module build errors during `npm install` | Missing C/C++ toolchain — see VS Code wiki prereqs |
 | Watch task stuck at `Finished compilation with 1+ errors` | Inspect Terminal A — fix the listed TypeScript error before launching |
 | "Sign in to Copilot" fails in the dev build | Some browsers block the device-code popup — copy the URL manually |

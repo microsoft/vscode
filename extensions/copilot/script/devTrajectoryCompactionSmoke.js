@@ -22,7 +22,7 @@
  *     node script/devTrajectoryCompactionSmoke.js
  *
  * The proxy token can be captured by running VS Code with
- * `chat.conversationCompaction.useAgenticProxy=true`, triggering a compaction,
+ * `chat.conversationCompaction.usePrismCompaction=true`, triggering a compaction,
  * and copying the `Authorization: Bearer ...` value from the request logger
  * (`Copilot: Open Chat Debug Log` → search for `trajectory-compaction`).
  */

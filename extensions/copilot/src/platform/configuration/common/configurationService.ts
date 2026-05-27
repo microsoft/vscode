@@ -672,9 +672,9 @@ export namespace ConfigKey {
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 
-		/** Use the agentic proxy for conversation-history compaction (foreground and background trajectory compaction calls). */
-		export const ConversationCompactionUseAgenticProxy = defineSetting<boolean>('chat.conversationCompaction.useAgenticProxy', ConfigType.ExperimentBased, false);
-		/** Model to use for conversation-history compaction. When useAgenticProxy is true, the value is forwarded to the agentic proxy as the model name (defaulting to 'trajectory-compaction-v1' if empty). When false, an empty value preserves the main agent model. */
+		/** Use the prism trajectory-compaction model for conversation-history compaction (foreground and background calls). */
+		export const ConversationUsePrismCompaction = defineSetting<boolean>('chat.conversationCompaction.usePrismCompaction', ConfigType.ExperimentBased, false);
+		/** Model to use for conversation-history compaction. When usePrismCompaction is true, this overrides the default 'trajectory-compaction' model name. When false, an empty value preserves the main agent model. */
 		export const ConversationCompactionModel = defineSetting<string>('chat.conversationCompaction.model', ConfigType.ExperimentBased, '');
 
 		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-fast model maintains the todo list instead. */

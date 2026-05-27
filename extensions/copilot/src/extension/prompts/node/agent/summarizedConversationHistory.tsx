@@ -706,13 +706,7 @@ class ConversationHistorySummarizer {
 			) : undefined;
 
 			stripCacheBreakpoints(summarizationPrompt);
-			// Replace image content parts with text placeholders when sending to a
-			// non-vision compaction model (e.g. trajectory-compaction). Gated on
-			// cross-endpoint — the main agent model handles images natively, and
-			// only the trajectory-compaction route requires this conversion.
-			if (compactionEndpoint !== this.props.endpoint) {
-				replaceImageContentWithPlaceholders(summarizationPrompt);
-			}
+			replaceImageContentWithPlaceholders(summarizationPrompt);
 
 			let messages = ToolCallingLoop.stripInternalToolCallIds(summarizationPrompt);
 
@@ -895,7 +889,7 @@ class ConversationHistorySummarizer {
 	}
 }
 
-function stripCacheBreakpoints(messages: ChatMessage[]): void {
+export function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.filter(part => {
 			return part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint;
@@ -903,7 +897,7 @@ function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	});
 }
 
-function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
+export function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.map(part => {
 			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
@@ -1140,84 +1134,6 @@ export class SummarizationUserMessage extends PromptElement<SummarizationUserMes
 			</>}
 		</UserMessage>;
 	}
-}
-
-/**
- * Render conversation-history compaction messages against an arbitrary
- * endpoint, mirroring the cleanup the foreground (`/compact`) path applies in
- * {@link ConversationHistorySummarizer.getSummary}.
- *
- * Use this from the background auto-compaction path when the resolved
- * compaction endpoint differs from the main agent endpoint (e.g. when the
- * trajectory-compaction proxy is enabled): the main-agent render is shaped for
- * the main endpoint's model family and the proxy would either reject it or
- * return empty completions.
- *
- * Returns `undefined` when there is nothing to summarize (no rounds yet).
- *
- * NOTE: Kept in sync with the inline render+cleanup in
- * {@link ConversationHistorySummarizer.getSummary}. If you change one,
- * mirror the change in the other (or unify them).
- */
-export async function renderCompactionMessages(
-	endpoint: IChatEndpoint,
-	promptContext: IBuildPromptContext,
-	tools: ReadonlyArray<LanguageModelToolInformation> | undefined,
-	instantiationService: IInstantiationService,
-	logService: ILogService,
-	token: CancellationToken,
-): Promise<{ messages: ChatMessage[]; summarizedToolCallRoundId: string; summarizedThinking?: ThinkingData } | undefined> {
-	const propsInfo = instantiationService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps({
-		priority: 1,
-		endpoint,
-		location: ChatLocation.Agent,
-		promptContext,
-		tools,
-		maxToolResultLength: Infinity,
-	});
-	if (!propsInfo) {
-		return undefined;
-	}
-
-	const rendered = await renderPromptElement(
-		instantiationService,
-		endpoint,
-		ConversationHistorySummarizationPrompt,
-		{ ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: false },
-		undefined,
-		token,
-	);
-	const prompt = rendered.messages;
-
-	stripCacheBreakpoints(prompt);
-	replaceImageContentWithPlaceholders(prompt);
-
-	let messages = ToolCallingLoop.stripInternalToolCallIds(prompt);
-
-	// Strip custom client-side tool_search tool_use/tool_result pairs for
-	// Anthropic-family endpoints — same reasoning as the foreground path:
-	// createMessagesRequestBody converts tool_search results to
-	// tool_reference blocks, which Anthropic rejects when tool search
-	// isn't enabled on the request itself.
-	if (isAnthropicFamily(endpoint)) {
-		messages = stripToolSearchMessages(messages);
-	}
-
-	// Gemini requires every function_call to have a matching function_response.
-	// Strip orphaned tool calls left over from prompt-tsx pruning.
-	if (isGeminiFamily(endpoint)) {
-		const v = ToolCallingLoop.validateToolMessagesCore(messages, { stripOrphanedToolCalls: true });
-		messages = v.messages;
-		if (v.strippedToolCallCount > 0) {
-			logService.info(`[backgroundCompaction] Stripped ${v.strippedToolCallCount} orphaned tool calls from compaction prompt`);
-		}
-	}
-
-	return {
-		messages,
-		summarizedToolCallRoundId: propsInfo.summarizedToolCallRoundId,
-		summarizedThinking: propsInfo.summarizedThinking,
-	};
 }
 
 /**

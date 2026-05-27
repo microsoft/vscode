@@ -97,7 +97,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		if (useAgenticProxy) {
 			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
 			const agenticProxyModel = modelName || SearchSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel, undefined);
+			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
 		}
 
 		if (modelName) {

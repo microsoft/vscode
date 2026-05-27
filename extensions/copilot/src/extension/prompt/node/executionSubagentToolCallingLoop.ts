@@ -124,7 +124,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 			}
 			// Use agentic proxy with ExecutionSubagentModel or default to DEFAULT_AGENTIC_PROXY_MODEL
 			const agenticProxyModel = modelName || ExecutionSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel, undefined);
+			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
 		}
 
 		if (modelName) {

@@ -35,7 +35,8 @@ import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
-import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, renderCompactionMessages, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
+import { renderCompactionMessages } from '../compactionEndpoint';
+import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
 	let accessor: ITestingServicesAccessor;

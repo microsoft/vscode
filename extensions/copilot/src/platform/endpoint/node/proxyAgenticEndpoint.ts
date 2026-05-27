@@ -18,17 +18,12 @@ import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
 import { IDomainService } from '../common/domainService';
 import { IChatModelInformation } from '../common/endpointProvider';
-import { IChatEndpoint } from '../../networking/common/networking';
 import { ChatEndpoint } from './chatEndpoint';
-
-const DEFAULT_MAX_PROMPT_TOKENS = 260000;
-const DEFAULT_MAX_OUTPUT_TOKENS = 16000;
 
 export class ProxyAgenticEndpoint extends ChatEndpoint {
 
 	constructor(
 		modelName: string,
-		maxPromptTokensOverride: number | undefined,
 		@IDomainService domainService: IDomainService,
 		@ICAPIClientService capiClientService: ICAPIClientService,
 		@IFetcherService fetcherService: IFetcherService,
@@ -57,8 +52,8 @@ export class ProxyAgenticEndpoint extends ChatEndpoint {
 				tokenizer: TokenizerType.O200K,
 				supports: { streaming: true, parallel_tool_calls: true, tool_calls: true, vision: false },
 				limits: {
-					max_prompt_tokens: maxPromptTokensOverride ?? DEFAULT_MAX_PROMPT_TOKENS,
-					max_output_tokens: DEFAULT_MAX_OUTPUT_TOKENS,
+					max_prompt_tokens: 260000,
+					max_output_tokens: 16000,
 				}
 			}
 		};
@@ -77,14 +72,5 @@ export class ProxyAgenticEndpoint extends ChatEndpoint {
 
 	override get urlOrRequestMetadata(): RequestMetadata {
 		return { type: RequestType.ProxyChatCompletions };
-	}
-
-	// Preserve proxy routing when prompt-tsx callers ask for a tighter token
-	// budget (e.g. trajectory compaction reserving space for tools). The base
-	// `ChatEndpoint.cloneWithTokenOverride` constructs a plain `ChatEndpoint`,
-	// which drops our `urlOrRequestMetadata` override and would route the
-	// cloned endpoint through standard chat completions instead of the proxy.
-	public override cloneWithTokenOverride(modelMaxPromptTokens: number): IChatEndpoint {
-		return this._instantiationService.createInstance(ProxyAgenticEndpoint, this.model, modelMaxPromptTokens);
 	}
 }
