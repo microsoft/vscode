@@ -5,10 +5,14 @@
 
 import * as pathLib from 'path';
 import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
+import { ILogService } from '../../../platform/log/common/logService';
+import { findLast } from '../../../util/vs/base/common/arraysFind';
+import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage } from '../common/sessionEventRenderer';
 import { getAuthorDisplayName } from '../vscode/copilotCodingAgentUtils';
 
 export interface SessionResponseLogChunk {
@@ -99,7 +103,8 @@ export interface ParsedToolCallDetails {
 export class ChatSessionContentBuilder {
 	constructor(
 		private type: string,
-		@IGitService private readonly _gitService: IGitService
+		@IGitService private readonly _gitService: IGitService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 	}
 
@@ -216,33 +221,33 @@ export class ChatSessionContentBuilder {
 					history.push(new vscode.ChatResponseTurn2([card], {}, this.type));
 				}
 
-				history.push(this.buildTaskResponseTurn(turn, eventsByTurnId.get(turn.id) ?? []));
+				history.push(...this.buildTaskResponseTurn(turn, eventsByTurnId.get(turn.id) ?? []));
 			});
 
 			return history;
 		})();
 	}
 
-	private buildTaskResponseTurn(turn: AgentTaskSession, _events: readonly AgentTaskSessionEvent[]): ChatResponseTurn2 {
-		// Minimal v2 rendering: status + model + head_ref. Richer event-based rendering
-		// (tool calls, diffs, file edits) lands in a follow-up once event shapes are stable.
-		const parts: Array<ChatResponseMarkdownPart | ChatResponseProgressPart> = [];
-		if (turn.state === 'in_progress' || turn.state === 'queued') {
-			parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is initializing...')));
-		} else {
-			const summary = new MarkdownString();
-			summary.appendMarkdown(vscode.l10n.t('**State:** {0}', turn.state));
-			if (turn.model) {
-				summary.appendMarkdown('  \n');
-				summary.appendMarkdown(vscode.l10n.t('**Model:** `{0}`', turn.model));
+	private buildTaskResponseTurn(turn: AgentTaskSession, events: readonly AgentTaskSessionEvent[]): ChatResponseTurn2[] {
+		const lastFinalMessage = findLast(events, e => !e.dismissed && e.type === 'assistant.message' && !!e.data.content && !e.data.parentToolCallId);
+
+		const ctx = createResponseEventRenderContext(this._logService);
+		for (const event of events) {
+			if (event.dismissed || (event.type === 'assistant.message' && event !== lastFinalMessage)) {
+				continue;
 			}
-			if (turn.head_ref) {
-				summary.appendMarkdown('  \n');
-				summary.appendMarkdown(vscode.l10n.t('**Branch:** `{0}`', turn.head_ref));
-			}
-			parts.push(new ChatResponseMarkdownPart(summary));
+			// CMC Task API uses `custom_agent.*`; the SDK helper expects `subagent.*`.
+			// Payload shapes match per the CMC OpenAPI spec, so a name swap is enough.
+			appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
 		}
-		return new ChatResponseTurn2(parts, {}, this.type);
+		flushPendingAssistantMessage(ctx);
+
+		const parts = [...ctx.currentResponseParts];
+		if (turn.state === 'in_progress' || turn.state === 'queued') {
+			// TODO: Handle in-progress sessions correctly
+			parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is in progress...')));
+		}
+		return [new ChatResponseTurn2(parts, {}, this.type)];
 	}
 
 	private async createResponseTurn(pullRequest: PullRequestSearchItem, logs: string, session: SessionInfo): Promise<ChatResponseTurn2 | undefined> {
@@ -695,5 +700,26 @@ export class ChatSessionContentBuilder {
 			default:
 				return { toolName: name || 'unknown', invocationMessage: content || name || 'unknown' };
 		}
+	}
+}
+
+/**
+ * Translates CMC Task API `custom_agent.*` event types into the equivalent
+ * `subagent.*` names used by the CLI SDK so {@link appendResponsePartsForEvent}
+ * can handle both producers. Data payloads are identical per the CMC OpenAPI
+ * spec, so a name swap is sufficient.
+ */
+function remapCustomAgentEventType(event: AgentTaskSessionEvent): { type: string; data: unknown } {
+	switch (event.type) {
+		case 'custom_agent.started':
+			return { ...event, type: 'subagent.started' };
+		case 'custom_agent.completed':
+			return { ...event, type: 'subagent.completed' };
+		case 'custom_agent.failed':
+			return { ...event, type: 'subagent.failed' };
+		case 'custom_agent.selected':
+			return { ...event, type: 'subagent.selected' };
+		default:
+			return event;
 	}
 }
