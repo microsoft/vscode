@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -395,6 +397,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.refetchDefaultAccount();
 			}
 		}));
+
+		this._register(addDisposableListener(mainWindow, 'online', () => {
+			this.logService.debug('[DefaultAccount] Network is online, refreshing default account');
+			this.updateDefaultAccount({ forceRefresh: true });
+		}));
 	}
 
 	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
@@ -550,7 +557,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			const tokenEntitlementsResult = entitlementsData?.chat_enabled ? await this.getTokenEntitlements(sessions, accountPolicyData, options) : undefined;
 
 			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
-			let mcpRegistryDataFetchedAt: number | undefined;
+			let mcpRegistryDataFetchedAt: number | undefined = accountPolicyData?.mcpRegistryDataFetchedAt;
 			let policyData: Mutable<IPolicyData> | undefined = accountPolicyData?.policyData ? { ...accountPolicyData.policyData } : undefined;
 			if (tokenEntitlementsResult?.data) {
 				const tokenEntitlementsData = tokenEntitlementsResult.data;
@@ -561,9 +568,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
-					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
-					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
-					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
+					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt ?? accountPolicyData?.mcpRegistryDataFetchedAt;
+					if (mcpRegistryResult) {
+						policyData.mcpRegistryUrl = mcpRegistryResult.data?.url;
+						policyData.mcpAccess = mcpRegistryResult.data?.registry_access;
+					}
 				} else {
 					policyData.mcpRegistryUrl = undefined;
 					policyData.mcpAccess = undefined;
