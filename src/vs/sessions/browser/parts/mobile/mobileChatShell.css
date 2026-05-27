@@ -990,3 +990,40 @@
 	height: 36px;
 	padding: 0;
 }
+
+/* ---- Phone Layout: iOS Keyboard Avoidance ----
+ *
+ * Lift the chat-input containers above the virtual keyboard when it
+ * opens. The keyboard height is published as the `--vscode-keyboard-height`
+ * CSS custom property on the workbench main container by
+ * `MobileVisualViewport` (see
+ * `src/vs/sessions/browser/parts/mobile/mobileVisualViewport.ts`),
+ * computed from the `visualViewport` API. On iOS Safari the layout
+ * viewport does NOT shrink when the keyboard opens, so anything pinned
+ * to the bottom of the viewport (chat input, new-chat input) ends up
+ * hidden behind the keyboard unless we explicitly translate it up by
+ * the keyboard height.
+ *
+ * We compose the existing safe-area padding with the keyboard height,
+ * so the input continues to clear the home-indicator when the keyboard
+ * is closed and clears the keyboard when it is open. The transition
+ * smooths the lift to match the iOS keyboard appearance animation
+ * (~250ms ease-out — we use 200ms which feels good without trailing
+ * the keyboard noticeably).
+ *
+ * Companion behaviour: `MobileChatKeyboardScrollContribution` (see
+ * `src/vs/sessions/contrib/chat/browser/mobile/mobileChatKeyboardScroll.ts`)
+ * scrolls the chat message list to the last item when the keyboard
+ * appears, so the user can still see the most recent message above the
+ * lifted input. */
+
+.agent-sessions-workbench.phone-layout .interactive-session .interactive-input-part {
+	padding-bottom: calc(10px + env(safe-area-inset-bottom) + var(--vscode-keyboard-height, 0px));
+	transition: padding-bottom 200ms ease-out;
+}
+
+.agent-sessions-workbench.phone-layout .new-chat-input-container {
+	padding-bottom: var(--vscode-keyboard-height, 0px) !important;
+	transition: padding-bottom 200ms ease-out;
+}
+
