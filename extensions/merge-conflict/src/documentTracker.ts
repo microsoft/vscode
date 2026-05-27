@@ -69,8 +69,8 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 			cacheItem.addOrigin(origin);
 		}
 
-		return cacheItem.delayTask.trigger(() => {
-			const conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
+		return cacheItem.delayTask.trigger(async () => {
+			const conflicts = await this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
 
 			this.cache?.delete(key!);
 
@@ -114,10 +114,18 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 
 	private readonly seenDocumentsWithConflicts = new Set<string>();
 
-	private getConflictsOrEmpty(document: vscode.TextDocument, _origins: string[]): interfaces.IDocumentMergeConflict[] {
+	private async getConflictsOrEmpty(document: vscode.TextDocument, _origins: string[]): Promise<interfaces.IDocumentMergeConflict[]> {
 		const containsConflict = MergeConflictParser.containsConflict(document);
 
 		if (!containsConflict) {
+			return [];
+		}
+
+		// Check if the document is actually part of an active Git merge operation
+		// This prevents false positives from text patterns that look like merge conflicts
+		// (e.g., SEARCH/REPLACE blocks used by diff tools)
+		const isInMerge = await MergeConflictParser.isInActiveMerge(document);
+		if (!isInMerge) {
 			return [];
 		}
 
