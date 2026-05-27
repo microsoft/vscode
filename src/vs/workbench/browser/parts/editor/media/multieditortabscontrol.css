@@ -393,7 +393,9 @@
 	 * solution is to give the label container a bit more room to fully render.
 	 *
 	 * Refs: https://github.com/microsoft/vscode/issues/207409
+	 * Refs: https://github.com/microsoft/vscode/issues/244136
 	 */
+	padding-left: 1px;
 	padding-right: 1px;
 }
 
