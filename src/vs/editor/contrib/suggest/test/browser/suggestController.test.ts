@@ -90,6 +90,44 @@ suite('SuggestController', function () {
 		controller = editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
 	});
 
+	test('commit character acceptance can be excluded via setting', async function () {
+
+		// register a provider that offers a completion with '.' as commit character
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'foo',
+						insertText: 'foo',
+						range: Range.fromPositions(pos),
+						commitCharacters: ['.']
+					}]
+				};
+			}
+		}));
+
+		// without exclusion: typing '.' accepts the suggestion
+		editor.setValue('x');
+		editor.setSelection(new Selection(1, 2, 1, 2));
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+		editor.trigger('keyboard', 'type', { text: '.' });
+		assert.strictEqual(editor.getValue(), 'foo.');
+
+		// with exclusion: typing '.' does not accept the suggestion
+		editor.updateOptions({ suggest: { excludeCommitCharacters: ['.'] } });
+		editor.setValue('y');
+		editor.setSelection(new Selection(1, 2, 1, 2));
+		const p2 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p2;
+		editor.trigger('keyboard', 'type', { text: '.' });
+		assert.strictEqual(editor.getValue(), 'y.');
+	});
+
 	test('postfix completion reports incorrect position #86984', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			_debugDisplayName: 'test',
