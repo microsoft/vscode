@@ -477,4 +477,27 @@ suite('linked editing', () => {
 		'<iooo>',
 		'</iooo>'
 	]);
+
+	/**
+	 * Delete word and retype
+	 * Regression test: deleting the full word and retyping should keep
+	 * ranges synced even when the provider cannot resolve ranges for
+	 * the intermediate empty state (e.g., tags with attributes).
+	 */
+	testCase('Delete word then retype', state, async (editor) => {
+		const pos = new Position(1, 5);
+		await editor.setPosition(pos);
+		await editor.trigger('keyboard', 'deleteWordLeft', {});
+		await editor.trigger('keyboard', Handler.Type, { text: 'p' });
+	}, '<p></p>');
+
+	testCase('Delete word then retype multiple chars', state, async (editor) => {
+		const pos = new Position(1, 5);
+		await editor.setPosition(pos);
+		await editor.trigger('keyboard', 'deleteWordLeft', {});
+		await editor.trigger('keyboard', Handler.Type, { text: 's' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'p' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'a' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'n' });
+	}, '<span></span>');
 });
