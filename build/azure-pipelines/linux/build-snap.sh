@@ -17,7 +17,9 @@ sudo apt-get install -y curl apt-transport-https ca-certificates
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 
 # Create snap package
-BUILD_VERSION="$(date +%s)"
+# SOURCE_DATE_EPOCH is provided by the outer pipeline (where git is available);
+# the snapcraft container does not include git.
+BUILD_VERSION="${SOURCE_DATE_EPOCH:-$(date +%s)}"
 SNAP_FILENAME="code-$VSCODE_QUALITY-$VSCODE_ARCH-$BUILD_VERSION.snap"
 SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 case $VSCODE_ARCH in

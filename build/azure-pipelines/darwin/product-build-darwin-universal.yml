@@ -143,7 +143,8 @@ jobs:
       - script: |
           set -e
           mkdir -p $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive
-          pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+          ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+          build/azure-pipelines/common/reproducible-zip.sh "$ARCHIVE_PATH" "$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)" '*'
         displayName: Archive build
 
       - task: UseDotNet@2

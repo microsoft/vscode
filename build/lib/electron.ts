@@ -9,6 +9,7 @@ import vfs from 'vinyl-fs';
 import { filter, jsonEditor } from './gulp/facade.ts';
 import * as util from './util.ts';
 import { getVersion } from './getVersion.ts';
+import { getSourceDate } from './sourceDateEpoch.ts';
 import electron from '@vscode/gulp-electron';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
@@ -198,7 +199,7 @@ export const config = {
 		urlSchemes: [product.urlProtocol]
 	}],
 	darwinForceDarkModeSupport: true,
-	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : undefined,
+	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: getSourceDate().toISOString() })) : undefined,
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'],

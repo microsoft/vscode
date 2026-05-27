@@ -221,7 +221,7 @@ steps:
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        build/azure-pipelines/common/reproducible-zip.sh "$ARCHIVE_PATH" "../VSCode-darwin-$(VSCODE_ARCH)" '*'
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Package client
@@ -280,7 +280,7 @@ steps:
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        build/azure-pipelines/common/reproducible-zip.sh "$ARCHIVE_PATH" "../VSCode-darwin-$(VSCODE_ARCH)" '*'
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Re-package client after entitlement
@@ -289,7 +289,7 @@ steps:
         set -e
         ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        build/azure-pipelines/common/reproducible-zip.sh "$(Build.SourcesDirectory)/$ARCHIVE_PATH" ".." "vscode-server-darwin-$(VSCODE_ARCH)"
         echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
       displayName: Package server
 
@@ -297,7 +297,7 @@ steps:
         set -e
         ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        build/azure-pipelines/common/reproducible-zip.sh "$(Build.SourcesDirectory)/$ARCHIVE_PATH" ".." "vscode-server-darwin-$(VSCODE_ARCH)-web"
         echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       displayName: Package server (web)
 
