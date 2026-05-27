@@ -1171,10 +1171,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
-			if (key === 'tools') {
-				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
-				continue;
-			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
@@ -1449,10 +1445,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
-			if (key === 'tools') {
-				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
-				continue;
-			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 
