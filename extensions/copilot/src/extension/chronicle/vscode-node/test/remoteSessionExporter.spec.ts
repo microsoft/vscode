@@ -35,7 +35,7 @@ function makeStubExporter(opts: {
 		_eventBuffer: { chatSessionId: string; event: { type: string } }[];
 		_circuitBreaker: { canRequest: () => boolean; cancelProbe: () => void };
 		_cloudClient: { isRateLimited: () => boolean };
-		_scheduleFlush: (intervalMs: number) => void;
+		_scheduleFlush: (intervalMs: number, kind: 'fast' | 'safety') => void;
 	};
 
 	fields._isFlushing = false;
@@ -66,7 +66,7 @@ describe('RemoteSessionExporter._flushBatch early-return safety re-arm', () => {
 		await invokeFlushBatch(exporter);
 
 		expect(stubs.scheduleFlush).toHaveBeenCalledTimes(1);
-		expect(stubs.scheduleFlush).toHaveBeenCalledWith(SAFETY_INTERVAL_MS);
+		expect(stubs.scheduleFlush).toHaveBeenCalledWith(SAFETY_INTERVAL_MS, 'safety');
 	});
 
 	it('arms a safety-cadence flush when the client is rate-limited', async () => {
@@ -75,7 +75,7 @@ describe('RemoteSessionExporter._flushBatch early-return safety re-arm', () => {
 		await invokeFlushBatch(exporter);
 
 		expect(stubs.scheduleFlush).toHaveBeenCalledTimes(1);
-		expect(stubs.scheduleFlush).toHaveBeenCalledWith(SAFETY_INTERVAL_MS);
+		expect(stubs.scheduleFlush).toHaveBeenCalledWith(SAFETY_INTERVAL_MS, 'safety');
 		// Probe slot consumed by canRequest() must be released.
 		expect(stubs.cancelProbe).toHaveBeenCalledTimes(1);
 	});
