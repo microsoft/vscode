@@ -382,7 +382,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const isWorkspaceSession = workspace &&
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -559,18 +559,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			case SessionStatus.InProgress:
 				// When motion is allowed, the pixel spinner is rendered directly in renderSession
 				// and this method is not consulted; here we only provide the reduced-motion fallback.
-				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
+				return { ...Codicon.sessionInProgressCompact, color: themeColorFromId('textLink.foreground') };
+			case SessionStatus.NeedsInput: return { ...Codicon.circleFilledCompact, color: themeColorFromId('list.warningForeground') };
+			case SessionStatus.Error: return { ...Codicon.errorCompact, color: themeColorFromId('errorForeground') };
 			default:
 				if (pullRequestIcon) {
 					return pullRequestIcon;
 				}
 
 				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+					return { ...Codicon.circleFilledCompact, color: themeColorFromId('textLink.foreground') };
 				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				return { ...Codicon.circleSmallFilledCompact, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 	}
 
