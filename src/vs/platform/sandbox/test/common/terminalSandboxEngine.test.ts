@@ -301,7 +301,7 @@ suite('TerminalSandboxEngine', () => {
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
-		const wrapped = await engine.wrapCommand('echo hello', false, 'pwsh', URI.from({ scheme: 'file', path: '/c:/workspace' }));
+		const wrapped = await engine.wrapCommand('echo hello', false, 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', URI.from({ scheme: 'file', path: '/c:/workspace' }));
 		const configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
@@ -310,8 +310,8 @@ suite('TerminalSandboxEngine', () => {
 		ok(wrapped.command.startsWith(`& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\x64\\wxc-exec.exe'`), `Expected MXC executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(` '${configPath}'`), `Expected wrapped command to pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
-		strictEqual(config.containment, 'process');
-		strictEqual(config.process.commandLine, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "echo hello"');
+		strictEqual(config.containment, 'processcontainer');
+		strictEqual(config.process.commandLine, '"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo hello"');
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
 		strictEqual(config.ui.disable, false);
 		ok(config.process.env.includes('SystemRoot=C:\\Windows'), 'SystemRoot should be injected into the MXC process env');
@@ -329,6 +329,7 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be readable through readonly paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/app'), 'App root should be readable for MXC');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/tools/node'), 'MXC available tools policy should add tool paths to readonly paths');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/program files/powershell/7'), 'Resolved PowerShell executable directory should be readable');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/programs/git'), 'MXC user profile policy should add user profile paths to readonly paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'MXC actual temp policy should add host temp path to readonly paths');
 		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
@@ -397,7 +398,7 @@ suite('TerminalSandboxEngine', () => {
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
-		strictEqual(wrapped.command, `& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe' --debug '${configPath}'`);
+		strictEqual(wrapped.command, `& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe' '${configPath}'`);
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
 	});
 
@@ -406,17 +407,17 @@ suite('TerminalSandboxEngine', () => {
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
-		await engine.wrapCommand('echo first', false, 'pwsh');
+		await engine.wrapCommand('echo first', false, 'C:\\Program Files\\PowerShell\\7\\pwsh.exe');
 		let configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const firstCommandLine = JSON.parse(createdFiles.get(configPath)!).process.commandLine;
-		strictEqual(firstCommandLine, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "echo first"');
+		strictEqual(firstCommandLine, '"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo first"');
 
-		await engine.wrapCommand('echo second', false, 'pwsh');
+		await engine.wrapCommand('echo second', false, 'C:\\Program Files\\PowerShell\\7\\pwsh.exe');
 		configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const secondCommandLine = JSON.parse(createdFiles.get(configPath)!).process.commandLine;
-		strictEqual(secondCommandLine, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "echo second"');
+		strictEqual(secondCommandLine, '"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo second"');
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {

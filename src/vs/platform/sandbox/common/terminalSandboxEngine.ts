@@ -584,6 +584,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 		const sandboxSettings = this._os === OperatingSystem.Windows ? this._windowsMxcRuntime.createConfig({
 			command: this._commandLine ?? '',
+			shell: this._commandShell,
 			cwd: this._commandCwd ?? this._getDefaultWindowsMxcCwd(),
 			tempDir: this._tempDir,
 			allowNetwork,

@@ -48,6 +48,7 @@ export interface IWindowsMxcConfig {
 
 export interface IWindowsMxcConfigOptions {
 	command: string;
+	shell?: string;
 	cwd: URI | undefined;
 	tempDir: URI;
 	allowNetwork: boolean;
@@ -100,6 +101,9 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 
 	createConfig(options: IWindowsMxcConfigOptions): IWindowsMxcConfig {
 		const tempDirPath = this.toWindowsPath(options.tempDir);
+		const shell = options.shell
+			? this._quoteWindowsCommandLineArgument(options.shell)
+			: 'pwsh.exe';
 		return {
 			version: this._configVersion,
 			containerId: 'vscode-terminal-sandbox',
@@ -109,7 +113,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 				preservePolicy: false,
 			},
 			process: {
-				commandLine: `pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command ${this._quoteWindowsCommandLineArgument(options.command)}`,
+				commandLine: `${shell} -NoProfile -ExecutionPolicy Bypass -Command ${this._quoteWindowsCommandLineArgument(options.command)}`,
 				cwd: options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath,
 				env: [
 					...options.env
@@ -118,7 +122,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 			},
 			filesystem: {
 				readwritePaths: [...new Set([...options.allowWritePaths])],
-				readonlyPaths: [...new Set([tempDirPath, ...options.allowReadPaths])],
+				readonlyPaths: [...new Set([tempDirPath, ...(options.shell && win32.isAbsolute(options.shell) ? [win32.dirname(options.shell)] : []), ...options.allowReadPaths])],
 				deniedPaths: options.denyReadPaths,
 			},
 			network: this._createNetworkConfig(options.allowNetwork, options.networkDomains),
