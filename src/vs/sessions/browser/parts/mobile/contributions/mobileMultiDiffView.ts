@@ -285,12 +285,9 @@ export class MobileMultiDiffView extends Disposable {
 				this.scheduleLoadVisibleFiles();
 			}
 		};
-		store.add(Gesture.addTarget(chevronEl));
 		store.add(Gesture.addTarget(header));
 		store.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, toggle));
 		store.add(DOM.addDisposableListener(header, TouchEventType.Tap, e => { e.preventDefault(); toggle(e); }));
-		store.add(DOM.addDisposableListener(chevronEl, DOM.EventType.CLICK, toggle));
-		store.add(DOM.addDisposableListener(chevronEl, TouchEventType.Tap, e => { e.preventDefault(); toggle(e); }));
 		store.add(DOM.addDisposableListener(chevronEl, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();

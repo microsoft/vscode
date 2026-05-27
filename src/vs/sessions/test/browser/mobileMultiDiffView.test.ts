@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../base/browser/window.js';
+import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -149,6 +150,10 @@ suite('MobileMultiDiffView', () => {
 		chevron.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		assert.ok(!section.classList.contains('collapsed'), 'tapping the chevron should expand once without bubbling into a second toggle');
 		assert.strictEqual(chevron.getAttribute('aria-expanded'), 'true');
+
+		chevron.dispatchEvent(new Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
+		assert.ok(section.classList.contains('collapsed'), 'touch tapping the chevron should collapse through the header target');
+		assert.strictEqual(chevron.getAttribute('aria-expanded'), 'false');
 
 		view.dispose();
 	});
