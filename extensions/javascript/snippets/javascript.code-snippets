@@ -24,6 +24,15 @@
 		],
 		"description": "Class Definition"
 	},
+	"Extend Definition": {
+		"prefix": "extends",
+		"isFileTemplate": true,
+		"body": [
+			"class ${1:className} extends ${2:classExtendedName} {",
+			"}"
+		],
+		"description": "Extends a class more faster"
+	},
 	"Method Definition": {
 		"prefix": "method",
 		"body": [
