@@ -828,7 +828,7 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isEnterpriseUser
-					? localize('quotaAdditionalUsageActiveEnterprise', "Your organization has enabled additional usage. Usage will continue until limits reset.")
+					? localize('quotaAdditionalUsageActiveEnterprise', "You've used your included credits. Your organization covers additional usage, so you can keep working.")
 					: isUsageBasedBilling
 						? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
 						: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
@@ -837,7 +837,7 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isEnterpriseUser
-					? localize('quotaAdditionalUsageApproachingEnterprise', "Once the limit is reached, your organization has enabled additional usage to allow for continued use.")
+					? localize('quotaAdditionalUsageApproachingEnterprise', "You're approaching your included credits. Your organization covers additional usage, so there's no interruption.")
 					: isUsageBasedBilling
 						? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 						: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
