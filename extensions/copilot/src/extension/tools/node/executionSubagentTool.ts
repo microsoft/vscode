@@ -82,10 +82,11 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 		// Create a new capturing token to group this execution subagent and all its nested tool calls
 		// Similar to how DefaultIntentRequestHandler does it
 		// Pass the subAgentInvocationId so the trajectory uses this ID for explicit linking
-		// Fall back to the conversation's sessionId when the AsyncLocalStorage CapturingToken
-		// context isn't propagated across the chat-tool-invocation boundary (otherwise
+		// Fall back to request.sessionId (matches the parent's CapturingToken.chatSessionId set in
+		// DefaultIntentRequestHandler), then conversation.sessionId, when the AsyncLocalStorage
+		// CapturingToken context isn't propagated across the chat-tool-invocation boundary (otherwise
 		// PARENT_CHAT_SESSION_ID would be missing and the subagent would upload as a standalone cloud session).
-		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId ?? parentSessionId;
+		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId ?? request.sessionId ?? parentSessionId;
 		const executionSubagentToken = new CapturingToken(
 			`Execution: ${options.input.query.substring(0, 50)}${options.input.query.length > 50 ? '...' : ''}`,
 			'execution',
