@@ -224,7 +224,7 @@
 		"extensionButton.prominentBackground": "#297AA0",
 		"extensionButton.prominentForeground": "#FFFFFF",
 		"extensionButton.prominentHoverBackground": "#2B7DA3",
-		"pickerGroup.border": "#2A2B2CFF",
+		"pickerGroup.border": "#333536",
 		"pickerGroup.foreground": "#bfbfbf",
 		"quickInput.background": "#202122",
 		"quickInput.foreground": "#bfbfbf",
