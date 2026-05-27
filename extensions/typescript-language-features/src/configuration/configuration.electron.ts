@@ -6,10 +6,81 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as child_process from 'child_process';
 import * as fs from 'fs';
 import { BaseServiceConfigurationProvider } from './configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
+
+type IsExecutableFile = (candidate: string) => boolean;
+
+function defaultIsExecutableFile(candidate: string): boolean {
+	try {
+		const stat = fs.lstatSync(candidate);
+		if (!stat.isFile()) {
+			return false;
+		}
+		if (process.platform !== 'win32') {
+			fs.accessSync(candidate, fs.constants.X_OK);
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function getCaseInsensitiveEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
+	const foundKey = Object.keys(env).find(k => k.toUpperCase() === key.toUpperCase());
+	return foundKey ? env[foundKey] : undefined;
+}
+
+export function resolveNodeExecutableFromPath(
+	env: NodeJS.ProcessEnv,
+	cwd: string,
+	isExecutableFile: IsExecutableFile = defaultIsExecutableFile,
+	platform: NodeJS.Platform = process.platform,
+): string | null {
+	const pathLib = platform === 'win32' ? path.win32 : path.posix;
+	const windowsExecutableSuffixes = platform === 'win32'
+		? (getCaseInsensitiveEnvValue(env, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
+		: [];
+
+	const pathValue = getCaseInsensitiveEnvValue(env, 'PATH');
+	const searchPaths = pathValue ? pathValue.split(pathLib.delimiter).filter(Boolean) : [];
+
+	for (const pathEntry of searchPaths) {
+		const baseDir = pathLib.isAbsolute(pathEntry) ? pathEntry : pathLib.join(cwd, pathEntry);
+
+		if (platform === 'win32') {
+			for (const ext of windowsExecutableSuffixes) {
+				const candidate = pathLib.join(baseDir, `node${ext}`);
+				if (isExecutableFile(candidate)) {
+					return candidate;
+				}
+			}
+		}
+
+		const candidate = pathLib.join(baseDir, 'node');
+		if (isExecutableFile(candidate)) {
+			return candidate;
+		}
+	}
+
+	// Fallback: check cwd directly when node is not found via PATH
+	if (platform === 'win32') {
+		for (const ext of windowsExecutableSuffixes) {
+			const candidate = pathLib.join(cwd, `node${ext}`);
+			if (isExecutableFile(candidate)) {
+				return candidate;
+			}
+		}
+	}
+
+	const cwdCandidate = pathLib.join(cwd, 'node');
+	if (isExecutableFile(cwdCandidate)) {
+		return cwdCandidate;
+	}
+
+	return null;
+}
 
 export class ElectronServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
@@ -92,18 +163,12 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private findNodePath(): string | null {
-		try {
-			const out = child_process.execFileSync('node', ['-e', 'console.log(process.execPath)'], {
-				windowsHide: true,
-				timeout: 2000,
-				cwd: vscode.workspace.workspaceFolders?.[0].uri.fsPath,
-				encoding: 'utf-8',
-			});
-			return out.trim();
-		} catch (error) {
+		const cwd = vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? process.cwd();
+		const resolvedNodePath = resolveNodeExecutableFromPath(process.env, cwd);
+		if (!resolvedNodePath) {
 			vscode.window.showWarningMessage(vscode.l10n.t("Could not detect a Node installation to run TS Server."));
-			return null;
 		}
+		return resolvedNodePath;
 	}
 
 	private validatePath(nodePath: string | null): string | null {
