@@ -1086,14 +1086,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Re-update when the active session changes so that a filtered-out
 		// session becomes visible while active and hides again when unselected.
 		// Also mark the newly active session as read.
+		// Only re-render the tree if the change actually affects which sessions
+		// would be visible — otherwise the update is wasted work (~130ms on
+		// large lists) on the click critical path.
+		let previousActiveSession: ISession | undefined;
 		this._register(autorun(reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			if (activeSession) {
 				this._sessionsListModelService.markRead(activeSession);
 			}
 			if (this.visible) {
-				this.update();
+				const visibilityWouldChange =
+					(previousActiveSession && this._isFilteredOut(previousActiveSession)) ||
+					(activeSession && this._isFilteredOut(activeSession));
+				if (visibilityWouldChange) {
+					this.update();
+				}
 			}
+			previousActiveSession = activeSession;
 		}));
 
 		this.refresh();
@@ -1102,6 +1112,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
 		this.update();
+	}
+
+	/**
+	 * Whether the given session would be excluded from the list by the current
+	 * filters (host filter, type, status, archived, read). Mirrors the filter
+	 * predicates in {@link update}.
+	 */
+	private _isFilteredOut(session: ISession): boolean {
+		const hostFilter = this._agentHostFilterService.selectedProviderId;
+		if (hostFilter !== undefined && session.providerId !== hostFilter) {
+			return true;
+		}
+		if (this.excludedSessionTypes.has(session.sessionType)) {
+			return true;
+		}
+		if (this.excludedStatuses.has(session.status.get())) {
+			return true;
+		}
+		if (this._excludeArchived && session.isArchived.get()) {
+			return true;
+		}
+		if (this._excludeRead && this.isSessionRead(session)) {
+			return true;
+		}
+		return false;
 	}
 
 	update(expandAll?: boolean): void {

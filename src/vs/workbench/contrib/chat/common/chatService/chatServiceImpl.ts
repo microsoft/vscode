@@ -34,7 +34,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
-import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
+import { chatEditingSessionIsReady, ChatEditingSessionState } from '../editing/chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
@@ -839,9 +839,25 @@ export class ChatService extends Disposable implements IChatService {
 
 			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			if (lastRequest && model.editingSession) {
-				// wait for timeline to load so that a 'changes' part is added when the response completes
-				await chatEditingSessionIsReady(model.editingSession);
-				lastRequest.response?.complete();
+				const editingSession = model.editingSession;
+				const lastReq = lastRequest;
+				// Fast path: editing session is already ready (typical for agent-host
+				// sessions where state initializes to Idle). Otherwise defer the
+				// timeline-restore wait off the critical path so the chat can render
+				// immediately; guard against the model being disposed or a newer
+				// request arriving in the meantime.
+				if (editingSession.state.get() !== ChatEditingSessionState.Initial) {
+					lastReq.response?.complete();
+				} else {
+					let modelDisposed = false;
+					disposables.add(model.onDidDispose(() => { modelDisposed = true; }));
+					chatEditingSessionIsReady(editingSession).then(() => {
+						if (modelDisposed || model.getRequests().at(-1) !== lastReq) {
+							return;
+						}
+						lastReq.response?.complete();
+					});
+				}
 			}
 		}
 
