@@ -159,7 +159,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		return [{ element: this._shareButtonContainer, order: 50 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		// Manage sharing state
 		this._updateSharingState(true);
 		store.add(model.onDidChangeSharingState(() => {
@@ -180,7 +180,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._elementSelectionActiveContext.reset();
 	}
 

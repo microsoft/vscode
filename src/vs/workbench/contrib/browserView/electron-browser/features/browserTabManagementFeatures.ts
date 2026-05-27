@@ -675,7 +675,7 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		return [{ element: this._pill, order: 100 }];
 	}
 
-	protected override subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
+	protected override onModelAttached(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
 		if (IsSessionsWindowContext.getValue(this.contextKeyService)) {
 			this._setVisible(false);
 			return;
@@ -693,7 +693,7 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._attentionTimeout.clear();
 		this._setVisible(false);
 	}

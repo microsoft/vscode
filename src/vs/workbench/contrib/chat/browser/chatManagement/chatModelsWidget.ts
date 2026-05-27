@@ -53,7 +53,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}@${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
 	} else {
 		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
 	}
@@ -490,7 +490,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
 		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}@${entry.model.metadata.version}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
 		} else {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
 		}
