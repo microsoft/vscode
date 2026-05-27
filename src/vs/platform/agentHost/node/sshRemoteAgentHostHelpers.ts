@@ -21,16 +21,52 @@ export function validateShellToken(value: string, label: string): string {
 	return value;
 }
 
-/** Install location for the VS Code CLI on the remote machine. */
-export function getRemoteCLIDir(quality: string): string {
+/**
+ * Name of the CLI binary as it appears inside the downloaded archive,
+ * derived from product quality. Matches the names used by Remote-SSH's
+ * exec-server installer so that CLI binaries can be shared between the
+ * two features.
+ */
+export function getRemoteCLIArchiveName(quality: string): string {
 	const q = validateShellToken(quality, 'quality');
-	return q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+	switch (q) {
+		case 'stable': return 'code';
+		case 'exploration': return 'code-exploration';
+		default: return 'code-insiders';
+	}
 }
 
-export function getRemoteCLIBin(quality: string): string {
-	const q = validateShellToken(quality, 'quality');
-	const binaryName = q === 'stable' ? 'code' : 'code-insiders';
-	return `${getRemoteCLIDir(q)}/${binaryName}`;
+/**
+ * Install root for the VS Code CLI on the remote machine. Shared with
+ * Remote-SSH's exec-server installer so the two features can reuse each
+ * other's installations. Also the parent of the agent host lockfile dir.
+ */
+export function getRemoteCLIInstallRoot(serverDataFolderName: string): string {
+	const d = validateShellToken(serverDataFolderName, 'server data folder name');
+	return `~/${d}`;
+}
+
+/**
+ * Full path to the installed CLI binary on the remote.
+ *
+ * When `commit` is provided, the path is keyed on commit (e.g.
+ * `~/.vscode-server/code-insiders-<40hex>`) so we can install the CLI
+ * matching the current desktop without disturbing other installs. This
+ * mirrors Remote-SSH's exec-server layout.
+ *
+ * When `commit` is undefined (dev/OSS builds with no commit in product
+ * metadata), the path is just `<root>/<archive>` — a single, non-keyed
+ * filename. Caller code should keep the loose `--version`-based reuse
+ * check in that case.
+ */
+export function getRemoteCLIBin(serverDataFolderName: string, quality: string, commit?: string): string {
+	const archive = getRemoteCLIArchiveName(quality);
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	if (commit) {
+		const c = validateShellToken(commit, 'commit');
+		return `${root}/${archive}-${c}`;
+	}
+	return `${root}/${archive}`;
 }
 
 /** Escape a string for use as a single shell argument (single-quote wrapping). */
@@ -67,8 +103,73 @@ export function resolveRemotePlatform(unameS: string, unameM: string): { os: str
 	return { os: platformOs, arch };
 }
 
-export function buildCLIDownloadUrl(os: string, arch: string, quality: string): string {
-	return `https://update.code.visualstudio.com/latest/cli-${os}-${arch}/${quality}`;
+/**
+ * URL of the CLI download artifact.
+ *
+ * When `commit` is provided, uses the commit-pinned URL form so we get
+ * the exact CLI matching the current desktop build (mirrors Remote-SSH).
+ * When `commit` is undefined (dev/OSS builds), falls back to `latest`.
+ */
+export function buildCLIDownloadUrl(os: string, arch: string, quality: string, commit?: string): string {
+	const base = 'https://update.code.visualstudio.com';
+	const artifact = `cli-${os}-${arch}`;
+	if (commit) {
+		// Note: commit safety is enforced by the caller / by getRemoteCLIBin
+		// which runs the same validation. Repeat it here as defense-in-depth
+		// because the URL is built independently in some call paths.
+		const c = validateShellToken(commit, 'commit');
+		return `${base}/commit:${c}/${artifact}/${quality}`;
+	}
+	return `${base}/latest/${artifact}/${quality}`;
+}
+
+/**
+ * Shell snippet that prunes older commit-keyed CLI binaries from the
+ * install root, keeping the 5 most recently modified. Mirrors the
+ * retention policy in Remote-SSH's exec-server installer. The pattern
+ * matches `<archive>-<exactly-40-chars>` for all known archive names so
+ * that the non-commit-keyed dev fallback binary is never deleted.
+ */
+export function buildCleanupOldCLIsCommand(serverDataFolderName: string, quality: string): string {
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const archive = getRemoteCLIArchiveName(quality);
+	// 40 `?` chars match any 40-character commit suffix. Using `?` rather than
+	// a literal `[0-9a-f]` × 40 keeps the glob short; commit names produced by
+	// our build are always 40 hex chars, so the pattern is precise enough.
+	const commitGlob = '?'.repeat(40);
+	// `ls -1t` sorts by mtime newest-first across both Linux (coreutils) and
+	// macOS (BSD). `awk 'NR>5'` drops the 5 most recent entries we want to
+	// keep. `xargs rm -f` ignores missing files; the leading `2>/dev/null`
+	// suppresses "No such file" complaints when the directory is empty.
+	return `ls -1t ${root}/${archive}-${commitGlob} 2>/dev/null | awk 'NR>5' | xargs rm -f 2>/dev/null; true`;
+}
+
+/**
+ * Shell snippet that prints candidate CLI binary paths that could be
+ * used as a fallback when the commit-pinned download fails. Order: any
+ * commit-keyed binaries in the shared install root (newest mtime first),
+ * then the legacy single-binary paths from the previous installer
+ * (`~/.vscode-cli{,-<quality>}/<archive>`).
+ *
+ * Each line is a single path. Callers should `--version`-test each
+ * candidate in order and pick the first one that succeeds. The list may
+ * be empty.
+ */
+export function buildFindFallbackCLICommand(serverDataFolderName: string, quality: string): string {
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const archive = getRemoteCLIArchiveName(quality);
+	const commitGlob = '?'.repeat(40);
+	const q = validateShellToken(quality, 'quality');
+	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+	const legacyBin = `${legacyDir}/${archive}`;
+	// Print candidates one per line. Both `ls` invocations are tolerant of
+	// missing files / empty matches. The trailing `true` ensures the
+	// pipeline overall succeeds.
+	return [
+		`ls -1t ${root}/${archive}-${commitGlob} 2>/dev/null`,
+		`ls -1 ${legacyBin} 2>/dev/null`,
+		'true',
+	].join('; ');
 }
 
 /** Redact connection tokens from log output. */

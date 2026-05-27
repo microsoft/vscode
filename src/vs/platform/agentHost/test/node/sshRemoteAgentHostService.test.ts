@@ -252,7 +252,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _startRemoteAgentHost(
-		_client: unknown, _quality: string, _commandOverride?: string,
+		_client: unknown, _cliBin: string | undefined, _commandOverride?: string,
 	) {
 		this.startCalled++;
 		return { ...this.startResult, stream: new MockSSHChannel() as never };
@@ -1030,6 +1030,128 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('curl')),
 			'should download CLI when not installed');
+	});
+
+	// --- Commit-pinned install flow (release builds with productService.commit) ---
+
+	suite('commit-pinned install', () => {
+		const commit = 'abcdef0123456789abcdef0123456789abcdef01';
+		const cliBin = `~/.vscode-insiders/code-insiders-${commit}`;
+		let pinnedService: TestableSSHRemoteAgentHostMainService;
+
+		setup(() => {
+			const logService = new NullLogService();
+			const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName' | 'serverDataFolderName' | 'commit'> = {
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+				serverDataFolderName: '.vscode-insiders',
+				commit,
+			};
+			pinnedService = new TestableSSHRemoteAgentHostMainService(
+				logService,
+				productService as IProductService,
+			);
+			disposables.add(pinnedService);
+		});
+
+		test('always invokes cleanup of old commit-keyed CLIs', async () => {
+			pinnedService.execResponses = [
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // cleanup (always runs)
+				{ stdout: '', code: 0 },               // test -x cliBin → present
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: '', code: 0 },               // write state
+			];
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			// Retention snippet: `ls -1t ... | awk 'NR>5' | xargs rm`
+			assert.ok(execCalls.some(c => /ls -1t .*code-insiders-/.test(c) && /awk\s+'NR>5'/.test(c)),
+				`cleanup command should have run; saw: ${JSON.stringify(execCalls)}`);
+		});
+
+		test('reuses existing commit-keyed CLI without re-downloading', async () => {
+			pinnedService.execResponses = [
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // cleanup
+				{ stdout: '', code: 0 },               // test -x cliBin → 0 (present)
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: '', code: 0 },               // write state
+			];
+
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			assert.ok(execCalls.some(c => c.includes(`test -x ${cliBin}`)),
+				`should test for commit-keyed CLI; saw: ${JSON.stringify(execCalls)}`);
+			assert.ok(!execCalls.some(c => c.includes('curl')),
+				`should not download when commit-keyed CLI present; saw: ${JSON.stringify(execCalls)}`);
+		});
+
+		test('downloads from commit-pinned URL when CLI is missing', async () => {
+			pinnedService.execResponses = [
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // cleanup
+				{ stdout: '', code: 1 },               // test -x → missing
+				{ stdout: '', code: 0 },               // mkdir+mktemp+curl|tar+mv+chmod+rm
+				{ stdout: '1.0.0\n', code: 0 },       // <cliBin> --version validation
+				{ stdout: '', code: 1 },               // cat state
+				{ stdout: '', code: 0 },               // write state
+			];
+
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			const installCall = execCalls.find(c => c.includes('curl'));
+			assert.ok(installCall, `should have run curl install; saw: ${JSON.stringify(execCalls)}`);
+			assert.ok(installCall!.includes(`commit:${commit}`),
+				`install URL should be commit-pinned; got: ${installCall}`);
+			assert.ok(installCall!.includes(`mv `) && installCall!.includes(cliBin),
+				`install should atomic-mv into commit-keyed path; got: ${installCall}`);
+		});
+
+		test('falls back to any usable CLI when commit-pinned download fails', async () => {
+			const fallbackBin = `~/.vscode-insiders/code-insiders-0000000000000000000000000000000000000000`;
+			pinnedService.execResponses = [
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // cleanup
+				{ stdout: '', code: 1 },               // test -x → missing
+				{ stdout: '', code: 7 },               // install fails (curl exit 7)
+				{ stdout: `${fallbackBin}\n`, code: 0 }, // fallback finder lists old commit-keyed
+				{ stdout: '1.0.0\n', code: 0 },       // fallback --version succeeds
+				{ stdout: '', code: 1 },               // cat state
+				{ stdout: '', code: 0 },               // write state
+			];
+
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			// Fallback finder snippet enumerates commit-keyed candidates by mtime.
+			assert.ok(execCalls.some(c => /ls -1t .*code-insiders-/.test(c) && c.includes('.vscode-cli-insider/code-insiders')),
+				`should have run fallback finder; saw: ${JSON.stringify(execCalls)}`);
+			// Should have --version-validated the fallback candidate.
+			assert.ok(execCalls.some(c => c.includes(`${fallbackBin} --version`)),
+				`should --version-validate fallback; saw: ${JSON.stringify(execCalls)}`);
+		});
+
+		test('propagates install error when no fallback CLI exists', async () => {
+			pinnedService.execResponses = [
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // cleanup
+				{ stdout: '', code: 1 },               // test -x → missing
+				{ stdout: '', code: 7 },               // install fails
+				{ stdout: '', code: 0 },               // fallback finder returns nothing
+				{ stdout: '', code: 1 },               // (unused — flow should abort earlier)
+			];
+
+			await assert.rejects(pinnedService.connect(makeConfig()));
+		});
 	});
 
 	// --- Connection key formats ---

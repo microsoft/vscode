@@ -10,11 +10,14 @@ import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import {
 	buildCLIDownloadUrl,
+	buildCleanupOldCLIsCommand,
+	buildFindFallbackCLICommand,
 	cleanupRemoteAgentHost,
 	findRunningAgentHost,
 	getAgentHostLockfile,
+	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
-	getRemoteCLIDir,
+	getRemoteCLIInstallRoot,
 	redactToken,
 	resolveRemotePlatform,
 	shellEscape,
@@ -67,27 +70,84 @@ suite('SSH Remote Agent Host Helpers', () => {
 		});
 	});
 
-	suite('getRemoteCLIDir', () => {
-		test('returns standard path for stable', () => {
-			assert.strictEqual(getRemoteCLIDir('stable'), '~/.vscode-cli');
+	suite('getRemoteCLIArchiveName', () => {
+		test('returns code for stable', () => {
+			assert.strictEqual(getRemoteCLIArchiveName('stable'), 'code');
 		});
 
-		test('returns quality-suffixed path for insider', () => {
-			assert.strictEqual(getRemoteCLIDir('insider'), '~/.vscode-cli-insider');
+		test('returns code-insiders for insider', () => {
+			assert.strictEqual(getRemoteCLIArchiveName('insider'), 'code-insiders');
 		});
 
-		test('returns quality-suffixed path for exploration', () => {
-			assert.strictEqual(getRemoteCLIDir('exploration'), '~/.vscode-cli-exploration');
+		test('returns code-exploration for exploration', () => {
+			assert.strictEqual(getRemoteCLIArchiveName('exploration'), 'code-exploration');
+		});
+
+		test('falls back to code-insiders for unknown qualities', () => {
+			// Dev builds with no `quality` end up here via the
+			// `_quality` getter's `'insider'` default, so the fallback
+			// shouldn't differ from insider.
+			assert.strictEqual(getRemoteCLIArchiveName('weirdbuild'), 'code-insiders');
+		});
+
+		test('rejects unsafe quality strings', () => {
+			assert.throws(() => getRemoteCLIArchiveName('foo bar'), /Unsafe quality/);
+		});
+	});
+
+	suite('getRemoteCLIInstallRoot', () => {
+		test('returns user-home anchored path under the server data folder', () => {
+			assert.strictEqual(getRemoteCLIInstallRoot('.vscode-server-insiders'), '~/.vscode-server-insiders');
+		});
+
+		test('rejects unsafe server data folder names', () => {
+			assert.throws(() => getRemoteCLIInstallRoot('foo bar'), /Unsafe server data folder name/);
+			assert.throws(() => getRemoteCLIInstallRoot('foo/bar'), /Unsafe server data folder name/);
+			assert.throws(() => getRemoteCLIInstallRoot('$(whoami)'), /Unsafe server data folder name/);
 		});
 	});
 
 	suite('getRemoteCLIBin', () => {
-		test('returns code for stable', () => {
-			assert.strictEqual(getRemoteCLIBin('stable'), '~/.vscode-cli/code');
+		const commit = 'abcdef0123456789abcdef0123456789abcdef01';
+
+		test('returns commit-keyed path under shared install root for stable', () => {
+			assert.strictEqual(
+				getRemoteCLIBin('.vscode-server', 'stable', commit),
+				`~/.vscode-server/code-${commit}`,
+			);
 		});
 
-		test('returns code-insiders for insider', () => {
-			assert.strictEqual(getRemoteCLIBin('insider'), '~/.vscode-cli-insider/code-insiders');
+		test('returns commit-keyed path for insider', () => {
+			assert.strictEqual(
+				getRemoteCLIBin('.vscode-server-insiders', 'insider', commit),
+				`~/.vscode-server-insiders/code-insiders-${commit}`,
+			);
+		});
+
+		test('returns commit-keyed path for exploration', () => {
+			assert.strictEqual(
+				getRemoteCLIBin('.vscode-server-exploration', 'exploration', commit),
+				`~/.vscode-server-exploration/code-exploration-${commit}`,
+			);
+		});
+
+		test('returns non-keyed path when commit is undefined (dev build)', () => {
+			assert.strictEqual(
+				getRemoteCLIBin('.vscode-server-oss', 'insider'),
+				'~/.vscode-server-oss/code-insiders',
+			);
+			assert.strictEqual(
+				getRemoteCLIBin('.vscode-server', 'stable'),
+				'~/.vscode-server/code',
+			);
+		});
+
+		test('rejects unsafe commit values', () => {
+			assert.throws(() => getRemoteCLIBin('.vscode-server', 'stable', 'foo;rm'), /Unsafe commit/);
+		});
+
+		test('rejects unsafe server data folder names', () => {
+			assert.throws(() => getRemoteCLIBin('foo bar', 'stable', commit), /Unsafe server data folder name/);
 		});
 	});
 
@@ -156,18 +216,84 @@ suite('SSH Remote Agent Host Helpers', () => {
 	});
 
 	suite('buildCLIDownloadUrl', () => {
-		test('constructs correct URL', () => {
+		const commit = 'abcdef0123456789abcdef0123456789abcdef01';
+
+		test('uses `latest` URL when commit is omitted', () => {
 			assert.strictEqual(
 				buildCLIDownloadUrl('linux', 'x64', 'insider'),
 				'https://update.code.visualstudio.com/latest/cli-linux-x64/insider'
 			);
 		});
 
-		test('works for darwin arm64 stable', () => {
+		test('works for darwin arm64 stable (no commit)', () => {
 			assert.strictEqual(
 				buildCLIDownloadUrl('darwin', 'arm64', 'stable'),
 				'https://update.code.visualstudio.com/latest/cli-darwin-arm64/stable'
 			);
+		});
+
+		test('pins to commit when provided', () => {
+			assert.strictEqual(
+				buildCLIDownloadUrl('linux', 'x64', 'insider', commit),
+				`https://update.code.visualstudio.com/commit:${commit}/cli-linux-x64/insider`,
+			);
+		});
+
+		test('pins to commit for darwin arm64 stable', () => {
+			assert.strictEqual(
+				buildCLIDownloadUrl('darwin', 'arm64', 'stable', commit),
+				`https://update.code.visualstudio.com/commit:${commit}/cli-darwin-arm64/stable`,
+			);
+		});
+
+		test('rejects unsafe commit values', () => {
+			assert.throws(() => buildCLIDownloadUrl('linux', 'x64', 'insider', 'foo;rm'), /Unsafe commit/);
+		});
+	});
+
+	suite('buildCleanupOldCLIsCommand', () => {
+		test('produces a snippet that keeps the 5 most recent commit-keyed CLIs for insider', () => {
+			const cmd = buildCleanupOldCLIsCommand('.vscode-server-insiders', 'insider');
+			// Target the commit-keyed pattern (with 40 chars), under the shared install root.
+			assert.ok(cmd.includes('~/.vscode-server-insiders/code-insiders-'), `cmd missing install path: ${cmd}`);
+			assert.ok(cmd.includes('????????????????????????????????????????'), 'cmd should match exactly 40 chars');
+			// Retention via sort + awk drop-first-N + xargs rm.
+			assert.ok(/ls -1t/.test(cmd), `cmd should sort by mtime: ${cmd}`);
+			assert.ok(/awk\s+'NR>5'/.test(cmd), `cmd should keep 5: ${cmd}`);
+			assert.ok(/xargs\s+rm/.test(cmd), `cmd should rm: ${cmd}`);
+		});
+
+		test('uses `code-` archive name for stable', () => {
+			const cmd = buildCleanupOldCLIsCommand('.vscode-server', 'stable');
+			assert.ok(cmd.includes('~/.vscode-server/code-?'), `cmd should target stable archive: ${cmd}`);
+			assert.ok(!cmd.includes('code-insiders-'), 'stable cmd should not mention insiders archive');
+		});
+
+		test('rejects unsafe inputs', () => {
+			assert.throws(() => buildCleanupOldCLIsCommand('foo bar', 'stable'), /Unsafe server data folder name/);
+			assert.throws(() => buildCleanupOldCLIsCommand('.vscode-server', 'foo bar'), /Unsafe quality/);
+		});
+	});
+
+	suite('buildFindFallbackCLICommand', () => {
+		test('lists commit-keyed candidates then legacy paths for insider', () => {
+			const cmd = buildFindFallbackCLICommand('.vscode-server-insiders', 'insider');
+			// New commit-keyed candidates in shared install root, sorted newest-first.
+			assert.ok(cmd.includes('~/.vscode-server-insiders/code-insiders-'), `cmd missing new path: ${cmd}`);
+			assert.ok(/ls -1t/.test(cmd), 'should sort commit-keyed candidates by mtime');
+			// Legacy single-binary path (insider has the `-insider` dir suffix).
+			assert.ok(cmd.includes('~/.vscode-cli-insider/code-insiders'), `cmd missing legacy path: ${cmd}`);
+		});
+
+		test('uses no-suffix legacy dir for stable', () => {
+			const cmd = buildFindFallbackCLICommand('.vscode-server', 'stable');
+			assert.ok(cmd.includes('~/.vscode-cli/code'), `cmd missing stable legacy path: ${cmd}`);
+			assert.ok(!cmd.includes('.vscode-cli-stable'), 'stable should not get the -<quality> suffix');
+		});
+
+		test('rejects unsafe inputs', () => {
+			assert.throws(() => buildFindFallbackCLICommand('foo bar', 'stable'), /Unsafe server data folder name/);
+			assert.throws(() => buildFindFallbackCLICommand('.vscode-server', 'foo bar'), /Unsafe quality/);
 		});
 	});
 
