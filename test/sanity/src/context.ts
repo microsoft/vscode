@@ -42,9 +42,11 @@ export class TestContext {
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
+	private readonly patchedWslNodePaths = new Set<string>();
 	private nextPort = 3010;
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
+	private wslVersion: number | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -222,6 +224,69 @@ export class TestContext {
 		}
 		this.log(`Default WSL distribution: ${distro}`);
 		return distro;
+	}
+
+	/**
+	 * Returns the WSL version of the Ubuntu distribution, or undefined if not found.
+	 */
+	public getUbuntuWslVersion(): number | undefined {
+		if (this.wslVersion !== undefined) {
+			return this.wslVersion;
+		}
+
+		const result = this.runNoErrors('wsl', '--list', '--verbose');
+		for (const rawLine of result.stdout.split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line || /^NAME\s+STATE\s+VERSION$/i.test(line)) {
+				continue;
+			}
+
+			const normalizedLine = line.replace(/^\*\s*/, '');
+			const columns = normalizedLine.split(/\s+/);
+			if (columns.length < 3 || columns[0] !== 'Ubuntu') {
+				continue;
+			}
+
+			const version = Number(columns[columns.length - 1]);
+			if (!Number.isNaN(version)) {
+				this.wslVersion = version;
+				return this.wslVersion;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * On WSL1, patches the Node.js binary used by the server to remove ELF note sections
+	 * that cause Node 24 to fail to start. No-op on WSL2.
+	 * @param wslEntryPoint The WSL path to the server entry point script.
+	 */
+	public applyWsl1Node24Workaround(wslEntryPoint: string): void {
+		if (this.getUbuntuWslVersion() !== 1) {
+			return;
+		}
+
+		const wslNodePath = wslEntryPoint.replace(/\/bin\/[^/]+$/, '/node');
+		if (this.patchedWslNodePaths.has(wslNodePath)) {
+			return;
+		}
+
+		this.patchedWslNodePaths.add(wslNodePath);
+		this.warn(`Applying WSL1 Node 24 workaround for ${wslNodePath}`);
+
+		const shellScript = [
+			'set -e',
+			`node_path='${wslNodePath}'`,
+			'backup_path="${node_path}.orig"',
+			'if [ -f "${backup_path}" ]; then exit 0; fi',
+			'if ! command -v objcopy >/dev/null 2>&1; then apt-get update && apt-get install -y binutils; fi',
+			'cp "${node_path}" "${backup_path}"',
+			'objcopy --remove-section .note.ABI-tag --remove-section .note.gnu.build-id --remove-section .note.gnu.property "${backup_path}" "${node_path}"',
+			'chmod +x "${node_path}"',
+		].join('; ');
+
+		this.runNoErrors('wsl', '-d', 'Ubuntu', 'sh', '-lc', shellScript);
 	}
 
 	/**
