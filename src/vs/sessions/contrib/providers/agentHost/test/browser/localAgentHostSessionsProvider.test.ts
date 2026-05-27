@@ -1101,6 +1101,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			[SessionConfigKey.AutoApprove]: 'autopilot',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
+		// Case 1: policy restricts auto-approve — setting 'autoApprove' is clamped to 'default'
 		const policyRestrictedConfig = new class extends TestConfigurationService {
 			override inspect<T>(key: string) {
 				const base = super.inspect<T>(key);
@@ -1112,35 +1113,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}();
 		await policyRestrictedConfig.setUserConfiguration('chat.permissions.default', 'autoApprove');
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
-		const policyRestrictedSession = policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 
+		// Case 2: autopilot disabled — setting 'default' wins over remembered 'autopilot'
 		const autopilotDisabledConfig = new TestConfigurationService();
 		await autopilotDisabledConfig.setUserConfiguration('chat.permissions.default', 'default');
 		await autopilotDisabledConfig.setUserConfiguration('chat.autopilot.enabled', false);
 		const autopilotDisabledProvider = createProvider(disposables, agentHost, undefined, { configurationService: autopilotDisabledConfig, storageService });
-		const autopilotDisabledSession = autopilotDisabledProvider.createNewSession(URI.parse('file:///home/user/project'), autopilotDisabledProvider.sessionTypes[0].id);
+		autopilotDisabledProvider.createNewSession(URI.parse('file:///home/user/project'), autopilotDisabledProvider.sessionTypes[0].id);
 
+		// The forwarded config proves the setting took precedence over the
+		// remembered value and was properly normalized.
 		assert.deepStrictEqual({
-			policyRestricted: {
-				seededImmediately: policyRestrictedProvider.getSessionConfig(policyRestrictedSession.sessionId)?.values.autoApprove,
-				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
-			},
-			autopilotDisabled: {
-				seededImmediately: autopilotDisabledProvider.getSessionConfig(autopilotDisabledSession.sessionId)?.values.autoApprove,
-				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
-			},
+			policyRestricted: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			autopilotDisabled: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
 		}, {
-			policyRestricted: {
-				// The mock resolveSessionConfig replaces config values so the
-				// initial seed is overwritten; `forwardedToAgentHost` proves the
-				// seed was clamped to 'default'.
-				seededImmediately: undefined,
-				forwardedToAgentHost: 'default',
-			},
-			autopilotDisabled: {
-				seededImmediately: undefined,
-				forwardedToAgentHost: 'default',
-			},
+			policyRestricted: 'default',
+			autopilotDisabled: 'default',
 		});
 	});
 
