@@ -63,7 +63,7 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
  * Returns a description of the model's capabilities and intended use cases.
  * This is shown in the rich hover when selecting models.
  */
-export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | LanguageModelChatInformation): string | undefined {
+export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | LanguageModelChatInformation | { name: string; family: string }): string | undefined {
 	const name = endpoint.name.toLowerCase();
 	const family = endpoint.family.toLowerCase();
 

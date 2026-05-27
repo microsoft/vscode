@@ -116,6 +116,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				description: optionItem.description,
 				tooltip: optionItem.description ?? optionItem.name,
 				label: optionItem.name,
+				hover: optionItem.tooltip ? { content: optionItem.tooltip } : undefined,
 				run: () => {
 					this.delegate.setOption(optionItem);
 				}

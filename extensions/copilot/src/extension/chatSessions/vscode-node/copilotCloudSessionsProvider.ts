@@ -17,6 +17,7 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
+import { getModelCapabilitiesDescription } from '../../conversation/common/languageModelAccess';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -1000,9 +1001,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					id: model.id,
 					name: model.name,
 					...(!isUBB && model.billing?.multiplier !== undefined ? { description: `${model.billing.multiplier}x` } : {}),
+					tooltip: getModelCapabilitiesDescription({ name: model.name, family: model.capabilities?.family ?? model.id }),
 				}));
 				if (!models.value.find(m => m.id === DEFAULT_MODEL_ID)) {
-					modelItems.unshift({ id: DEFAULT_MODEL_ID, name: vscode.l10n.t('Auto'), description: vscode.l10n.t('Automatically select the best model') });
+					modelItems.unshift({ id: DEFAULT_MODEL_ID, name: vscode.l10n.t('Auto'), description: vscode.l10n.t('Automatically select the best model'), tooltip: vscode.l10n.t('Automatically select the best model') });
 				}
 				optionGroups.push({
 					id: MODELS_OPTION_GROUP_ID,

@@ -678,6 +678,12 @@ declare module 'vscode' {
 		 * unique across the provider's groups; on conflict, the first declared wins.
 		 */
 		readonly slashCommand?: string;
+
+		/**
+		 * Optional tooltip content shown in a hover panel when the user focuses or
+		 * hovers over this item in the picker. Supports markdown formatting.
+		 */
+		readonly tooltip?: string;
 	}
 
 	/**
