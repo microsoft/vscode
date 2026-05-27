@@ -108,6 +108,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			if (this._availableModels !== availableModels) {
 				return;
 			}
+			// Don't overwrite a previously-good list with an empty result from a transient auth state.
+			if (models.length === 0 && this._resolvedModelInfos?.length) {
+				this._availableModels = undefined;
+				return;
+			}
 			this._resolvedModelInfos = this._buildModelInfos(models);
 			this._onDidChange.fire();
 		}).catch((error) => {
