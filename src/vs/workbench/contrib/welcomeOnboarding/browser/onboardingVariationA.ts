@@ -1133,7 +1133,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Group 1: Chat modes — Plan / Agent
 		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
 		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
-		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Choose Your Agent");
+		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Agents Made for the Task");
 		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(chatGrid, Codicon.listOrdered,
@@ -1164,10 +1164,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {
-		const card = this._registerStepFocusable(append(parent, $('div.onboarding-a-feature-card')));
-		card.setAttribute('tabindex', '0');
-		card.setAttribute('role', 'group');
-		card.setAttribute('aria-label', title);
+		const card = append(parent, $('div.onboarding-a-feature-card'));
 		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
 		iconCol.appendChild(renderIcon(icon));
 		const textCol = append(card, $('div.onboarding-a-feature-text'));
