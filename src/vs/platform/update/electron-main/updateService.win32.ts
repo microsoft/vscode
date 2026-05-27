@@ -70,6 +70,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return mkdir(result, { recursive: true }).then(() => result);
 	}
 
+	@memoize
+	private get mutex(): Promise<typeof import('@vscode/windows-mutex')> {
+		return import('@vscode/windows-mutex');
+	}
+
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -356,11 +361,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
 
-		const mutex = await import('@vscode/windows-mutex');
+		const mutex = await this.mutex;
+		const skippedSpawn = this.isInstallerActive(mutex);
 
 		// Skip the spawn if another Inno Setup is already running for this product (background update or a manual installer);
 		// otherwise Inno's "Setup is already running" modal pops up. The `-ready` mutex poll below still advances our state when it finishes.
-		if (await this.isInstallerActive()) {
+		if (skippedSpawn) {
 			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
 		} else {
 			await this.unlink(cancelFilePath);
@@ -400,7 +406,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const token = cts.token;
 
 		const poll = async () => {
-			let seenRunning = false;
+			// If we skipped the spawn, the foreign installer was active when we started; treat that as having seen it run
+			// so a quick exit (cancel/fail) before the first poll iteration still drops us to Idle.
+			let seenRunning = skippedSpawn;
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
 				if (mutex.isActive(this.readyMutexName)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
@@ -408,7 +416,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				}
 
 				// Inno gone without `-ready` => install cancelled/failed; drop to Idle.
-				if (await this.isInstallerActive()) {
+				if (this.isInstallerActive(mutex)) {
 					seenRunning = true;
 				} else if (seenRunning) {
 					if (!this.availableUpdate?.updateProcess) {
@@ -463,7 +471,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// Another instance owns the installer: abort if it's still running so we don't start a new
 		// update cycle on top of it; keep `availableUpdate` so quit-and-install can still complete.
-		if (!updateProcess && await this.isInstallerActive()) {
+		if (!updateProcess && this.isInstallerActive(await this.mutex)) {
 			throw new Error('Cannot cancel pending update: another instance is still running setup');
 		}
 
@@ -579,8 +587,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 	}
 
-	private async isInstallerActive(): Promise<boolean> {
-		const mutex = await import('@vscode/windows-mutex');
+	private isInstallerActive(mutex: typeof import('@vscode/windows-mutex')): boolean {
 		return mutex.isActive(this.updatingMutexName) || mutex.isActive(this.setupMutexName);
 	}
 
