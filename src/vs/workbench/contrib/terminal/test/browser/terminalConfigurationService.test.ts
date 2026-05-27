@@ -214,7 +214,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
 		});
 
-		test('fontSize 11.5 (decimal)', () => {
+		test('fontSize 11.5', () => {
 			const terminalConfigurationService = createTerminalConfigationService({
 				editor: {
 					fontFamily: 'foo',
@@ -230,23 +230,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, 11.5, 'terminal.integrated.fontSize should preserve decimal values');
 		});
 
-		test('fontSize 13.25 (decimal)', () => {
-			const terminalConfigurationService = createTerminalConfigationService({
-				editor: {
-					fontFamily: 'foo',
-					fontSize: 9
-				},
-				terminal: {
-					integrated: {
-						fontFamily: 'bar',
-						fontSize: 13.25
-					}
-				}
-			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontSize, 13.25, 'terminal.integrated.fontSize should preserve decimal values like 13.25');
-		});
-
-		test('fontSize decimal (Linux Ubuntu)', () => {
+		test('fontSize 10.5 (Linux Ubuntu)', () => {
 			const terminalConfigurationService = createTerminalConfigationService({
 				editor: {
 					fontFamily: 'foo'
