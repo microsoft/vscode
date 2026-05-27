@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
+import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
 	it('converts a simple text message', () => {
@@ -494,6 +494,54 @@ describe('toToolDefinitions', () => {
 
 	it('returns undefined for undefined input', () => {
 		expect(toToolDefinitions(undefined)).toBeUndefined();
+	});
+});
+
+describe('stringifyToolDefinitionsForOTel', () => {
+	it('returns undefined for empty / undefined input', () => {
+		expect(stringifyToolDefinitionsForOTel(undefined)).toBeUndefined();
+		expect(stringifyToolDefinitionsForOTel([])).toBeUndefined();
+	});
+
+	it('returns the same string instance when called with the same array reference', () => {
+		const tools = [{ name: 'readFile', description: 'd', inputSchema: { type: 'object' } }];
+		const a = stringifyToolDefinitionsForOTel(tools);
+		const b = stringifyToolDefinitionsForOTel(tools);
+		expect(a).toBeDefined();
+		// Same reference, same string instance from the WeakMap cache.
+		expect(a).toBe(b);
+		expect(JSON.parse(a!)).toEqual([{ type: 'function', name: 'readFile', description: 'd', parameters: { type: 'object' } }]);
+	});
+
+	it('intern collapses content-equal serializations across distinct array references', () => {
+		const t1 = [{ name: 'readFile', description: 'd', inputSchema: { type: 'object' } }];
+		const t2 = [{ name: 'readFile', description: 'd', inputSchema: { type: 'object' } }];
+		const a = stringifyToolDefinitionsForOTel(t1);
+		const b = stringifyToolDefinitionsForOTel(t2);
+		expect(a).toBe(b);
+	});
+});
+
+describe('stringifyToolsRawForTelemetry', () => {
+	it('returns undefined for empty / undefined input', () => {
+		expect(stringifyToolsRawForTelemetry(undefined)).toBeUndefined();
+		expect(stringifyToolsRawForTelemetry([])).toBeUndefined();
+	});
+
+	it('returns JSON.stringify(tools) and memoizes by reference', () => {
+		const tools = [{ type: 'function', name: 'x' }];
+		const a = stringifyToolsRawForTelemetry(tools);
+		const b = stringifyToolsRawForTelemetry(tools);
+		expect(a).toBe(JSON.stringify(tools));
+		expect(a).toBe(b);
+	});
+
+	it('intern collapses content-equal raw serializations across distinct references', () => {
+		const t1 = [{ type: 'function', name: 'x' }];
+		const t2 = [{ type: 'function', name: 'x' }];
+		const a = stringifyToolsRawForTelemetry(t1);
+		const b = stringifyToolsRawForTelemetry(t2);
+		expect(a).toBe(b);
 	});
 });
 
