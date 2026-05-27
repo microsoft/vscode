@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { CopilotChatAttr, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, IOTelService, type ISpanHandle, SpanKind, SpanStatusCode, type TraceContext, truncateForOTel } from '../../../../platform/otel/common/index';
+import { IGitService } from '../../../../platform/git/common/gitService';
+import { CopilotChatAttr, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, IOTelService, type ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, type TraceContext, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
@@ -29,6 +30,7 @@ export class ClaudeOTelTracker {
 		private readonly _sessionId: string,
 		private readonly _otelService: IOTelService,
 		private readonly _sessionStateService: IClaudeSessionStateService,
+		private readonly _gitService: IGitService,
 	) { }
 
 	/** The trace context of the current invoke_agent span, used to parent child spans. */
@@ -53,6 +55,8 @@ export class ClaudeOTelTracker {
 				[CopilotChatAttr.SESSION_ID]: this._sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this._sessionId,
 				[GenAiAttr.REQUEST_MODEL]: modelId,
+				[GitHubCopilotAttr.AGENT_TYPE]: 'builtin',
+				...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 			},
 		});
 		this._currentTraceContext = this._currentSpan.getSpanContext();
