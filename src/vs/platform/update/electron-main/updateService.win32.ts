@@ -353,35 +353,46 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.availableUpdate.cancelFilePath = cancelFilePath;
 
 		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath,
-			[
-				'/verysilent',
-				'/log',
-				`/update="${this.availableUpdate.updateFilePath}"`,
-				`/progress="${progressFilePath}"`,
-				`/sessionend="${sessionEndFlagPath}"`,
-				`/cancel="${cancelFilePath}"`,
-				'/nocloseapplications',
-				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-			],
-			{
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore'],
-				windowsVerbatimArguments: true,
-				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
-			}
-		);
-
-		// Track the process so we can cancel it if needed
-		this.availableUpdate.updateProcess = child;
-
-		child.once('exit', () => {
-			this.availableUpdate = undefined;
-			this.setState(State.Idle(getUpdateType()));
-		});
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
+		const updatingMutexName = `${this.productService.win32MutexName}-updating`;
 		const mutex = await import('@vscode/windows-mutex');
+
+		// Another VS Code instance may have already launched the Inno Setup installer
+		// for the same update. Spawning a second one races into Inno's "Setup is
+		// already running" modal. Skip the spawn and rely on the `-ready` mutex
+		// polling below to advance our own state machine when the install finishes.
+		const alreadyInstalling = mutex.isActive(updatingMutexName);
+		if (alreadyInstalling) {
+			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
+		} else {
+			const child = spawn(this.availableUpdate.packagePath,
+				[
+					'/verysilent',
+					'/log',
+					`/update="${this.availableUpdate.updateFilePath}"`,
+					`/progress="${progressFilePath}"`,
+					`/sessionend="${sessionEndFlagPath}"`,
+					`/cancel="${cancelFilePath}"`,
+					'/nocloseapplications',
+					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
+				],
+				{
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsVerbatimArguments: true,
+					env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
+				}
+			);
+
+			// Track the process so we can cancel it if needed
+			this.availableUpdate.updateProcess = child;
+
+			child.once('exit', () => {
+				this.availableUpdate = undefined;
+				this.setState(State.Idle(getUpdateType()));
+			});
+		}
 
 		this.updateCancellationTokenSource?.dispose(true);
 		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
