@@ -146,8 +146,8 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → isNewChatSession context → false
 
 Agent-host providers seed new-session config from the last values picked in the
-session-config UI (stored in profile storage), then overlay policy-safe defaults
-for keys like `autoApprove` when no remembered value exists.
+session-config UI (stored in profile storage), while `chat.permissions.default`
+takes precedence for `autoApprove` (with policy-safe normalization).
 ```
 
 ### Session Change Propagation

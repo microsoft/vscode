@@ -1390,8 +1390,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Initial session-config values applied to a brand-new agent-host session
 	 * before its schema is resolved. Values are seeded from the profile-scoped
 	 * remembered session-config map (plus legacy isolation fallback) and then
-	 * normalized against policy/feature constraints. When no remembered
-	 * auto-approve value exists, `chat.permissions.default` is used as fallback.
+	 * normalized against policy/feature constraints. For `autoApprove`,
+	 * `chat.permissions.default` takes precedence over remembered values.
 	 *
 	 * If enterprise policy disables global auto-approval
 	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
@@ -1418,20 +1418,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 
+		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted, autopilotEnabled);
 		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted, autopilotEnabled);
-		if (normalizedRememberedAutoApprove) {
+		if (normalizedConfiguredAutoApprove) {
+			config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
+		} else if (normalizedRememberedAutoApprove) {
 			config[SessionConfigKey.AutoApprove] = normalizedRememberedAutoApprove;
 		} else {
 			delete config[SessionConfigKey.AutoApprove];
-		}
-
-		// Seed autoApprove from user settings when no remembered value exists.
-		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		if (typeof config[SessionConfigKey.AutoApprove] !== 'string') {
-			const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted, autopilotEnabled);
-			if (normalizedConfiguredAutoApprove) {
-				config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
-			}
 		}
 
 		return Object.keys(config).length > 0 ? config : undefined;

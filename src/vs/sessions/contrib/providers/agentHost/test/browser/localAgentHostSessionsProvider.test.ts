@@ -1114,7 +1114,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession normalizes remembered autoApprove by policy and feature flags before applying fallback defaults', async () => {
+	test('createNewSession gives chat.permissions.default precedence over remembered autoApprove while normalizing by policy and feature flags', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.AutoApprove]: 'autopilot',
@@ -1154,8 +1154,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				forwardedToAgentHost: 'default',
 			},
 			autopilotDisabled: {
-				seededImmediately: 'autoApprove',
-				forwardedToAgentHost: 'autoApprove',
+				seededImmediately: 'default',
+				forwardedToAgentHost: 'default',
 			},
 		});
 	});
