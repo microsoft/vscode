@@ -7,6 +7,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { McpGatewayToolBrokerChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { IInternalMcpServerRegistry } from '../common/internalMcpServerRegistry.js';
 import { IMcpService } from '../common/mcpTypes.js';
 import { McpGatewayToolBrokerChannel } from '../common/mcpGatewayToolBrokerChannel.js';
 
@@ -14,8 +15,9 @@ export class McpGatewayToolBrokerContribution implements IWorkbenchContribution 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IMcpService mcpService: IMcpService,
+		@IInternalMcpServerRegistry internalMcpServerRegistry: IInternalMcpServerRegistry,
 		@ILogService logService: ILogService,
 	) {
-		remoteAgentService.getConnection()?.registerChannel(McpGatewayToolBrokerChannelName, new McpGatewayToolBrokerChannel(mcpService, logService));
+		remoteAgentService.getConnection()?.registerChannel(McpGatewayToolBrokerChannelName, new McpGatewayToolBrokerChannel(mcpService, logService, undefined, internalMcpServerRegistry));
 	}
 }
