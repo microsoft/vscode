@@ -363,6 +363,35 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
+/**
+ * Classifies lines from git/SSH stderr output into warnings and errors.
+ *
+ * Git and SSH sometimes output informational warnings to stderr alongside
+ * actual errors (e.g. "Warning: Permanently added 'host' to the list of
+ * known hosts."). This function separates them so warning-only output can
+ * be presented with appropriate severity instead of always showing as an
+ * error. See https://github.com/microsoft/vscode/issues/280834
+ */
+export function classifyGitStderrLines(stderr: string): { warnings: string[]; errors: string[] } {
+	const lines = stderr
+		.split(/[\r\n]/)
+		.map(line => line.trim())
+		.filter(line => !!line);
+
+	const warnings: string[] = [];
+	const errors: string[] = [];
+
+	for (const line of lines) {
+		if (/^warning:\s/i.test(line)) {
+			warnings.push(line.replace(/^warning:\s*/i, ''));
+		} else {
+			errors.push(line);
+		}
+	}
+
+	return { warnings, errors };
+}
+
 // https://github.com/microsoft/vscode/issues/89373
 // https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
