@@ -236,7 +236,9 @@ export class SessionsPart extends Part {
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
 		for (const [key, slot] of this._views) {
-			slot.view.element.classList.toggle('is-active', key === activeId);
+			const isActive = key === activeId;
+			slot.view.element.classList.toggle('is-active', isActive);
+			slot.view.setActive(isActive);
 		}
 
 		this._updateContextKeys(visible);
