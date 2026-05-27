@@ -592,7 +592,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
-		}
+		},
 	}
 });
