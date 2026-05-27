@@ -996,4 +996,103 @@ suite('Editor Commands - ShiftCommand', () => {
 		}
 	});
 
+	test('issue #277764: Tab on multi-line selection preserves alignment spaces when option is enabled', () => {
+		testCommand(
+			[
+				'\t\t  arg',
+				'next'
+			],
+			null,
+			new Selection(1, 1, 2, 1),
+			(accessor, sel) => new ShiftCommand(sel, {
+				isUnshift: false,
+				tabSize: 4,
+				indentSize: 4,
+				insertSpaces: false,
+				useTabStops: true,
+				autoIndent: EditorAutoIndentStrategy.Full,
+				preserveAlignmentSpaces: true,
+			}, accessor.get(ILanguageConfigurationService)),
+			[
+				'\t\t\t  arg',
+				'next'
+			],
+			new Selection(1, 1, 2, 1)
+		);
+	});
+
+	test('issue #277764: Shift+Tab on multi-line selection preserves alignment spaces when option is enabled', () => {
+		testCommand(
+			[
+				'\t\t  arg',
+				'next'
+			],
+			null,
+			new Selection(1, 1, 2, 1),
+			(accessor, sel) => new ShiftCommand(sel, {
+				isUnshift: true,
+				tabSize: 4,
+				indentSize: 4,
+				insertSpaces: false,
+				useTabStops: true,
+				autoIndent: EditorAutoIndentStrategy.Full,
+				preserveAlignmentSpaces: true,
+			}, accessor.get(ILanguageConfigurationService)),
+			[
+				'\t  arg',
+				'next'
+			],
+			new Selection(1, 1, 2, 1)
+		);
+	});
+
+	test('issue #277764: alignment spaces are not preserved when option is disabled (default behavior)', () => {
+		testCommand(
+			[
+				'\t\t  arg',
+				'next'
+			],
+			null,
+			new Selection(1, 1, 2, 1),
+			(accessor, sel) => new ShiftCommand(sel, {
+				isUnshift: true,
+				tabSize: 4,
+				indentSize: 4,
+				insertSpaces: false,
+				useTabStops: true,
+				autoIndent: EditorAutoIndentStrategy.Full,
+			}, accessor.get(ILanguageConfigurationService)),
+			[
+				'\t\targ',
+				'next'
+			],
+			new Selection(1, 1, 2, 1)
+		);
+	});
+
+	test('issue #277764: preserveAlignmentSpaces is a no-op for insertSpaces=true', () => {
+		testCommand(
+			[
+				'    arg',
+				'next'
+			],
+			null,
+			new Selection(1, 1, 2, 1),
+			(accessor, sel) => new ShiftCommand(sel, {
+				isUnshift: true,
+				tabSize: 4,
+				indentSize: 4,
+				insertSpaces: true,
+				useTabStops: true,
+				autoIndent: EditorAutoIndentStrategy.Full,
+				preserveAlignmentSpaces: true,
+			}, accessor.get(ILanguageConfigurationService)),
+			[
+				'arg',
+				'next'
+			],
+			new Selection(1, 1, 2, 1)
+		);
+	});
+
 });

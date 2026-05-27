@@ -747,6 +747,13 @@ export interface IEditorOptions {
 	 */
 	useTabStops?: boolean;
 	/**
+	 * When the file is indented with tabs, preserve trailing spaces in the leading
+	 * whitespace of a line (alignment spaces) when the indentation level is
+	 * adjusted via Tab or Shift+Tab on a selection. See microsoft/vscode#277764.
+	 * Defaults to false to preserve the previous behavior.
+	 */
+	preserveAlignmentSpacesOnIndent?: boolean;
+	/**
 	 * Controls whether the editor should automatically remove indentation whitespace when joining lines with Delete.
 	 * Defaults to false.
 	 */
@@ -5945,7 +5952,8 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	preserveAlignmentSpacesOnIndent
 }
 
 export const EditorOptions = {
@@ -6746,6 +6754,10 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
+	)),
+	preserveAlignmentSpacesOnIndent: register(new EditorBooleanOption(
+		EditorOption.preserveAlignmentSpacesOnIndent, 'preserveAlignmentSpacesOnIndent', false,
+		{ description: nls.localize('preserveAlignmentSpacesOnIndent', "When the file is indented with tabs, preserve trailing spaces in the leading whitespace (alignment spaces) when Tab or Shift+Tab adjusts the indentation level on a selection.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',
