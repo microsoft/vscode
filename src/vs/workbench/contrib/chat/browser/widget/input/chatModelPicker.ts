@@ -345,7 +345,8 @@ function createModelAction(
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.hasByokModels ||
+	return chatEntitlementService.clientByokEnabled ||
+		chatEntitlementService.hasByokModels ||
 		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
