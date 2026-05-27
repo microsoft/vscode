@@ -18,7 +18,8 @@ import { IBrowserViewModel } from '../../common/browserView.js';
 import {
 	BrowserEditor,
 	BrowserEditorContribution,
-	IBrowserContainerContent,
+	BrowserWidgetLocation,
+	IBrowserEditorWidget,
 	IContainerLayout,
 	IContainerLayoutOverride,
 } from '../browserEditor.js';
@@ -50,8 +51,8 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	private readonly _overlayPauseEl = $('.browser-overlay-paused');
 	private readonly _overlayManager: BrowserOverlayManager;
 
-	private readonly _placeholderContent: IBrowserContainerContent;
-	private readonly _overlayPauseContent: IBrowserContainerContent;
+	private readonly _placeholderContent: IBrowserEditorWidget;
+	private readonly _overlayPauseContent: IBrowserEditorWidget;
 
 	private readonly _screenshotHandle = this._register(new MutableDisposable());
 	private _focusTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -75,14 +76,14 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		message.appendChild(detail);
 		this._overlayPauseEl.appendChild(message);
 
-		this._placeholderContent = { element: this._placeholderScreenshot, order: 100 };
-		this._overlayPauseContent = { element: this._overlayPauseEl, order: 200 };
+		this._placeholderContent = { location: BrowserWidgetLocation.ContentArea, element: this._placeholderScreenshot, order: 100 };
+		this._overlayPauseContent = { location: BrowserWidgetLocation.ContentArea, element: this._overlayPauseEl, order: 200 };
 
 		this._register(this._overlayManager.onDidChangeOverlayState(() => this._refreshOverlayObscured()));
 		this._refresh();
 	}
 
-	override get containerContents(): readonly IBrowserContainerContent[] {
+	override get widgets(): readonly IBrowserEditorWidget[] {
 		return [this._placeholderContent, this._overlayPauseContent];
 	}
 
