@@ -148,6 +148,29 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			repository = this.model.getRepository(uri);
 		}
 
+		// If this URI is part of a worktree that belongs to one of the workspaces already opened, then we can go ahead with it.
+		if (workspace.isTrusted && workspace.workspaceFolders) {
+			const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
+			const workspaceFolderUris = workspace.workspaceFolders.map(w => w.uri);
+			await Promise.all(workspaceFolderUris.map(w => this.model.openRepository(w.fsPath, true, true)));
+			for (const repo of this.model.repositories) {
+				if (!workspace.getWorkspaceFolder(Uri.file(repo.root))) {
+					continue;
+				}
+				// Uri belongs to a repository that is already open, we can use it directly
+				if (isDescendant(repo.root, fsPath)) {
+					repository = repo;
+					break;
+				}
+				const worktree = repo.worktrees.find(w => isDescendant(w.path, fsPath));
+				if (worktree) {
+					await this.model.openRepository(worktree.path, true, true);
+					repository = this.model.getRepository(uri);
+					break;
+				}
+			}
+		}
+
 		return repository;
 	}
 
