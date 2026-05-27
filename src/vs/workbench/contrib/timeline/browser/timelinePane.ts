@@ -30,6 +30,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from '
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from '../common/timeline.js';
+import { getDefaultTimelinePageSize } from '../common/timelinePaging.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor.js';
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -328,7 +329,7 @@ export class TimelinePane extends ViewPane {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
 		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor((this.tree?.renderHeight ?? 0 / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
+			pageSize = getDefaultTimelinePageSize(this.tree?.renderHeight, ItemHeight, this.pageOnScroll);
 		}
 		return pageSize;
 	}
