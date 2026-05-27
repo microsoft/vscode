@@ -460,19 +460,10 @@ export function toToolDefinitions(tools: ReadonlyArray<{
 	return out.length > 0 ? out : undefined;
 }
 
-// Tool-definition arrays are frequently several MB once serialized, are reused
-// across many telemetry/log/OTel sites within a single LLM round, and are often
-// content-identical across consecutive rounds of an agent loop. Without
-// deduplication the ext host can retain ~10 copies of the same multi-MB string
-// (one per buffered OTel span / log entry). The helpers below intern the
-// stringified form so all callers share a single instance.
-//
-// - WeakMap fast path: if the same `tools` array reference is reused, return
-//   the cached string immediately.
-// - Single-slot content intern: if a fresh array produces a string equal to
-//   the previously interned one, reuse that prior instance. This covers the
-//   common agent-loop case where each round receives a freshly-built tools
-//   array with identical content.
+// Tool-definition JSON is multi-MB and reused across many telemetry/OTel sites
+// per LLM round, often byte-identical across consecutive agent-loop rounds.
+// Intern by array reference (WeakMap) plus a single-slot last-string cache so
+// content-equal serializations from distinct refs collapse to one instance.
 
 const toolDefsJsonByRef = new WeakMap<object, string>();
 const toolsRawJsonByRef = new WeakMap<object, string>();
