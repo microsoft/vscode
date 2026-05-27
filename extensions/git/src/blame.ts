@@ -65,7 +65,7 @@ function getEditorDecorationRange(lineNumber: number): Range {
 }
 
 function isResourceSchemeSupported(uri: Uri): boolean {
-	return uri.scheme === 'file' || isGitUri(uri);
+	return uri.scheme === 'file' || isGitUri(uri) || uri.fsPath.length > 0;
 }
 
 function isResourceBlameInformationEqual(a: ResourceBlameInformation | undefined, b: ResourceBlameInformation | undefined): boolean {
