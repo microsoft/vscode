@@ -760,7 +760,7 @@ export interface IQuotaSnapshot {
 	readonly quotaRemaining?: number;
 }
 
-export interface IQuotas {
+interface IQuotas {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;
 
