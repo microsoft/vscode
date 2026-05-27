@@ -277,6 +277,67 @@ suite('ChatModelSelectionLogic', () => {
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o']);
 		});
+
+		suite('copilot-cloud-agent session type', () => {
+
+			const cloudGpt = createSessionModel('cloud-gpt-4o', 'GPT-4o', 'copilot-cloud-agent');
+			const cloudClaude = createSessionModel('cloud-claude', 'Claude Opus 4.6', 'copilot-cloud-agent');
+			const cloudAuto = createSessionModel('cloud-auto', 'Auto', 'copilot-cloud-agent');
+
+			test('returns only cloud-targeted models for copilot-cloud-agent session', () => {
+				const result = filterModelsForSession(
+					[gpt4o, claude, cloudGpt, cloudClaude, cloudAuto],
+					'copilot-cloud-agent',
+					ChatModeKind.Ask,
+					ChatAgentLocation.Chat,
+				);
+				assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt-4o', 'cloud-claude', 'cloud-auto']);
+			});
+
+			test('excludes cloud-targeted models from local session', () => {
+				const result = filterModelsForSession(
+					[gpt4o, claude, cloudGpt, cloudClaude],
+					undefined,
+					ChatModeKind.Ask,
+					ChatAgentLocation.Chat,
+				);
+				assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
+			});
+
+			test('excludes cloud-targeted models from copilotcli session', () => {
+				const cliModel = createSessionModel('cli-gpt', 'CLI GPT', 'copilotcli');
+				const result = filterModelsForSession(
+					[gpt4o, cloudGpt, cliModel],
+					'copilotcli',
+					ChatModeKind.Ask,
+					ChatAgentLocation.Chat,
+				);
+				assert.deepStrictEqual(result.map(m => m.metadata.id), ['cli-gpt']);
+			});
+
+			test('excludes non-selectable cloud models', () => {
+				const cloudHidden = createSessionModel('cloud-hidden', 'Cloud Hidden', 'copilot-cloud-agent', {
+					isUserSelectable: false,
+				});
+				const result = filterModelsForSession(
+					[cloudGpt, cloudClaude, cloudHidden],
+					'copilot-cloud-agent',
+					ChatModeKind.Ask,
+					ChatAgentLocation.Chat,
+				);
+				assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt-4o', 'cloud-claude']);
+			});
+
+			test('falls back to general models when no models target copilot-cloud-agent', () => {
+				const result = filterModelsForSession(
+					[gpt4o, claude],
+					'copilot-cloud-agent',
+					ChatModeKind.Ask,
+					ChatAgentLocation.Chat,
+				);
+				assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
+			});
+		});
 	});
 
 	suite('hasModelsTargetingSession', () => {

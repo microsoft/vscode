@@ -26,6 +26,7 @@ interface IModelItem {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly tooltip?: string;
 }
 
 /**
@@ -139,6 +140,7 @@ export class CloudModelPicker extends Disposable {
 				id: item.id,
 				name: item.name,
 				description: item.description,
+				tooltip: item.tooltip,
 			}));
 
 			// Select the session's current value, or the default, or the first
@@ -202,6 +204,7 @@ export class CloudModelPicker extends Disposable {
 			label: model.name,
 			group: { title: '', icon: this._selectedModel?.id === model.id ? Codicon.check : Codicon.blank },
 			item: model,
+			hover: model.tooltip ? { content: model.tooltip } : undefined,
 		}));
 	}
 

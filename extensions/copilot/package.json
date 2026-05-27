@@ -6604,6 +6604,7 @@
         "capabilities": {
           "supportsFileAttachments": true
         },
+        "requiresCustomModels": true,
         "autoAttachReferences": true
       }
     ],

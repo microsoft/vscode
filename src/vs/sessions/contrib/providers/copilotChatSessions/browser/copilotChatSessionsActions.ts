@@ -26,11 +26,10 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker } from './modePicker.js';
-import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { INewChatModelPickerService } from '../../../chat/browser/newChatModelPicker.js';
@@ -38,11 +37,9 @@ import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTe
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCLISessionType.id);
-const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCloudSessionType.id);
 const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LocalSessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, ClaudeCodeSessionType.id);
 const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
@@ -122,22 +119,8 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.defaultCopilot.cloudModelPicker',
-			title: localize2('cloudModelPicker', "Model"),
-			f1: false,
-			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: 1,
-				when: IsActiveSessionCopilotChatCloud,
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
+// Cloud model picker has been removed — Cloud models now use LanguageModelChatProvider
+// and appear through the standard ModelPickerWidget.
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -238,13 +221,6 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.localModelPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const picker = scopedInstantiationService.createInstance(SessionModelPicker);
-				return new PickerActionViewItem(picker);
-			},
-		));
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig, 'sessions.defaultCopilot.cloudModelPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(CloudModelPicker);
 				return new PickerActionViewItem(picker);
 			},
 		));

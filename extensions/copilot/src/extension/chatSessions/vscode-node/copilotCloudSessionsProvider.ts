@@ -17,6 +17,7 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
+import { CCAModel } from '@vscode/copilot-api';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -147,7 +148,6 @@ export function parseSessionLogChunksSafely(rawText: string, logService: ILogSer
 }
 
 const CUSTOM_AGENTS_OPTION_GROUP_ID = 'customAgents';
-const MODELS_OPTION_GROUP_ID = 'models';
 const PARTNER_AGENTS_OPTION_GROUP_ID = 'partnerAgents';
 const REPOSITORIES_OPTION_GROUP_ID = 'repositories';
 
@@ -272,7 +272,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly _taskIdByPrNumber = new Map<number, string>();
 	private chatSessionItemsPromise: Promise<vscode.ChatSessionItem[]> | undefined;
 	private readonly sessionCustomAgentMap = new ResourceMap<string>();
-	private readonly sessionModelMap = new ResourceMap<string>();
 	private readonly sessionPartnerAgentMap = new ResourceMap<string>();
 	private readonly sessionRepositoryMap = new ResourceMap<string>();
 	private readonly sessionReferencesMap = new ResourceMap<readonly vscode.ChatPromptReference[]>();
@@ -426,6 +425,91 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}));
 			this.telemetry.sendTelemetryEvent('copilotCloudSessions.refreshInterval', { microsoft: true, github: false }, telemetryObj);
 		});
+	}
+
+	private readonly _onDidChangeModels = this._register(new vscode.EventEmitter<void>());
+	private _cachedModelInfos: vscode.LanguageModelChatInformation[] | undefined;
+
+	public registerLanguageModelChatProvider(lm: typeof vscode['lm']): void {
+		const provider: vscode.LanguageModelChatProvider = {
+			onDidChangeLanguageModelChatInformation: this._onDidChangeModels.event,
+			provideLanguageModelChatInformation: async (_options, _token) => {
+				if (!this._authenticationService.hasCopilotTokenSource) {
+					return [];
+				}
+				if (this._cachedModelInfos) {
+					return this._cachedModelInfos;
+				}
+				try {
+					const models = await this._octoKitService.getCopilotAgentModels({});
+					this._cachedModelInfos = this._buildCloudModelInfos(models);
+					return this._cachedModelInfos;
+				} catch (error) {
+					this.logService.error('[CopilotCloudSessionsProvider] Failed to fetch models for LM provider', error);
+					return [];
+				}
+			},
+			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
+				// Cloud sessions handle inference server-side; no local response needed.
+			},
+			provideTokenCount: async (_model, _text, _token) => {
+				return 0;
+			}
+		};
+		this._register(lm.registerLanguageModelChatProvider(CopilotCloudSessionsProvider.TYPE, provider));
+
+		// Invalidate cached models when auth changes
+		this._register(Event.debounce(this._authenticationService.onDidAuthenticationChange, () => { }, 500)(() => {
+			this._cachedModelInfos = undefined;
+			this._onDidChangeModels.fire();
+		}));
+	}
+
+	private _buildCloudModelInfos(models: CCAModel[]): vscode.LanguageModelChatInformation[] {
+		const isUBB = !!this._authenticationService.copilotToken?.isUsageBasedBilling;
+		const infos: vscode.LanguageModelChatInformation[] = models.map(model => {
+			const multiplier = model.billing?.multiplier;
+			const multiplierStr = multiplier !== undefined ? `${multiplier}x` : undefined;
+			const limits = model.capabilities?.limits;
+			const info: vscode.LanguageModelChatInformation = {
+				id: model.id,
+				name: model.name,
+				family: model.capabilities?.family ?? model.id,
+				version: model.version ?? '',
+				maxInputTokens: limits?.max_prompt_tokens ?? 0,
+				maxOutputTokens: limits?.max_output_tokens ?? 0,
+				pricing: !isUBB ? multiplierStr : undefined,
+				multiplierNumeric: multiplier,
+				isUserSelectable: true,
+				capabilities: {
+					imageInput: model.capabilities?.supports?.vision ?? false,
+					toolCalling: model.capabilities?.supports?.tool_calls ?? true
+				},
+				targetChatSessionType: CopilotCloudSessionsProvider.TYPE,
+				isDefault: model.id === DEFAULT_MODEL_ID ? true : undefined,
+				tooltip: buildCloudModelTooltip(model, isUBB),
+			};
+			return info;
+		});
+
+		// Ensure an Auto model exists
+		if (!infos.some(m => m.id === DEFAULT_MODEL_ID)) {
+			infos.unshift({
+				id: DEFAULT_MODEL_ID,
+				name: l10n.t('Auto'),
+				tooltip: l10n.t('Automatically select the best model'),
+				family: '',
+				version: '',
+				maxInputTokens: 0,
+				maxOutputTokens: 0,
+				isUserSelectable: true,
+				capabilities: { toolCalling: true },
+				targetChatSessionType: CopilotCloudSessionsProvider.TYPE,
+				isDefault: true,
+			});
+		}
+
+		return infos;
 	}
 
 	private registerCommands() {
@@ -994,24 +1078,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				});
 			}
 
-			if (models.status === 'fulfilled' && models.value.length > 0) {
-				const isUBB = !!this._authenticationService.copilotToken?.isUsageBasedBilling;
-				const modelItems: vscode.ChatSessionProviderOptionItem[] = models.value.map(model => ({
-					id: model.id,
-					name: model.name,
-					...(!isUBB && model.billing?.multiplier !== undefined ? { description: `${model.billing.multiplier}x` } : {}),
-				}));
-				if (!models.value.find(m => m.id === DEFAULT_MODEL_ID)) {
-					modelItems.unshift({ id: DEFAULT_MODEL_ID, name: vscode.l10n.t('Auto'), description: vscode.l10n.t('Automatically select the best model') });
-				}
-				optionGroups.push({
-					id: MODELS_OPTION_GROUP_ID,
-					name: vscode.l10n.t('Model'),
-					description: vscode.l10n.t('Select which model to use'),
-					items: modelItems,
-					when: `!chatSessionOption.partnerAgents || chatSessionOption.partnerAgents == ${DEFAULT_PARTNER_AGENT_ID}`
-				});
-			}
+			// Models are now registered via LanguageModelChatProvider — no option group needed.
 
 			const result: vscode.ChatSessionProviderOptions = { optionGroups };
 
@@ -1098,14 +1165,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				} else {
 					this.sessionCustomAgentMap.delete(resource);
 					this.logService.info(`Custom agent cleared for session ${resource}`);
-				}
-			} else if (update.optionId === MODELS_OPTION_GROUP_ID) {
-				if (update.value) {
-					this.sessionModelMap.set(resource, update.value);
-					this.logService.info(`Model changed for session ${resource}: ${update.value}`);
-				} else {
-					this.sessionModelMap.delete(resource);
-					this.logService.info(`Model cleared for session ${resource}`);
 				}
 			} else if (update.optionId === PARTNER_AGENTS_OPTION_GROUP_ID) {
 				if (update.value) {
@@ -1422,7 +1481,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			history,
 			options: {
 				// ...(selectedCustomAgent && { [CUSTOM_AGENTS_OPTION_GROUP_ID]: { id: selectedCustomAgent, locked: true, name: selectedCustomAgent } }),
-				// ...(selectedModel && { [MODELS_OPTION_GROUP_ID]: { id: selectedModel, locked: true, name: selectedModel } }),
 				...(partnerAgent && { [PARTNER_AGENTS_OPTION_GROUP_ID]: { id: partnerAgent.id, locked: true, name: partnerAgent.name } }),
 			},
 			activeResponseCallback: this.findActiveResponseCallback(sessions, pr),
@@ -1601,9 +1659,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						[CUSTOM_AGENTS_OPTION_GROUP_ID]:
 							this.sessionCustomAgentMap.get(resource)
 							?? (this.sessionCustomAgentMap.set(resource, DEFAULT_CUSTOM_AGENT_ID), DEFAULT_CUSTOM_AGENT_ID),
-						[MODELS_OPTION_GROUP_ID]:
-							this.sessionModelMap.get(resource)
-							?? (this.sessionModelMap.set(resource, DEFAULT_MODEL_ID), DEFAULT_MODEL_ID),
 						[PARTNER_AGENTS_OPTION_GROUP_ID]:
 							this.sessionPartnerAgentMap.get(resource)
 							?? (this.sessionPartnerAgentMap.set(resource, DEFAULT_PARTNER_AGENT_ID), DEFAULT_PARTNER_AGENT_ID),
@@ -1802,11 +1857,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		if (chatResource) {
 			this.logService.trace(`[delegate] Looking up options for chatResource=${chatResource.toString()}, partnerAgentMap.size=${this.sessionPartnerAgentMap.size}`);
 			customAgentName = this.sessionCustomAgentMap.get(chatResource);
-			modelName = this.sessionModelMap.get(chatResource);
+			modelName = request.model?.id;
 			partnerAgentName = this.sessionPartnerAgentMap.get(chatResource);
 			selectedRepository = this.sessionRepositoryMap.get(chatResource);
 			this.logService.trace(`[delegate] Retrieved options for ${chatResource.toString()}: customAgent=${customAgentName}, model=${modelName}, partnerAgent=${partnerAgentName}`);
 		} else {
+			modelName = request.model?.id;
 			this.logService.trace(`[delegate] No chatResource available to retrieve session options`);
 		}
 
@@ -2214,8 +2270,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const value = typeof opt.value === 'string' ? opt.value : opt.value.id;
 				if (opt.optionId === CUSTOM_AGENTS_OPTION_GROUP_ID) {
 					this.sessionCustomAgentMap.set(chatResource, value);
-				} else if (opt.optionId === MODELS_OPTION_GROUP_ID) {
-					this.sessionModelMap.set(chatResource, value);
 				} else if (opt.optionId === PARTNER_AGENTS_OPTION_GROUP_ID) {
 					this.sessionPartnerAgentMap.set(chatResource, value);
 				} else if (opt.optionId === REPOSITORIES_OPTION_GROUP_ID) {
@@ -2226,7 +2280,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		const partnerAgentId = chatResource ? this.sessionPartnerAgentMap.get(chatResource) : undefined;
 		const partnerAgent = HARDCODED_PARTNER_AGENTS.find(agent => agent.id === partnerAgentId);
-		const modelId = chatResource ? this.sessionModelMap.get(chatResource) : undefined;
+		const modelId = request.model?.id;
 
 		/* __GDPR__
 			"copilotcloud.chat.invoke" : {
@@ -2845,4 +2899,48 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.refresh();
 		return { kind: 'pr', number: result.prNumber, sessionId: result.sessionId };
 	}
+}
+
+function formatTokenCount(count: number): string {
+	if (count > 900_000) {
+		return `${Math.ceil(count / 1_000_000)}M`;
+	} else if (count >= 1000) {
+		return `${Math.round(count / 1000)}K`;
+	}
+	return count.toString();
+}
+
+function buildCloudModelTooltip(model: CCAModel, isUBB: boolean): string {
+	const lines: string[] = [];
+
+	lines.push(`**${model.name}**`);
+
+	if (model.preview) {
+		lines.push(l10n.t('*(Preview)*'));
+	}
+
+	// Cost info
+	if (isUBB) {
+		if (model.billing?.multiplier !== undefined) {
+			lines.push('');
+			lines.push(l10n.t('Cost: {0}x', model.billing.multiplier));
+		}
+	} else {
+		if (model.billing?.multiplier !== undefined) {
+			lines.push('');
+			lines.push(l10n.t('Multiplier: {0}x', model.billing.multiplier));
+		}
+	}
+
+	// Context size
+	const limits = model.capabilities?.limits;
+	if (limits) {
+		const totalTokens = (limits.max_prompt_tokens ?? 0) + (limits.max_output_tokens ?? 0);
+		if (totalTokens > 0) {
+			lines.push('');
+			lines.push(l10n.t('Max context: {0}', formatTokenCount(totalTokens)));
+		}
+	}
+
+	return lines.join('\n');
 }

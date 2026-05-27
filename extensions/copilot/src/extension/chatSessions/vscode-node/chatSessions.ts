@@ -386,6 +386,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const cloudSessionsProvider = this.copilotCloudRegistrations.add(
 			this.copilotAgentInstaService.createInstance(CopilotCloudSessionsProvider)
 		);
+		cloudSessionsProvider.registerLanguageModelChatProvider(vscode.lm);
 		this.copilotCloudRegistrations.add(
 			vscode.chat.registerChatSessionItemProvider(CopilotCloudSessionsProvider.TYPE, cloudSessionsProvider)
 		);
