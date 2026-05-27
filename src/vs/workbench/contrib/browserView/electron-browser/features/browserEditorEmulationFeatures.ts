@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
-import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ISashEvent, Orientation, OrthogonalEdge, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
