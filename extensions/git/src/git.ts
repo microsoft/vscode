@@ -3257,7 +3257,7 @@ export class Repository {
 	}
 
 	async getSquashMessage(): Promise<string | undefined> {
-		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
+		const squashMsgPath = path.join(this.dotGit.path, 'SQUASH_MSG');
 
 		try {
 			const raw = await fs.readFile(squashMsgPath, 'utf8');
@@ -3268,7 +3268,7 @@ export class Repository {
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {
-		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
+		const mergeMsgPath = path.join(this.dotGit.path, 'MERGE_MSG');
 
 		try {
 			const raw = await fs.readFile(mergeMsgPath, 'utf8');
