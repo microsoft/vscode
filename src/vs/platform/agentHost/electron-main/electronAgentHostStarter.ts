@@ -21,14 +21,6 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
-
-// Side-effect imports: register the workbench settings consumed in the main
-// process for agent host startup. `chat.agentHost.enabled` is read by
-// `src/vs/code/electron-main/app.ts` to decide whether to construct this
-// starter at all; the starter settings below (`chat.agentHost.claudeAgent.path`
-// and `chat.agentHost.otel.*`) are read by `start()` to populate env vars on
-// the spawned utility process. The registrations live with the consumer rather
-// than at the process entry so it's discoverable from this file.
 import '../common/agentHost.config.contribution.js';
 import '../common/agentHostStarter.config.contribution.js';
 

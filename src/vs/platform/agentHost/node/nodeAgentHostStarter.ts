@@ -14,12 +14,6 @@ import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
-
-// Side-effect import: registers the workbench settings consumed by `start()`
-// below (`chat.agentHost.claudeAgent.path` and `chat.agentHost.otel.*`) so
-// that `IConfigurationService.getValue()` returns their declared defaults in
-// the remote server process. The registration lives with the consumer rather
-// than at the server entry point so it's discoverable from this file.
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
