@@ -340,6 +340,196 @@ suite('ChatModelSelectionLogic', () => {
 		});
 	});
 
+	suite('cloud model migration parity', () => {
+		// These tests verify that moving Cloud models from the session option-group
+		// system to the LanguageModelChatProvider API produces identical model
+		// visibility in all session contexts.
+
+		// Cloud models (registered via LanguageModelChatProvider with targetChatSessionType)
+		const cloudGpt4o = createSessionModel('cloud-gpt-4o', 'GPT-4o', 'copilot-cloud-agent', {
+			maxInputTokens: 128000,
+			maxOutputTokens: 16384,
+			capabilities: { toolCalling: true, agentMode: true },
+		});
+		const cloudClaude = createSessionModel('cloud-claude-opus', 'Claude Opus 4.6', 'copilot-cloud-agent', {
+			maxInputTokens: 200000,
+			maxOutputTokens: 32768,
+			capabilities: { toolCalling: true, agentMode: true, imageInput: true },
+		});
+		const cloudAuto = createSessionModel('auto', 'Auto', 'copilot-cloud-agent');
+
+		// CLI models (already using LanguageModelChatProvider)
+		const cliGpt = createSessionModel('cli-gpt-4o', 'GPT-4o', 'copilotcli');
+		const cliAuto = createSessionModel('cli-auto', 'Auto', 'copilotcli');
+
+		// Claude Code models
+		const claudeModel = createSessionModel('claude-sonnet', 'Claude Sonnet', 'claude-code');
+
+		// General-purpose models (no targetChatSessionType)
+		const generalGpt = createModel('gpt-4o', 'GPT-4o');
+		const generalClaude = createModel('claude-sonnet', 'Claude Sonnet');
+
+		// All models as they would exist in the language model service
+		const allModels = [
+			generalGpt, generalClaude,
+			cloudGpt4o, cloudClaude, cloudAuto,
+			cliGpt, cliAuto,
+			claudeModel,
+		];
+
+		test('cloud session shows only cloud-targeted models', () => {
+			const result = filterModelsForSession(allModels, 'copilot-cloud-agent', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['auto', 'cloud-claude-opus', 'cloud-gpt-4o'],
+			);
+		});
+
+		test('CLI session shows only CLI-targeted models (no cloud models leak)', () => {
+			const result = filterModelsForSession(allModels, 'copilotcli', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['cli-auto', 'cli-gpt-4o'],
+			);
+		});
+
+		test('Claude Code session shows only Claude-targeted models', () => {
+			const result = filterModelsForSession(allModels, 'claude-code', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['claude-sonnet']);
+		});
+
+		test('local session excludes all session-targeted models', () => {
+			const result = filterModelsForSession(allModels, undefined, ChatModeKind.Ask, ChatAgentLocation.Chat);
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['claude-sonnet', 'gpt-4o'],
+			);
+		});
+
+		test('local session explicitly typed as "local" excludes all session-targeted models', () => {
+			const result = filterModelsForSession(allModels, 'local', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['claude-sonnet', 'gpt-4o'],
+			);
+		});
+
+		test('full pipeline: cloud models arrive live while cache is empty', () => {
+			const result = computeAvailableModels(
+				[generalGpt, cloudGpt4o, cloudClaude, cloudAuto],
+				[],
+				new Set(['copilot']),
+				'copilot-cloud-agent',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['auto', 'cloud-claude-opus', 'cloud-gpt-4o'],
+			);
+		});
+
+		test('full pipeline: cloud models arrive alongside general models', () => {
+			// When all models arrive together (typical steady state), cloud session
+			// sees only cloud-targeted models
+			const result = computeAvailableModels(
+				[generalGpt, generalClaude, cloudGpt4o, cloudClaude, cloudAuto, cliGpt, cliAuto],
+				[],
+				new Set(['copilot']),
+				'copilot-cloud-agent',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.ok(result.every(m => m.metadata.targetChatSessionType === 'copilot-cloud-agent'));
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['auto', 'cloud-claude-opus', 'cloud-gpt-4o'],
+			);
+		});
+
+		test('full pipeline: same models, local session sees only general models', () => {
+			const result = computeAvailableModels(
+				[generalGpt, generalClaude, cloudGpt4o, cloudClaude, cloudAuto, cliGpt, cliAuto],
+				[],
+				new Set(['copilot']),
+				undefined,
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.ok(result.every(m => !m.metadata.targetChatSessionType));
+			assert.deepStrictEqual(
+				result.map(m => m.metadata.id).sort(),
+				['claude-sonnet', 'gpt-4o'],
+			);
+		});
+
+		test('hasModelsTargetingSession detects cloud models', () => {
+			assert.strictEqual(hasModelsTargetingSession(allModels, 'copilot-cloud-agent'), true);
+			assert.strictEqual(hasModelsTargetingSession(allModels, 'copilotcli'), true);
+			assert.strictEqual(hasModelsTargetingSession(allModels, 'claude-code'), true);
+			assert.strictEqual(hasModelsTargetingSession(allModels, 'nonexistent'), false);
+		});
+
+		test('isModelValidForSession rejects cloud model in local session', () => {
+			assert.strictEqual(isModelValidForSession(cloudGpt4o, allModels, undefined), false);
+			assert.strictEqual(isModelValidForSession(cloudGpt4o, allModels, 'local'), false);
+		});
+
+		test('isModelValidForSession accepts cloud model in cloud session', () => {
+			assert.strictEqual(isModelValidForSession(cloudGpt4o, allModels, 'copilot-cloud-agent'), true);
+		});
+
+		test('isModelValidForSession rejects cloud model in CLI session', () => {
+			assert.strictEqual(isModelValidForSession(cloudGpt4o, allModels, 'copilotcli'), false);
+		});
+
+		test('isModelValidForSession rejects CLI model in cloud session', () => {
+			assert.strictEqual(isModelValidForSession(cliGpt, allModels, 'copilot-cloud-agent'), false);
+		});
+
+		test('resolveModelFromSyncState restores persisted cloud model in cloud session', () => {
+			const cloudModels = filterModelsForSession(allModels, 'copilot-cloud-agent', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			const result = resolveModelFromSyncState(
+				cloudGpt4o,
+				undefined,
+				cloudModels,
+				'copilot-cloud-agent',
+				{ location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask, sessionType: 'copilot-cloud-agent' },
+			);
+			assert.strictEqual(result.action, 'apply');
+		});
+
+		test('resolveModelFromSyncState does not restore cloud model in local session', () => {
+			const localModels = filterModelsForSession(allModels, undefined, ChatModeKind.Ask, ChatAgentLocation.Chat);
+			const result = resolveModelFromSyncState(
+				cloudGpt4o,
+				undefined,
+				localModels,
+				undefined,
+				{ location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask, sessionType: undefined },
+			);
+			// Cloud model is not valid for local session — should fall back to default
+			assert.strictEqual(result.action, 'default');
+		});
+
+		test('shouldResetOnModelListChange detects when cloud model disappears', () => {
+			const cloudModels = filterModelsForSession(allModels, 'copilot-cloud-agent', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			const emptyCloudModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+			assert.strictEqual(
+				shouldResetOnModelListChange(cloudGpt4o.identifier, emptyCloudModels),
+				true,
+			);
+		});
+
+		test('shouldResetOnModelListChange stable when cloud models unchanged', () => {
+			const cloudModels = filterModelsForSession(allModels, 'copilot-cloud-agent', ChatModeKind.Ask, ChatAgentLocation.Chat);
+			assert.strictEqual(
+				shouldResetOnModelListChange(cloudGpt4o.identifier, cloudModels),
+				false,
+			);
+		});
+	});
+
 	suite('hasModelsTargetingSession', () => {
 
 		test('returns false when session type is undefined', () => {
