@@ -401,7 +401,6 @@
 		"--vscode-inlineChat-border",
 		"--vscode-inlineChat-foreground",
 		"--vscode-inlineChat-shadow",
-		"--vscode-inlineChat-regionHighlight",
 		"--vscode-inlineChatDiff-inserted",
 		"--vscode-inlineChatDiff-removed",
 		"--vscode-inlineChatInput-background",
