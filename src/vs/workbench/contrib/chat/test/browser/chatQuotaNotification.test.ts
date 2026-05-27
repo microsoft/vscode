@@ -81,8 +81,9 @@ function createMockEntitlementService(opts?: {
 // --- Mock IChatInputNotificationService ------------------------------------
 
 function createMockNotificationService() {
-	let lastNotification: IChatInputNotification | undefined;
+	let lastNotification: IChatInputNotification | undefined = undefined;
 	let deleted = false;
+	let setCount = 0;
 
 	const onDidChange = new Emitter<void>();
 
@@ -92,6 +93,7 @@ function createMockNotificationService() {
 		setNotification(notification: IChatInputNotification) {
 			lastNotification = notification;
 			deleted = false;
+			setCount++;
 		},
 		deleteNotification(_id: string) {
 			deleted = true;
@@ -103,9 +105,10 @@ function createMockNotificationService() {
 
 	return {
 		service,
-		get lastNotification() { return deleted ? undefined : lastNotification; },
+		getNotification(): IChatInputNotification | undefined { return deleted ? undefined : lastNotification; },
 		get wasDeleted() { return deleted; },
-		reset() { lastNotification = undefined; deleted = false; },
+		get setCount() { return setCount; },
+		reset() { lastNotification = undefined; deleted = false; setCount = 0; },
 	};
 }
 
@@ -189,8 +192,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
 
 		test('shows exhausted notification for free user via chat snapshot', () => {
@@ -199,8 +202,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, chat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
 
 		test('hides exhausted notification when quota recovers', () => {
@@ -208,7 +211,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
+			assert.ok(notificationMock.getNotification());
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
 
@@ -222,14 +225,14 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			// Exhaust quota
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(0) });
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
 
 			notificationMock.reset();
 
 			// Recover to 55% used — should NOT trigger "Credits at 50%" from stale baseline
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(45) });
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('does not show exhausted for unlimited quota with hasQuota=true', () => {
@@ -237,7 +240,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: true }) },
 			});
 
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('shows exhausted for unlimited quota with hasQuota=false', () => {
@@ -245,8 +248,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
 	});
 
@@ -259,10 +262,10 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: false, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Sign in to keep going.');
-			assert.strictEqual(notificationMock.lastNotification!.actions.length, 1);
-			assert.strictEqual(notificationMock.lastNotification!.actions[0].commandId, 'workbench.action.chat.triggerSetup');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Sign in to keep going.');
+			assert.strictEqual(notificationMock.getNotification()!.actions.length, 1);
+			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.triggerSetup');
 		});
 
 		test('free user gets upgrade action', () => {
@@ -271,9 +274,9 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, chat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Upgrade to keep going.');
-			assert.strictEqual(notificationMock.lastNotification!.actions[0].commandId, 'workbench.action.chat.upgradePlan');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Upgrade to keep going.');
+			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.upgradePlan');
 		});
 
 		test('managed plan user gets admin message', () => {
@@ -282,9 +285,9 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Contact your admin to increase your limits.');
-			assert.strictEqual(notificationMock.lastNotification!.actions.length, 0);
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Contact your admin to increase your limits.');
+			assert.strictEqual(notificationMock.getNotification()!.actions.length, 0);
 		});
 
 		test('paid user with overage gets increase budget action', () => {
@@ -293,9 +296,9 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0), additionalUsageCount: 5 },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Increase your budget to keep building.');
-			assert.strictEqual(notificationMock.lastNotification!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Increase your budget to keep building.');
+			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
 		});
 
 		test('paid user without overage gets manage budget action', () => {
@@ -304,8 +307,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Manage your budget to keep building.');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Manage your budget to keep building.');
 		});
 	});
 
@@ -318,7 +321,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 
 			// Initial _update runs in constructor but 75% is baseline, no crossing
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('notifies when crossing 50% threshold', () => {
@@ -328,8 +331,8 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) }); // 50% used
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credits at 50%');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credits at 50%');
 		});
 
 		test('does not re-show the same threshold', () => {
@@ -338,13 +341,13 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
-			assert.ok(notificationMock.lastNotification);
+			assert.ok(notificationMock.getNotification());
 
 			notificationMock.reset();
 
 			// Fire again at the same level
 			entitlementMock.onDidChangeQuotaRemaining.fire();
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('shows higher threshold when usage increases', () => {
@@ -353,10 +356,10 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) }); // 50%
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credits at 50%');
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credits at 50%');
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(10) }); // 90%
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credits at 90%');
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credits at 90%');
 		});
 	});
 
@@ -369,7 +372,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: false, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('does not show approaching notification for PRU user', () => {
@@ -379,7 +382,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(5) });
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 	});
 
@@ -394,9 +397,9 @@ suite('ChatQuotaNotificationContribution', () => {
 			// Transition to 100%
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(0), additionalUsageEnabled: true });
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Additional budget is now covering extra usage.');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Additional budget is now covering extra usage.');
 		});
 
 		test('does not show overage notification at startup when already at 100%', () => {
@@ -405,7 +408,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 
 			// At startup with overages enabled and already at 0%, no notification
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('shows standard exhausted on startup at 100% without overages', () => {
@@ -413,9 +416,9 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0), additionalUsageEnabled: false },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
-			assert.notStrictEqual(notificationMock.lastNotification!.description, 'Additional budget is now covering extra usage.');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
+			assert.notStrictEqual(notificationMock.getNotification()!.description, 'Additional budget is now covering extra usage.');
 		});
 
 		test('shows overage notification when overages are enabled while already at 100%', () => {
@@ -423,12 +426,12 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0), additionalUsageEnabled: false },
 			});
 
-			assert.ok(notificationMock.lastNotification);
+			assert.ok(notificationMock.getNotification());
 
 			// Enable overages while still at 0%
 			updateQuotas(entitlementMock, { additionalUsageEnabled: true, premiumChat: makeQuotaSnapshot(0) });
 
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Additional budget is now covering extra usage.');
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Additional budget is now covering extra usage.');
 		});
 	});
 
@@ -442,9 +445,9 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { sessionRateLimit: makeRateLimitSnapshot(25) }); // 75% used
 
-			assert.ok(notificationMock.lastNotification);
-			assert.ok((notificationMock.lastNotification!.message as string).includes('75%'));
-			assert.ok((notificationMock.lastNotification!.message as string).includes('session'));
+			assert.ok(notificationMock.getNotification());
+			assert.ok((notificationMock.getNotification()!.message as string).includes('75%'));
+			assert.ok((notificationMock.getNotification()!.message as string).includes('session'));
 		});
 
 		test('shows weekly rate limit warning on threshold crossing', () => {
@@ -454,9 +457,9 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { weeklyRateLimit: makeRateLimitSnapshot(10) }); // 90% used
 
-			assert.ok(notificationMock.lastNotification);
-			assert.ok((notificationMock.lastNotification!.message as string).includes('90%'));
-			assert.ok((notificationMock.lastNotification!.message as string).includes('weekly'));
+			assert.ok(notificationMock.getNotification());
+			assert.ok((notificationMock.getNotification()!.message as string).includes('90%'));
+			assert.ok((notificationMock.getNotification()!.message as string).includes('weekly'));
 		});
 
 		test('first rate limit data stores baseline without notification', () => {
@@ -464,7 +467,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, sessionRateLimit: makeRateLimitSnapshot(10) }, // 90% used
 			});
 
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 	});
 
@@ -476,8 +479,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credit Limit Reached');
 		});
 
 		test('approaching threshold takes priority over rate limit', () => {
@@ -494,8 +497,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				sessionRateLimit: makeRateLimitSnapshot(25), // 75% — crosses threshold
 			});
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credits at 90%');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Credits at 90%');
 		});
 	});
 
@@ -510,8 +513,8 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { chat: makeQuotaSnapshot(50) });
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Upgrade to continue past the limit.');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Upgrade to continue past the limit.');
 		});
 
 		test('managed plan user gets admin message', () => {
@@ -522,8 +525,8 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Contact your admin to increase your limits.');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Contact your admin to increase your limits.');
 		});
 
 		test('paid user with overages enabled gets budget message', () => {
@@ -533,8 +536,8 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Additional budget is enabled to cover extra usage.');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Additional budget is enabled to cover extra usage.');
 		});
 
 		test('paid user without overages gets set budget action', () => {
@@ -544,9 +547,9 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.description, 'Set additional budget to cover extra usage.');
-			assert.strictEqual(notificationMock.lastNotification!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Set additional budget to cover extra usage.');
+			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
 		});
 	});
 
@@ -559,7 +562,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				{ vendor: 'customendpoint' },
 			);
 
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
 		test('shows notification when Copilot model is selected', () => {
@@ -568,8 +571,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				{ vendor: 'copilot' },
 			);
 
-			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
 		});
 
 		test('shows notification when switching from BYOK to Copilot model', () => {
@@ -605,14 +608,12 @@ suite('ChatQuotaNotificationContribution', () => {
 			));
 
 			// Initially deferred — BYOK model
-			assert.strictEqual(notificationMock.lastNotification, undefined);
+			assert.strictEqual(notificationMock.getNotification(), undefined);
 
 			// Switch to Copilot model via storage — triggers storage listener
 			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.APPLICATION, StorageTarget.USER);
 
-			assert.ok(notificationMock.lastNotification);
-			const notification = notificationMock.lastNotification;
-			assert.strictEqual(notification!.message, 'Credit Limit Reached');
+			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
 		});
 	});
 });
