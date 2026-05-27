@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { McpPrefixGenerator } from '../../common/mcpServer.js';
 import { McpToolName } from '../../common/mcpTypes.js';
@@ -18,18 +19,15 @@ suite('McpPrefixGenerator', () => {
 		ref.dispose();
 	});
 
-	test('registry-style names are normalized so context is preserved', () => {
+	test('long registry-style names are clamped to MaxPrefixLen', () => {
 		const gen = new McpPrefixGenerator();
-		// Used to truncate to `mcp_io_github_ups_` (see #299749). With the announced
-		// title (e.g. "Context7") it now starts from a clean short name.
-		const refLong = gen.take('io.github.upstash/context7');
-		assert.ok(refLong.object.startsWith(McpToolName.Prefix));
-		assert.ok(refLong.object.length <= McpToolName.MaxPrefixLen);
-		refLong.dispose();
-
-		const refTitle = gen.take('Context7');
-		assert.strictEqual(refTitle.object, `${McpToolName.Prefix}context7_`);
-		refTitle.dispose();
+		// Repro for #299749: a long registry-style key should at least produce a
+		// valid (length-bounded) prefix. The actual readability fix comes from
+		// callers taking with the announced server title instead of this key.
+		const ref = gen.take('io.github.upstash/context7');
+		assert.ok(ref.object.startsWith(McpToolName.Prefix));
+		assert.ok(ref.object.length <= McpToolName.MaxPrefixLen);
+		ref.dispose();
 	});
 
 	test('collisions add numeric suffixes', () => {
@@ -95,5 +93,26 @@ suite('McpPrefixGenerator', () => {
 		a.dispose();
 		b.dispose();
 		c.dispose();
+	});
+
+	test('prefix length never exceeds MaxPrefixLen, including for multi-digit collision suffixes', () => {
+		const gen = new McpPrefixGenerator();
+		// Pick a name that, once sanitized, sits right at the per-bucket length cap
+		// so that adding a numeric suffix would otherwise blow past MaxPrefixLen.
+		const longName = 'a'.repeat(McpToolName.MaxPrefixLen);
+		const refs: IReference<string>[] = [];
+		for (let i = 0; i < 12; i++) {
+			refs.push(gen.take(longName));
+		}
+		for (const ref of refs) {
+			assert.ok(ref.object.startsWith(McpToolName.Prefix));
+			assert.ok(ref.object.endsWith('_'));
+			assert.ok(ref.object.length <= McpToolName.MaxPrefixLen, `prefix ${ref.object} (length ${ref.object.length}) exceeds MaxPrefixLen ${McpToolName.MaxPrefixLen}`);
+		}
+		// All 12 must be unique so they remain distinguishable.
+		assert.strictEqual(new Set(refs.map(r => r.object)).size, refs.length);
+		for (const ref of refs) {
+			ref.dispose();
+		}
 	});
 });

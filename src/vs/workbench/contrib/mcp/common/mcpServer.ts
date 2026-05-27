@@ -241,8 +241,12 @@ export class McpPrefixGenerator {
 		bucket.usedIndexes.add(index);
 		bucket.size++;
 
-		const base = McpToolName.Prefix + safeName;
-		const prefix = index === 1 ? base + '_' : base + index + '_';
+		// Trim safeName for this output if a multi-digit suffix would push us past
+		// MaxPrefixLen. The bucket is keyed on the un-trimmed safeName so collisions
+		// are still detected consistently across indexes.
+		const suffix = (index === 1 ? '' : String(index)) + '_';
+		const maxNameLen = McpToolName.MaxPrefixLen - McpToolName.Prefix.length - suffix.length;
+		const prefix = McpToolName.Prefix + safeName.slice(0, maxNameLen) + suffix;
 
 		return {
 			object: prefix,
