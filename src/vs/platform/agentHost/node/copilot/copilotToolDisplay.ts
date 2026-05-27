@@ -6,7 +6,7 @@
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
@@ -185,6 +185,11 @@ interface ICopilotGlobToolArgs {
 interface ICopilotSqlToolArgs {
 	description?: string;
 	query?: string;
+}
+
+/** Parameters for the `web_fetch` tool. */
+interface ICopilotWebFetchToolArgs {
+	url: string;
 }
 
 /**
@@ -403,6 +408,10 @@ function formatPathAsMarkdownLink(path: string): string {
 	return `[${basename(uri)}](${uri})`;
 }
 
+function formatUrlAsMarkdownLink(url: string): string {
+	return new MarkdownString().appendLink(url, truncate(url, 80)).value;
+}
+
 /**
  * Wraps a localized message containing a markdown file link into a
  * `StringOrMarkdown` object so the renderer treats it as markdown.
@@ -562,6 +571,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			const args = parameters as ICopilotSqlToolArgs | undefined;
 			return args?.description || localize('toolInvoke.sql', "Executing SQL query");
 		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			if (args?.url) {
+				return md(localize('toolInvoke.webFetch', "Fetching {0}", formatUrlAsMarkdownLink(args.url)));
+			}
+			return localize('toolInvoke.webFetchGeneric', "Fetching URL");
+		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
@@ -664,6 +680,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Sql: {
 			const args = parameters as ICopilotSqlToolArgs | undefined;
 			return args?.description || localize('toolComplete.sql', "Executed SQL query");
+		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			if (args?.url) {
+				return md(localize('toolComplete.webFetch', "Fetched {0}", formatUrlAsMarkdownLink(args.url)));
+			}
+			return localize('toolComplete.webFetchGeneric', "Fetched URL");
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
@@ -785,6 +808,10 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 		case CopilotToolName.Rg: {
 			const args = parameters as ICopilotRgToolArgs | undefined;
 			return args?.pattern ?? rawArguments;
+		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			return args?.url ?? rawArguments;
 		}
 		default:
 			// For other tools, show the formatted JSON arguments

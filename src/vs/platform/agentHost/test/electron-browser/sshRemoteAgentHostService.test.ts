@@ -104,7 +104,7 @@ class MockSSHMainService {
 	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
 	async listSSHConfigFiles(): Promise<URI[]> { return [URI.file('/tmp/ssh-config')]; }
 	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
-		return { hostname: '', user: undefined, port: 22, identityFile: [], forwardAgent: false };
+		return { hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false };
 	}
 
 	dispose(): void {
@@ -148,6 +148,10 @@ class MockRemoteAgentHostService extends Disposable {
 		this.added.push({ address, transport: transportDisposable });
 		this._entries.set(address, { client: client as { dispose?: () => void }, transport: transportDisposable });
 		return { address, name: entry.name, clientId: 'mock', defaultDirectory: undefined, status: 0 };
+	}
+
+	notifyConnectionClosed(_address: string): void {
+		// no-op in tests — the defense-in-depth notification is exercised separately
 	}
 
 	/** Simulate user clicking "Remove Remote": disposes the per-entry store, which runs the transport disposable. */

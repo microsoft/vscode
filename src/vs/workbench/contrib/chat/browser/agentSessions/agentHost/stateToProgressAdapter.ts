@@ -13,7 +13,7 @@ import { getToolKind } from '../../../../../../platform/agentHost/common/state/s
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type ChatExternalEditKind, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -156,12 +156,12 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority, { supportHtml: true }) });
+						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority) });
 					}
 					break;
 				case ResponsePartKind.ToolCall: {
 					const tc = rp.toolCall as ICompletedToolCall;
-					const fileEditParts = completedToolCallToEditParts(tc);
+					const fileEditParts = completedToolCallToEditParts(tc, connectionAuthority);
 					const serialized = completedToolCallToSerialized(tc, undefined, backendSession, connectionAuthority);
 					if (fileEditParts.length > 0) {
 						serialized.presentation = ToolInvocationPresentation.Hidden;
@@ -369,7 +369,14 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 }
 function getTerminalOutput(tc: ToolCallState) {
 	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === 'text')?.text : undefined;
-	return text ? { text } : undefined;
+	if (!text) {
+		return undefined;
+	}
+	// The detached xterm used to render this output treats input as a raw TTY stream,
+	// so a lone `\n` only advances the row without resetting the column (producing a
+	// staircase). SDK terminal tools return plain text with `\n` line endings, so
+	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
+	return { text: text.replace(/\r?\n/g, '\r\n') };
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -427,7 +434,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
  */
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): IChatToolInvocationSerialized {
 	const terminalContentUri = tc.status === ToolCallStatus.Completed ? getTerminalContentUri(tc.content) : undefined;
-	const isTerminal = !!terminalContentUri;
+	const isTerminal = !!terminalContentUri || getToolKind(tc) === 'terminal';
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
 
@@ -463,7 +470,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	}
 
 	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | undefined;
-	if (isTerminal || getToolKind(tc) === 'terminal') {
+	if (isTerminal) {
 		toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: getTerminalInput(tc) ?? '' },
@@ -504,11 +511,18 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 }
 
 /**
- * Builds edit-structure progress parts for a completed tool call that
- * produced file edits. Returns an empty array if the tool call has no edits.
- * These parts replay the undo stops and code-block UI when restoring history.
+ * Builds {@link IChatExternalEdit} progress parts for a completed tool call
+ * that produced file edits. Returns an empty array if the tool call has no
+ * edits. Each emitted part carries the URI, edit kind, before/after content
+ * URIs, and the diff stats already known from the agent host protocol —
+ * downstream rendering can produce a static "edit pill" without re-deriving
+ * any of this from an editing session.
+ *
+ * `connectionAuthority` is required so all emitted URIs are wrapped via
+ * {@link toAgentHostUri}; otherwise the chat session would receive raw
+ * remote URIs that its file system providers cannot resolve.
  */
-export function completedToolCallToEditParts(tc: ICompletedToolCall): IChatProgress[] {
+export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionAuthority: string): IChatProgress[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -518,33 +532,51 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall): IChatProgr
 	}
 	const parts: IChatProgress[] = [];
 	for (const edit of fileEdits) {
-		const fileUri = edit.after?.uri ? URI.parse(edit.after.uri) : edit.before?.uri ? URI.parse(edit.before.uri) : undefined;
-		if (!fileUri) {
-			continue;
-		}
-		// Emit workspace file edit progress for creates, deletes, and renames
-		const isCreate = !edit.before && !!edit.after;
-		const isDelete = !!edit.before && !edit.after;
-		const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
-		if (isCreate || isDelete || isRename) {
-			parts.push({
-				kind: 'workspaceEdit',
-				edits: [{
-					oldResource: edit.before?.uri ? URI.parse(edit.before.uri) : undefined,
-					newResource: edit.after?.uri ? URI.parse(edit.after.uri) : undefined,
-				}],
-			});
-		}
-		// Emit code-block UI for content edits (and renames with content changes)
-		if (edit.after?.content) {
-			parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
-			parts.push({ kind: 'codeblockUri', uri: fileUri, isEdit: true, undoStopId: tc.toolCallId });
-			parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: false, isExternalEdit: true });
-			parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: true, isExternalEdit: true });
-			parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+		const part = fileEditToExternalEdit(edit, tc.toolCallId, connectionAuthority);
+		if (part) {
+			parts.push(part);
 		}
 	}
 	return parts;
+}
+
+/**
+ * Translates a single protocol {@link FileEdit} record into the
+ * {@link IChatExternalEdit} progress part rendered as an edit pill. All
+ * URIs are wrapped through {@link toAgentHostUri} so that remote-resource
+ * lookups resolve through the agent host file system provider.
+ */
+function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAuthority: string): IChatExternalEdit | undefined {
+	const rawFileUri = edit.after?.uri ? URI.parse(edit.after.uri) : edit.before?.uri ? URI.parse(edit.before.uri) : undefined;
+	if (!rawFileUri) {
+		return undefined;
+	}
+	const isCreate = !edit.before && !!edit.after;
+	const isDelete = !!edit.before && !edit.after;
+	const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
+	let editKind: ChatExternalEditKind;
+	if (isCreate) {
+		editKind = 'create';
+	} else if (isDelete) {
+		editKind = 'delete';
+	} else if (isRename) {
+		editKind = 'rename';
+	} else {
+		editKind = 'edit';
+	}
+	const diff = edit.diff && (edit.diff.added !== undefined || edit.diff.removed !== undefined)
+		? { added: edit.diff.added ?? 0, removed: edit.diff.removed ?? 0 }
+		: undefined;
+	return {
+		kind: 'externalEdit',
+		uri: toAgentHostUri(rawFileUri, connectionAuthority),
+		editKind,
+		originalUri: isRename && edit.before ? toAgentHostUri(URI.parse(edit.before.uri), connectionAuthority) : undefined,
+		beforeContentUri: edit.before?.content.uri ? toAgentHostUri(URI.parse(edit.before.content.uri), connectionAuthority) : undefined,
+		afterContentUri: edit.after?.content.uri ? toAgentHostUri(URI.parse(edit.after.content.uri), connectionAuthority) : undefined,
+		diff,
+		undoStopId,
+	};
 }
 
 /**
@@ -692,9 +724,9 @@ function isSkillFileUri(uri: URI): boolean {
  * link URIs through {@link rewriteMarkdownLinks} when a connection authority
  * is provided.
  */
-export function rawMarkdownToString(content: string, connectionAuthority: string | undefined, options?: { supportHtml?: boolean }): MarkdownString {
+export function rawMarkdownToString(content: string, connectionAuthority: string | undefined): MarkdownString {
 	const rewritten = connectionAuthority ? rewriteMarkdownLinks(content, connectionAuthority) : content;
-	return new MarkdownString(rewritten, options);
+	return new MarkdownString(rewritten);
 }
 
 /**

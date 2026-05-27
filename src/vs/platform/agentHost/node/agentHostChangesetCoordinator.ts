@@ -14,7 +14,11 @@ import {
 } from '../common/changesetUri.js';
 import { ChangesetStatus } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
+import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
+import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { ILogService } from '../../log/common/log.js';
 import {
 	buildCatalogueFromLiveState,
 	buildCatalogueFromPersistedDiffs,
@@ -79,13 +83,18 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * pure waste).
 	 */
 	private readonly _subscribedTurns = new Map<string, Set<string>>();
+	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _changesets: IAgentHostChangesetService,
-		private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
+		@IAgentHostGitService gitService: IAgentHostGitService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, logService));
 		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
 	}
 
@@ -134,6 +143,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		// drain the deferred refresh. Idempotent — the per-session
 		// sequencer collapses overlapping computes.
 		this._drainPendingRefresh(sessionStr);
+		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
 	/**
@@ -143,6 +153,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	onSessionMaterialized(sessionStr: string): void {
 		this._drainPendingRefresh(sessionStr);
+		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
 	/**
@@ -152,6 +163,11 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onSessionDisposed(sessionStr: string): void {
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
+		this._changesetFileMonitor.onSessionDisposed(sessionStr);
+	}
+
+	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
+		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
@@ -170,6 +186,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._triggerUncommittedRefresh(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
@@ -177,6 +194,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// available and falls back to the SDK edit-tracker otherwise,
 			// so it doesn't need the same deferral as uncommitted.
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
@@ -202,6 +220,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// editing files manually in the working tree.
 			this._triggerUncommittedRefresh(resourceStr);
 			this._changesets.refreshSessionChangeset(resourceStr);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 		}
 	}
 
@@ -211,9 +230,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * subscribed anymore, there's no point firing it on materialize.
 	 */
 	onLastSubscriber(resource: URI): void {
-		const parsed = parseChangesetUri(resource.toString());
+		const resourceStr = resource.toString();
+		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Session) {
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
@@ -224,6 +249,33 @@ export class ChangesetSessionCoordinator extends Disposable {
 					this._subscribedTurns.delete(parsed.sessionUri);
 				}
 			}
+		}
+		if (!parsed) {
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+		}
+	}
+
+	/**
+	 * Restores the parent session when `resource` is a changeset URI and the
+	 * parent session is not already live. Non-changeset URIs are ignored.
+	 *
+	 * This is intentionally narrower than {@link tryHandleSubscribe}: it does
+	 * not compute per-turn / compare changesets and does not register static
+	 * changesets. It exists for the AgentService subscribe path where
+	 * `addSubscriber` may have already created a placeholder changeset snapshot
+	 * before the parent session restore had a chance to apply persisted diffs.
+	 */
+	async restoreSessionIfChangesetSubscription(resource: URI, restoreSession: (session: URI) => Promise<void>): Promise<void> {
+		const resourceStr = resource.toString();
+		const parsed = parseChangesetUri(resourceStr);
+		if (!parsed) {
+			return;
+		}
+		if (parsed.kind === ChangesetKind.Unknown) {
+			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
+		}
+		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
+			await restoreSession(URI.parse(parsed.sessionUri));
 		}
 	}
 
@@ -251,11 +303,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 		if (parsed.kind === ChangesetKind.Unknown) {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
 		}
-		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
-			await restoreSession(URI.parse(parsed.sessionUri));
-		}
+		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
+		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
+			// Compare-turns is computed once on subscribe. Both turns are
+			// typically historical so the snapshot doesn't need to track
+			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
+			// need to participate.
+			await this._changesets.computeCompareTurnsChangeset(parsed.sessionUri, parsed.originalTurnId, parsed.modifiedTurnId);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /
 			// `onSessionCreated`. Re-register defensively in case the
@@ -327,15 +383,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 		if (uncommittedRaw === undefined && sessionRaw === undefined && legacyRaw === undefined) {
 			return entry;
 		}
-		const restored = this._changesets.restorePersistedStaticChangesets(sessionStr, {
+		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, {
 			uncommittedRaw,
 			sessionRaw,
 			legacyRaw,
 		});
-		// `restorePersistedStaticChangesets` seeds the state manager; the
-		// catalogue itself is built here for unopened sessions only. Once
-		// the session is opened via `restoreSession`, the live overlay in
-		// `AgentService.listSessions` replaces this.
+		// `listSessions` must not seed full changeset state for every row;
+		// it only parses persisted blobs enough to render catalogue counts.
+		// Once the session is opened via `restoreSession`, the live overlay in
+		// `AgentService.listSessions` replaces this parse-only catalogue.
 		if (!liveSessionState) {
 			const catalogue = buildCatalogueFromPersistedDiffs(sessionStr, restored.uncommitted, restored.session);
 			if (catalogue) {

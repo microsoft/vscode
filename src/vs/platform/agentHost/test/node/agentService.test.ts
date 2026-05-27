@@ -606,7 +606,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].changesets, undefined);
 		});
 
-		test('listSessions seeds the server-side changeset state from persisted diffs (so chip subscriptions resolve for unopened sessions)', async () => {
+		test('listSessions advertises persisted changeset counts without seeding state; changeset subscribe restores lazily', async () => {
 			const db = disposables.add(await SessionDatabase.open(':memory:'));
 			const persistedDiffs = [
 				{
@@ -637,13 +637,24 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(agent);
 
-			await svc.listSessions();
+			const sessions = await svc.listSessions();
+			const changesetUri = buildSessionChangesetUri(sessionUri.toString());
 
-			// Even without any explicit `restoreSession` call, the
-			// changeset URI should be subscribable on the server side
-			// with the persisted files.
-			const snapshot = svc.stateManager.getSnapshot(`${sessionUri.toString()}/changeset/session`);
-			assert.ok(snapshot, 'expected listSessions to seed the changeset state');
+			assert.deepStrictEqual({
+				listCatalogueEntry: sessions[0].changesets?.find(c => c.uriTemplate === changesetUri),
+				listSeededSnapshot: svc.stateManager.getSnapshot(changesetUri),
+			}, {
+				listCatalogueEntry: {
+					label: 'Branch Changes',
+					uriTemplate: changesetUri,
+					additions: 5,
+					deletions: 2,
+					files: 1,
+				},
+				listSeededSnapshot: undefined,
+			});
+
+			const snapshot = await svc.subscribe(URI.parse(changesetUri), 'client-changeset');
 			const state = snapshot.state as { status: string; files: Array<{ id: string }> };
 			assert.strictEqual(state.status, 'ready');
 			assert.deepStrictEqual(state.files.map(f => f.id), ['file:///wd/a.ts']);
@@ -991,7 +1002,42 @@ suite('AgentService (node dispatcher)', () => {
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
 			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session` },
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
+				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
+			]);
+		});
+
+		test('createSession sets Branch Changes description from worktree branch info', async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: false,
+				branchName: 'feature/x',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 0,
+			};
+			const gitService = createNoopGitService();
+			gitService.getSessionGitState = async () => gitState;
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.summary.changesets, [
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);

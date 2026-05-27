@@ -30,8 +30,13 @@ export interface IDiscoveredFile {
 }
 
 const AGENT_FILE_SUFFIX = '.agent.md';
+const AGENT_FILE_FALLBACK_SUFFIX = '.md';
 const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
+const PROMPT_FILE_SUFFIX = '.prompt.md';
 const SKILL_FILENAME = 'SKILL.md';
+const SKILL_FILENAME_LOWER = 'skill.md';
+const README_FILENAME = 'README.md';
+const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME_LOWER = 'copilot-instructions.md';
 
 interface ISearchRoot {
 	readonly path: readonly string[];
@@ -64,7 +69,7 @@ function getSearchRoots(workingDirectory: URI, userHome: URI): { workspace: ISea
 const REFRESH_DEBOUNCE_MS = 100;
 
 /**
- * Discovers customization files (`.agent.md`, `SKILL.md`, `.instructions.md`)
+ * Discovers customization files (agents, skills, and instructions)
  * under well-known directories of the session's working directory and the
  * user's home, and emits {@link onDidChange} when any of those directories
  * change on disk.
@@ -181,9 +186,40 @@ export class SessionCustomizationDiscovery extends Disposable {
 				}
 			} else if (child.isFile) {
 				const name = child.name.toLowerCase();
-				const suffix = root.type === DiscoveredType.Agent ? AGENT_FILE_SUFFIX : INSTRUCTION_FILE_SUFFIX;
-				if (name.endsWith(suffix) && !seen.has(child.resource)) {
-					seen.set(child.resource, { uri: child.resource, type: root.type });
+				if (root.type === DiscoveredType.Agent) {
+					// Agent directories (e.g. `.github/agents/`) are already
+					// type-disambiguated by their path, so plain `.md` files
+					// in them are treated as agents (matching what the
+					// workbench prompts service does in
+					// `getPromptFileType`). The classification rules are
+					// duplicated here because the discovery code lives in
+					// `platform/` and cannot import from `workbench/`; keep
+					// in sync with
+					// `src/vs/workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.ts`.
+					//
+					// More-specific suffixes win first: `.prompt.md`,
+					// `.instructions.md`, and `SKILL.md` placed inside an
+					// agents folder are NOT agents. `README.md` is also
+					// excluded so documentation files aren't misclassified.
+					if (!name.endsWith(AGENT_FILE_FALLBACK_SUFFIX) || seen.has(child.resource)) {
+						continue;
+					}
+					if (child.name === README_FILENAME
+						|| name === SKILL_FILENAME_LOWER
+						|| name === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME_LOWER
+						|| name.endsWith(PROMPT_FILE_SUFFIX)
+						|| name.endsWith(INSTRUCTION_FILE_SUFFIX)) {
+						continue;
+					}
+					// `.agent.md` and `.chatmode.md` are explicitly agents;
+					// any other `.md` file in an agents folder is also
+					// treated as an agent (workbench fallback rule).
+					seen.set(child.resource, { uri: child.resource, type: DiscoveredType.Agent });
+				} else {
+					const suffix = INSTRUCTION_FILE_SUFFIX;
+					if (name.endsWith(suffix) && !seen.has(child.resource)) {
+						seen.set(child.resource, { uri: child.resource, type: root.type });
+					}
 				}
 			}
 		}

@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
-import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../../platform/networking/common/networking';
+import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
@@ -38,6 +42,28 @@ const createTestOptions = (messages: Raw.ChatMessage[]): ICreateEndpointBodyOpti
 	postOptions: {},
 	finishedCb: undefined,
 	location: undefined as any
+});
+
+const createMakeRequestOptions = (messages: Raw.ChatMessage[], ignoreStatefulMarker?: boolean): IMakeChatRequestOptions => ({
+	debugName: 'test',
+	messages,
+	ignoreStatefulMarker,
+	finishedCb: undefined,
+	location: undefined as any,
+});
+
+const createStatefulMarkerMessage = (modelId: string, marker: string): Raw.ChatMessage => ({
+	role: Raw.ChatRole.Assistant,
+	content: [{
+		type: Raw.ChatCompletionContentPartKind.Opaque,
+		value: {
+			type: CustomDataPartMimeTypes.StatefulMarker,
+			value: {
+				modelId,
+				marker,
+			}
+		}
+	}]
 });
 
 describe('OpenAIEndpoint - Reasoning Properties', () => {
@@ -83,6 +109,20 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	afterEach(() => {
 		disposables.clear();
+	});
+
+	describe('ownsAuthorization', () => {
+		it('declares ownsAuthorization=true so the chat fetcher does not attach the CAPI Copilot token or raise a missing-key error for BYOK endpoints', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			expect(endpoint.ownsAuthorization).toBe(true);
+		});
 	});
 
 	describe('CAPI mode (useResponsesApi = false)', () => {
@@ -182,6 +222,147 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			const body = endpoint.createRequestBody(options);
 
 			expect(body.reasoning).toBeUndefined(); // Should be removed
+		});
+
+		it('omits previous_response_id when a caller explicitly ignores a valid Responses stateful marker', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'resp_prev_123'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: true,
+			});
+
+			expect(body.previous_response_id).toBeUndefined();
+		});
+
+		it.each([
+			['unset', undefined],
+			['false', false],
+		])('keeps previous_response_id on non-ZDR initial Responses requests when ignoreStatefulMarker is %s', (_label, ignoreStatefulMarker) => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'resp_prev_456'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker,
+			});
+
+			expect(body.previous_response_id).toBe('resp_prev_456');
+			expect(body.store).toBe(true);
+		});
+
+		it('forwards an explicit ignoreStatefulMarker=true through makeChatRequest2 without overwriting it', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const parentResponse: ChatResponse = {
+				type: ChatFetchResponseType.Success,
+				requestId: 'request-id',
+				serverRequestId: 'server-request-id',
+				usage: undefined,
+				resolvedModel: modelMetadata.id,
+				value: ''
+			};
+			const parentRequestSpy = vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
+
+			await endpoint.makeChatRequest2(
+				createMakeRequestOptions([
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+					}
+				], true),
+				CancellationToken.None,
+			);
+
+			expect(parentRequestSpy).toHaveBeenCalledOnce();
+			expect(parentRequestSpy.mock.calls[0][0].ignoreStatefulMarker).toBe(true);
+		});
+
+		it('defaults ignoreStatefulMarker to false through makeChatRequest2 when the caller leaves it unspecified', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const parentResponse: ChatResponse = {
+				type: ChatFetchResponseType.Success,
+				requestId: 'request-id',
+				serverRequestId: 'server-request-id',
+				usage: undefined,
+				resolvedModel: modelMetadata.id,
+				value: ''
+			};
+			const parentRequestSpy = vi.spyOn(ChatEndpoint.prototype, 'makeChatRequest2').mockResolvedValue(parentResponse);
+
+			await endpoint.makeChatRequest2(
+				createMakeRequestOptions([
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+					}
+				]),
+				CancellationToken.None,
+			);
+
+			expect(parentRequestSpy).toHaveBeenCalledOnce();
+			expect(parentRequestSpy.mock.calls[0][0].ignoreStatefulMarker).toBe(false);
+		});
+
+		it('disables marker reuse and store for ZDR Responses requests', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					zeroDataRetentionEnabled: true,
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'resp_prev_789'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: false,
+			});
+
+			expect(body.previous_response_id).toBeUndefined();
+			expect(body.store).toBe(false);
 		});
 	});
 

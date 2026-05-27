@@ -887,17 +887,112 @@ suite('CopilotAgentSession', () => {
 
 	suite('sendSteering', () => {
 
-		test('fires steering_consumed after send resolves', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+		test('promotes steering to its own turn when the SDK echoes the user message', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
 
 			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
 
+			// Sending the steering must not flip turns until the SDK has
+			// echoed the user message back through the event stream.
+			assert.strictEqual(signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted), undefined);
+
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const actions = signals.filter(s => s.kind === 'action').map(s => (s as IAgentActionSignal).action);
+			const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+			const turnStarted = actions.find(a => a.type === ActionType.SessionTurnStarted);
+			assert.ok(turnComplete, 'should complete the in-flight turn before promoting steering');
+			assert.strictEqual(turnComplete.turnId, 'turn-original');
+			assert.ok(turnStarted, 'should start a new turn for the steering message');
+			assert.notStrictEqual(turnStarted.turnId, 'turn-original');
+			assert.deepStrictEqual(turnStarted.userMessage, { text: 'focus on tests' });
+			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
+		});
+
+		test('routes subsequent SDK events into the steering turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const turnStarted = signals
+				.filter(s => s.kind === 'action')
+				.map(s => (s as IAgentActionSignal).action)
+				.find(a => a.type === ActionType.SessionTurnStarted)!;
+
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'No problem',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+
+			const responseParts = signals
+				.filter(s => s.kind === 'action')
+				.map(s => (s as IAgentActionSignal).action)
+				.filter(a => a.type === ActionType.SessionResponsePart);
+			assert.ok(responseParts.length > 0, 'expected delta to allocate a response part');
+			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
+		});
+
+		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+
+			// SDK injects an unrelated user.message (e.g. skill content)
+			// with the steering's exact text but a non-'user' source.
+			// Even if the text happened to match, the synthetic-source
+			// guard MUST skip the flip.
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				source: 'skill-pdf',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			assert.strictEqual(turnStarted, undefined, 'synthetic user messages should not promote steering to a turn');
+		});
+
+		test('does not flip turns when the user.message content does not match', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			mockSession.fire('user.message', {
+				content: 'something completely different',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			assert.strictEqual(turnStarted, undefined, 'unrelated user messages should not consume the pending steering');
+		});
+
+		test('does not send the same steering message again before it is flipped', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+		});
+
+		test('fires steering_consumed on abort when the steering never reached its turn', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			await session.abort();
+
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.ok(consumed, 'should fire steering_consumed signal');
+			assert.ok(consumed, 'abort should clean up pending steering UI state');
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
-		test('does not fire steering_consumed when send fails', async () => {
+		test('does not signal cleanup when send fails', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.send = async () => { throw new Error('send failed'); };
@@ -905,7 +1000,9 @@ suite('CopilotAgentSession', () => {
 			await session.sendSteering({ id: 'steer-fail', userMessage: { text: 'will fail' } });
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
 			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
+			assert.strictEqual(turnStarted, undefined, 'should not start a new turn on failure');
 		});
 	});
 

@@ -202,6 +202,18 @@ export type IAgentSource = {
 	readonly pluginUri: URI;
 };
 
+export namespace IAgentSource {
+	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
+		if (promptPath.storage === PromptsStorage.extension) {
+			return { storage: PromptsStorage.extension, extensionId: promptPath.extension.identifier };
+		} else if (promptPath.storage === PromptsStorage.plugin) {
+			return { storage: PromptsStorage.plugin, pluginUri: promptPath.pluginUri! };
+		} else {
+			return { storage: promptPath.storage };
+		}
+	}
+}
+
 /**
  * The visibility/availability of an agent.
  * - 'all': available as custom agent in picker AND can be used as subagent

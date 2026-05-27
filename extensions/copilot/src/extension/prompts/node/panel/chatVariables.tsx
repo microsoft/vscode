@@ -443,7 +443,10 @@ export class ChatToolReferences extends PromptElement<ChatToolCallProps, void> {
 			const name = toolReference.range ? this.props.promptContext.query.slice(toolReference.range[0], toolReference.range[1]) : undefined;
 			try {
 				const result = await this.toolsService.invokeToolWithEndpoint(tool.name, { input: { ...toolArgs, ...internalToolArgs }, toolInvocationToken: tools.toolInvocationToken }, this.promptEndpoint, token || CancellationToken.None);
-				sendInvokedToolTelemetry(this.instantiationService, this.promptEndpoint, this.telemetryService, tool.name, result);
+				sendInvokedToolTelemetry(this.instantiationService, this.promptEndpoint, this.telemetryService, tool.name, result, {
+					conversationId: this.props.promptContext.conversation?.sessionId,
+					requestId: this.props.promptContext.requestId,
+				});
 				results.push({ name, value: result });
 			} catch (err) {
 				const errResult = toolCallErrorToResult(err);
