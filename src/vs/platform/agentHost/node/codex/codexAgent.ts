@@ -25,6 +25,10 @@ import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICo
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
+import { replayThreadToTurns } from './codexReplayMapper.js';
+import type { Thread } from './protocol/generated/v2/Thread.js';
+import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
+import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -548,14 +552,74 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info('[Codex] respondToUserInputRequest called (Phase 4 stub)');
 	}
 
-	getSessionMessages(_session: URI): Promise<readonly Turn[]> {
-		// Phase 3 implements this via `thread/read`.
-		return Promise.resolve([]);
+	getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		return this._readSession(session).then(read => read ? replayThreadToTurns(read.thread) : []);
 	}
 
-	listSessions(): Promise<IAgentSessionMetadata[]> {
-		// Phase 3 implements this via `thread/list`.
-		return Promise.resolve([]);
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const threadId = AgentSession.id(session);
+		const read = await this._readSession(session);
+		if (!read) {
+			return undefined;
+		}
+		// Register the session in our map so subsequent sendMessage triggers
+		// thread/resume (Decision 8).
+		if (!this._sessions.has(threadId)) {
+			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
+			this._sessions.set(threadId, {
+				sessionId: threadId,
+				sessionUri: session,
+				workingDirectory,
+				mapState: createCodexSessionMapState(),
+				model: undefined,
+				currentTurnId: undefined,
+				needsResume: true,
+				lastPromptText: '',
+			});
+		}
+		return this._threadToMetadata(read.thread, session);
+	}
+
+	private async _readSession(session: URI): Promise<ThreadReadResponse | undefined> {
+		const threadId = AgentSession.id(session);
+		try {
+			const conn = await this._ensureConnection();
+			const response = await conn.client.request<'thread/read', ThreadReadResponse>('thread/read', {
+				threadId,
+				includeTurns: true,
+			});
+			return response;
+		} catch (err) {
+			this._logService.warn(`[Codex:${threadId}] thread/read failed: ${err instanceof Error ? err.message : String(err)}`);
+			return undefined;
+		}
+	}
+
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		if (!this._githubToken) {
+			return [];
+		}
+		try {
+			const conn = await this._ensureConnection();
+			const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
+				limit: 200,
+			});
+			return response.data.map(t => this._threadToMetadata(t, AgentSession.uri(this.id, t.id)));
+		} catch (err) {
+			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
+			return [];
+		}
+	}
+
+	private _threadToMetadata(thread: Thread, sessionUri: URI): IAgentSessionMetadata {
+		return {
+			session: sessionUri,
+			// Codex returns Unix seconds; the agent host expects ms.
+			startTime: (thread.createdAt ?? 0) * 1000,
+			modifiedTime: (thread.updatedAt ?? thread.createdAt ?? 0) * 1000,
+			summary: thread.name ?? thread.preview ?? undefined,
+			workingDirectory: thread.cwd ? URI.file(thread.cwd) : undefined,
+		};
 	}
 
 	setClientTools(_session: URI, _clientId: string, _tools: ToolDefinition[]): void {
