@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextDiff, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -1331,11 +1331,28 @@ export class CommandCenter {
 		const previousURI = activeTextEditor?.document.uri;
 		const previousSelection = activeTextEditor?.selection;
 
+		// When triggered from an editor title action on a diff editor,
+		// open the file in the same editor group as the source editor
+		// instead of always using the active group (fixes #265405)
+		let viewColumn = ViewColumn.Active;
+		if (arg instanceof Uri) {
+			const argStr = arg.toString();
+			for (const group of window.tabGroups.all) {
+				if (group.tabs.some(tab =>
+					(tab.input instanceof TabInputText && tab.input.uri.toString() === argStr) ||
+					(tab.input instanceof TabInputTextDiff && (tab.input.original.toString() === argStr || tab.input.modified.toString() === argStr))
+				)) {
+					viewColumn = group.viewColumn;
+					break;
+				}
+			}
+		}
+
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: false,
-				viewColumn: ViewColumn.Active
+				viewColumn
 			};
 
 			await commands.executeCommand('vscode.open', uri, {
