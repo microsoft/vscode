@@ -194,6 +194,30 @@
 
 			.actions-container { gap: 2px; }
 		}
+
+		.browser-emulation-toolbar-actions--left {
+			flex-shrink: 0;
+		}
+
+		.browser-emulation-toolbar-actions--leading {
+			flex: 1 1 auto;
+			min-width: 0;
+
+			.monaco-toolbar {
+				width: 100%;
+			}
+
+			.action-label {
+				max-width: 180px;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+
+		.browser-emulation-toolbar-actions--trailing {
+			flex-shrink: 0;
+		}
 	}
 
 	.browser-link-opened-hint-pill {
@@ -311,16 +335,17 @@
 		min-height: 0;
 		position: relative;
 		margin-top: 1px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 		box-sizing: border-box;
 	}
 
 	.browser-container {
 		overflow: visible;
 		border-radius: var(--vscode-cornerRadius-small);
-		position: relative;
+		/*  Absolutely positioned within the wrapper; size and position are set
+			inline from JS (already snapped to the physical-pixel grid) so the
+			WebContentsView placed by the main process and the placeholder
+			screenshot align on the same pixels. */
+		position: absolute;
 		outline: none !important;
 		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
 
@@ -443,7 +468,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: contain;
+		background-size: 100% 100%;
 		background-repeat: no-repeat;
 	}
 
