@@ -2016,6 +2016,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			return { type: ChatFetchResponseType.RateLimited, reason, requestId, serverRequestId, retryAfter: response.data?.retryAfter, rateLimitKey: (response.data?.rateLimitKey || ''), isAuto, capiError: response.data?.capiError };
 		}
 		if (response.failKind === ChatFailKind.QuotaExceeded) {
+			// Refresh quota state so the ext→core sync picks up the exhaustion
+			this._chatQuotaService.refreshQuota();
 			return { type: ChatFetchResponseType.QuotaExceeded, reason, requestId, serverRequestId, retryAfter: response.data?.retryAfter, capiError: response.data?.capiError };
 		}
 		if (response.failKind === ChatFailKind.OffTopic) {
@@ -2209,6 +2211,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			return { type: ChatFetchResponseType.RateLimited, reason: message, requestId, serverRequestId, retryAfter: undefined, rateLimitKey: '', isAuto, capiError };
 		}
 		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured') {
+			// Refresh quota state so the ext→core sync picks up the exhaustion
+			this._chatQuotaService.refreshQuota();
 			return { type: ChatFetchResponseType.QuotaExceeded, reason: message, requestId, serverRequestId, capiError, retryAfter: undefined };
 		}
 		if (code === 'content_filter') {

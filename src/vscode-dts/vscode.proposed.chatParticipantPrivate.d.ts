@@ -503,16 +503,7 @@ declare module 'vscode' {
 
 	export namespace chat {
 		/**
-		 * Fired when the core workbench updates quota data (e.g. from a
-		 * dashboard refresh or entitlements fetch). Extensions should update
-		 * their internal quota state when this fires.
-		 */
-		export const onDidChangeQuotas: Event<ChatQuotaSnapshots>;
-
-		/**
 		 * Push quota snapshot data from the extension to the core workbench.
-		 * This does **not** fire {@link onDidChangeQuotas} — it is a one-way
-		 * push to avoid notification loops.
 		 */
 		export function updateQuotas(quotas: ChatQuotaSnapshots): void;
 	}

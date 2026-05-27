@@ -10,7 +10,7 @@ import { IAuthenticationService } from '../../authentication/common/authenticati
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
 import { FetchOptions, IHeaders, Response } from '../../networking/common/fetcherService';
-import { CopilotUserQuotaInfo, CoreQuotaSnapshots, IChatQuota, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
+import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
 
 export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	declare readonly _serviceBrand: undefined;
@@ -81,26 +81,6 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 
 	clearQuota(): void {
 		this._quotaInfo = undefined;
-	}
-
-	acceptCoreQuotas(quotas: CoreQuotaSnapshots): void {
-		const isFree = this._authService.copilotToken?.isFreeUser;
-		const snapshot = isFree ? quotas.chat : quotas.premiumChat;
-		if (!snapshot) {
-			return;
-		}
-
-		this._quotaInfo = {
-			quota: snapshot.entitlement ?? 0,
-			unlimited: snapshot.unlimited,
-			hasQuota: snapshot.hasQuota ?? true,
-			percentRemaining: snapshot.percentRemaining,
-			additionalUsageUsed: 0,
-			additionalUsageEnabled: quotas.additionalUsageEnabled ?? false,
-			resetDate: this._quotaInfo?.resetDate ?? new Date(),
-		};
-		this._logService.trace(`[ChatQuota] acceptCoreQuotas: ${JSON.stringify(this._quotaInfo)}`);
-		this._onDidChange.fire();
 	}
 
 	processQuotaHeaders(headers: IHeaders): void {

@@ -864,13 +864,6 @@ declare module 'vscode' {
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
 		readonly promptTokenDetails?: readonly ChatResultPromptTokenDetail[];
-
-		/**
-		 * Optional quota snapshot data to sync from the extension to the core
-		 * workbench. When provided, the core updates its quota state silently
-		 * (without firing change events back to the extension).
-		 */
-		readonly quotaSnapshots?: ChatQuotaSnapshots;
 	}
 
 	export interface ChatResult {

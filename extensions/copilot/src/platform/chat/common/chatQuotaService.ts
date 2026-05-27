@@ -91,33 +91,10 @@ export interface IChatQuotaService {
 	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
 	/**
-	 * Accept quota data pushed from the core workbench (e.g. after a
-	 * dashboard refresh). This updates the internal quota state without
-	 * triggering a push back to core.
-	 */
-	acceptCoreQuotas(quotas: CoreQuotaSnapshots): void;
-	/**
 	 * Fetches up-to-date quota data from the `copilot_internal/user` endpoint.
 	 * Errors are caught and logged.
 	 */
 	refreshQuota(): Promise<void>;
-}
-
-/**
- * Shape matching the core workbench `ChatQuotaSnapshots` type from the
- * proposed API. Used for core → extension quota sync.
- */
-export interface CoreQuotaSnapshot {
-	readonly percentRemaining: number;
-	readonly unlimited: boolean;
-	readonly hasQuota?: boolean;
-	readonly entitlement?: number;
-}
-
-export interface CoreQuotaSnapshots {
-	readonly chat?: CoreQuotaSnapshot;
-	readonly premiumChat?: CoreQuotaSnapshot;
-	readonly additionalUsageEnabled?: boolean;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');

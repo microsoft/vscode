@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { chat, commands, env, Uri } from 'vscode';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IExtensionContribution } from '../../common/contributions';
@@ -10,7 +11,10 @@ import { IExtensionContribution } from '../../common/contributions';
 export class ChatQuotaContribution extends Disposable implements IExtensionContribution {
 	public readonly id = 'chat.quota';
 
-	constructor(@IChatQuotaService chatQuotaService: IChatQuotaService) {
+	constructor(
+		@IChatQuotaService chatQuotaService: IChatQuotaService,
+		@IAuthenticationService authService: IAuthenticationService,
+	) {
 		super();
 		this._register(commands.registerCommand('chat.enableAdditionalUsage', () => {
 			// Clear quota before opening the page to ensure that if the user enabled additional usage,
@@ -19,10 +23,40 @@ export class ChatQuotaContribution extends Disposable implements IExtensionContr
 			env.openExternal(Uri.parse('https://aka.ms/github-copilot-manage-overage'));
 		}));
 
-		// Core → Extension: update internal quota state when the core workbench
-		// refreshes quota data (e.g. dashboard refresh, entitlements fetch).
-		this._register(chat.onDidChangeQuotas(quotas => {
-			chatQuotaService.acceptCoreQuotas(quotas);
+		// Extension → Core: push updated quota state to core whenever it changes
+		// (e.g. from response headers, quota snapshots, or copilot token refresh).
+		// Skip the first event — it fires from the cached copilot token during
+		// startup and may carry stale data that briefly overrides core's fresh
+		// entitlements fetch, causing the notification to flicker.
+		let initialized = false;
+		this._register(chatQuotaService.onDidChange(() => {
+			if (!initialized) {
+				initialized = true;
+				return;
+			}
+
+			const info = chatQuotaService.quotaInfo;
+			if (!info) {
+				return;
+			}
+
+			const isFree = !!authService.copilotToken?.isFreeUser;
+			const snapshot = {
+				percentRemaining: info.percentRemaining,
+				unlimited: info.unlimited,
+				hasQuota: info.hasQuota,
+				entitlement: info.quota,
+			};
+
+			const quotas = {
+				usageBasedBilling: !!authService.copilotToken?.isUsageBasedBilling,
+				chat: isFree ? snapshot : undefined,
+				premiumChat: isFree ? undefined : snapshot,
+				additionalUsageEnabled: info.additionalUsageEnabled,
+				additionalUsageCount: info.additionalUsageUsed,
+			};
+
+			chat.updateQuotas(quotas);
 		}));
 	}
 }
