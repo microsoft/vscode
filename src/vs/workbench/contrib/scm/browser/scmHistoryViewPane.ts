@@ -878,6 +878,10 @@ class SCMHistoryTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			// the author. A match in the message takes precedence over
 			// a match in the author.
 			return [element.historyItemViewModel.historyItem.message, element.historyItemViewModel.historyItem.author];
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
+			return basename(element.historyItemChange.uri.fsPath);
+		} else if (isSCMHistoryItemChangeNode(element)) {
+			return element.name;
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			// We don't want to match the load more element
 			return '';
