@@ -9,6 +9,7 @@ import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -81,11 +82,17 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 		// Create a new capturing token to group this execution subagent and all its nested tool calls
 		// Similar to how DefaultIntentRequestHandler does it
 		// Pass the subAgentInvocationId so the trajectory uses this ID for explicit linking
+		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId;
 		const executionSubagentToken = new CapturingToken(
 			`Execution: ${options.input.query.substring(0, 50)}${options.input.query.length > 50 ? '...' : ''}`,
 			'execution',
 			subAgentInvocationId,
-			'execution'  // subAgentName for trajectory tracking
+			'execution',  // subAgentName for trajectory tracking
+			// Use invocation ID as chatSessionId so spans get their own log file
+			subAgentInvocationId,
+			// Link back to the parent session for debug log grouping and cloud session folding
+			parentChatSessionId,
+			'executionSubagent',
 		);
 
 		// Wrap the loop execution in captureInvocation with the new token
