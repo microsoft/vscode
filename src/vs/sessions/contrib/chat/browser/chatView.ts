@@ -15,6 +15,8 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -91,6 +93,7 @@ export class ChatView extends AbstractChatView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -115,8 +118,10 @@ export class ChatView extends AbstractChatView {
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 				},
 				enableImplicitContext: true,
-				enableWorkingSet: 'explicit',
+				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				inputEditorMinLines: 2,
+				isSessionsWindow: true
 			},
 			{
 				listForeground: agentsPanelForeground,
@@ -156,6 +161,7 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			this._modelRef.value = ref;
+			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
 		}, err => {
 			if (!token.isCancellationRequested) {
@@ -165,6 +171,20 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+	}
+
+	private _updateWidgetLockState(sessionType: string): void {
+		if (sessionType === localChatSessionType) {
+			this._widget.unlockFromCodingAgent();
+			return;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+		if (contribution) {
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+		} else {
+			this._widget.unlockFromCodingAgent();
+		}
 	}
 
 	override toJSON(): object {
