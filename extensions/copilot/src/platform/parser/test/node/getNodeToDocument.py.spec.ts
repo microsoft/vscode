@@ -197,10 +197,10 @@ suite('getNodeToDocument - python', () => {
 				`,
 		);
 		expect(result).toMatchInlineSnapshot(`
-			"<CLASS_DEFINITION>class <IDENT>Service</IDENT>:
+			"class Service:
 			    @staticmethod
-			    def helper():
-			        return 42</CLASS_DEFINITION>"
+			    <FUNCTION_DEFINITION>def <IDENT>helper</IDENT>():
+			        return 42</FUNCTION_DEFINITION>"
 		`);
 	});
 
@@ -273,6 +273,77 @@ suite('getNodeToDocument - python', () => {
 			        "email": "john.doe@example.com"
 			    }</FUNCTION_DEFINITION>
 			"
+		`);
+	});
+
+	// Regression test: when the cursor is *on the decorator line*, the
+	// node-to-document must still be the inner function/class (with the range
+	// excluding the `@decorator`). Previously this would walk all the way up
+	// to the `module` node, which is a regression for `/doc` invoked with the
+	// cursor on `@decorator`.
+	test('decorated function - cursor on decorator picks function_definition (not module)', async () => {
+		const result = await run(
+			outdent`
+				import pytest
+
+				@pytest.fix<<>>ture(scope="module")
+				def sample_data():
+				    return {}
+				`,
+		);
+		expect(result).toMatchInlineSnapshot(`
+			"import pytest
+
+			@pytest.fixture(scope="module")
+			<FUNCTION_DEFINITION>def <IDENT>sample_data</IDENT>():
+			    return {}</FUNCTION_DEFINITION>"
+		`);
+	});
+
+	test('decorated function - cursor on the `@` sign picks function_definition (not module)', async () => {
+		const result = await run(
+			outdent`
+				<<@>>my_decorator
+				def say_hello():
+				    print("hi")
+				`,
+		);
+		expect(result).toMatchInlineSnapshot(`
+			"@my_decorator
+			<FUNCTION_DEFINITION>def <IDENT>say_hello</IDENT>():
+			    print("hi")</FUNCTION_DEFINITION>"
+		`);
+	});
+
+	test('decorated function - selection covering only the decorator line picks function_definition', async () => {
+		const result = await run(
+			outdent`
+				<<@my_decorator>>
+				def say_hello():
+				    print("hi")
+				`,
+		);
+		expect(result).toMatchInlineSnapshot(`
+			"@my_decorator
+			<FUNCTION_DEFINITION>def <IDENT>say_hello</IDENT>():
+			    print("hi")</FUNCTION_DEFINITION>"
+		`);
+	});
+
+	test('decorated method - cursor on decorator inside a class picks the method function_definition', async () => {
+		const result = await run(
+			outdent`
+				class Service:
+				    @static<<>>method
+				    def helper():
+				        return 42
+				`,
+		);
+		expect(result).toMatchInlineSnapshot(`
+			"class Service:
+			    @staticmethod
+			    <FUNCTION_DEFINITION>def <IDENT>helper</IDENT>():
+			        return 42</FUNCTION_DEFINITION>"
 		`);
 	});
 });
