@@ -78,18 +78,16 @@ The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resou
 
 ## Send Flow
 
-1. Validate the session is a current new session (`CopilotCLISession`, `RemoteNewSession`, or `ClaudeCodeNewSession`)
-2. For the first chat, call `_sendFirstChat()`:
-   a. Resolve mode, permission level, and send options from session configuration
-   b. Open the chat widget via `IChatWidgetService.openSession()`
-   c. Load the session model and apply selected model, mode, and options
-   d. Send the request via `IChatService.sendRequest()`
-   e. Add temp session to cache and fire `onDidChangeSessions`
-   f. Wait for session commit (untitled → real URI)
-   g. Replace via `onDidReplaceSession` event with the committed session
-3. For subsequent chats (if `capabilities.supportsMultipleChats` enabled on the session), call `_sendSubsequentChat()`
-4. Wrap the new agent session as `AgentSessionAdapter` and return it
-5. Clear the current new session reference
+The provider exposes two entry points on `ISessionsProvider`:
+
+- **`createNewChat(sessionId, prompt?)`** — Creates the backend chat model and returns the resulting `IChat`. The management service uses the returned `chat.resource` to open the widget *before* sending. For new sessions the provider also swaps the session's `mainChat` observable with the committed chat so the cached `ISession` reflects the real backend resource.
+- **`sendRequest(sessionId, chatResource, options)`** — Sends a request for a chat that was already created via `createNewChat`. Internally it dispatches between:
+  - `_sendFirstChat()` when the session is the current new session — resolves mode/permission/send options, calls `IChatService.sendRequest`, adds the temp session to the cache, fires `onDidChangeSessions`, waits for commit (untitled → real URI for CLI sessions), and then fires `onDidReplaceSession` with the committed session.
+  - `_sendExistingChat()` when the session already has committed chats — sends to the existing chat resource.
+
+For multi-chat sessions (`capabilities.supportsMultipleChats === true`), `createNewChat()` on an existing session calls `_createNewSubsequentChat()`, which creates a fresh `CopilotCLISession` linked to the parent via the `parentSessionId` option, registers it in `_currentNewSession`, and returns its `IChat`. A subsequent `sendRequest(sessionId, chat.resource, options)` then routes through `_sendFirstChat`.
+
+The provider never opens the chat widget itself; widget opening is owned by the management service.
 
 ## New-Session Picker Contribution Model
 

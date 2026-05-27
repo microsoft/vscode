@@ -66,7 +66,6 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -128,7 +127,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IHostService private readonly hostService: IHostService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -528,10 +526,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(chatControlsContainer)).appendChild($('.chat-editor-overflow.monaco-editor'));
 		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
-		// Chat Title (unless we are hosted in the chat bar)
-		if (this.viewDescriptorService.getViewLocationById(this.id) !== ViewContainerLocation.ChatBar) {
-			this.createChatTitleControl(chatControlsContainer);
-		}
+		// Chat Title
+		this.createChatTitleControl(chatControlsContainer);
 
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
@@ -553,13 +549,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				},
 				editorOverflowWidgetsDomNode,
 				enableImplicitContext: true,
-				enableWorkingSet: this.workbenchEnvironmentService.isSessionsWindow
-					? 'implicit'
-					: 'explicit',
+				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 				dndContainer: parent,
-				inputEditorMinLines: this.workbenchEnvironmentService.isSessionsWindow ? 2 : undefined,
-				isSessionsWindow: this.workbenchEnvironmentService.isSessionsWindow,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,

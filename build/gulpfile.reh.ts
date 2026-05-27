@@ -29,7 +29,7 @@ import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
-import { getCopilotExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -47,7 +47,6 @@ const BUILD_TARGETS = [
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
 	{ platform: 'linux', arch: 'x64' },
-	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
 	{ platform: 'alpine', arch: 'arm64' },
 	// legacy: we use to ship only one alpine so it was put in the arch, but now we ship
@@ -190,9 +189,7 @@ if (defaultNodeTask) {
 
 function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefined {
 
-	if (arch === 'armhf') {
-		arch = 'armv7l';
-	} else if (arch === 'alpine') {
+	if (arch === 'alpine') {
 		platform = 'alpine';
 		arch = 'x64';
 	}
@@ -333,11 +330,13 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
-		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
+		const cleanedDeps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
+		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
+		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)

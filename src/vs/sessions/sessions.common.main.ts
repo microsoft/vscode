@@ -217,7 +217,7 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/browser/chat.contribution.js';
+import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -443,6 +443,7 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
+import './browser/parts/sessionsPartService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
@@ -453,6 +454,7 @@ import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/views/sessionsListModelService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';

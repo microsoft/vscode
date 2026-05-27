@@ -4,7 +4,7 @@
 > Last updated: 2026-05-15 after 3-model council (GPT-5.5, Claude Opus 4.6,
 > GPT-5.3-Codex). Pre-grilling draft.
 
-**Status:** implemented (E2E partially validated live; rest covered by unit tests)
+**Status:** ✅ **DONE** (merged to main; E2E verified live)
 
 ## Goal
 

@@ -31,11 +31,11 @@ class BrowserEditorStorageScopeContribution extends BrowserEditorContribution {
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, _store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, _store: DisposableStore): void {
 		this._storageScopeContext.set(model.storageScope);
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._storageScopeContext.reset();
 	}
 }
@@ -54,8 +54,8 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Settings,
-				order: 1,
+				group: BrowserActionGroup.Page,
+				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
 		});
@@ -79,8 +79,8 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Settings,
-				order: 1,
+				group: BrowserActionGroup.Page,
+				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
 		});
@@ -105,8 +105,8 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Settings,
-				order: 1,
+				group: BrowserActionGroup.Page,
+				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
 		});

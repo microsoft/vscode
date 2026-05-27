@@ -6,9 +6,11 @@
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { CustomizationAgentRef } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -70,22 +72,49 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
- * Reads each agent's `.md` file to use as the prompt.
+ *
+ * Each agent file is read and (when present) its YAML frontmatter is parsed:
+ *  - `name` falls back to the agent's resource name (filename stem).
+ *  - `description` is forwarded verbatim.
+ *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
+ *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - `prompt` is the markdown body that follows the frontmatter (or the
+ *    full file content when there is no frontmatter).
  */
 export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
 	const configs: CustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
+			const raw = content.value.toString();
+			const md = parseFrontMatter(raw);
+			const name = md?.getStringValue('name') ?? agent.name;
+			const description = md?.getStringValue('description');
+			const tools = md?.getStringArrayValue('tools');
+			const prompt = md?.body ?? raw;
 			configs.push({
-				name: agent.name,
-				prompt: content.value.toString(),
+				name,
+				...(description ? { description } : {}),
+				tools: tools && tools.length > 0 ? tools : null,
+				prompt,
 			});
 		} catch {
 			// Skip agents whose file cannot be read
 		}
 	}
 	return configs;
+}
+
+/**
+ * Projects parsed plugin agents into the protocol's {@link CustomizationAgentRef}
+ * shape so they can be advertised on the owning {@link CustomizationRef.agents}.
+ */
+export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]): CustomizationAgentRef[] {
+	return agents.map(a => ({
+		uri: a.uri.toString(),
+		name: a.name,
+		...(a.description ? { description: a.description } : {}),
+	}));
 }
 
 // ---------------------------------------------------------------------------
@@ -97,11 +126,22 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
  * The SDK expects directory paths; we extract the parent directory of each SKILL.md.
  */
 export function toSdkSkillDirectories(skills: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(skills);
+}
+
+/**
+ * Converts parsed plugin instructions into the SDK's
+ * `instructionDirectories` config.
+ */
+export function toSdkInstructionDirectories(instructions: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(instructions);
+}
+
+function toSdkResourceDirectories(resources: readonly INamedPluginResource[]): string[] {
 	const seen = new Set<string>();
 	const result: string[] = [];
-	for (const skill of skills) {
-		// SKILL.md parent directory is the skill directory
-		const dir = dirname(skill.uri.fsPath);
+	for (const resource of resources) {
+		const dir = dirname(resource.uri.fsPath);
 		if (!seen.has(dir)) {
 			seen.add(dir);
 			result.push(dir);
@@ -344,6 +384,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
 			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));
 	};
 	return serialize(a) === serialize(b);

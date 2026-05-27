@@ -25,6 +25,12 @@ export interface ISessionEditorComment {
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly severity?: string;
 	readonly canConvertToAgentFeedback: boolean;
+	/**
+	 * Replies that belong to the same comment thread as this comment. They
+	 * talk about the same code region as {@link text}. Only set for agent
+	 * feedback comments today.
+	 */
+	readonly replies?: readonly string[];
 }
 
 export function getCodeReviewComments(reviewState: ICodeReviewState): readonly ICodeReviewComment[] {
@@ -54,6 +60,7 @@ export function getSessionEditorComments(
 			text: item.text,
 			suggestion: item.suggestion,
 			canConvertToAgentFeedback: false,
+			replies: item.replies,
 		});
 	}
 
@@ -114,7 +121,13 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 			suggestionLines += 2 + Math.max(1, edit.newText.split('\n').length);
 		}
 	}
-	return textLines + 1 + suggestionLines;
+	let replyLines = 0;
+	if (comment.replies?.length) {
+		for (const reply of comment.replies) {
+			replyLines += Math.ceil(Math.max(1, reply.length) / charsPerLine);
+		}
+	}
+	return textLines + 1 + suggestionLines + replyLines;
 }
 
 export function groupNearbySessionEditorComments(items: readonly ISessionEditorComment[], lineThreshold: number = 5): ISessionEditorComment[][] {

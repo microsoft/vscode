@@ -374,6 +374,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 	}
 
+	notifyConnectionClosed(address: string): void {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		const entry = this._entries.get(normalized);
+		if (entry) {
+			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: notifying protocol client for ${normalized}`);
+			entry.client.notifyTransportClosed();
+		} else {
+			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: no entry found for ${normalized} (already removed?)`);
+		}
+	}
+
 	private _reconcileConnections(): void {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			// Disconnect all when disabled

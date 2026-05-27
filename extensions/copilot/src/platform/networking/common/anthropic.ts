@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
+import { getModelId, modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
+import type { LanguageModelChat } from 'vscode';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { IChatEndpoint } from './networking';
@@ -102,27 +103,30 @@ export function modelSupportsInterleavedThinking(modelId: string): boolean {
 
 /**
  * Memory is supported by:
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
- * - Claude Opus 4 (claude-opus-4-*)
- * @param modelId The model ID to check
- * @returns true if the model supports memory
+ * - Claude Haiku 4.5
+ * - Claude Sonnet 4 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override lights this up
+ * automatically.
  */
-export function modelSupportsMemory(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-1') ||
-		normalized.startsWith('claude-opus-4');
+export function modelSupportsMemory(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const matches = (s: string) => {
+		const n = s.toLowerCase().replace(/\./g, '-');
+		return n.startsWith('claude-haiku-4-5') ||
+			n.startsWith('claude-sonnet-4-6') ||
+			n.startsWith('claude-sonnet-4-5') ||
+			n.startsWith('claude-sonnet-4') ||
+			n.startsWith('claude-opus-4-6') ||
+			n.startsWith('claude-opus-4-5') ||
+			n.startsWith('claude-opus-4-1') ||
+			n.startsWith('claude-opus-4');
+	};
+	return matches(id) || matches(family);
 }
 
 export function isAnthropicContextEditingEnabled(
@@ -143,21 +147,28 @@ export function isAnthropicContextEditingEnabled(
 /**
  * The extended (1 hour) prompt cache TTL is available on all active Claude
  * models via `cache_control: { type: 'ephemeral', ttl: '1h' }`
- * - Claude Opus 4.7 (incl. `claude-opus-4.7-1m-internal` and similar variants)
- * - Claude Opus 4.6 (incl. `claude-opus-4.6-1m`)
- * - Claude Opus 4.5
- * - Claude Sonnet 4.6
- * - Claude Sonnet 4.5
+ * - Claude Opus 4.5 / 4.6 / 4.7 (incl. 1M variants)
+ * - Claude Sonnet 4.5 / 4.6
  * - Claude Haiku 4.5
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override lights this up
+ * automatically.
  */
-export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-opus-4-7') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-haiku-4-5');
+export function modelSupportsExtendedCacheTtl(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const matches = (s: string) => {
+		const n = s.toLowerCase().replace(/\./g, '-');
+		return n.startsWith('claude-opus-4-7') ||
+			n.startsWith('claude-opus-4-6') ||
+			n.startsWith('claude-opus-4-5') ||
+			n.startsWith('claude-sonnet-4-6') ||
+			n.startsWith('claude-sonnet-4-5') ||
+			n.startsWith('claude-haiku-4-5');
+	};
+	return matches(id) || matches(family);
 }
 
 /**
@@ -184,8 +195,7 @@ export function isExtendedCacheTtlEnabled(
 	location: ChatLocation | undefined,
 	isSubagent: boolean | undefined,
 ): boolean {
-	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsExtendedCacheTtl(modelId)) {
+	if (!modelSupportsExtendedCacheTtl(endpoint)) {
 		return false;
 	}
 	if (location !== ChatLocation.Agent) {

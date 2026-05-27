@@ -15,7 +15,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 
 suite('copilotPluginConverters', () => {
@@ -126,7 +126,7 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkCustomAgents', () => {
 
-		test('reads agent files and creates configs', async () => {
+		test('reads agent files without frontmatter and creates configs', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/helper.md' });
 			await fileService.writeFile(agentUri, VSBuffer.fromString('You are a helpful assistant'));
 
@@ -135,6 +135,7 @@ suite('copilotPluginConverters', () => {
 
 			assert.deepStrictEqual(result, [{
 				name: 'helper',
+				tools: null,
 				prompt: 'You are a helpful assistant',
 			}]);
 		});
@@ -158,6 +159,56 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkCustomAgents(agents, fileService);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].name, 'good');
+		});
+
+		test('parses YAML frontmatter for name, description, tools, and body', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/review.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString(
+				`---\nname: code-reviewer\ndescription: Reviews code for quality issues\ntools:\n  - read_file\n  - grep_search\n---\nYou are a meticulous code reviewer.\n`
+			));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'review' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'code-reviewer',
+				description: 'Reviews code for quality issues',
+				tools: ['read_file', 'grep_search'],
+				prompt: 'You are a meticulous code reviewer.\n',
+			}]);
+		});
+
+		test('empty tools array becomes null (all tools)', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/empty-tools.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString(
+				`---\nname: free-for-all\ntools: []\n---\nBody.`
+			));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'fallback' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'free-for-all',
+				tools: null,
+				prompt: 'Body.',
+			}]);
+		});
+
+		test('falls back to resource name when frontmatter omits name', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-name.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString(
+				`---\ndescription: Helper without an explicit name\n---\nBody only.`
+			));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'resource-name' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'resource-name',
+				description: 'Helper without an explicit name',
+				tools: null,
+				prompt: 'Body only.',
+			}]);
 		});
 	});
 
@@ -185,6 +236,35 @@ suite('copilotPluginConverters', () => {
 
 		test('handles empty input', () => {
 			const result = toSdkSkillDirectories([]);
+			assert.deepStrictEqual(result, []);
+		});
+	});
+
+	// ---- toSdkHooks -------------------------------------------------------
+
+	suite('toSdkInstructionDirectories', () => {
+
+		test('extracts parent directories of instruction files', () => {
+			const instructions: INamedPluginResource[] = [
+				{ uri: URI.file('/plugins/rules/project.mdc'), name: 'project' },
+				{ uri: URI.file('/plugins/rules/review.instructions.md'), name: 'review' },
+			];
+			const result = toSdkInstructionDirectories(instructions);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].replaceAll('\\', '/'), '/plugins/rules');
+		});
+
+		test('deduplicates directories', () => {
+			const instructions: INamedPluginResource[] = [
+				{ uri: URI.file('/plugins/rules/a.mdc'), name: 'a' },
+				{ uri: URI.file('/plugins/rules/b.mdc'), name: 'b' },
+			];
+			const result = toSdkInstructionDirectories(instructions);
+			assert.strictEqual(result.length, 1);
+		});
+
+		test('handles empty input', () => {
+			const result = toSdkInstructionDirectories([]);
 			assert.deepStrictEqual(result, []);
 		});
 	});
@@ -304,6 +384,7 @@ suite('copilotPluginConverters', () => {
 				mcpServers: [],
 				skills: [],
 				agents: [],
+				instructions: [],
 				...overrides,
 			};
 		}

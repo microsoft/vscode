@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, ITokenPriceTier } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -29,9 +29,9 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
-import { CustomModel, IChatModelInformation, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { CustomModel, IChatModelInformation, IModelTokenPrices, IModelTokenPriceTier, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { filterHistoryImages } from './imageLimits';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, processResponseFromChatEndpoint } from './responsesApi';
@@ -112,25 +112,57 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
-const AIC_DIVISOR = 1_000_000_000;
 const TOKENS_PER_MILLION = 1_000_000;
+
+/**
+ * Normalizes a single raw price tier into AICs per million tokens.
+ *
+ * Prices in the tiered structure (`default` / `long_context`) are already
+ * denominated in AIUs, so no nano-AIU conversion is needed — only the
+ * batch_size scaling is applied.
+ */
+function normalizePriceTier(tier: IModelTokenPriceTier, scale: number): ITokenPriceTier {
+	return {
+		inputPrice: tier.input_price * scale,
+		outputPrice: tier.output_price * scale,
+		cacheReadTokenPrice: tier.cache_price * scale,
+		contextMax: tier.context_max,
+	};
+}
+
+function areTierPricesEqual(a: ITokenPriceTier, b: ITokenPriceTier): boolean {
+	return a.inputPrice === b.inputPrice
+		&& a.outputPrice === b.outputPrice
+		&& a.cacheReadTokenPrice === b.cacheReadTokenPrice;
+}
 
 /**
  * Converts raw billing token prices into normalized AICs per million tokens.
  *
- * Raw prices are divided by {@link AIC_DIVISOR} to get AICs, then scaled
- * so the result is always "per 1M tokens" regardless of the original batch_size.
+ * The tiered pricing structure (`default` / `long_context`) uses AIU values
+ * directly, scaled to per-million-token rates based on batch_size.
+ *
+ * The optional `long_context` tier is included only when its rates differ
+ * from the `default` tier.
  */
 function normalizeTokenPricing(tokenPrices: IModelTokenPrices | undefined): IChatEndpointTokenPricing | undefined {
 	if (!tokenPrices) {
 		return undefined;
 	}
-	const { batch_size, input_price, output_price, cache_price } = tokenPrices;
-	const scale = TOKENS_PER_MILLION / batch_size;
+	const scale = TOKENS_PER_MILLION / tokenPrices.batch_size;
+	const defaultTier = normalizePriceTier(tokenPrices.default, scale);
+
+	let longContext: ITokenPriceTier | undefined;
+	if (tokenPrices.long_context) {
+		const lcTier = normalizePriceTier(tokenPrices.long_context, scale);
+		if (!areTierPricesEqual(defaultTier, lcTier)) {
+			longContext = lcTier;
+		}
+	}
+
 	return {
-		inputPrice: (input_price / AIC_DIVISOR) * scale,
-		outputPrice: (output_price / AIC_DIVISOR) * scale,
-		cacheReadTokenPrice: (cache_price / AIC_DIVISOR) * scale,
+		default: defaultTier,
+		longContext,
 	};
 }
 
@@ -183,7 +215,8 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.modelProvider = modelMetadata.vendor;
 		this.name = modelMetadata.name;
 		this.version = modelMetadata.version;
-		this.family = modelMetadata.capabilities.family;
+		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
+		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
 		this.tokenizer = modelMetadata.capabilities.tokenizer;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
@@ -199,8 +232,8 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model);
-		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this.model);
+		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
+		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
