@@ -7,6 +7,7 @@ import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type Ses
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -931,12 +932,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
 			await agentSession.initializeSession();
+			this._registerInitializedSession(sessionId, agentSession);
 		} catch (error) {
 			agentSession?.dispose();
 			await this._removeCreatedWorktree(sessionId);
 			throw error;
 		}
-		this._sessions.set(sessionId, agentSession);
 
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
 
@@ -1471,6 +1472,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return agentSession;
 	}
 
+	/**
+	 * Register a freshly initialised session in `_sessions`, or — if
+	 * shutdown has already started between init beginning and resolving —
+	 * dispose the session and throw {@link CancellationError}. Without this
+	 * guard an in-flight `_resumeSession` / `_materializeProvisional` whose
+	 * `initializeSession()` resolves after `dispose()` has run would call
+	 * `_sessions.set(...)` on a disposed `DisposableMap`, leaking the
+	 * session and reproducing the very 'Trying to add a disposable to a
+	 * DisposableStore that has already been disposed' warning this fix
+	 * exists to prevent.
+	 */
+	private _registerInitializedSession(sessionId: string, agentSession: CopilotAgentSession): void {
+		if (this._shutdownPromise) {
+			agentSession.dispose();
+			throw new CancellationError();
+		}
+		this._sessions.set(sessionId, agentSession);
+	}
+
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
 		// Provisional sessions have no SDK session, no worktree, and no
 		// on-disk metadata — drop the in-memory record and clean up the
@@ -1616,7 +1636,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession.dispose();
 			throw err;
 		}
-		this._sessions.set(sessionId, agentSession);
+		this._registerInitializedSession(sessionId, agentSession);
 
 		return agentSession;
 	}

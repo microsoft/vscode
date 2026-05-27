@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -1035,6 +1036,36 @@ suite('CopilotAgent', () => {
 				]);
 				assert.deepStrictEqual([...ids].sort(), ['s1', 's2']);
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('post-init shutdown race: disposes the session and throws CancellationError instead of registering on a disposed _sessions map', async () => {
+			// Without this guard an in-flight `_resumeSession` /
+			// `_materializeProvisional` whose `initializeSession()`
+			// resolves AFTER `dispose()` -> `shutdown()` -> `super.dispose()`
+			// has run would call `_sessions.set(...)` on a disposed
+			// DisposableMap, leaking the session and reproducing the
+			// 'Trying to add a disposable to a DisposableStore that has
+			// already been disposed' warning this PR exists to eliminate.
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as {
+				_registerInitializedSession: (id: string, s: CopilotAgentSession) => void;
+				_shutdownPromise: Promise<void> | undefined;
+			};
+			let disposed = 0;
+			const fakeSession = { dispose: () => { disposed++; } } as unknown as CopilotAgentSession;
+			internals._shutdownPromise = Promise.resolve();
+			try {
+				assert.throws(
+					() => internals._registerInitializedSession('s1', fakeSession),
+					(err: unknown) => isCancellationError(err),
+				);
+				assert.strictEqual(disposed, 1, 'session should be disposed by the guard');
+			} finally {
+				// Clear the fake shutdown promise so disposeAgent doesn't
+				// short-circuit and leave real state behind.
+				internals._shutdownPromise = undefined;
 				await disposeAgent(agent);
 			}
 		});
