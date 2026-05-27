@@ -56,7 +56,26 @@ export class OverviewRulerFeature extends Disposable {
 		}).root;
 		this._register(appendRemoveOnDispose(diffOverviewRoot, viewportDomElement.domNode));
 		this._register(addStandardDisposableListener(diffOverviewRoot, EventType.POINTER_DOWN, (e) => {
-			this._editors.modified.delegateVerticalScrollbarPointerDown(e);
+			// Calculate the click's vertical offset relative to the overview ruler element.
+			// Using page coordinates and element position for reliability, since
+			// e.browserEvent.offsetY can be relative to a child element rather than diffOverviewRoot.
+			const elementTop = diffOverviewRoot.getBoundingClientRect().top
+				+ diffOverviewRoot.ownerDocument.defaultView!.scrollY;
+			const offsetY = e.posy - elementTop;
+			const totalHeight = diffOverviewRoot.clientHeight;
+			if (totalHeight === 0) {
+				return;
+			}
+			const scrollHeight = this._editors.modified.getScrollHeight();
+			const layoutInfo = this._editors.modified.getLayoutInfo();
+			const viewportHeight = layoutInfo.height;
+
+			// Calculate scroll position proportional to click position in the overview ruler,
+			// centering the viewport on the clicked location. This avoids delegating to the
+			// scrollbar which would respect the scrollByPage setting (fixes #276862).
+			const ratio = offsetY / totalHeight;
+			const targetScrollTop = Math.max(0, ratio * scrollHeight - viewportHeight / 2);
+			this._editors.modified.setScrollTop(targetScrollTop);
 		}));
 		this._register(addDisposableListener(diffOverviewRoot, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
 			this._editors.modified.delegateScrollFromMouseWheelEvent(e);
