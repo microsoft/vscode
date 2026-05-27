@@ -3222,7 +3222,7 @@
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "nextEditSuggestions",
               "onExp"
@@ -6631,6 +6631,13 @@
       },
       {
         "path": "./assets/prompts/chronicle-cost-tips.prompt.md",
+        "when": "github.copilot.sessionSearch.enabled",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
+        "path": "./assets/prompts/chronicle-improve.prompt.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
           "local"
