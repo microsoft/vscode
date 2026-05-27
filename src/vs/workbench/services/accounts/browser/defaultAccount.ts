@@ -400,7 +400,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		this._register(addDisposableListener(mainWindow, 'online', () => {
 			this.logService.debug('[DefaultAccount] Network is online, refreshing default account');
-			this.updateDefaultAccount({ forceRefresh: true });
+			this.updateDefaultAccount({ forceRefresh: true }).catch(error => {
+				this.logService.error('[DefaultAccount] Failed to refresh default account after network came online', getErrorMessage(error));
+			});
 		}));
 	}
 
