@@ -731,10 +731,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 						logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
 					}
-					this.setCurrentLanguageModelToDefault();
+					this.setCurrentLanguageModelToDefault(true);
 				}
 			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
-				this.setCurrentLanguageModelToDefault();
+				this.setCurrentLanguageModelToDefault(true);
 			}
 		};
 		this._register(this.languageModelsService.onDidChangeLanguageModels(resetCurrentLanguageModelIfUnavailable));
@@ -1280,6 +1280,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._syncInputStateToModel();
 	}
 
+	private clearCurrentLanguageModel(): void {
+		if (!this._currentLanguageModel.get()) {
+			return;
+		}
+
+		logChangesToStateModel(this._inputModel, `clearCurrentLanguageModel in ${this._currentSessionKey}`, undefined, undefined, this.logService);
+		this._currentLanguageModel.set(undefined, undefined);
+
+		if (this.cachedWidth) {
+			this.layout(this.cachedWidth);
+		}
+
+		this.storageService.remove(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		this.storageService.remove(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION);
+		this._syncInputStateToModel();
+	}
+
 	private checkModelSupported(): void {
 		const lm = this._currentLanguageModel.get();
 		const allModels = this.getAllMergedModels();
@@ -1496,12 +1513,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
-	private setCurrentLanguageModelToDefault() {
+	private setCurrentLanguageModelToDefault(clearWhenUnavailable = false) {
 		const allModels = this.getModels();
 		const defaultModel = findDefaultModel(allModels, this.location);
 		if (defaultModel) {
 			logChangesToStateModel(this._inputModel, `setCurrentLanguageModelToDefault to ${defaultModel.identifier} in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 			this.setCurrentLanguageModel(defaultModel);
+		} else if (clearWhenUnavailable) {
+			this.clearCurrentLanguageModel();
 		}
 	}
 
