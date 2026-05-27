@@ -178,7 +178,7 @@ When the user asks to improve their agent instructions based on session history 
 
 **Step 1: Read the current instructions file**
 
-Read `.github/copilot-instructions.md` (or `AGENTS.md` in workspace root) to understand what instructions already exist.
+Read whichever instructions file the project uses (`.github/copilot-instructions.md` or `AGENTS.md`) to understand what already exists.
 
 If the file does **not** exist, you will create it. In that case, also analyze the codebase first — consult the **init** skill and follow its codebase exploration approach. Combine that analysis with the session history findings from Step 2 to produce a comprehensive instructions file.
 
@@ -202,7 +202,7 @@ Based on what you find, succinctly present 3-5 recommendations. Explain both the
 
 Focus on project-specific patterns, not generic advice. Only suggest instructions that address real problems found in the data that happened more than once.
 
-After presenting all recommendations, ask the user which ones they'd like to apply. Then make only the approved edits to `.github/copilot-instructions.md` (or `AGENTS.md`, or create the file if it doesn't exist).
+After presenting all recommendations, ask the user which ones they'd like to apply. Then make only the approved edits to the single existing instructions file (or create `AGENTS.md` if none exists).
 
 ### Search
 

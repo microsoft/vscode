@@ -38,7 +38,7 @@ When complete, print a table of the added or modified chat customization files, 
    - Existing file: Preserve valuable content, update outdated sections, remove duplication
    - Follow the guidelines in the `agent-customization` skill:
       1. **Link, don't embed** principle. Do not copy existing documentation that exists in the workspace, link to them with a Markdown link instead.
-      2. **Minimal by default**: Only what's relevant and can not be easely discovered by an agent should be included. Link to other documentation for details.
+      2. **Minimal by default**: Only what's relevant and cannot be easily discovered by an agent should be included. Link to other documentation for details.
       3. **Concise and actionable**: Every line should guide behavior
 
 4. **Iterate**
