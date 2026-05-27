@@ -65,16 +65,17 @@
 	gap: 8px;
 	position: sticky;
 	top: 0;
-	height: 34px;
+	height: 44px;
 	box-sizing: border-box;
-	padding: 6px 12px;
+	padding: 8px 12px;
 	z-index: 3;
 	background: var(--vscode-multiDiffEditor-headerBackground);
-	border-top: 1px solid var(--vscode-multiDiffEditor-border, var(--vscode-sideBarSectionHeader-border, transparent));
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
 	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
 	color: var(--vscode-foreground);
 	font-size: 13px;
-	line-height: 20px;
+	line-height: 22px;
+	cursor: pointer;
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -82,14 +83,18 @@
 .mobile-multi-diff-file-chevron.codicon {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	padding: 2px;
+	padding: 4px;
 	border-radius: 3px;
 	cursor: pointer;
 }
 
 .mobile-multi-diff-file-chevron::before {
-	font-size: 14px;
+	font-size: 16px;
 	line-height: 1;
+}
+
+.mobile-multi-diff-file-header:active {
+	background: var(--vscode-toolbar-hoverBackground, var(--vscode-multiDiffEditor-headerBackground));
 }
 
 .mobile-multi-diff-file-chevron:hover {
@@ -147,7 +152,7 @@
 
 .mobile-multi-diff-file-content {
 	position: absolute;
-	top: 34px;
+	top: 44px;
 	left: 0;
 	right: 0;
 	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
@@ -206,5 +211,5 @@
 
 .mobile-multi-diff-file-content-placeholder .mobile-diff-empty-state {
 	position: sticky;
-	top: 34px;
+	top: 44px;
 }

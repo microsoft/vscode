@@ -99,6 +99,60 @@ suite('MobileMultiDiffView', () => {
 		view.dispose();
 	});
 
+	test('uses a larger tappable file header to expand and collapse sections', async () => {
+		const originalURI = URI.parse('inmemory://original/src/toggle.ts');
+		const modifiedURI = URI.parse('inmemory://modified/src/toggle.ts');
+		const files = new Map<string, string>([
+			[originalURI.toString(), 'export const value = 1;\n'],
+			[modifiedURI.toString(), 'export const value = 2;\n'],
+		]);
+
+		const textFileService = {
+			read(uri: URI) {
+				return Promise.resolve({ value: files.get(uri.toString()) ?? '' });
+			}
+		} as unknown as ITextFileService;
+
+		const fileService = {} as IFileService;
+		const languageService = {
+			guessLanguageIdByFilepathOrFirstLine(): string {
+				return 'typescript';
+			}
+		} as unknown as ILanguageService;
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const view = store.add(new MobileMultiDiffView(container, {
+			diffs: [{
+				originalURI,
+				modifiedURI,
+				identical: false,
+				added: 1,
+				removed: 1,
+			}]
+		}, textFileService, fileService, languageService));
+
+		const section = container.querySelector('.mobile-multi-diff-file-section') as HTMLElement | null;
+		assert.ok(section, 'file section should exist');
+		const header = section.querySelector('.mobile-multi-diff-file-header') as HTMLElement | null;
+		assert.ok(header, 'file header should exist');
+		const chevron = header.querySelector('.mobile-multi-diff-file-chevron') as HTMLElement | null;
+		assert.ok(chevron, 'file header chevron should exist');
+		assert.strictEqual(mainWindow.getComputedStyle(header).height, '44px', 'file header should be a touch-friendly height');
+
+		header.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.ok(section.classList.contains('collapsed'), 'tapping the header should collapse the file section');
+		assert.strictEqual(chevron.getAttribute('aria-expanded'), 'false');
+
+		chevron.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.ok(!section.classList.contains('collapsed'), 'tapping the chevron should expand once without bubbling into a second toggle');
+		assert.strictEqual(chevron.getAttribute('aria-expanded'), 'true');
+
+		view.dispose();
+	});
+
 	test('virtualizes rows inside a loaded large file body', async () => {
 		const lineCount = 200;
 		const originalURI = URI.parse('inmemory://original/src/large.ts');

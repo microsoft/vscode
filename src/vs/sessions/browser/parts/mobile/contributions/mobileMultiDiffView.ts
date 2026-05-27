@@ -26,7 +26,7 @@ import { computeMobileMultiDiffItemHeight, computeMobileMultiDiffVirtualLayout, 
 const $ = DOM.$;
 
 const VIRTUALIZER_METRICS: IMobileMultiDiffVirtualizerMetrics = {
-	fileHeaderHeight: 34,
+	fileHeaderHeight: 44,
 	hunkHeaderHeight: 26,
 	rowHeight: 18,
 	bodyVerticalPadding: 0,
@@ -286,6 +286,9 @@ export class MobileMultiDiffView extends Disposable {
 			}
 		};
 		store.add(Gesture.addTarget(chevronEl));
+		store.add(Gesture.addTarget(header));
+		store.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, toggle));
+		store.add(DOM.addDisposableListener(header, TouchEventType.Tap, e => { e.preventDefault(); toggle(e); }));
 		store.add(DOM.addDisposableListener(chevronEl, DOM.EventType.CLICK, toggle));
 		store.add(DOM.addDisposableListener(chevronEl, TouchEventType.Tap, e => { e.preventDefault(); toggle(e); }));
 		store.add(DOM.addDisposableListener(chevronEl, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
