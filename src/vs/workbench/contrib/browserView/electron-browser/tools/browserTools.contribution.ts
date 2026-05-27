@@ -17,6 +17,7 @@ import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../ch
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { formatBrowserEditorList } from './browserToolHelpers.js';
 import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
+import { ClickCoordinateBrowserTool, ClickCoordinateBrowserToolData } from './clickCoordinateBrowserTool.js';
 import { DragElementTool, DragElementToolData } from './dragElementTool.js';
 import { HandleDialogBrowserTool, HandleDialogBrowserToolData } from './handleDialogBrowserTool.js';
 import { HoverElementTool, HoverElementToolData } from './hoverElementTool.js';
@@ -92,6 +93,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._toolsStore.add(this.toolsService.registerTool(ScreenshotBrowserToolData, this.instantiationService.createInstance(ScreenshotBrowserTool)));
 		this._toolsStore.add(this.toolsService.registerTool(NavigateBrowserToolData, this.instantiationService.createInstance(NavigateBrowserTool)));
 		this._toolsStore.add(this.toolsService.registerTool(ClickBrowserToolData, this.instantiationService.createInstance(ClickBrowserTool)));
+		this._toolsStore.add(this.toolsService.registerTool(ClickCoordinateBrowserToolData, this.instantiationService.createInstance(ClickCoordinateBrowserTool)));
 		this._toolsStore.add(this.toolsService.registerTool(DragElementToolData, this.instantiationService.createInstance(DragElementTool)));
 		this._toolsStore.add(this.toolsService.registerTool(HoverElementToolData, this.instantiationService.createInstance(HoverElementTool)));
 		this._toolsStore.add(this.toolsService.registerTool(TypeBrowserToolData, this.instantiationService.createInstance(TypeBrowserTool)));
@@ -103,6 +105,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._toolsStore.add(this._browserToolSet.addTool(ScreenshotBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(NavigateBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(ClickBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(ClickCoordinateBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(DragElementToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(HoverElementToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(TypeBrowserToolData));
