@@ -375,10 +375,22 @@
 			}
 		},
 		{
+			"scope": "keyword.control",
+			"settings": {
+				"foreground": "#ff7b72"
+			}
+		},
+		{
 			"scope": [
 				"storage",
 				"storage.type"
 			],
+			"settings": {
+				"foreground": "#ff7b72"
+			}
+		},
+		{
+			"scope": "storage.modifier",
 			"settings": {
 				"foreground": "#ff7b72"
 			}
