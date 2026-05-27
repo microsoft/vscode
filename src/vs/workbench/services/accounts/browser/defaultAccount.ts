@@ -571,9 +571,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt ?? accountPolicyData?.mcpRegistryDataFetchedAt;
-					if (mcpRegistryResult) {
-						policyData.mcpRegistryUrl = mcpRegistryResult.data?.url;
-						policyData.mcpAccess = mcpRegistryResult.data?.registry_access;
+					if (mcpRegistryResult?.data) {
+						policyData.mcpRegistryUrl = mcpRegistryResult.data.url;
+						policyData.mcpAccess = mcpRegistryResult.data.registry_access;
+					} else if (mcpRegistryResult) {
+						policyData.mcpRegistryUrl = undefined;
+						policyData.mcpAccess = undefined;
 					}
 				} else {
 					policyData.mcpRegistryUrl = undefined;
