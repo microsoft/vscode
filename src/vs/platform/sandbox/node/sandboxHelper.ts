@@ -55,9 +55,23 @@ export class SandboxHelperService implements ISandboxHelperService {
 		}
 
 		const env: string[] = [];
-		const path = getCaseInsensitive(process.env, 'PATH');
-		if (typeof path === 'string' && path) {
-			env.push(`PATH=${path}`);
+		for (const variable of ['SystemRoot', 'PATH', 'ComSpec', 'PATHEXT', 'PSModulePath']) {
+			const value = getCaseInsensitive(process.env, variable);
+			if (typeof value === 'string' && value) {
+				env.push(`${variable}=${value}`);
+			}
+		}
+		const userProfile = getCaseInsensitive(process.env, 'USERPROFILE');
+		if (typeof userProfile === 'string' && userProfile) {
+			env.push(`USERPROFILE=${userProfile}`);
+		}
+		const appData = getCaseInsensitive(process.env, 'APPDATA');
+		if (typeof appData === 'string' && appData) {
+			env.push(`APPDATA=${appData}`);
+		}
+		const localAppData = this._getLocalAppData();
+		if (typeof localAppData === 'string' && localAppData) {
+			env.push(`LOCALAPPDATA=${localAppData}`);
 		}
 
 		const psHome = await this._getPSHome();
@@ -75,6 +89,11 @@ export class SandboxHelperService implements ISandboxHelperService {
 
 		const powerShellPath = await findExecutable('pwsh') ?? await findExecutable('powershell');
 		return powerShellPath ? win32.dirname(powerShellPath) : undefined;
+	}
+
+	private _getLocalAppData(): string | undefined {
+		const localAppData = getCaseInsensitive(process.env, 'LOCALAPPDATA');
+		return typeof localAppData === 'string' && localAppData ? localAppData : undefined;
 	}
 
 	private _getTempReadPaths(): string[] {
