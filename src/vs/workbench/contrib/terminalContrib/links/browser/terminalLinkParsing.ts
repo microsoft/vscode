@@ -211,6 +211,20 @@ function parseIntOptional(value: string | undefined): number | undefined {
 // character, otherwise it will stop at a space character.
 const linkWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/)?[^\s\|<>\[\({][^\s\|<>]*)$/;
 
+/**
+ * Characters that always terminate a leftward extension of a suffix-anchored path. These are
+ * shell/quotation/grouping delimiters that would never be part of a valid file path. The path
+ * extension also stops at non-breaking space (U+00A0) since that is used by some prompts as a
+ * separator.
+ */
+const linkPathExtensionStopChars = '<>|\'"`(){}[]';
+
+/**
+ * The Windows drive prefix used to determine if an extended path looks like an absolute Windows
+ * path (e.g. `C:\` or `c:/`).
+ */
+const winDrivePrefixRe = /^[a-zA-Z]:[\\/]/;
+
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
 	const results = detectLinksViaSuffix(line);
@@ -261,11 +275,67 @@ function binaryInsert(list: IParsedLink[], newItem: IParsedLink, low: number, hi
 	}
 }
 
+/**
+ * Attempts to extend a suffix-anchored path leftward through whitespace to capture paths that
+ * contain embedded spaces (eg. `/Users/me/My Project/file.ts:10`). The narrow `linkWithSuffixPathCharacters`
+ * regex above stops at any whitespace, so without this step a path with spaces is truncated to its
+ * final whitespace-free segment.
+ *
+ * To keep false positives in check, the extended candidate is only emitted when:
+ *   1. The extension stops at `minStart`, the start of the line, or at a hard delimiter
+ *      ([[linkPathExtensionStopChars]]).
+ *   2. The resulting candidate starts with an unambiguous absolute / home-relative path marker
+ *      (eg. `/`, `~/`, `~\`, a Windows drive letter or `file:///`). This avoids consuming
+ *      surrounding sentence words for relative paths where there is no signal that the leading
+ *      tokens are part of the path.
+ *
+ * Validation against the file system happens later in the link detector, so an incorrect
+ * extension simply fails to resolve rather than producing a broken link.
+ *
+ * @param line The full line being parsed.
+ * @param currentStart The start index in `line` of the narrowly-matched path.
+ * @param beforeSuffix `line.substring(0, suffix.suffix.index)`, ie. the portion of the line that
+ * precedes the current suffix. Substrings taken from this are used to test path-marker prefixes.
+ * @param minStart The minimum allowed start index in `line`. Set this to the end of the previous
+ * suffix to prevent an extension from spanning across a sibling link's region.
+ * @returns The start index in `line` of the extended path, or `undefined` if no qualifying
+ * extension exists.
+ */
+function tryExtendPathLeft(line: string, currentStart: number, beforeSuffix: string, minStart: number): number | undefined {
+	if (currentStart <= minStart) {
+		return undefined;
+	}
+	let extendedStart = currentStart;
+	let i = currentStart;
+	while (i > minStart) {
+		const prevChar = line[i - 1];
+		if (linkPathExtensionStopChars.indexOf(prevChar) !== -1) {
+			break;
+		}
+		i--;
+		// Only consider candidates whose leading character has changed (ie. we walked past a space)
+		// and which start at a recognizable absolute path marker. Walking through filename
+		// characters between spaces is fine, we just don't anchor on them.
+		const candidate = beforeSuffix.substring(i);
+		if (
+			candidate.startsWith('/') ||
+			candidate.startsWith('~/') ||
+			candidate.startsWith('~\\') ||
+			candidate.startsWith('file:///') ||
+			winDrivePrefixRe.test(candidate)
+		) {
+			extendedStart = i;
+		}
+	}
+	return extendedStart === currentStart ? undefined : extendedStart;
+}
+
 function detectLinksViaSuffix(line: string): IParsedLink[] {
 	const results: IParsedLink[] = [];
 
 	// 1: Detect link suffixes on the line
 	const suffixes = detectLinkSuffixes(line);
+	let previousSuffixEnd = 0;
 	for (const suffix of suffixes) {
 		const beforeSuffix = line.substring(0, suffix.suffix.index);
 		const possiblePathMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
@@ -331,7 +401,28 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 					});
 				}
 			}
+
+			// If the path could plausibly start earlier in the line through embedded spaces
+			// (eg. `/Users/me/My Project/file.ts:10`), emit an additional candidate covering
+			// that extended range. The standard narrow candidate is kept so that whichever
+			// path resolves on disk first wins during link validation. Only attempted when
+			// there's no prefix (quotes/etc anchor the start unambiguously). See #212334.
+			if (!prefix) {
+				const pathStartInLine = linkStartIndex;
+				const extendedStart = tryExtendPathLeft(line, pathStartInLine, beforeSuffix, previousSuffixEnd);
+				if (extendedStart !== undefined && extendedStart < pathStartInLine) {
+					results.push({
+						path: {
+							index: extendedStart,
+							text: beforeSuffix.substring(extendedStart)
+						},
+						prefix: undefined,
+						suffix
+					});
+				}
+			}
 		}
+		previousSuffixEnd = suffix.suffix.index + suffix.suffix.text.length;
 	}
 
 	return results;
