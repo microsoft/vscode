@@ -46,12 +46,15 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants.js';
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID, COLLAPSE_FOLDER_ID, COLLAPSE_FOLDER_RECURSIVE_ID } from './fileConstants.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { RemoveRootFolderAction } from '../../../browser/actions/workspaceActions.js';
 import { OpenEditorsView } from './views/openEditorsView.js';
 import { ExplorerView } from './views/explorerView.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
+import { AsyncDataTree } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { DataTree } from '../../../../base/browser/ui/tree/dataTree.js';
+import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -726,5 +729,57 @@ CommandsRegistry.registerCommand({
 			},
 			languageId: args?.languageId,
 		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: COLLAPSE_FOLDER_ID,
+	handler: async (accessor, resource?: URI) => {
+		if (!resource || !URI.isUri(resource)) {
+			return;
+		}
+
+		const viewsService = accessor.get(IViewsService);
+		const explorerService = accessor.get(IExplorerService);
+		const target = explorerService.findClosest(resource);
+
+		const view = await viewsService.openView(VIEW_ID, false) as ExplorerView | undefined;
+		const tree: any = (view as any)?.tree ?? (view as any)?.getViewer?.();
+
+		if (!tree || !(tree instanceof ObjectTree || tree instanceof DataTree || tree instanceof AsyncDataTree)) {
+			return;
+		}
+
+		if (!target) {
+			return;
+		}
+
+		tree.collapse(target);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: COLLAPSE_FOLDER_RECURSIVE_ID,
+	handler: async (accessor, resource?: URI) => {
+		if (!resource || !URI.isUri(resource)) {
+			return;
+		}
+
+		const viewsService = accessor.get(IViewsService);
+		const explorerService = accessor.get(IExplorerService);
+		const target = explorerService.findClosest(resource);
+
+		const view = await viewsService.openView(VIEW_ID, false) as ExplorerView | undefined;
+		const tree: any = (view as any)?.tree ?? (view as any)?.getViewer?.();
+
+		if (!tree || !(tree instanceof ObjectTree || tree instanceof DataTree || tree instanceof AsyncDataTree)) {
+			return;
+		}
+
+		if (!target) {
+			return;
+		}
+
+		tree.collapse(target, true);
 	}
 });
