@@ -1133,7 +1133,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Group 1: Chat modes — Plan / Agent
 		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
 		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
-		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Agents Made for the Task");
+		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Agents made for the task");
 		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(chatGrid, Codicon.listOrdered,
