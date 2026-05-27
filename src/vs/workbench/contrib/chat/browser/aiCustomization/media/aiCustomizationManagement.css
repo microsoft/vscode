@@ -23,6 +23,7 @@
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
+	background: var(--vscode-editor-background);
 }
 
 .ai-customization-management-editor .sidebar-header-row {
