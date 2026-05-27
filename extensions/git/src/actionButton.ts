@@ -186,17 +186,31 @@ export class ActionButton {
 			return [];
 		}
 
-		// Not a branch (tag, detached)
-		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
-			return [];
-		}
-
 		// Commit
 		const commandGroups: Command[][] = [];
-		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
-			commandGroups.push(commands.map(c => {
-				return { command: c.command, title: c.title, tooltip: c.tooltip, arguments: c.arguments };
-			}));
+
+		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
+			// Not a branch (tag, detached) - show commit/amend commands
+			// but not post-commit commands (push/sync)
+			const commitCommand: Command = {
+				command: 'git.commit',
+				title: l10n.t('{0} Commit', '$(check)'),
+				tooltip: l10n.t('Commit Changes'),
+				arguments: [this.repository.sourceControl, null]
+			};
+			const amendCommand: Command = {
+				command: 'git.commitAmend',
+				title: l10n.t('{0} Commit (Amend)', '$(check)'),
+				tooltip: l10n.t('Commit Changes'),
+				arguments: [this.repository.sourceControl, null]
+			};
+			commandGroups.push([commitCommand, amendCommand]);
+		} else {
+			for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
+				commandGroups.push(commands.map(c => {
+					return { command: c.command, title: c.title, tooltip: c.tooltip, arguments: c.arguments };
+				}));
+			}
 		}
 
 		return commandGroups;
