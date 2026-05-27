@@ -10,7 +10,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -22,7 +21,8 @@ import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatViewPane.js';
 import { NewChatInSessionWidget } from './newChatInSessionViewPane.js';
-import { agentsPanelBackground, agentsPanelForeground } from '../../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -89,6 +89,9 @@ export class ChatView extends AbstractChatView {
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
 
+	/** Whether this view currently represents the active session. */
+	private _isActive = true;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -123,16 +126,20 @@ export class ChatView extends AbstractChatView {
 				inputEditorMinLines: 2,
 				isSessionsWindow: true
 			},
-			{
-				listForeground: agentsPanelForeground,
-				listBackground: agentsPanelBackground,
-				overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
-				inputEditorBackground: inputBackground,
-				resultEditorBackground: agentsPanelBackground,
-			}
+			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
+	}
+
+	private _buildStyles(active: boolean) {
+		return {
+			listForeground: active ? activeSessionViewForeground : inactiveSessionViewForeground,
+			listBackground: active ? activeSessionViewBackground : inactiveSessionViewBackground,
+			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
+			inputEditorBackground: inactiveSessionViewBackground,
+			resultEditorBackground: agentsPanelBackground,
+		};
 	}
 
 	/** The underlying chat widget. */
@@ -144,7 +151,7 @@ export class ChatView extends AbstractChatView {
 		const resource = chat.resource;
 
 		// Skip loading if we're already showing this chat
-		if (this._currentChatResource?.toString() === resource.toString()) {
+		if (isEqual(this._currentChatResource, resource)) {
 			return;
 		}
 
@@ -197,6 +204,14 @@ export class ChatView extends AbstractChatView {
 
 	override focus(): void {
 		this._widget.focusInput();
+	}
+
+	override setActive(active: boolean): void {
+		if (this._isActive === active) {
+			return;
+		}
+		this._isActive = active;
+		this._widget.setStyles(this._buildStyles(active));
 	}
 }
 
