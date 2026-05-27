@@ -182,12 +182,17 @@ export function isAhpRootChannel(uri: string): boolean {
  * declare multiple children (e.g. MCP servers, hooks) inside the same
  * manifest file; including the range disambiguates them without an extra
  * mapping table.
+ *
+ * The range is appended as a reserved `#range=` query-style suffix; any
+ * existing `#` in the URI is percent-encoded first so a source URI that
+ * already contains a fragment cannot collide with a ranged id.
  */
 export function customizationId(uri: string, range?: TextRange): string {
 	if (!range) {
 		return uri;
 	}
-	return `${uri}#${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
+	const safeUri = uri.replace(/#/g, '%23');
+	return `${safeUri}#range=${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
 }
 
 // ---- VS Code-specific derived types -----------------------------------------

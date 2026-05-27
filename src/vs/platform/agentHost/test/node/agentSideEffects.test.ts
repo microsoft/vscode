@@ -1129,7 +1129,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), action);
 
 			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [
-				{ uri: 'file:///plugin-a', enabled: false },
+				{ id: 'file:///plugin-a', enabled: false },
 			]);
 		});
 	});

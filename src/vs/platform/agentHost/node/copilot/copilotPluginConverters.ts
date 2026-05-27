@@ -9,9 +9,8 @@ import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import { CustomizationType, type AgentCustomization } from '../../common/state/protocol/state.js';
-import { customizationId } from '../../common/state/sessionState.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -107,21 +106,35 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 }
 
 /**
- * Projects parsed plugin agents into the protocol's {@link AgentCustomization}
- * shape so they can be advertised as children of the owning container
- * customization.
+ * Projects parsed plugin agents into their protocol-level
+ * {@link AgentCustomization} shape.
  */
-export function toAgentCustomizations(agents: readonly INamedPluginResource[]): AgentCustomization[] {
-	return agents.map(a => {
-		const uri = a.uri.toString();
-		return {
-			type: CustomizationType.Agent,
-			id: customizationId(uri),
-			uri,
-			name: a.name,
-			...(a.description ? { description: a.description } : {}),
-		};
-	});
+export function toAgentCustomizations(agents: readonly IParsedAgent[]): AgentCustomization[] {
+	return agents.map(a => a.customization);
+}
+
+/**
+ * Collects every child customization (agent, skill, rule, hook, MCP
+ * server) produced by a parsed plugin, deduped by id. This is the single
+ * source of truth for populating a container customization's `children`
+ * array — every projector that produced an SDK config above derives its
+ * matching protocol child from the same parsed primitive.
+ */
+export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildCustomization[] {
+	const byId = new Map<string, ChildCustomization>();
+	const add = (c: ChildCustomization) => {
+		if (!byId.has(c.id)) {
+			byId.set(c.id, c);
+		}
+	};
+	for (const plugin of plugins) {
+		for (const a of plugin.agents) { add(a.customization); }
+		for (const s of plugin.skills) { add(s.customization); }
+		for (const r of plugin.instructions) { add(r.customization); }
+		for (const h of plugin.hooks) { add(h.customization); }
+		for (const m of plugin.mcpServers) { add(m.customization); }
+	}
+	return [...byId.values()];
 }
 
 // ---------------------------------------------------------------------------

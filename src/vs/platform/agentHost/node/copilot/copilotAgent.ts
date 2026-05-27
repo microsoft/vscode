@@ -41,7 +41,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
-import { parsedPluginsEqual, toAgentCustomizations, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { parsedPluginsEqual, toChildCustomizations, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
@@ -1904,7 +1904,7 @@ class SessionDiscoveredEntry extends Disposable {
 					? {
 						...bundleResult.ref,
 						load: { kind: CustomizationLoadStatus.Loaded },
-						children: toAgentCustomizations(plugin.agents),
+						children: toChildCustomizations([plugin]),
 					}
 					: {
 						...bundleResult.ref,
@@ -2179,7 +2179,7 @@ class PluginController extends Disposable {
 			customization: {
 				...customization,
 				load: { kind: CustomizationLoadStatus.Loaded },
-				children: toAgentCustomizations(parsed.agents),
+				children: toChildCustomizations([parsed]),
 			},
 			pluginDir,
 			plugin: parsed,
@@ -2205,7 +2205,7 @@ class PluginController extends Disposable {
 		return {
 			customization: {
 				...baseCustomization,
-				children: toAgentCustomizations(parsed.agents),
+				children: toChildCustomizations([parsed]),
 			},
 			pluginDir: item.pluginDir,
 			plugin: parsed,

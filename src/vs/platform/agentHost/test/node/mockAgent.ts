@@ -56,7 +56,7 @@ export class MockAgent implements IAgent {
 	readonly changeModelCalls: { session: URI; model: ModelSelection }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
-	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
+	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
@@ -188,8 +188,8 @@ export class MockAgent implements IAgent {
 		return results;
 	}
 
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
-		this.setCustomizationEnabledCalls.push({ uri, enabled });
+	setCustomizationEnabled(id: string, enabled: boolean): void {
+		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
 	setClientTools(): void { }
