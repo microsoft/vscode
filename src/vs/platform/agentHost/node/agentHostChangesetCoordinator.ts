@@ -87,11 +87,11 @@ export class ChangesetSessionCoordinator extends Disposable {
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _changesets: IAgentHostChangesetService,
-		private readonly _configurationService: IAgentConfigurationService,
-		fileMonitorService: IAgentHostFileMonitorService,
-		gitService: IAgentHostGitService,
-		logService: ILogService,
+		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
+		@IAgentHostGitService gitService: IAgentHostGitService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, logService));
