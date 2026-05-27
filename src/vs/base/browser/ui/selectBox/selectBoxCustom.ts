@@ -1105,7 +1105,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		const ch = KeyCodeUtils.toString(e.keyCode);
 		let optionIndex = -1;
 
-		for (let i = 0; i < this.options.length - 1; i++) {
+		for (let i = 0; i < this.options.length; i++) {
 			optionIndex = (i + this.selected + 1) % this.options.length;
 			if (this.options[optionIndex].text.charAt(0).toUpperCase() === ch && !this.options[optionIndex].isDisabled) {
 				this.select(optionIndex);
