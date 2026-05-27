@@ -23,7 +23,12 @@
 # Stdout: a single JSON line, e.g.
 #   {"ok":true,"actualLength":47,"expectedLength":47,"viewLineCount":1,"firstViewLine":"..."}
 # Stderr: diagnostic noise from @playwright/cli (suppressed unless caller wants it).
-# Exit code: 0 on success, 1 on failure.
+# Exit code:
+#   0  success
+#   1  paste verify failed, eval failed, or the page had no native-edit-context
+#   2  argument/usage error (empty input, missing tools)
+#
+# Required tools on PATH: npx (with @playwright/cli reachable), node, jq.
 #
 # Assumes:
 #   - You have already run `npx @playwright/cli [-s=NAME] attach --cdp=http://127.0.0.1:$CDP`
@@ -74,18 +79,30 @@ if [[ -z "$TEXT" ]]; then
 	exit 2
 fi
 
-# Sanity: is @playwright/cli on PATH?
-if ! command -v npx >/dev/null 2>&1; then
-	echo '{"ok":false,"error":"npx not on PATH"}' >&2
-	exit 2
-fi
+# Sanity: required tools on PATH.
+for tool in npx node jq; do
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		printf '{"ok":false,"error":"%s not on PATH"}\n' "$tool"
+		echo "monaco-paste.sh: required tool '$tool' not on PATH" >&2
+		exit 2
+	fi
+done
+
+# Pick the platform-appropriate "select all" modifier. macOS uses Cmd
+# (Meta), everything else uses Ctrl. Done in the host shell so it
+# applies to the `press` calls below — Monaco itself respects both
+# bindings, but @playwright/cli only sends what we ask it to.
+case "${OSTYPE:-$(uname -s)}" in
+	darwin*|Darwin*) SELECT_ALL_MOD="Meta" ;;
+	*)               SELECT_ALL_MOD="Control" ;;
+esac
 
 # Step 1 (optional): clear the focused Monaco editor by select-all + delete.
 # Done via the CLI's `press` so the keys flow through Monaco's real key
 # handler. Stays inside the CDP connection — no system clipboard.
 if [[ "$APPEND" != "1" ]]; then
-	npx @playwright/cli "${PW_ARGS[@]}" press Meta+a >/dev/null 2>&1 || true
-	npx @playwright/cli "${PW_ARGS[@]}" press Backspace >/dev/null 2>&1 || true
+	npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} press "${SELECT_ALL_MOD}+a" >/dev/null 2>&1 || true
+	npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} press Backspace >/dev/null 2>&1 || true
 fi
 
 # Step 2: build the eval payload via node so JSON escaping is automatic.
@@ -132,7 +149,7 @@ JS=$(node -e '
 
 # Step 3: run the eval. The CLI prints "### Result" then a JSON-encoded
 # string on the next line, followed by "### Ran Playwright code" noise.
-RAW=$(npx @playwright/cli "${PW_ARGS[@]}" eval "$JS" 2>&1) || {
+RAW=$(npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} eval "$JS" 2>&1) || {
 	echo "{\"ok\":false,\"error\":\"@playwright/cli eval failed\"}"
 	echo "$RAW" >&2
 	exit 1
