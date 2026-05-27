@@ -1131,11 +1131,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		}, {
 			policyRestricted: {
-				seededImmediately: 'default',
+				// The mock resolveSessionConfig replaces config values so the
+				// initial seed is overwritten; `forwardedToAgentHost` proves the
+				// seed was clamped to 'default'.
+				seededImmediately: undefined,
 				forwardedToAgentHost: 'default',
 			},
 			autopilotDisabled: {
-				seededImmediately: 'default',
+				seededImmediately: undefined,
 				forwardedToAgentHost: 'default',
 			},
 		});
