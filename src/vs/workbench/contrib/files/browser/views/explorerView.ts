@@ -550,7 +550,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				try {
 					this.delegate?.willOpenElement(e.browserEvent);
-					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, source: EditorOpenSource.USER } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					const config = this.configurationService.getValue<IFilesConfiguration>();
+					const enablePreviewFromExplorer = config.workbench?.editor?.enablePreviewFromExplorer ?? true;
+					const enablePreview = config.workbench?.editor?.enablePreview ?? true;
+					const pinned = e.editorOptions.pinned || !enablePreviewFromExplorer || !enablePreview;
+					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned, source: EditorOpenSource.USER } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				} finally {
 					this.delegate?.didOpenElement();
 				}
