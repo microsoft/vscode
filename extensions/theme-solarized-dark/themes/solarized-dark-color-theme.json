@@ -11,7 +11,8 @@
 				"meta.embedded",
 				"source.groovy.embedded",
 				"string meta.image.inline.markdown",
-				"variable.legacy.builtin.python"
+				"variable.legacy.builtin.python",
+				"variable.other.property"
 			],
 			"settings": {
 				"foreground": "#839496"
