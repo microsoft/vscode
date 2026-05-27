@@ -36,7 +36,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -402,6 +402,7 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _backgroundObjectUrl: string | undefined;
 	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 3, bottom: 3, left: 3 };
 
@@ -981,9 +982,15 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private setBackgroundImage(buffer: VSBuffer | undefined): void {
+		if (this._backgroundObjectUrl !== undefined) {
+			this.window.URL.revokeObjectURL(this._backgroundObjectUrl);
+			this._backgroundObjectUrl = undefined;
+		}
+
 		if (buffer) {
-			const dataUrl = `data:image/jpeg;base64,${encodeBase64(buffer)}`;
-			this._placeholderScreenshot.style.backgroundImage = `url('${dataUrl}')`;
+			const blob = new this.window.Blob([buffer.buffer as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' });
+			this._backgroundObjectUrl = this.window.URL.createObjectURL(blob);
+			this._placeholderScreenshot.style.backgroundImage = `url('${this._backgroundObjectUrl}')`;
 		} else {
 			this._placeholderScreenshot.style.backgroundImage = '';
 		}
@@ -1157,5 +1164,10 @@ export class BrowserEditor extends EditorPane {
 		this.setBackgroundImage(undefined);
 
 		super.clearInput();
+	}
+
+	override dispose(): void {
+		this.setBackgroundImage(undefined);
+		super.dispose();
 	}
 }
