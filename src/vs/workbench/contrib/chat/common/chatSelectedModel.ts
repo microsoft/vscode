@@ -9,6 +9,12 @@ import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ILanguageModelsService } from './languageModels.js';
 
 /**
+ * Storage key prefix for persisted model selections.
+ * Full key format: `chat.currentLanguageModel.{location}[.{sessionType}]`
+ */
+export const SELECTED_MODEL_STORAGE_KEY_PREFIX = 'chat.currentLanguageModel.';
+
+/**
  * Builds the storage key used to persist the selected language model for a
  * given chat location and optional session type.
  *
@@ -17,9 +23,9 @@ import { ILanguageModelsService } from './languageModels.js';
  */
 export function getSelectedModelStorageKey(location: string, sessionType?: string): string {
 	if (sessionType) {
-		return `chat.currentLanguageModel.${location}.${sessionType}`;
+		return `${SELECTED_MODEL_STORAGE_KEY_PREFIX}${location}.${sessionType}`;
 	}
-	return `chat.currentLanguageModel.${location}`;
+	return `${SELECTED_MODEL_STORAGE_KEY_PREFIX}${location}`;
 }
 
 /**

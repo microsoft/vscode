@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { getSelectedModelVendor } from '../common/chatSelectedModel.js';
+import { getSelectedModelVendor, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
@@ -53,7 +51,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -62,9 +59,12 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
 
-		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK)
-		this._register(this._contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([ChatContextKeys.chatModelId.key]))) {
+		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
+		// The chatModelId context key is widget-scoped and may not bubble to the global
+		// service, so we also listen for storage changes on the persisted model selection key.
+		const storageListener = this._register(new DisposableStore());
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, storageListener)(e => {
+			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
 				this._update();
 			}
 		}));
@@ -101,13 +101,10 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const entitlement = this._chatEntitlementService.entitlement;
 		const isCopilot = this._isCopilotModelSelected();
 
-		this._logService.info(`[quota notification] _update: entitlement=${entitlement}, isCopilot=${isCopilot}, quotaUsedUp=${this._isQuotaUsedUp()}, ubb=${this._isUBBEligible()}, modelId=${this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatModelId.key) ?? '(none)'}`);
-
 		// Defer new notifications when a BYOK model is selected or the model
 		// selection hasn't loaded yet — quota only applies to Copilot models.
 		// Already-shown notifications stay visible.
 		if (!isCopilot) {
-			this._logService.info('[quota notification] _update: deferred — not a Copilot model');
 			return;
 		}
 
@@ -350,11 +347,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _isCopilotModelSelected(): boolean {
 		const vendor = getSelectedModelVendor(this._contextKeyService, this._storageService, this._languageModelsService);
 		if (!vendor) {
-			// No model selection available — assume Copilot
-			this._logService.info('[quota notification] _isCopilotModelSelected: no vendor found, assuming Copilot');
 			return true;
 		}
-		this._logService.info(`[quota notification] _isCopilotModelSelected: vendor=${vendor}`);
 		return vendor === COPILOT_VENDOR_ID;
 	}
 

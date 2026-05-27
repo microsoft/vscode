@@ -9,7 +9,6 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
@@ -161,7 +160,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			notificationMock.service,
 			contextKeyService as IContextKeyService,
 			languageModelsService,
-			new NullLogService(),
 			store.add(new InMemoryStorageService()),
 		));
 
