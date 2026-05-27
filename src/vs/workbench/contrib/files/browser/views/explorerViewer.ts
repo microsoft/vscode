@@ -1000,11 +1000,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
 		const theme = this.themeService.getFileIconTheme();
 
-		// Hack to always render chevrons for file nests, or else may not be able to identify them.
-		// eslint-disable-next-line no-restricted-syntax
-		const twistieContainer = templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
-		twistieContainer?.classList.toggle('force-twistie', stat.hasNests && theme.hidesExplorerArrows);
-
 		// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
 		// Apply some CSS magic to get things looking as reasonable as possible.
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
