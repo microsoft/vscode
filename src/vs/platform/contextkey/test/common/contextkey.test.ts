@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows, isChromeOS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ContextKeyExpr, ContextKeyExpression, implies } from '../../common/contextkey.js';
 
@@ -154,6 +154,7 @@ suite('ContextKeyExpr', () => {
 		testNormalize('isMac', isMacintosh ? 'true' : 'false');
 		testNormalize('isLinux', isLinux ? 'true' : 'false');
 		testNormalize('isWindows', isWindows ? 'true' : 'false');
+		testNormalize('isChromeOS', isChromeOS ? 'true' : 'false');
 	});
 
 	test('issue #101015: distribute OR', () => {
