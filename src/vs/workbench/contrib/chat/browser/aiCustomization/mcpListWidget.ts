@@ -185,7 +185,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
-		const description = element.server.description;
+		const description = element.server.description?.trim();
 		// Marketplace (gallery) entries are always clickable so users can install/inspect them,
 		// even when no description is returned by the gallery. Installed rows only opt-in to the
 		// detail view when there is something extra to show.

@@ -374,6 +374,15 @@ export interface IModalEditorPartOptions {
 	 * after the modal editor is opened.
 	 */
 	readonly sidebar?: IModalEditorSidebar;
+}
+
+/**
+ * Per-editor modal options provided by an editor input that wants to influence
+ * how it is rendered inside the modal editor part. Unlike
+ * {@link IModalEditorPartOptions}, these options are scoped to a single editor
+ * and resolved from the active editor (not from the part-level options API).
+ */
+export interface IModalEditorOptions {
 
 	/**
 	 * When true, the modal editor renders a simplified header:
@@ -386,10 +395,10 @@ export interface IModalEditorPartOptions {
 
 /**
  * Marker interface for editor inputs that want to customize how they are
- * rendered when opened in the modal editor part (see {@link IModalEditorPartOptions}).
+ * rendered when opened in the modal editor part (see {@link IModalEditorOptions}).
  */
 export interface IModalEditorOptionsProvider {
-	getModalEditorOptions(): IModalEditorPartOptions | undefined;
+	getModalEditorOptions(): IModalEditorOptions | undefined;
 }
 
 export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
