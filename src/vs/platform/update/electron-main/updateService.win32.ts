@@ -344,28 +344,24 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const cancelFilePath = path.join(cachePath, `cancel.flag`);
-		await this.unlink(cancelFilePath);
-
 		const progressFilePath = path.join(cachePath, `update-progress`);
-		await this.unlink(progressFilePath);
-
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
-
-		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const updatingMutexName = `${this.productService.win32MutexName}-updating`;
 		const mutex = await import('@vscode/windows-mutex');
 
-		// Another VS Code instance may have already launched the Inno Setup installer
-		// for the same update. Spawning a second one races into Inno's "Setup is
-		// already running" modal. Skip the spawn and rely on the `-ready` mutex
-		// polling below to advance our own state machine when the install finishes.
-		const alreadyInstalling = mutex.isActive(updatingMutexName);
-		if (alreadyInstalling) {
+		// Skip the spawn if another instance is already running Inno Setup for this
+		// update; otherwise Inno's "Setup is already running" modal pops up. The
+		// `-ready` mutex poll below still advances our state when it finishes.
+		if (mutex.isActive(updatingMutexName)) {
 			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
 		} else {
+			await this.unlink(cancelFilePath);
+			await this.unlink(progressFilePath);
+			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
+
 			const child = spawn(this.availableUpdate.packagePath,
 				[
 					'/verysilent',
@@ -399,9 +395,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const token = cts.token;
 
 		const poll = async () => {
+			let seenUpdatingMutex = false;
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
 				if (mutex.isActive(readyMutexName)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				// Inno gone without `-ready` => install cancelled/failed; drop to Idle.
+				if (mutex.isActive(updatingMutexName)) {
+					seenUpdatingMutex = true;
+				} else if (seenUpdatingMutex) {
+					if (!this.availableUpdate?.updateProcess) {
+						this.availableUpdate = undefined;
+						this.setState(State.Idle(getUpdateType()));
+					}
 					return;
 				}
 
@@ -453,7 +461,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
 		const { updateProcess, updateFilePath, cancelFilePath } = this.availableUpdate;
 
-		if (updateProcess && updateProcess.exitCode === null) {
+		// If we didn't spawn the installer ourselves (another instance is running setup),
+		// don't touch its in-use files or try to kill its process.
+		if (!updateProcess) {
+			this.availableUpdate = undefined;
+			return;
+		}
+
+		if (updateProcess.exitCode === null) {
 			// Remove all listeners to prevent the exit handler from changing state
 			updateProcess.removeAllListeners();
 			const exitPromise = new Promise<boolean>(resolve => updateProcess.once('exit', () => resolve(true)));
