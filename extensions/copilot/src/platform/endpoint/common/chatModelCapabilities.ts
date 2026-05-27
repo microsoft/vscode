@@ -454,9 +454,7 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 			n === 'gpt-5-5' ||
 			n.startsWith('claude-sonnet-4-5') ||
 			n.startsWith('claude-sonnet-4-6') ||
-			n.startsWith('claude-opus-4-5') ||
-			n.startsWith('claude-opus-4-6') ||
-			n.startsWith('claude-opus-4-7');
+			(!n.startsWith('claude-opus-4-1') && n.startsWith('claude-opus-4-'));
 	};
 	return matches(id) || matches(family) || isHiddenModelM(family);
 }
