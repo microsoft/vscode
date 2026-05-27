@@ -12,7 +12,6 @@ import type { ChatFetchError } from '../../../../platform/chat/common/commonType
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
-import { extractToolParameters } from '../../../../platform/otel/node/extractToolParameters';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -48,6 +47,11 @@ export interface MessageHandlerState {
 	/** Trace contexts for subagent tool spans, keyed by tool_use_id. Used to parent
 	 *  child spans (chat, tool) from subagent messages under the Agent tool span. */
 	readonly subagentTraceContexts: Map<string, TraceContext>;
+	/** Injected by the node-layer caller. Produces structured
+	 *  `github.copilot.tool.parameters.*` attributes (hashed/safe in `attrs`,
+	 *  content-sensitive in `gatedAttrs`). Common code cannot import from node
+	 *  directly, so the function is threaded through state. */
+	readonly extractToolParameters: (toolName: string, input: unknown) => { attrs: Record<string, string>; gatedAttrs: Record<string, string> };
 }
 
 export interface MessageHandlerResult {
@@ -210,7 +214,8 @@ export function handleAssistantMessage(
 			if (item.input !== undefined) {
 				try {
 					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(
-						typeof item.input === 'string' ? item.input : JSON.stringify(item.input)
+						typeof item.input === 'string' ? item.input : JSON.stringify(item.input),
+						otelService.config.maxAttributeSizeChars
 					));
 				} catch (e) {
 					logService.warn(`[ClaudeMessageDispatch] Failed to serialize tool arguments for ${item.name}: ${e}`);
@@ -220,7 +225,7 @@ export function handleAssistantMessage(
 			// Structured `github.copilot.tool.parameters.*`. Hashes and edit_type emit
 			// unconditionally; raw paths, commands, and MCP names are gated.
 			try {
-				const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = extractToolParameters(item.name, item.input);
+				const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = state.extractToolParameters(item.name, item.input);
 				for (const [k, v] of Object.entries(paramAttrs)) {
 					toolSpan.setAttribute(k, v);
 				}

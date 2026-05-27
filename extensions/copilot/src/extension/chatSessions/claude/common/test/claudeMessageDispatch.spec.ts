@@ -113,7 +113,34 @@ function createState(): MessageHandlerState {
 		otelHookSpans: new Map(),
 		hookStartTimes: new Map(),
 		subagentTraceContexts: new Map(),
+		extractToolParameters: stubExtractToolParameters,
 	};
+}
+
+/**
+ * Test stub that mimics the real `extractToolParameters` for the small set of
+ * Claude tool inputs exercised in these tests. Keeps the test in the `common/`
+ * layer (the real implementation lives in `node/` and cannot be imported here).
+ */
+function stubExtractToolParameters(toolName: string, input: unknown): { attrs: Record<string, string>; gatedAttrs: Record<string, string> } {
+	const attrs: Record<string, string> = {};
+	const gatedAttrs: Record<string, string> = {};
+	if (typeof input !== 'object' || input === null) {
+		return { attrs, gatedAttrs };
+	}
+	const obj = input as Record<string, unknown>;
+	if (toolName === 'Edit' || toolName === 'MultiEdit') {
+		attrs['github.copilot.tool.parameters.edit_type'] = 'str_replace';
+	} else if (toolName === 'Write') {
+		attrs['github.copilot.tool.parameters.edit_type'] = 'create';
+	}
+	if (typeof obj.file_path === 'string') {
+		gatedAttrs['github.copilot.tool.parameters.file_path'] = obj.file_path;
+	}
+	if (typeof obj.command === 'string') {
+		gatedAttrs['github.copilot.tool.parameters.command'] = obj.command;
+	}
+	return { attrs, gatedAttrs };
 }
 
 function createMockSpan(): ISpanHandle {

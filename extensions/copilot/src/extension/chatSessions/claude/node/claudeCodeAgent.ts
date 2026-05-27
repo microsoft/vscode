@@ -15,6 +15,7 @@ import { IAuthenticationService } from '../../../../platform/authentication/comm
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
+import { extractToolParameters } from '../../../../platform/otel/node/extractToolParameters';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -668,6 +669,7 @@ export class ClaudeCodeSession extends Disposable {
 						hookStartTimes,
 						parentTraceContext: this._otelTracker.traceContext,
 						subagentTraceContexts,
+						extractToolParameters,
 					});
 				} catch (dispatchError) {
 					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {
