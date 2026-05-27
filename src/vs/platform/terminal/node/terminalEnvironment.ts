@@ -255,6 +255,11 @@ export async function getShellIntegrationInjection(
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
+			// Record any custom HISTFILE so the shell integration script can restore it
+			// instead of overwriting it with the default location (see #169264).
+			if (env?.HISTFILE) {
+				envMixin['VSCODE_ZSH_HISTFILE_ORIG'] = env.HISTFILE;
+			}
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
