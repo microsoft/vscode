@@ -394,13 +394,13 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const parsedEngineVersion = engine?.type === 'string' ? normalizeVersion(parseVersion(engine.value)) : null;
-		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
-		const uri = repo && parseUri(repo.value);
+		const repositoryUrl = tree && getRepositoryUrl(tree);
+		const uri = repositoryUrl ? parseUri(repositoryUrl) : null;
 		const activationEvents = tree && parseImplicitActivationEvents(tree);
 
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
+			hasHttpsRepository: !!(repositoryUrl && uri && uri.scheme.toLowerCase() === 'https'),
 			repository: uri!,
 			implicitActivationEvents: activationEvents,
 			engineVersion: parsedEngineVersion
@@ -495,6 +495,86 @@ function parseUri(src: string, base?: string, retry: boolean = true): Uri | null
 			return null;
 		}
 	}
+}
+
+/**
+ * Reads the `repository` field from a parsed `package.json` and returns a
+ * normalized URL string suitable for parsing with {@link parseUri}.
+ *
+ * Per the npm spec the field can be either an object with a `url` key, or a
+ * shorthand string. Shorthand strings recognized here are the same ones
+ * documented for `package.json` repositories:
+ *
+ *   - `user/repo`            -> https://github.com/user/repo
+ *   - `github:user/repo`     -> https://github.com/user/repo
+ *   - `gitlab:user/repo`     -> https://gitlab.com/user/repo
+ *   - `bitbucket:user/repo`  -> https://bitbucket.org/user/repo
+ *   - `gist:abc123`          -> https://gist.github.com/abc123
+ *
+ * URLs that already include a scheme (`http:`, `https:`, `git:`, `git+...:`,
+ * etc.) are returned as-is. `git+` prefixes are stripped so that the scheme
+ * check downstream sees the underlying transport.
+ *
+ * Returns `undefined` when no repository information can be derived.
+ */
+function getRepositoryUrl(tree: JsonNode): string | undefined {
+	const repo = findNodeAtLocation(tree, ['repository']);
+	if (!repo) {
+		return undefined;
+	}
+
+	let raw: string | undefined;
+	if (repo.type === 'string' && typeof repo.value === 'string') {
+		raw = repo.value;
+	} else if (repo.type === 'object') {
+		const urlNode = findNodeAtLocation(repo, ['url']);
+		if (urlNode && urlNode.type === 'string' && typeof urlNode.value === 'string') {
+			raw = urlNode.value;
+		}
+	}
+
+	if (!raw) {
+		return undefined;
+	}
+
+	return normalizeRepositoryUrl(raw);
+}
+
+function normalizeRepositoryUrl(raw: string): string | undefined {
+	const value = raw.trim();
+	if (!value) {
+		return undefined;
+	}
+
+	// Strip `git+` prefix used in URLs like `git+https://...`.
+	const stripped = value.startsWith('git+') ? value.slice(4) : value;
+
+	// Shorthand `<host>:<path>` where `<host>` is one of the known providers.
+	// This must be checked before the generic scheme check below, since
+	// `github`, `gitlab`, etc. also look like URI schemes.
+	const hostMatch = /^(github|gitlab|bitbucket|gist):(.+)$/i.exec(stripped);
+	if (hostMatch) {
+		const host = hostMatch[1].toLowerCase();
+		const rest = hostMatch[2];
+		switch (host) {
+			case 'github': return `https://github.com/${rest}`;
+			case 'gitlab': return `https://gitlab.com/${rest}`;
+			case 'bitbucket': return `https://bitbucket.org/${rest}`;
+			case 'gist': return `https://gist.github.com/${rest}`;
+		}
+	}
+
+	// If the string already specifies a scheme, return it as-is.
+	if (/^[a-z][a-z0-9+.-]*:/i.test(stripped)) {
+		return stripped;
+	}
+
+	// Plain `user/repo` shorthand defaults to GitHub.
+	if (/^[^/\s]+\/[^/\s]+$/.test(stripped)) {
+		return `https://github.com/${stripped}`;
+	}
+
+	return undefined;
 }
 
 function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
