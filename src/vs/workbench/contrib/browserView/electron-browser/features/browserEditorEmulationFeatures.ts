@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
-import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ISashEvent, Orientation, OrthogonalEdge, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
@@ -425,8 +424,6 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		const device = this.editor.model?.device;
 		const width = device?.width;
 		const height = device?.height;
-		const z = getZoomFactor(this.editor.window);
-		const snap = (v: number) => Math.floor(v * z) / z;
 		const fitScale = paneWidth > 0 && paneHeight > 0
 			? Math.min(width ? paneWidth / width : 1, height ? paneHeight / height : 1, 1)
 			: 1;
@@ -436,8 +433,8 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		}
 		const scale = this._scale ?? fitScale;
 		return {
-			width: snap(width ? Math.min(width * scale, paneWidth) : paneWidth),
-			height: snap(height ? Math.min(height * scale, paneHeight) : paneHeight),
+			width: width ? Math.min(width * scale, paneWidth) : paneWidth,
+			height: height ? Math.min(height * scale, paneHeight) : paneHeight,
 			emulation: { scale },
 		};
 	}

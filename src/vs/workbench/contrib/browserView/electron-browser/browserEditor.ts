@@ -1094,21 +1094,28 @@ export class BrowserEditor extends EditorPane {
 
 		const paneWidth = Math.max(0, wrapperRect.width - padding.left - padding.right);
 		const paneHeight = Math.max(0, wrapperRect.height - padding.top - padding.bottom);
-		let layout: IContainerLayout;
-		if (override) {
-			layout = override.compute(paneWidth, paneHeight);
-		} else {
-			const z = getZoomFactor(this.window);
-			const snap = (v: number) => Math.floor(v * z) / z;
-			layout = { width: snap(paneWidth), height: snap(paneHeight) };
-		}
+		const rawLayout = override?.compute(paneWidth, paneHeight) ?? { width: paneWidth, height: paneHeight };
 
-		// Size the container, then derive its absolute screen rect analytically:
-		// the wrapper's flex rules center the container within the pane.
+		// Snap CSS-pixel values down so `v × hostZoom` is an exact integer:
+		// main places the WCV at `round(v × hostZoom) × systemDPR` physical
+		// pixels while CSS renders it at `v × hostZoom × systemDPR`, so this
+		// collapses main's rounding to a no-op and keeps the WebContentsView
+		// aligned with the placeholder screenshot.
+		const z = getZoomFactor(this.window);
+		const snap = (v: number) => Math.floor(v * z) / z;
+		const layout: IContainerLayout = { ...rawLayout, width: snap(rawLayout.width), height: snap(rawLayout.height) };
+
+		// Center the container within the wrapper's content area, then snap
+		// the resulting viewport position to the physical-pixel grid (so the
+		// WCV placed by main and the CSS element land on the same pixels).
+		// We convert back to local coordinates and write `left`/`top` directly.
 		this._browserContainer.style.width = `${layout.width}px`;
 		this._browserContainer.style.height = `${layout.height}px`;
-		const containerLeft = wrapperRect.left + padding.left + (paneWidth - layout.width) / 2;
-		const containerTop = wrapperRect.top + padding.top + (paneHeight - layout.height) / 2;
+		const containerLeft = snap(wrapperRect.left + padding.left + (paneWidth - layout.width) / 2);
+		const containerTop = snap(wrapperRect.top + padding.top + (paneHeight - layout.height) / 2);
+		this._browserContainer.style.left = `${containerLeft - wrapperRect.left}px`;
+		this._browserContainer.style.top = `${containerTop - wrapperRect.top}px`;
+
 		const cornerRadius = parseFloat(this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0');
 		void this._model.layout({
 			windowId: this.group.windowId,
