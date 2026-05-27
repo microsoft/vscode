@@ -95,9 +95,34 @@ export class FoldingModel implements IDisposable {
 	}
 
 	public removeManualRanges(ranges: ILineRange[]) {
+		const resolvedRanges: ILineRange[] = [];
+		for (const range of ranges) {
+			if (range.startLineNumber === range.endLineNumber) {
+				// For single-line ranges (cursor position), find the innermost manual
+				// folding range at the cursor. If none found, remove all manual ranges.
+				let index = this._regions.findRange(range.startLineNumber);
+				let found = false;
+				while (index !== -1) {
+					if (this._regions.getSource(index) !== FoldSource.provider) {
+						resolvedRanges.push({
+							startLineNumber: this._regions.getStartLineNumber(index),
+							endLineNumber: this._regions.getEndLineNumber(index)
+						});
+						found = true;
+						break;
+					}
+					index = this._regions.getParentIndex(index);
+				}
+				if (!found) {
+					resolvedRanges.push({ startLineNumber: 1, endLineNumber: this._textModel.getLineCount() });
+				}
+			} else {
+				resolvedRanges.push(range);
+			}
+		}
 		const newFoldingRanges: FoldRange[] = new Array();
 		const intersects = (foldRange: FoldRange) => {
-			for (const range of ranges) {
+			for (const range of resolvedRanges) {
 				if (!(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
 					return true;
 				}
