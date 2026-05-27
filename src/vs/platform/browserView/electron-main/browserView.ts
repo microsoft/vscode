@@ -546,10 +546,8 @@ export class BrowserView extends Disposable {
 	/**
 	 * Load a URL in this view
 	 */
-	loadURL(url: string): Promise<void> {
-		const p = this._view.webContents.loadURL(url);
-		p.catch(() => { });
-		return p;
+	async loadURL(url: string): Promise<void> {
+		await this._view.webContents.loadURL(url);
 	}
 
 	/**
