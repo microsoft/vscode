@@ -38,7 +38,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, type CustomizationRef, type SessionCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, SessionInputAnswerState, SessionInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type SessionInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -68,12 +68,12 @@ class FakeAgentPluginManager implements IAgentPluginManager {
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
 
 	syncResult: readonly ISyncedCustomization[] | undefined;
-	syncCalls: { clientId: string; customizations: readonly CustomizationRef[] }[] = [];
+	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
 
 	async syncCustomizations(
 		clientId: string,
-		customizations: CustomizationRef[],
-		progress?: (status: SessionCustomization) => void,
+		customizations: ClientPluginCustomization[],
+		progress?: (status: Customization) => void,
 	): Promise<ISyncedCustomization[]> {
 		this.syncCalls.push({ clientId, customizations: [...customizations] });
 		if (this.syncResult) {
@@ -4722,10 +4722,24 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 	function makeSyncedRef(uri: string, dir: string): ISyncedCustomization {
 		return {
 			customization: {
-				customization: { uri, displayName: uri },
+				type: CustomizationType.Plugin,
+				id: customizationId(uri),
+				uri,
+				name: uri,
 				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
 			},
 			pluginDir: URI.file(dir),
+		};
+	}
+
+	function makeClientCustomization(uri: string, name: string): ClientPluginCustomization {
+		return {
+			type: CustomizationType.Plugin,
+			id: customizationId(uri),
+			uri,
+			name,
+			enabled: true,
 		};
 	}
 
@@ -4770,8 +4784,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		}));
 
 		const synced = await agent.setClientCustomizations(created.session, 'client-1', [
-			{ uri: 'https://a', displayName: 'A' },
-			{ uri: 'https://b', displayName: 'B' },
+			makeClientCustomization('https://a', 'A'),
+			makeClientCustomization('https://b', 'B'),
 		]);
 
 		assert.strictEqual(synced.length, 2);
@@ -4788,13 +4802,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const s2 = await agent.createSession({ session: AgentSession.uri('claude', 'b'), workingDirectory: URI.file('/work') });
 
 		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared')];
-		await agent.setClientCustomizations(s1.session, 'c', [{ uri: 'https://shared', displayName: 'S' }]);
-		await agent.setClientCustomizations(s2.session, 'c', [{ uri: 'https://shared', displayName: 'S' }]);
+		await agent.setClientCustomizations(s1.session, 'c', [makeClientCustomization('https://shared', 'S')]);
+		await agent.setClientCustomizations(s2.session, 'c', [makeClientCustomization('https://shared', 'S')]);
 
 		// One fire per per-session diff change confirms fan-out.
 		let changes = 0;
 		disposables.add(agent.onDidCustomizationsChange(() => changes++));
-		agent.setCustomizationEnabled('https://shared', false);
+		agent.setCustomizationEnabled(customizationId('https://shared'), false);
 
 		assert.strictEqual(changes, 2);
 	});
@@ -4827,7 +4841,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		assert.strictEqual(created.provisional, true);
 
-		await agent.setClientCustomizations(created.session, 'c', [{ uri: 'https://a', displayName: 'A' }]);
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
 		assert.strictEqual(customizations.length, 1);
@@ -4856,7 +4870,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// pre-flight rebinds so `Options.plugins` on the new Query
 		// includes the new path.
 		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
-		await agent.setClientCustomizations(created.session, 'c', [{ uri: 'https://a', displayName: 'A' }]);
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 		const firstQuery = sdk.warmQueries[0].produced!;
 
 		const p2 = agent.sendMessage(created.session, 'second', undefined, 'turn-2');
@@ -4886,7 +4900,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
 		];
 		pm.syncResult = [makeSyncedRef('https://x', '/p/x')];
-		await agent.setClientCustomizations(created.session, 'c', [{ uri: 'https://x', displayName: 'X' }]);
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://x', 'X')]);
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 		const session = agent.getSessionForTesting(created.session)!;
 		// First-turn materialize consumed the dirty bit from the sync
@@ -4907,7 +4921,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// diff flips dirty (state changed) but no SDK action drains
 		// during the current send — its pre-flight already passed.
 		const startupsBefore = sdk.startupCallCount;
-		agent.setCustomizationEnabled('https://x', false);
+		agent.setCustomizationEnabled(customizationId('https://x'), false);
 		assert.strictEqual(session.clientCustomizationsDiff.hasDifference, true);
 		assert.strictEqual(sdk.startupCallCount, startupsBefore, 'no rebind during the in-flight turn');
 
@@ -4928,12 +4942,12 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const sessionId = AgentSession.id(created.session);
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
-		await agent.setClientCustomizations(created.session, 'c', [{ uri: 'https://a', displayName: 'A' }]);
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
 		assert.strictEqual(customizations.length, 1, 'client-pushed projection survives SDK snapshot failure');
-		assert.strictEqual(customizations[0].customization.uri, 'https://a');
+		assert.strictEqual(customizations[0].uri, 'https://a');
 	});
 
 	test('changeAgent on a provisional session stashes the selection (no SDK contact) and lands on Options.agent at materialize', async () => {

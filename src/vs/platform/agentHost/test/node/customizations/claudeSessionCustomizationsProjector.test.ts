@@ -7,24 +7,30 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
-import { CustomizationStatus, type SessionCustomization } from '../../../common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId, type Customization } from '../../../common/state/sessionState.js';
 import { projectSessionCustomizations } from '../../../node/claude/customizations/claudeSessionCustomizationsProjector.js';
 
 function client(uri: string, enabled = true): ISyncedCustomization {
 	return {
 		customization: {
-			customization: { uri, displayName: uri },
+			type: CustomizationType.Plugin,
+			id: customizationId(uri),
+			uri,
+			name: uri,
 			enabled,
-			status: CustomizationStatus.Loaded,
+			load: { kind: CustomizationLoadStatus.Loaded },
 		},
 	};
 }
 
-function discoveredBundle(uri: string): SessionCustomization {
+function discoveredBundle(uri: string): Customization {
 	return {
-		customization: { uri, displayName: 'VS Code Synced Data' },
+		type: CustomizationType.Plugin,
+		id: customizationId(uri),
+		uri,
+		name: 'VS Code Synced Data',
 		enabled: true,
-		status: CustomizationStatus.Loaded,
+		load: { kind: CustomizationLoadStatus.Loaded },
 	};
 }
 
@@ -34,18 +40,18 @@ suite('projectSessionCustomizations', () => {
 	test('returns only client-pushed entries when no discovery bundle', () => {
 		const result = projectSessionCustomizations([client('https://a')], new Map(), undefined);
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].customization.uri.toString(), 'https://a');
+		assert.strictEqual(result[0].uri.toString(), 'https://a');
 		assert.strictEqual(result[0].enabled, true);
 	});
 
-	test('overlays enablement map on client-pushed entries', () => {
+	test('overlays enablement map (keyed by id) on client-pushed entries', () => {
 		const result = projectSessionCustomizations(
 			[client('https://a'), client('https://b')],
-			new Map([['https://a', false]]),
+			new Map([[customizationId('https://a'), false]]),
 			undefined,
 		);
-		assert.strictEqual(result.find(c => c.customization.uri.toString() === 'https://a')?.enabled, false);
-		assert.strictEqual(result.find(c => c.customization.uri.toString() === 'https://b')?.enabled, true);
+		assert.strictEqual(result.find(c => c.uri.toString() === 'https://a')?.enabled, false);
+		assert.strictEqual(result.find(c => c.uri.toString() === 'https://b')?.enabled, true);
 	});
 
 	test('appends the discovery bundle verbatim', () => {
@@ -56,7 +62,7 @@ suite('projectSessionCustomizations', () => {
 			discoveredBundle(bundleUri),
 		);
 		assert.strictEqual(result.length, 2);
-		assert.strictEqual(result[1].customization.uri.toString(), bundleUri);
+		assert.strictEqual(result[1].uri.toString(), bundleUri);
 		assert.strictEqual(result[1].enabled, true);
 	});
 
@@ -64,7 +70,7 @@ suite('projectSessionCustomizations', () => {
 		const bundleUri = URI.file('/tmp/host-discovery/x').toString();
 		const result = projectSessionCustomizations(
 			[],
-			new Map([[bundleUri, false]]),
+			new Map([[customizationId(bundleUri), false]]),
 			discoveredBundle(bundleUri),
 		);
 		assert.strictEqual(result[0].enabled, true);

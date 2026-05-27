@@ -108,7 +108,7 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		const result = await bundler.bundle(files);
 
 		assert.ok(result);
-		assert.strictEqual(result.ref.displayName, 'VS Code Synced Data');
+		assert.strictEqual(result.ref.name, 'VS Code Synced Data');
 		assert.ok(result.ref.nonce);
 
 		const root = bundler.rootUri;

@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
-import { CustomizationStatus, type CustomizationAgentRef, type SessionCustomization } from '../../../common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId, type AgentCustomization, type Customization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
 
 const PLUGIN_NAME = 'claude-discovered';
@@ -32,11 +32,11 @@ export const CLAUDE_SDK_DEFAULT_AGENT_NAME = 'general-purpose';
  * plugin expander can scan it and emit per-type child items
  * (`PromptsType.agent` / `PromptsType.skill` / `PromptsType.prompt`).
  *
- * Returns a single {@link SessionCustomization} with `displayName =
- * "Discovered in Claude"` whose URI points at the on-disk bundle root.
- * The `agents` field is populated directly from the SDK snapshot so the
- * agent picker can list Claude-native agents without waiting on
- * filesystem expansion.
+ * Returns a single {@link Customization} (plugin container) whose `name`
+ * is `"Discovered in Claude"` and whose URI points at the on-disk bundle
+ * root. The `children` array is populated directly from the SDK snapshot
+ * so the agent picker can list Claude-native agents and skills without
+ * waiting on filesystem expansion.
  *
  * The directory is namespaced by a hash of the working directory so
  * concurrent sessions on different folders don't collide. Repeated
@@ -58,7 +58,7 @@ export class ClaudeSdkCustomizationBundler extends Disposable {
 		this._rootUri = URI.joinPath(pluginManager.basePath, DISCOVERED_DIR, authority);
 	}
 
-	async bundle(snapshot: ISdkResolvedCustomizations): Promise<SessionCustomization | undefined> {
+	async bundle(snapshot: ISdkResolvedCustomizations): Promise<Customization | undefined> {
 		if (snapshot.commands.length === 0 && snapshot.agents.length === 0) {
 			return undefined;
 		}
@@ -111,24 +111,39 @@ export class ClaudeSdkCustomizationBundler extends Disposable {
 		// workbench's customization harness reads it via `parseNew` to
 		// hydrate `ICustomAgent`, so a synthetic identity scheme would
 		// fail to parse and the agents would never reach the picker.
-		const agentRefs: CustomizationAgentRef[] = snapshot.agents
+		const agentChildren: AgentCustomization[] = snapshot.agents
 			.filter(agent => agent.name !== CLAUDE_SDK_DEFAULT_AGENT_NAME)
-			.map(agent => ({
-				uri: URI.joinPath(this._rootUri, 'agents', `${safeName(agent.name)}.md`).toString(),
-				name: agent.name,
-				description: agent.description,
-			}));
+			.map(agent => {
+				const agentUri = URI.joinPath(this._rootUri, 'agents', `${safeName(agent.name)}.md`).toString();
+				return {
+					type: CustomizationType.Agent,
+					id: customizationId(agentUri),
+					uri: agentUri,
+					name: agent.name,
+					description: agent.description,
+				};
+			});
+		const skillChildren: SkillCustomization[] = snapshot.commands.map(cmd => {
+			const dirName = safeName(cmd.name);
+			const skillUri = URI.joinPath(this._rootUri, 'skills', dirName, 'SKILL.md').toString();
+			return {
+				type: CustomizationType.Skill,
+				id: customizationId(skillUri),
+				uri: skillUri,
+				name: dirName,
+				description: cmd.description,
+			};
+		});
 
+		const rootUriString = this._rootUri.toString();
 		return {
-			customization: {
-				uri: this._rootUri.toString(),
-				displayName: DISPLAY_NAME,
-				description: localize('claude.discovered.description', "{0} customization(s) discovered by the Claude agent", snapshot.agents.length + snapshot.commands.length),
-				nonce,
-			},
+			type: CustomizationType.Plugin,
+			id: customizationId(rootUriString),
+			uri: rootUriString,
+			name: DISPLAY_NAME,
 			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: agentRefs,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [...agentChildren, ...skillChildren],
 		};
 	}
 }

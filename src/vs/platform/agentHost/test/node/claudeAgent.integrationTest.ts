@@ -45,7 +45,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { type AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type CustomizationRef } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -584,7 +584,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
-				async syncCustomizations(_clientId: string, _customizations: CustomizationRef[]) { return []; },
+				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],
@@ -713,7 +713,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
-				async syncCustomizations(_clientId: string, _customizations: CustomizationRef[]) { return []; },
+				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],
@@ -771,7 +771,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
-				async syncCustomizations(_clientId: string, _customizations: CustomizationRef[]) { return []; },
+				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],

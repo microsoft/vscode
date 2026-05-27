@@ -20,7 +20,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import type { CustomizationRef, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -498,8 +498,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		disposeSession: async () => { },
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
-	const customizationsByType = new Map<string, IObservable<readonly CustomizationRef[]>>();
-	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly CustomizationRef[]> }): IDisposable => {
+	const customizationsByType = new Map<string, IObservable<readonly ClientPluginCustomization[]>>();
+	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly ClientPluginCustomization[]> }): IDisposable => {
 		customizationsByType.set(sessionType, entry.customizations);
 		return toDisposable(() => {
 			if (customizationsByType.get(sessionType) === entry.customizations) {
@@ -514,7 +514,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			// `seedActiveClient` directly. This stub just records an empty
 			// entry so the contribution flow completes.
 			const inner = seedActiveClient(sessionType, {
-				customizations: constObservable<readonly CustomizationRef[]>([]),
+				customizations: constObservable<readonly ClientPluginCustomization[]>([]),
 			});
 			return {
 				syncProvider: {
@@ -4397,8 +4397,8 @@ suite('AgentHostChatContribution', () => {
 		test('dispatches activeClientChanged when a new session is created', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
-			const customizations = observableValue<CustomizationRef[]>('customizations', [
-				{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A', enabled: true },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
@@ -4429,7 +4429,7 @@ suite('AgentHostChatContribution', () => {
 		test('re-dispatches activeClientChanged when customizations observable changes', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
-			const customizations = observableValue<CustomizationRef[]>('customizations', []);
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', []);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -4451,14 +4451,14 @@ suite('AgentHostChatContribution', () => {
 
 			// Update customizations
 			customizations.set([
-				{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B', enabled: true },
 			], undefined);
 
 			const activeClientAction = agentHostService.dispatchedActions.find(
 				d => d.action.type === 'session/activeClientChanged'
 			);
 			assert.ok(activeClientAction, 'should re-dispatch activeClientChanged on change');
-			const ac = activeClientAction!.action as { activeClient: { customizations?: CustomizationRef[] } };
+			const ac = activeClientAction!.action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.strictEqual(ac.activeClient.customizations?.length, 1);
 			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-b');
 		});
@@ -4543,8 +4543,8 @@ suite('AgentHostChatContribution', () => {
 
 		test('dispatches activeClientChanged when restoring a session where current client customizations are stale', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
-			const customizations = observableValue<CustomizationRef[]>('customizations', [
-				{ uri: 'file:///plugin-new', displayName: 'Plugin New' },
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
@@ -4562,7 +4562,7 @@ suite('AgentHostChatContribution', () => {
 				activeClient: {
 					clientId: agentHostService.clientId,
 					tools: [],
-					customizations: [{ uri: 'file:///plugin-old', displayName: 'Plugin Old' }],
+					customizations: [{ type: CustomizationType.Plugin, id: 'file:///plugin-old', uri: 'file:///plugin-old', name: 'Plugin Old', enabled: true }],
 				},
 			});
 
@@ -4584,7 +4584,7 @@ suite('AgentHostChatContribution', () => {
 			const activeClientAction = activeClientActions[0].action;
 			assert.strictEqual(activeClientAction.type, 'session/activeClientChanged');
 			assert.deepStrictEqual(activeClientAction.activeClient?.customizations, [
-				{ uri: 'file:///plugin-new', displayName: 'Plugin New' },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);
 		});
 	});

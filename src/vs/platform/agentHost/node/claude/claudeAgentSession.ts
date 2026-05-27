@@ -19,8 +19,8 @@ import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import type { ToolCallResult } from '../../common/state/sessionState.js';
+import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
@@ -714,8 +714,8 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/** Toggle a **client-pushed** customization on/off for this session. */
-	setClientCustomizationEnabled(uri: string, enabled: boolean): void {
-		this.clientCustomizationsDiff.model.setEnabled(uri, enabled);
+	setClientCustomizationEnabled(id: string, enabled: boolean): void {
+		this.clientCustomizationsDiff.model.setEnabled(id, enabled);
 	}
 
 	/**
@@ -732,7 +732,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * (b) the **server-side** (SDK-discovered) view (commands / agents
 	 * / MCP servers, including those the SDK discovered on its own
 	 * from `~/.claude/**`) onto the protocol's
-	 * {@link SessionCustomization} surface, with the per-URI enablement
+	 * {@link Customization} surface, with the per-id enablement
 	 * overlay applied to client-pushed entries.
 	 *
 	 * Pre-materialize sessions return only the client-pushed projection
@@ -740,9 +740,9 @@ export class ClaudeAgentSession extends Disposable {
 	 * SDK snapshot is warn-logged and the client-pushed projection is
 	 * still returned, so a transient SDK hiccup doesn't blank the UI.
 	 */
-	async getSessionCustomizations(): Promise<readonly SessionCustomization[]> {
+	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
-		let bundled: SessionCustomization | undefined;
+		let bundled: Customization | undefined;
 		if (this._pipeline && this._sdkBundler) {
 			let sdk: ISdkResolvedCustomizations | undefined;
 			try {

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
-import type { SessionCustomization } from '../../../common/state/protocol/state.js';
+import type { Customization } from '../../../common/state/protocol/state.js';
 
 /**
  * Project the union of (a) client-pushed customizations and
  * (b) the on-disk discovery bundle (server-provided) onto the
- * protocol's {@link SessionCustomization} surface.
+ * protocol's {@link Customization} surface.
  *
- * Client-pushed entries get the per-URI enablement overlay applied
- * (`enablement.get(uri) ?? customization.enabled`). The discovery
+ * Client-pushed entries get the per-id enablement overlay applied
+ * (`enablement.get(id) ?? customization.enabled`). The discovery
  * bundle is surfaced verbatim — it is a single synthetic plugin URI
  * pointing at an on-disk Open Plugin layout (`agents/`, `skills/`,
  * `commands/`, `rules/`) the workbench's plugin expander scans to
@@ -22,13 +22,12 @@ import type { SessionCustomization } from '../../../common/state/protocol/state.
 export function projectSessionCustomizations(
 	synced: readonly ISyncedCustomization[],
 	enablement: ReadonlyMap<string, boolean>,
-	discovered: SessionCustomization | undefined,
-): readonly SessionCustomization[] {
-	const result: SessionCustomization[] = [];
+	discovered: Customization | undefined,
+): readonly Customization[] {
+	const result: Customization[] = [];
 
 	for (const item of synced) {
-		const uri = item.customization.customization.uri.toString();
-		const enabled = enablement.get(uri) ?? item.customization.enabled;
+		const enabled = enablement.get(item.customization.id) ?? item.customization.enabled;
 		result.push({ ...item.customization, enabled });
 	}
 
@@ -38,3 +37,4 @@ export function projectSessionCustomizations(
 
 	return result;
 }
+
