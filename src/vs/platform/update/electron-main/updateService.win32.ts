@@ -350,12 +350,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const updatingMutexName = `${this.productService.win32MutexName}-updating`;
+		const setupMutexName = `${this.productService.win32MutexName}setup`;
 		const mutex = await import('@vscode/windows-mutex');
+		const isInstallerActive = () => mutex.isActive(updatingMutexName) || mutex.isActive(setupMutexName);
 
-		// Skip the spawn if another instance is already running Inno Setup for this
-		// update; otherwise Inno's "Setup is already running" modal pops up. The
-		// `-ready` mutex poll below still advances our state when it finishes.
-		if (mutex.isActive(updatingMutexName)) {
+		// Skip the spawn if another Inno Setup is already running for this product (background update or a manual installer);
+		// otherwise Inno's "Setup is already running" modal pops up. The `-ready` mutex poll below still advances our state when it finishes.
+		if (isInstallerActive()) {
 			this.logService.info('update#doApplyUpdate: another instance is already running setup, waiting for it to finish');
 		} else {
 			await this.unlink(cancelFilePath);
@@ -395,7 +396,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const token = cts.token;
 
 		const poll = async () => {
-			let seenUpdatingMutex = false;
+			let seenRunning = false;
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
 				if (mutex.isActive(readyMutexName)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
@@ -403,9 +404,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				}
 
 				// Inno gone without `-ready` => install cancelled/failed; drop to Idle.
-				if (mutex.isActive(updatingMutexName)) {
-					seenUpdatingMutex = true;
-				} else if (seenUpdatingMutex) {
+				if (isInstallerActive()) {
+					seenRunning = true;
+				} else if (seenRunning) {
 					if (!this.availableUpdate?.updateProcess) {
 						this.availableUpdate = undefined;
 						this.setState(State.Idle(getUpdateType()));
