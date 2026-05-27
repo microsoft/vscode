@@ -28,6 +28,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -47,6 +48,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
 
+
 	private readonly _localLabel = localize('localAgentHostSessionTypeLocation', "Local");
 	private readonly _localDescription = new MarkdownString(this._localLabel);
 
@@ -62,8 +64,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService);
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 

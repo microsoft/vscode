@@ -454,6 +454,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 		loadingIcon.setAttribute('aria-hidden', 'true');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
+		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
 		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
 		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
