@@ -688,6 +688,29 @@
 		}
 	}
 
+	/* Address bar input preview (magnifying glass / globe) shown in the same
+		slot as the site-info indicator while the URL input is focused. */
+	.browser-address-bar-preview-container {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		margin-left: 4px;
+	}
+
+	.browser-address-bar-preview-indicator {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 24px;
+
+		.codicon {
+			font-size: 15px;
+			margin: 0;
+			color: var(--vscode-descriptionForeground);
+		}
+	}
+
 	/* URL input wrapper for display/input swap */
 	.browser-url-input-wrapper {
 		flex: 1;

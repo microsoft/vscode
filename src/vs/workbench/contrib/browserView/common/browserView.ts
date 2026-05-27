@@ -64,7 +64,7 @@ function parseZoomHost(url: string): string | undefined {
 }
 
 type IntegratedBrowserNavigationEvent = {
-	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
+	navigationType: 'urlInput' | 'searchInput' | 'goBack' | 'goForward' | 'reload';
 	isLocalhost: boolean;
 };
 
@@ -236,7 +236,7 @@ export interface IBrowserViewModel extends IDisposable {
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
-	loadURL(url: string): Promise<void>;
+	loadURL(url: string, options?: { fromSearch?: boolean }): Promise<void>;
 	goBack(): Promise<void>;
 	goForward(): Promise<void>;
 	reload(hard?: boolean): Promise<void>;
@@ -494,8 +494,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.setVisible(this.id, visible);
 	}
 
-	async loadURL(url: string): Promise<void> {
-		this.logNavigationTelemetry('urlInput', url);
+	async loadURL(url: string, options?: { fromSearch?: boolean }): Promise<void> {
+		this.logNavigationTelemetry(options?.fromSearch ? 'searchInput' : 'urlInput', url);
 		return this.browserViewService.loadURL(this.id, url);
 	}
 

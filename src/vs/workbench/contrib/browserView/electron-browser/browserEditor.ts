@@ -38,8 +38,11 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
+import { AddressBarInputPreviewWidget } from './addressBarInputPreviewWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { BrowserSearchEnabledSettingId, BrowserSearchEngineId, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE, buildSearchUrl, resolveAddressBarInputType } from '../common/browserSearch.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -155,13 +158,16 @@ class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
 	private readonly _urlDisplay: HTMLElement;
 	private readonly _siteInfoWidget: SiteInfoWidget;
+	private readonly _inputPreviewWidget: AddressBarInputPreviewWidget;
+	private _certError: IBrowserViewCertificateError | undefined;
 	private readonly _urlBarWidgetsContainer: HTMLElement;
 
 	constructor(
 		editor: BrowserEditor,
 		container: HTMLElement,
 		instantiationService: IInstantiationService,
-		scopedContextKeyService: IContextKeyService
+		scopedContextKeyService: IContextKeyService,
+		private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -203,11 +209,11 @@ class BrowserNavigationBar extends Disposable {
 			siteInfoContainer,
 			editor
 		));
+		this._inputPreviewWidget = this._register(new AddressBarInputPreviewWidget(siteInfoContainer));
 
 		// URL input (hidden by default; shown when user clicks the display)
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
 		this._urlInput.type = 'text';
-		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
 		this._urlInput.style.display = 'none';
 
 		// URL display — shows the URL when not editing; clickable to switch to input
@@ -255,6 +261,11 @@ class BrowserNavigationBar extends Disposable {
 			}
 		}));
 
+		// Update the input-preview indicator (search vs URL) as the user types.
+		this._register(addDisposableListener(this._urlInput, EventType.INPUT, () => {
+			this._updateInputPreview();
+		}));
+
 		// Select all URL bar text when the URL bar receives focus (like in regular browsers)
 		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
 			this._urlInput.select();
@@ -267,6 +278,54 @@ class BrowserNavigationBar extends Disposable {
 		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
 			this._showInput();
 		}));
+
+		// Keep the placeholder text in sync with the search-enabled setting.
+		this._updatePlaceholder();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserSearchEnabledSettingId) || e.affectsConfiguration(BrowserSearchEngineSettingId)) {
+				this._updatePlaceholder();
+				if (this._urlInput.style.display !== 'none') {
+					this._updateInputPreview();
+				}
+			}
+		}));
+	}
+
+	private _updateInputPreview(): void {
+		if (this._certError) {
+			this._inputPreviewWidget.setPreview(undefined);
+			return;
+		}
+		const searchEnabled = this._configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
+		if (!searchEnabled) {
+			this._inputPreviewWidget.setPreview(undefined);
+			return;
+		}
+		const value = this._urlInput.value.trim();
+		if (!value) {
+			// While focused with an empty input, hint at the default action.
+			this._inputPreviewWidget.setPreview('search');
+			return;
+		}
+		const kind = resolveAddressBarInputType(value);
+		this._inputPreviewWidget.setPreview(kind === 'url' ? 'url' : 'search');
+	}
+
+	private _getPlaceholder(): string {
+		const searchEnabled = this._configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
+		return searchEnabled
+			? localize(
+				{ comment: ['Placeholder shown in the web browser\'s address bar.'], key: 'browser.urlPlaceholder.search' },
+				"Search or enter a URL"
+			)
+			: localize('browser.urlPlaceholder', "Enter a URL");
+	}
+
+	private _updatePlaceholder(): void {
+		this._urlInput.placeholder = this._getPlaceholder();
+		if (!this._urlInput.value) {
+			this._updateDisplay();
+		}
 	}
 
 	/**
@@ -288,8 +347,10 @@ class BrowserNavigationBar extends Disposable {
 	 * Show or hide the site info indicator
 	 */
 	setCertificateError(certError: IBrowserViewCertificateError | undefined): void {
+		this._certError = certError;
 		this._siteInfoWidget.setCertificateError(certError);
 		this._urlInput.classList.toggle('cert-error', !!certError);
+		this._updateInputPreview();
 		this._updateDisplay();
 	}
 
@@ -301,6 +362,7 @@ class BrowserNavigationBar extends Disposable {
 		this._urlInput.style.display = '';
 		this._urlInput.select();
 		this._urlInput.focus();
+		this._updateInputPreview();
 	}
 
 	/**
@@ -319,6 +381,7 @@ class BrowserNavigationBar extends Disposable {
 	private _showDisplay(): void {
 		this._urlInput.style.display = 'none';
 		this._urlDisplay.style.display = '';
+		this._inputPreviewWidget.setPreview(undefined);
 		this._updateDisplay();
 	}
 
@@ -346,13 +409,15 @@ class BrowserNavigationBar extends Disposable {
 			rest.textContent = url.slice(httpsPrefix.length);
 			this._urlDisplay.appendChild(rest);
 		} else {
-			this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
+			this._urlDisplay.textContent = url || this._getPlaceholder();
 		}
 	}
 
 	clear(): void {
 		this._urlInput.value = '';
+		this._certError = undefined;
 		this._siteInfoWidget.setCertificateError(undefined);
+		this._inputPreviewWidget.setPreview(undefined);
 		this._updateDisplay();
 	}
 }
@@ -416,6 +481,7 @@ export class BrowserEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
@@ -456,7 +522,7 @@ export class BrowserEditor extends EditorPane {
 		const navbar = $('.browser-navbar');
 
 		// Create navigation bar widget with scoped context
-		this._navigationBar = this._register(new BrowserNavigationBar(this, navbar, this.instantiationService, contextKeyService));
+		this._navigationBar = this._register(new BrowserNavigationBar(this, navbar, this.instantiationService, contextKeyService, this.configurationService));
 
 		// Inject URL bar widgets from contributions
 		const allWidgets: IBrowserEditorWidgetContribution[] = [];
@@ -901,16 +967,29 @@ export class BrowserEditor extends EditorPane {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
-			// Special case localhost URLs (e.g., "localhost:3000") to add http://
-			if (/^localhost(:|\/|$)/i.test(url)) {
-				url = 'http://' + url;
-			} else if (!URL.parse(url)?.protocol) {
-				// If no scheme provided, default to http (sites will generally upgrade to https)
-				url = 'http://' + url;
+			const searchEnabled = this.configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
+			const searchEngine = this.configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
+			// When search is disabled, always navigate as URL. Otherwise, only
+			// inputs explicitly classified as `'url'` are navigated as URLs;
+			// `'query'` and `'unknown'` fall back to search (Chrome default).
+			const kind = searchEnabled ? resolveAddressBarInputType(url) : 'url';
+			const isSearch = kind === 'query' || kind === 'unknown';
+
+			if (isSearch) {
+				url = buildSearchUrl(url, searchEngine);
+			} else {
+				url = url.trim();
+				// Special case localhost URLs (e.g., "localhost:3000") to add http://
+				if (/^localhost(:|\/|$)/i.test(url)) {
+					url = 'http://' + url;
+				} else if (!URL.parse(url)?.protocol) {
+					// If no scheme provided, default to http (sites will generally upgrade to https)
+					url = 'http://' + url;
+				}
 			}
 
 			this.ensureBrowserFocus();
-			await this._model.loadURL(url);
+			await this._model.loadURL(url, { fromSearch: isSearch });
 		}
 	}
 

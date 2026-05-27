@@ -27,6 +27,7 @@ import './features/browserEditorChatFeatures.js';
 import './features/browserEditorZoomFeature.js';
 import './features/browserEditorEmulationFeatures.js';
 import './features/browserEditorFindFeature.js';
+import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
