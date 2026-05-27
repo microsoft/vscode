@@ -1095,6 +1095,22 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/nodelib/nodelib/ba122bd81aadd0a4fa7340ef2cfaabf62984bf1d/LICENSE"
 	},
 	{
+		// Reason: LICENSE.md at github/copilot-cli does not contain a copyright statement.
+		// Copyright holder sourced from the GitHub organization (github = GitHub, Inc.).
+		"name": "@github/copilot-linuxmusl-arm64",
+		"prependLicenseText": [
+			"Copyright (c) GitHub, Inc. All rights reserved."
+		]
+	},
+	{
+		// Reason: LICENSE.md at github/copilot-cli does not contain a copyright statement.
+		// Copyright holder sourced from the GitHub organization (github = GitHub, Inc.).
+		"name": "@github/copilot-linuxmusl-x64",
+		"prependLicenseText": [
+			"Copyright (c) GitHub, Inc. All rights reserved."
+		]
+	},
+	{
 		// Reason: License in README links to oss.ninja/mit/developit which has no copyright statement.
 		// Author is Jason Miller (https://github.com/developit).
 		"name": "dlv",
