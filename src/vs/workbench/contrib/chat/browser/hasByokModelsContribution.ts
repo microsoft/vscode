@@ -19,7 +19,7 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
 /**
  * Owns the `github.copilot.hasByokModels` context key. The key is true iff:
  *  - `github.copilot.clientByokEnabled` is true (set by `ChatEntitlementService` + Copilot extension),
- *  - `chat.offlineByok` is enabled and `chat.aiDisabled` is off, and
+ *  - `chat.aiDisabled` is off, and
  *  - the language-models configuration has at least one non-Copilot vendor group (post extension scan),
  *    or — pre-scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
  *
@@ -69,9 +69,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		});
 
 		this._register(Event.any(
-			Event.filter(this._configurationService.onDidChangeConfiguration, e =>
-				e.affectsConfiguration(ChatConfiguration.OfflineByok) ||
-				e.affectsConfiguration(ChatConfiguration.AIDisabled)),
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AIDisabled)),
 			Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(HasByokModelsContribution.TRACKED_KEYS)),
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
 		)(() => this._update()));
@@ -79,7 +77,6 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 	private _isFeatureEnabled(): boolean {
 		return !this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)
-			&& !!this._configurationService.getValue<boolean>(ChatConfiguration.OfflineByok)
 			&& !!this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key);
 	}
 
