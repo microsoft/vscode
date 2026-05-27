@@ -168,6 +168,23 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
+		if (ref === '~') {
+			// Try index first
+			try {
+				const details = await repository.getObjectDetails('', path);
+				return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
+			} catch {
+				// File not in index, try HEAD
+				try {
+					const details = await repository.getObjectDetails('HEAD', path);
+					return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
+				} catch {
+					// File not in HEAD either (new file), return empty
+					this.logger.warn(`[GitFileSystemProvider][stat] File not found for diff original, returning empty - ${uri.toString()}`);
+					return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+				}
+			}
+		}
 
 		try {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, submoduleOf, repository), path);
@@ -225,6 +242,20 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const cacheValue: CacheRow = { uri, timestamp };
 
 		this.cache.set(uri.toString(), cacheValue);
+
+		// For '~' ref (diff original), try index first, then HEAD, otherwise return empty.
+		if (ref === '~') {
+			try {
+				return await repository.buffer('', path);
+			} catch {
+				try {
+					return await repository.buffer('HEAD', path);
+				} catch {
+					this.logger.warn(`[GitFileSystemProvider][readFile] File not found for diff original, returning empty - ${uri.toString()}`);
+					return new Uint8Array(0);
+				}
+			}
+		}
 
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
