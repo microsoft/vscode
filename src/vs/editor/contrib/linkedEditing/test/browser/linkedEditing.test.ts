@@ -477,4 +477,37 @@ suite('linked editing', () => {
 		'<iooo>',
 		'</iooo>'
 	]);
+
+	/**
+	 * Clear and retype - regression test for #239351
+	 */
+	testCase('Clear tag and retype - single char', state, async (editor) => {
+		// Select "ooo" in the opening tag and delete it
+		await editor.setSelection(new Range(1, 2, 1, 5));
+		await editor.trigger('keyboard', 'deleteLeft', {});
+		// Type a single character
+		await editor.trigger('keyboard', Handler.Type, { text: 's' });
+	}, '<s></s>');
+
+	testCase('Clear tag and retype - multiple chars', state, async (editor) => {
+		// Select "ooo" in the opening tag and delete it
+		await editor.setSelection(new Range(1, 2, 1, 5));
+		await editor.trigger('keyboard', 'deleteLeft', {});
+		// Type multiple characters one by one
+		await editor.trigger('keyboard', Handler.Type, { text: 'd' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'v' });
+	}, '<div></div>');
+
+	testCase('Clear tag completely and retype', state, async (editor) => {
+		// Position at the start of "ooo" and delete all left
+		const pos = new Position(1, 5);
+		await editor.setPosition(pos);
+		await editor.trigger('keyboard', 'deleteAllLeft', {});
+		// Type a new tag name
+		await editor.trigger('keyboard', Handler.Type, { text: 's' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'p' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'a' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'n' });
+	}, '<span></span>');
 });
