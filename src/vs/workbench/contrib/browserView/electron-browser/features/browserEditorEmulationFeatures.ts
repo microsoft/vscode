@@ -416,7 +416,8 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		return {
 			// Reserve space for the east + south resize sashes that sit just outside the container.
 			padding: { right: 16, bottom: 16 },
-			compute: (w, h) => this._computeLayout(w, h),
+			compute: (_current, w, h) => this._computeLayout(w, h),
+			priority: 0
 		};
 	}
 
@@ -432,9 +433,15 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			this._onDidChangeAutoFitScale.fire(fitScale);
 		}
 		const scale = this._scale ?? fitScale;
+		const layoutWidth = width ? Math.min(width * scale, paneWidth) : paneWidth;
+		const layoutHeight = height ? Math.min(height * scale, paneHeight) : paneHeight;
 		return {
-			width: width ? Math.min(width * scale, paneWidth) : paneWidth,
-			height: height ? Math.min(height * scale, paneHeight) : paneHeight,
+			width: layoutWidth,
+			height: layoutHeight,
+			// Center the device within the available pane (the sash reservation
+			// is already accounted for via padding).
+			left: Math.max(0, (paneWidth - layoutWidth) / 2),
+			top: Math.max(0, (paneHeight - layoutHeight) / 2),
 			emulation: { scale },
 		};
 	}
