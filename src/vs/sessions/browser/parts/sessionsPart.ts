@@ -54,7 +54,7 @@ export class SessionsPart extends Part {
 	static readonly BORDER_WIDTH = 1;
 
 	/** Internal grid that hosts the part's session views. */
-	private _gridWidget: SerializableGrid<SessionView> | undefined;
+	protected _gridWidget: SerializableGrid<SessionView> | undefined;
 
 	/** Lazily-created progress bar shown at the top of the content area. */
 	private _progressBar: ProgressBar | undefined;
