@@ -142,7 +142,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					},
 					getModels: () => getAgentHostModels(languageModelsService, sessionsManagementService.activeSession.get()),
 					useGroupedModelPicker: () => true,
-					showManageModelsAction: () => false,
+					showManageModelsAction: () => true,
 					showUnavailableFeatured: () => false,
 					showFeatured: () => true,
 				};
