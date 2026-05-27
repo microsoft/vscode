@@ -7,6 +7,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { ExtHostAiEmbeddingVectorShape, IMainContext, MainContext, MainThreadAiEmbeddingVectorShape } from './extHost.protocol.js';
 import type { CancellationToken, EmbeddingVectorProvider } from 'vscode';
 import { Disposable } from './extHostTypes.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
 
 export class ExtHostAiEmbeddingVector implements ExtHostAiEmbeddingVectorShape {
 	private _AiEmbeddingVectorProviders: Map<number, EmbeddingVectorProvider> = new Map();
@@ -38,6 +39,10 @@ export class ExtHostAiEmbeddingVector implements ExtHostAiEmbeddingVectorShape {
 	}
 
 	registerEmbeddingVectorProvider(extension: IExtensionDescription, model: string, provider: EmbeddingVectorProvider): Disposable {
+		if (isFalsyOrWhitespace(model)) {
+			throw new Error('Embedding vector model must be a non-empty string.');
+		}
+
 		const handle = this._nextHandle;
 		this._nextHandle++;
 		this._AiEmbeddingVectorProviders.set(handle, provider);
