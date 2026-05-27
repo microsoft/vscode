@@ -294,6 +294,39 @@ class Claude45DefaultPrompt extends PromptElement<DefaultAgentPromptProps> {
 }
 
 /**
+ * Single source of truth for the `<parallelizationStrategy>` block used by
+ * the optimized Anthropic prompts (Sonnet 4.6, Opus 4.6, Opus 4.7).
+ *
+ * Consolidates: the imperative parallel-call rule, the over-search guard,
+ * and the per-tool carve-outs ({@link ToolName.Codebase}, {@link ToolName.CoreRunInTerminal},
+ * {@link ToolName.ExecutionSubagent}). Keeping all parallel-related guidance
+ * inside this one block avoids the previous setup where the rule appeared
+ * here and was partially restated inside `<toolUseInstructions>`, which made
+ * the carve-outs easy to miss when the strategy text was edited.
+ *
+ * Set `subagentFanOut` to include the nested `<subagentFanOut>` sub-tag
+ * (Opus 4.7 only — it ships subagents as the primary fan-out tool).
+ */
+function renderAnthropicParallelizationStrategy(
+	tools: ReturnType<typeof detectToolCapabilities>,
+	options: { subagentFanOut?: boolean } = {}
+): PromptPiece {
+	return <Tag name='parallelizationStrategy'>
+		When you call multiple tools and there are no dependencies between them, issue them in a single response so they run in parallel. Maximize parallel tool calls where possible — independent file reads, text searches, and directory listings should go out together, not one per turn. If a tool call depends on a previous tool's output, run them sequentially instead.<br />
+		For context gathering, batch the reads you have already decided you need rather than searching speculatively. Get enough context to act, then proceed with implementation.<br />
+		{tools[ToolName.Codebase] && <>Exception: do not call {ToolName.Codebase} in parallel.<br /></>}
+		{tools[ToolName.CoreRunInTerminal] && <>Exception: do not call {ToolName.CoreRunInTerminal} multiple times in parallel. Run one command and wait for its output before running the next.<br /></>}
+		{tools[ToolName.ExecutionSubagent] && <>Exception: do not call {ToolName.ExecutionSubagent} multiple times in parallel. Invoke one subagent and wait for its response before running the next.<br /></>}
+		{options.subagentFanOut && <Tag name='subagentFanOut'>
+			Do not spawn a subagent for work you can complete directly in a single response (e.g. refactoring a function you can already see).<br />
+			Spawn multiple subagents in the same turn when fanning out across items or reading multiple files.<br />
+			While a subagent is in flight, do not duplicate its work. If you delegated a search, do not run the same search yourself; if you delegated a read, do not read the same files; if you delegated a command, do not run it. Wait for the subagent's result and use it.<br />
+			A subagent's reply describes what it intended to do, not necessarily what it did. Before reporting subagent work as done, verify its output — read the actual file changes when it edited code, and inspect the relevant output when it ran a command.<br />
+		</Tag>}
+	</Tag>;
+}
+
+/**
  * Base class for optimized Claude 4.6 prompt configurations.
  * Renders the shared base prompt sections from the optimization test plan.
  * Subclasses provide specific <instructions> exploration guidance and <parallelizationStrategy>.
@@ -311,7 +344,7 @@ class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps>
 		return undefined;
 	}
 
-	protected renderParallelizationStrategy(): PromptPiece | undefined {
+	protected renderParallelizationStrategy(_tools: ReturnType<typeof detectToolCapabilities>): PromptPiece | undefined {
 		return undefined;
 	}
 
@@ -352,7 +385,7 @@ class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps>
 				- Don't add error handling for scenarios that can't happen. Only validate at system boundaries<br />
 				- Don't create helpers or abstractions for one-time operations<br />
 			</Tag>
-			{this.renderParallelizationStrategy()}
+			{this.renderParallelizationStrategy(tools)}
 			{tools[ToolName.CoreManageTodoList] && <>
 				<Tag name='taskTracking'>
 					Use the {ToolName.CoreManageTodoList} tool when working on multi-step tasks that benefit from tracking. Update task status consistently: mark in-progress when starting, completed immediately after finishing. Skip task tracking for simple, single-step operations.<br />
@@ -368,16 +401,13 @@ class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps>
 				Read files before modifying them. Understand existing code before suggesting changes.<br />
 				Do not create files unless absolutely necessary. Prefer editing existing files.<br />
 				NEVER say the name of a tool to a user. Say "I'll run the command in a terminal" instead of "I'll use {ToolName.CoreRunInTerminal}".<br />
-				Call independent tools in parallel{tools[ToolName.Codebase] && <>, but do not call {ToolName.Codebase} in parallel</>}. Call dependent tools sequentially.<br />
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{tools[ToolName.CoreRunInTerminal] && <>The custom tools ({[ToolName.FindTextInFiles, ToolName.FindFiles, ToolName.ReadFile, ToolName.ListDirectory].filter(t => tools[t]).join(', ')}) have been optimized specifically for the VS Code chat and agent surfaces. These tools are faster and lead to a more elegant user experience. Default to using these tools over lower level terminal commands (grep, find, rg, cat, head, tail) and only opt for terminal commands when one of the custom tools is clearly insufficient for the intended action.<br /></>}
 				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} over directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Do not duplicate searches a subagent is already performing.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
-				{tools[ToolName.ReadFile] && <>When reading files, prefer reading a large section at once over many small reads. Read multiple files in parallel when possible.<br /></>}
+				{tools[ToolName.ReadFile] && <>When reading files, prefer reading a large section at once over many small reads.<br /></>}
 				{tools[ToolName.Codebase] && <>If {ToolName.Codebase} returns the full workspace contents, you have all the context.<br /></>}
 				{tools[ToolName.Codebase] && tools[ToolName.FindTextInFiles] && tools[ToolName.FindFiles] && <>For semantic search across the workspace, use {ToolName.Codebase}. For exact text matches, use {ToolName.FindTextInFiles}. For files by name or path pattern, use {ToolName.FindFiles}. Do not skip search and go directly to {ToolName.ReadFile} unless you are confident about the exact file path.<br /></>}
-				{tools[ToolName.CoreRunInTerminal] && <>Do not call {ToolName.CoreRunInTerminal} multiple times in parallel. Run one command and wait for output before running the next.<br /></>}
-				{tools[ToolName.ExecutionSubagent] && <>Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br /></>}
 				When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, use a URI with the scheme.<br />
 				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. Only use tools that are currently available.<br />
@@ -421,10 +451,8 @@ class Claude46SonnetPrompt extends Claude46OptimizedBasePrompt {
 		</>;
 	}
 
-	protected override renderParallelizationStrategy() {
-		return <Tag name='parallelizationStrategy'>
-			You may parallelize independent read-only operations when appropriate. For context gathering, batch the reads you've already decided you need rather than searching speculatively. Get enough context to act, then proceed with implementation.<br />
-		</Tag>;
+	protected override renderParallelizationStrategy(tools: ReturnType<typeof detectToolCapabilities>) {
+		return renderAnthropicParallelizationStrategy(tools);
 	}
 }
 
@@ -440,10 +468,8 @@ class Claude46OpusPrompt extends Claude46OptimizedBasePrompt {
 		</>;
 	}
 
-	protected override renderParallelizationStrategy() {
-		return <Tag name='parallelizationStrategy'>
-			You may parallelize independent read-only operations when appropriate.<br />
-		</Tag>;
+	protected override renderParallelizationStrategy(tools: ReturnType<typeof detectToolCapabilities>) {
+		return renderAnthropicParallelizationStrategy(tools);
 	}
 }
 
@@ -507,15 +533,7 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- Default to no comments on code you write. Add one only when the WHY is non-obvious — a hidden constraint, a subtle invariant, a workaround, or behavior that would surprise a reader. Never explain what the code already says, and never reference the current task, fix, or caller ("added for X", "handles case Y") — that belongs in the PR description, not the code. Keep any comment to one short line; do not write multi-paragraph docstrings or multi-line comment blocks<br />
 				- Don't add docstrings, comments, or type annotations to code you didn't change<br />
 			</Tag>
-			<Tag name='parallelizationStrategy'>
-				You may parallelize independent read-only operations when appropriate.<br />
-				<Tag name='subagentFanOut'>
-					Do not spawn a subagent for work you can complete directly in a single response (e.g. refactoring a function you can already see).<br />
-					Spawn multiple subagents in the same turn when fanning out across items or reading multiple files.<br />
-					While a subagent is in flight, do not duplicate its work. If you delegated a search, do not run the same search yourself; if you delegated a read, do not read the same files; if you delegated a command, do not run it. Wait for the subagent's result and use it.<br />
-					A subagent's reply describes what it intended to do, not necessarily what it did. Before reporting subagent work as done, verify its output — read the actual file changes when it edited code, and inspect the relevant output when it ran a command.<br />
-				</Tag>
-			</Tag>
+			{renderAnthropicParallelizationStrategy(tools, { subagentFanOut: true })}
 			{tools[ToolName.CoreManageTodoList] && <>
 				<Tag name='taskTracking'>
 					Use the {ToolName.CoreManageTodoList} tool when working on multi-step tasks that benefit from tracking. Update task status consistently: mark in-progress when starting, completed immediately after finishing. Skip task tracking for simple, single-step operations.<br />
@@ -531,16 +549,13 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 				Read files before modifying them. Understand existing code before suggesting changes.<br />
 				Do not create files unless absolutely necessary. Prefer editing existing files.<br />
 				NEVER say the name of a tool to a user. Say "I'll run the command in a terminal" instead of "I'll use {ToolName.CoreRunInTerminal}".<br />
-				Call independent tools in parallel{tools[ToolName.Codebase] && <>, but do not call {ToolName.Codebase} in parallel</>}. Call dependent tools sequentially.<br />
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{tools[ToolName.CoreRunInTerminal] && <>The custom tools ({[ToolName.FindTextInFiles, ToolName.FindFiles, ToolName.ReadFile, ToolName.ListDirectory].filter(t => tools[t]).join(', ')}) have been optimized specifically for the VS Code chat and agent surfaces. These tools are faster and lead to a more elegant user experience. Default to using these tools over lower level terminal commands (grep, find, rg, cat, head, tail) and only opt for terminal commands when one of the custom tools is clearly insufficient for the intended action.<br /></>}
 				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} over directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
-				{tools[ToolName.ReadFile] && <>When reading files, prefer reading a large section at once over many small reads. Read multiple files in parallel when possible.<br /></>}
+				{tools[ToolName.ReadFile] && <>When reading files, prefer reading a large section at once over many small reads.<br /></>}
 				{tools[ToolName.Codebase] && <>If {ToolName.Codebase} returns the full workspace contents, you have all the context.<br /></>}
 				{tools[ToolName.Codebase] && tools[ToolName.FindTextInFiles] && tools[ToolName.FindFiles] && <>For semantic search across the workspace, use {ToolName.Codebase}. For exact text matches, use {ToolName.FindTextInFiles}. For files by name or path pattern, use {ToolName.FindFiles}. Do not skip search and go directly to {ToolName.ReadFile} unless you are confident about the exact file path.<br /></>}
-				{tools[ToolName.CoreRunInTerminal] && <>Do not call {ToolName.CoreRunInTerminal} multiple times in parallel. Run one command and wait for output before running the next.<br /></>}
-				{tools[ToolName.ExecutionSubagent] && <>Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br /></>}
 				When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, use a URI with the scheme.<br />
 				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. Only use tools that are currently available.<br />
