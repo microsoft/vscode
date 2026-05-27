@@ -152,6 +152,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		return token;
 	}
 
+	private _defaultModel(): ModelSelection | undefined {
+		const models = this._models.get();
+		if (models.length === 0) {
+			return undefined;
+		}
+		const chosen = models[0];
+		return { id: chosen.id };
+	}
+
 	private async _refreshModels(token: string): Promise<void> {
 		try {
 			const all = await this._copilotApiService.models(token);
@@ -389,13 +398,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const conn = await this._ensureConnection();
 
+		// If the caller didn't pick a model, fall back to the first one
+		// we surface from CAPI — codex's own default (currently `gpt-5.5`)
+		// is not part of the integrator-allowlisted model set and the
+		// `/v1/responses` call will 400 with `model_not_available_for_integrator`.
+		const effectiveModel = config.model ?? this._defaultModel();
+
 		// Codex's `thread/start` does not accept a client-supplied id, so
 		// we maintain a sessionId ↔ threadId mapping. The caller-supplied
 		// sessionId (when present) is honored as the URI host so the
 		// session handler's "expected URI" check passes.
 		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 			cwd: config.workingDirectory.fsPath,
-			model: config.model?.id ?? null,
+			model: effectiveModel?.id ?? null,
 		});
 		const threadId = startResult.thread.id;
 		const sessionId = config.session ? AgentSession.id(config.session) : threadId;
@@ -406,7 +421,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionUri,
 			workingDirectory: config.workingDirectory,
 			mapState: createCodexSessionMapState(),
-			model: config.model,
+			model: effectiveModel,
 			currentTurnId: undefined,
 			needsResume: false,
 			lastPromptText: '',
