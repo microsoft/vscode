@@ -328,7 +328,7 @@
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-subtext {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
 	line-height: 1.4;
@@ -486,7 +486,7 @@
 /* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
-	font-size: 10px;
+	font-size: var(--vscode-agents-fontSize-label4);
 	padding: 0 4px;
 	border-radius: 3px;
 	color: var(--vscode-descriptionForeground);
@@ -541,7 +541,7 @@
 }
 
 .ai-customization-list-item .item-name {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -549,7 +549,7 @@
 }
 
 .ai-customization-list-item .item-description {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -559,7 +559,7 @@
 
 .ai-customization-list-item .item-description.is-filename {
 	font-family: monospace;
-	font-size: 10px;
+	font-size: var(--vscode-agents-fontSize-label4);
 	opacity: 0.7;
 }
 
@@ -666,7 +666,7 @@
 }
 
 .ai-customization-list-widget .section-footer .section-footer-link {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
@@ -732,8 +732,8 @@
 }
 
 .ai-customization-overview .overview-section .section-label {
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -876,9 +876,9 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2);
 	line-height: 22px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	word-break: break-word;
 }
 
@@ -896,7 +896,7 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {
 	color: var(--vscode-foreground);
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.4;
 	white-space: pre-wrap;
 	word-break: break-word;
@@ -905,7 +905,7 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	padding: 8px 0;
 }
 
@@ -917,14 +917,14 @@
 }
 
 .ai-customization-management-editor .models-content-container .section-footer-description {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.5;
 	margin: 0 0 8px 0;
 }
 
 .ai-customization-management-editor .models-content-container .section-footer-link {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
@@ -984,7 +984,7 @@
 }
 
 .mcp-list-widget .mcp-empty-state .empty-subtext {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
 	line-height: 1.4;
@@ -1034,7 +1034,7 @@
 }
 
 .mcp-list-widget .mcp-disabled-state .empty-subtext {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 420px;
 	line-height: 1.5;
@@ -1098,7 +1098,7 @@
 }
 
 .mcp-server-item .mcp-server-name {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1106,7 +1106,7 @@
 }
 
 .mcp-server-item .mcp-server-description {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1116,10 +1116,10 @@
 
 .mcp-server-item .mcp-server-status {
 	flex-shrink: 0;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 2px 8px;
 	border-radius: 4px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-medium);
 }
 
 .mcp-server-item .mcp-server-status.running {
@@ -1175,7 +1175,7 @@
 }
 
 .mcp-gallery-item .mcp-gallery-publisher {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -1206,7 +1206,7 @@
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	padding: 2px 10px;
 }
 
@@ -1289,7 +1289,7 @@
 }
 
 .ai-customization-management-editor .editor-item-path {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1431,7 +1431,7 @@
 }
 
 .ai-customization-management-editor .editor-preview-row-value {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.5;
 	color: var(--vscode-foreground);
 	white-space: pre-wrap;
