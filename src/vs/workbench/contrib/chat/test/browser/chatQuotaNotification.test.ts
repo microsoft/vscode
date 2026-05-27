@@ -573,23 +573,46 @@ suite('ChatQuotaNotificationContribution', () => {
 		});
 
 		test('shows notification when switching from BYOK to Copilot model', () => {
-			const { entitlementMock, notificationMock, storageService } = createContribution(
-				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) } },
-				{ vendor: 'customendpoint' },
-			);
+			const entitlementMock = createMockEntitlementService({
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
+			});
+			const notificationMock = createMockNotificationService();
+			const contextKeyService = store.add(new MockContextKeyService());
+			const storageService = store.add(new InMemoryStorageService());
+			// Start with BYOK model
+			storageService.store('chat.currentLanguageModel.panel', 'customendpoint/ANT/claude-sonnet-4-6', StorageScope.APPLICATION, StorageTarget.USER);
+			// Registry returns undefined — vendor detection relies on prefix extraction
+			const languageModelsService = {
+				_serviceBrand: undefined,
+				onDidChangeLanguageModelVendors: Event.None,
+				onDidChangeLanguageModels: Event.None,
+				getLanguageModelIds: () => [],
+				getVendors: () => [],
+				lookupLanguageModel: (): ILanguageModelChatMetadata | undefined => undefined,
+				lookupLanguageModelByQualifiedName: () => undefined,
+			} as unknown as ILanguageModelsService;
 
-			// Initially deferred
+			store.add(entitlementMock.onDidChangeQuotaRemaining);
+			store.add(entitlementMock.onDidChangeQuotaExceeded);
+			store.add(entitlementMock.onDidChangeEntitlement);
+
+			store.add(new ChatQuotaNotificationContribution(
+				entitlementMock.service,
+				notificationMock.service,
+				contextKeyService as IContextKeyService,
+				languageModelsService,
+				storageService,
+			));
+
+			// Initially deferred — BYOK model
 			assert.strictEqual(notificationMock.lastNotification, undefined);
 
-			// Switch to Copilot model via storage
+			// Switch to Copilot model via storage — triggers storage listener
 			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.APPLICATION, StorageTarget.USER);
 
-			// Storage change triggers _update, but quota data hasn't changed so
-			// we need to also fire the quota event to trigger re-evaluation
-			entitlementMock.onDidChangeQuotaRemaining.fire();
-
 			assert.ok(notificationMock.lastNotification);
-			assert.strictEqual(notificationMock.lastNotification!.message, 'Credit Limit Reached');
+			const notification = notificationMock.lastNotification;
+			assert.strictEqual(notification!.message, 'Credit Limit Reached');
 		});
 	});
 });
