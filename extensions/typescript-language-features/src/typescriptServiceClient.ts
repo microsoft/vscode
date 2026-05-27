@@ -533,6 +533,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._versionManager.promptUserForVersion();
 	}
 
+	public async showNodeVersionPicker(): Promise<void> {
+		this._nodeVersionManager.promptUserForVersion();
+	}
+
 	public async openTsServerLogFile(): Promise<boolean> {
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(

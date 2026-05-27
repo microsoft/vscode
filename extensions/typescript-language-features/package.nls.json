@@ -98,6 +98,7 @@
 	"typescript.openTsServerLog.title": "Open TS Server log",
 	"typescript.restartTsServer": "Restart TS Server",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version...",
+	"typescript.selectNodePath.title": "Select TS Server Node Path...",
 	"typescript.reportStyleChecksAsWarnings": "Report style checks as warnings.",
 	"configuration.reportStyleChecksAsWarnings.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.reportStyleChecksAsWarnings#` instead.",
 	"typescript.npm": "Specifies the path to the npm executable used for [Automatic Type Acquisition](https://code.visualstudio.com/docs/nodejs/working-with-javascript#_typings-and-automatic-type-acquisition).",

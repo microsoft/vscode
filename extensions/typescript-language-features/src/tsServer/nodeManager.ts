@@ -14,6 +14,10 @@ const lastKnownWorkspaceNodeStorageKey = 'typescript.lastKnownWorkspaceNode';
 type UseWorkspaceNodeState = undefined | boolean;
 type LastKnownWorkspaceNodeState = undefined | string;
 
+interface QuickPickItem extends vscode.QuickPickItem {
+	run(): Promise<void> | void;
+}
+
 export class NodeVersionManager extends Disposable {
 	private _currentVersion: string | undefined;
 
@@ -61,6 +65,23 @@ export class NodeVersionManager extends Disposable {
 
 	public get currentVersion(): string | undefined {
 		return this._currentVersion;
+	}
+
+	public async promptUserForVersion(): Promise<void> {
+		const workspaceVersion = this.configuration.localNodePath;
+		const items: QuickPickItem[] = [
+			this.getDefaultPickItem(workspaceVersion),
+		];
+
+		if (workspaceVersion) {
+			items.push(this.getWorkspacePickItem(workspaceVersion));
+		}
+
+		const selected = await vscode.window.showQuickPick<QuickPickItem>(items, {
+			placeHolder: vscode.l10n.t("Select the Node installation used to run TS Server"),
+		});
+
+		return selected?.run();
 	}
 
 	public async updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
@@ -117,6 +138,40 @@ export class NodeVersionManager extends Disposable {
 				break;
 		}
 		return version;
+	}
+
+	private getDefaultPickItem(workspaceVersion: string | null): QuickPickItem {
+		const defaultVersion = this.configuration.globalNodePath || undefined;
+		const label = this.configuration.globalNodePath
+			? vscode.l10n.t("Use User Setting Node")
+			: vscode.l10n.t("Use VS Code's Node");
+
+		return {
+			label: (this.currentVersion === defaultVersion ? '• ' : '') + label,
+			description: this.configuration.globalNodePath ? vscode.l10n.t("User Setting") : vscode.l10n.t("Bundled with VS Code"),
+			detail: this.configuration.globalNodePath ?? undefined,
+			run: async () => {
+				if (workspaceVersion) {
+					await this.setUseWorkspaceNodeState(false, workspaceVersion);
+				}
+				this.updateActiveVersion(defaultVersion);
+			},
+		};
+	}
+
+	private getWorkspacePickItem(workspaceVersion: string): QuickPickItem {
+		return {
+			label: (this.currentVersion === workspaceVersion ? '• ' : '') + vscode.l10n.t("Use Workspace Node"),
+			description: vscode.l10n.t("Workspace Setting"),
+			detail: workspaceVersion,
+			run: async () => {
+				const trusted = await vscode.workspace.requestWorkspaceTrust();
+				if (trusted) {
+					await this.setUseWorkspaceNodeState(true, workspaceVersion);
+					this.updateActiveVersion(workspaceVersion);
+				}
+			},
+		};
 	}
 
 	private async promptAndSetWorkspaceNode(): Promise<void> {
