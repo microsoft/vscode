@@ -716,6 +716,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private clearOptionsCaches(): void {
 		this._ccaEnabledCache.clear();
 		this._optionsCache.clear();
+		this._cachedModelInfos = undefined;
+		this._onDidChangeModels.fire();
 	}
 
 	/**
@@ -998,10 +1000,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		const optionGroups: vscode.ChatSessionProviderOptionGroup[] = [];
 		try {
-			// Fetch agents (requires repo), models (global), and partner agents in parallel
-			const [customAgents, models, partnerAgents] = await Promise.allSettled([
+			// Fetch agents (requires repo) and partner agents in parallel
+			const [customAgents, partnerAgents] = await Promise.allSettled([
 				repoId && repoIds?.length === 1 ? this._octoKitService.getCustomAgents(repoId.org, repoId.repo, { excludeInvalidConfig: true }, {}) : Promise.resolve([]),
-				this._octoKitService.getCopilotAgentModels({}),
 				repoId ? this.getAvailablePartnerAgents(repoId.org, repoId.repo) : Promise.resolve([])
 			]);
 
