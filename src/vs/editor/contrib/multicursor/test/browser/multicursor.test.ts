@@ -502,6 +502,42 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('issue #107090: AddSelectionToNextFindMatchAction works with regex find mode', () => {
+		const text = [
+			'something',
+			'someething',
+			'someeething',
+			'nothing'
+		];
+		testMulticursor(text, (editor, findController) => {
+			const action = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(1, 1, 1, 10));
+			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+				[1, 1, 1, 10],
+				[2, 1, 2, 11],
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+				[1, 1, 1, 10],
+				[2, 1, 2, 11],
+				[3, 1, 3, 12],
+			]);
+
+			// No more matches — stays the same
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+				[1, 1, 1, 10],
+				[2, 1, 2, 11],
+				[3, 1, 3, 12],
+			]);
+		});
+	});
+
 	suite('Find state disassociation', () => {
 
 		const text = [
