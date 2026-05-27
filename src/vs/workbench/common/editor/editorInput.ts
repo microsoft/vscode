@@ -11,7 +11,6 @@ import { ConfirmResult } from '../../../platform/dialogs/common/dialogs.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { IModalEditorPartOptions } from '../../../platform/editor/common/editor.js';
 
 export interface IEditorCloseHandler {
 
@@ -143,15 +142,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 
 	isReadonly(): boolean | IMarkdownString {
 		return this.hasCapability(EditorInputCapabilities.Readonly);
-	}
-
-	/**
-	 * Modal editor options that should apply when this input is opened
-	 * in the modal editor part. Override in subclasses to opt in to
-	 * features like a compact header.
-	 */
-	getModalEditorOptions(): IModalEditorPartOptions | undefined {
-		return undefined;
 	}
 
 	/**

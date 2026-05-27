@@ -185,10 +185,15 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
-		const hasDescription = !!element.server.description;
-		templateData.container.classList.toggle('has-detail', hasDescription);
-		if (hasDescription) {
-			templateData.description.textContent = truncateToFirstLine(element.server.description!);
+		const description = element.server.description;
+		// Marketplace (gallery) entries are always clickable so users can install/inspect them,
+		// even when no description is returned by the gallery. Installed rows only opt-in to the
+		// detail view when there is something extra to show.
+		const isGallery = !element.server.local;
+		const hasDetail = !!description || isGallery;
+		templateData.container.classList.toggle('has-detail', hasDetail);
+		if (description) {
+			templateData.description.textContent = truncateToFirstLine(description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -485,7 +490,7 @@ export class McpListWidget extends Disposable {
 			title: localize('backToInstalled', "Back to installed servers"),
 			ariaLabel: localize('backToInstalled', "Back to installed servers")
 		}));
-		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('back', "Back")}`;
+		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('mcpBrowseBack', "Back")}`;
 		this.backButton.element.classList.add('list-add-button');
 		backButtonContainer.style.display = 'none';
 		this._register(this.backButton.onDidClick(() => {
@@ -582,9 +587,12 @@ export class McpListWidget extends Disposable {
 				if (e.element.type === 'group-header') {
 					this.toggleGroup(e.element);
 				} else if (e.element.type === 'server-item') {
-					// Only open the detail view when the server has something to show beyond what the row already displays.
-					if (e.element.server.description) {
-						this._onDidSelectServer.fire(e.element.server);
+					// Marketplace entries are always selectable; installed rows only open
+					// detail when there is something extra to show beyond the row.
+					const server = e.element.server;
+					const isGallery = !server.local;
+					if (isGallery || server.description) {
+						this._onDidSelectServer.fire(server);
 					}
 				}
 				// builtin-item: no action on click (read-only)

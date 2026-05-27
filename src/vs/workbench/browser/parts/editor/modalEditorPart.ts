@@ -40,7 +40,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
-import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar } from '../../../../platform/editor/common/editor.js';
+import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar, isModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
@@ -708,7 +708,7 @@ export class ModalEditorPart {
 		// for any header size change.
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
-			const editorModalOptions = activeEditor?.getModalEditorOptions?.();
+			const editorModalOptions = isModalEditorOptionsProvider(activeEditor) ? activeEditor.getModalEditorOptions() : undefined;
 			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
 			layoutModal();
 		}));
@@ -745,7 +745,10 @@ export class ModalEditorPart {
 		const contentDisposable = disposables.add(new MutableDisposable());
 		contentDisposable.value = content.render(sidebarContainer, onDidLayoutEmitter.event);
 
-		// Sash for resizing sidebar
+		// Sash for resizing sidebar.
+		// Prefer the measured header height so the sash aligns with the real chrome
+		// (the compact-header variant is 40px, the default header is 33px). The
+		// constant only applies before the header has been laid out.
 		const getHeaderHeight = () => (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
 		const sash = disposables.add(new Sash(container, {
 			getVerticalSashLeft: () => sidebarWidth,

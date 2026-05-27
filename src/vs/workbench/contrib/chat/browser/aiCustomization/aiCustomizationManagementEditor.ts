@@ -35,8 +35,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
-import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
@@ -162,12 +160,6 @@ type CustomizationEditorSaveItemClassification = {
 };
 
 //#endregion
-
-export const aiCustomizationManagementSashBorder = registerColor(
-	'aiCustomizationManagement.sashBorder',
-	PANEL_BORDER,
-	localize('aiCustomizationManagementSashBorder', "The color of the Agent Customizations editor splitview sash border.")
-);
 
 //#region Sidebar Section Item
 
@@ -479,9 +471,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
 						// Use the actual rendered size of the embedded editor container so
 						// the Monaco editor (and its scrollbars) stay within the rounded
-						// panel chrome regardless of header/margin changes.
+						// panel chrome regardless of header/margin changes. Guard against
+						// the container being hidden (clientHeight === 0); re-layout once
+						// it becomes visible to avoid a zero-height editor.
 						const { clientWidth, clientHeight } = this.embeddedEditorContainer;
-						this.embeddedEditor.layout({ width: clientWidth, height: clientHeight });
+						if (clientWidth > 0 && clientHeight > 0) {
+							this.embeddedEditor.layout({ width: clientWidth, height: clientHeight });
+						} else if (this.dimension) {
+							DOM.getWindow(this.embeddedEditorContainer).requestAnimationFrame(() => {
+								if (this.embeddedEditor && this.embeddedEditorContainer) {
+									const { clientWidth: w, clientHeight: h } = this.embeddedEditorContainer;
+									if (w > 0 && h > 0) {
+										this.embeddedEditor.layout({ width: w, height: h });
+									}
+								}
+							});
+						}
 					}
 					// Embedded MCP/plugin detail panes use a plain DOM widget that flows with
 					// the container; no explicit layout call is needed here.
@@ -2253,10 +2258,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
 
-		// Back button inlined as the first child of the detail header row
-		const headerEl = this.embeddedMcpDetail.headerElement;
-		const backButton = $('button.editor-back-button');
-		headerEl.insertBefore(backButton, headerEl.firstChild);
+		// Back button rendered into the detail's leading slot
+		const backButton = DOM.append(this.embeddedMcpDetail.leadingSlot, $('button.editor-back-button'));
 		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpListTooltip', "Back to MCP servers")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
@@ -2308,10 +2311,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
 
-		// Back button inlined as the first child of the detail header row
-		const headerEl = this.embeddedPluginDetail.headerElement;
-		const backButton = $('button.editor-back-button');
-		headerEl.insertBefore(backButton, headerEl.firstChild);
+		// Back button rendered into the detail's leading slot
+		const backButton = DOM.append(this.embeddedPluginDetail.leadingSlot, $('button.editor-back-button'));
 		backButton.setAttribute('aria-label', localize('backToPluginList', "Back to plugins"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToPluginListTooltip', "Back to plugins")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));

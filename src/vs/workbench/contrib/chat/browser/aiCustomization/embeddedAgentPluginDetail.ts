@@ -21,6 +21,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
+	private readonly leadingSlotEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly sourceEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
@@ -36,6 +37,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-plugin-detail'));
 
 		this.headerEl = DOM.append(this.root, $('.embedded-detail-header'));
+		// Slot at the start of the header for callers to append leading chrome
+		// (e.g. a back button) without reaching into private DOM structure.
+		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
 		const headerText = DOM.append(this.headerEl, $('.embedded-detail-header-text'));
 		this.nameEl = DOM.append(headerText, $('h2.embedded-detail-name'));
 		this.nameEl.setAttribute('role', 'heading');
@@ -55,6 +59,14 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	get headerElement(): HTMLElement {
 		return this.headerEl;
+	}
+
+	/**
+	 * Header slot reserved for leading chrome (e.g. a back button).
+	 * Prefer this over reaching into the header element directly.
+	 */
+	get leadingSlot(): HTMLElement {
+		return this.leadingSlotEl;
 	}
 
 	setInput(item: IAgentPluginItem): void {

@@ -385,6 +385,18 @@ export interface IModalEditorPartOptions {
 }
 
 /**
+ * Marker interface for editor inputs that want to customize how they are
+ * rendered when opened in the modal editor part (see {@link IModalEditorPartOptions}).
+ */
+export interface IModalEditorOptionsProvider {
+	getModalEditorOptions(): IModalEditorPartOptions | undefined;
+}
+
+export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
+	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
+}
+
+/**
  * Modal sidebar supports rendering custom content in a sidebar next to the main editor content.
  */
 export interface IModalEditorSidebar {
