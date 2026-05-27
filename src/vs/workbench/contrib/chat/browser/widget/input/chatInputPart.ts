@@ -1422,6 +1422,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * Restore the chat mode from the current session's history without
+	 * touching model selection. Called independently during session type
+	 * switches so the session's mode is preserved even when model
+	 * preselection is skipped.
+	 */
+	private restoreModeFromSessionHistory(): void {
+		const requests = this._widget?.viewModel?.model?.getRequests();
+		if (!requests || requests.length === 0) {
+			return;
+		}
+		const modeInfo = findLast(requests, req => !!req.modeInfo)?.modeInfo;
+		if (modeInfo && modeInfo.modeInstructions?.uri) {
+			this.setChatMode(modeInfo.modeInstructions.uri.toString());
+		}
+	}
+
+	/**
 	 * Pre-select the model in the model picker based on the `modelId` from the
 	 * last request in the current session's history. This ensures that when a
 	 * contributed chat session is reopened, the model picker shows the model
@@ -1444,10 +1461,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const modeInfo = findLast(requests, req => !!req.modeInfo)?.modeInfo;
-		if (modeInfo && modeInfo.modeInstructions?.uri) {
-			this.setChatMode(modeInfo.modeInstructions.uri.toString());
-		}
+		this.restoreModeFromSessionHistory();
 
 		// Find the modelId from the last request that has one
 		const lastModelId = findLast(requests, req => !!req.modelId)?.modelId;
@@ -2236,14 +2250,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const newSessionType = this.getCurrentSessionType();
 			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
 				this._currentSessionType = newSessionType;
+				// Restore mode from session history before re-initializing
+				// model selection so cross-type switches preserve the
+				// session's mode without overwriting the stored model.
+				this.restoreModeFromSessionHistory();
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
 				this.checkModeInSessionPool();
+			} else {
+				this.preselectModelFromSessionHistory();
 			}
-
-			// For contributed sessions with history, pre-select the model
-			// from the last request so the user resumes with the same model.
-			this.preselectModelFromSessionHistory();
 		}));
 
 		let elements;
