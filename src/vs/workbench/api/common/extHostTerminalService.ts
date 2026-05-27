@@ -427,7 +427,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _completionProviders: Map<string, vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>> = new Map();
-	private readonly _profileProviders: Map<string, { provider: vscode.TerminalProfileProvider; extension: IExtensionDescription }> = new Map();
+	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
+	private readonly _profileProviderExtensions: Map<string, IExtensionDescription> = new Map();
 	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
@@ -754,10 +755,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (this._profileProviders.has(id)) {
 			throw new Error(`Terminal profile provider "${id}" already registered`);
 		}
-		this._profileProviders.set(id, { provider, extension });
+		this._profileProviders.set(id, provider);
+		this._profileProviderExtensions.set(id, extension);
 		this._proxy.$registerProfileProvider(id, extension.identifier.value);
 		return new VSCodeDisposable(() => {
 			this._profileProviders.delete(id);
+			this._profileProviderExtensions.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
 		});
 	}
@@ -847,11 +850,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
 		const token = new CancellationTokenSource().token;
-		const profileProviderData = this._profileProviders.get(id);
-		if (!profileProviderData) {
+		const provider = this._profileProviders.get(id);
+		const extension = this._profileProviderExtensions.get(id);
+		if (!provider || !extension) {
 			throw new Error(`No terminal profile provider registered for id "${id}"`);
 		}
-		let profile = await profileProviderData.provider.provideTerminalProfile(token);
+		let profile = await provider.provideTerminalProfile(token);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -863,15 +867,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		const hasTerminalTitleProposal = isProposedApiEnabled(profileProviderData.extension, 'terminalTitle');
+		const hasTerminalTitleProposal = isProposedApiEnabled(extension, 'terminalTitle');
 		if (!hasTerminalTitleProposal && profile.options.titleTemplate !== undefined) {
-			console.error(`[${profileProviderData.extension.identifier.value}] \`titleTemplate\` returned from TerminalProfileProvider is ignored because the \`terminalTitle\` proposed API is not enabled.`);
+			console.error(`[${extension.identifier.value}] \`titleTemplate\` returned from TerminalProfileProvider is ignored because the \`terminalTitle\` proposed API is not enabled.`);
 			profile = { options: { ...profile.options, titleTemplate: undefined } };
 		}
 		// options.titleTemplate is not explicitly stripped here because the profileOptions
 		// assignment below only applies it when hasTerminalTitleProposal is true.
 		if (!hasTerminalTitleProposal && options.titleTemplate !== undefined) {
-			console.error(`[${profileProviderData.extension.identifier.value}] \`titleTemplate\` passed to createContributedTerminalProfile is ignored because the \`terminalTitle\` proposed API is not enabled.`);
+			console.error(`[${extension.identifier.value}] \`titleTemplate\` passed to createContributedTerminalProfile is ignored because the \`terminalTitle\` proposed API is not enabled.`);
 		}
 
 		const profileOptions = hasTerminalTitleProposal && options.titleTemplate && !profile.options.titleTemplate
