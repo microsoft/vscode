@@ -409,7 +409,6 @@ export function buildModelPickerItems(
 	isUBB?: boolean,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
-
 	if (models.length === 0) {
 		items.push(createModelItem({
 			id: 'auto',
@@ -1012,7 +1011,6 @@ export class ModelPickerWidget extends Disposable {
 		const isPro = isProUser(this._entitlementService.entitlement);
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
-
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : (isPro ? manifest.paid : manifest.free);
