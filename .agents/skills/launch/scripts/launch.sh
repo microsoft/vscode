@@ -120,6 +120,30 @@ if [[ "$FULL" != "1" && "$CLONE_EXTENSIONS" == "1" ]]; then
 	rsync -a "$SOURCE_UDD/extensions/" "$EXT_DIR/"
 fi
 
+# Force the simple (quick-input) file dialog so automation can drive
+# "Open Folder" / workspace pickers. The native OS file dialog cannot be
+# controlled by @playwright/cli over CDP (and is completely unreachable
+# over SSH on headless macOS). The setting overlay is per-launch and
+# always applied because every launched instance under this skill is
+# a throwaway used for automation.
+SETTINGS_FILE="$DEST_UDD/User/settings.json"
+mkdir -p "$(dirname "$SETTINGS_FILE")"
+node - "$SETTINGS_FILE" <<'NODE' || true
+const fs = require('fs');
+const f = process.argv[2];
+let txt = '';
+try { txt = fs.readFileSync(f, 'utf8'); } catch { /* file missing - fine */ }
+// VS Code settings.json is JSONC. Strip line + block comments before parsing.
+const stripped = txt
+	.replace(/\/\*[\s\S]*?\*\//g, '')
+	.replace(/(^|[^:"'])\/\/[^\n]*/g, '$1');
+let settings = {};
+try { settings = JSON.parse(stripped || '{}') || {}; } catch { settings = {}; }
+settings['files.simpleDialog.enable'] = true;
+fs.writeFileSync(f, JSON.stringify(settings, null, 2));
+console.error('[launch.sh] forced files.simpleDialog.enable=true in ' + f);
+NODE
+
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
 # terminal / agent runtimes; it breaks ./scripts/code.sh.
 unset ELECTRON_RUN_AS_NODE
