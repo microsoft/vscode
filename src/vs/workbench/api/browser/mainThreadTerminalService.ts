@@ -192,7 +192,10 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 
 	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
 		if (typeof location === 'object' && hasKey(location, { parentTerminal: true })) {
-			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal.toString());
+			// The identifier may be a UUID string (terminal not yet opened) or a numeric
+			// instance id (terminal already opened, see $acceptTerminalOpened reassigning
+			// `_id`). Delegate to _getTerminalInstance which handles both cases. See #205254.
+			const parentTerminal = await this._getTerminalInstance(location.parentTerminal);
 			return parentTerminal ? { parentTerminal } : undefined;
 		}
 		return location;
