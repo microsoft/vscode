@@ -364,7 +364,7 @@ suite('VisibleSessions', () => {
 
 	suite('insertAt', () => {
 
-		test('inserts a not-yet-visible session to the left of a target as non-sticky', () => {
+		test('inserts a not-yet-visible session to the left of a target as non-sticky and activates it', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
@@ -378,12 +378,12 @@ suite('VisibleSessions', () => {
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', 'C', 'B'],
-				active: 'B',
+				active: 'C',
 				sticky: ['A', 'B'],
 			});
 		});
 
-		test('inserts a not-yet-visible session to the right of a target as non-sticky', () => {
+		test('inserts a not-yet-visible session to the right of a target as non-sticky and activates it', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
@@ -397,7 +397,7 @@ suite('VisibleSessions', () => {
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', 'C', 'B'],
-				active: 'B',
+				active: 'C',
 				sticky: ['A', 'B'],
 			});
 		});
@@ -416,7 +416,7 @@ suite('VisibleSessions', () => {
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', 'B', 'C'],
-				active: 'B',
+				active: 'C',
 				sticky: ['A'],
 			});
 		});
@@ -437,12 +437,12 @@ suite('VisibleSessions', () => {
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['B', 'C', 'A'],
-				active: 'C',
+				active: 'A',
 				sticky: ['B', 'C', 'A'],
 			});
 		});
 
-		test('dropping a session to the right of its left neighbour is a no-op', () => {
+		test('dropping a session to the right of its left neighbour is a no-op for layout but still activates it', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
@@ -460,7 +460,7 @@ suite('VisibleSessions', () => {
 			});
 		});
 
-		test('dropping a session to the left of its right neighbour is a no-op', () => {
+		test('dropping a session to the left of its right neighbour is a no-op for layout but still activates it', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
@@ -473,6 +473,25 @@ suite('VisibleSessions', () => {
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', 'B'],
+				active: 'A',
+				sticky: ['A', 'B'],
+			});
+		});
+
+		test('does not change the active session when activate is false', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] active:B
+			model.insertAt(C, 'A', 'right', false);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C', 'B'],
 				active: 'B',
 				sticky: ['A', 'B'],
 			});
@@ -517,7 +536,7 @@ suite('VisibleSessions', () => {
 			});
 		});
 
-		test('insertAt(undefined, ...) adds an empty slot at the requested position', () => {
+		test('insertAt(undefined, ...) adds an empty slot at the requested position and activates it', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
@@ -530,7 +549,7 @@ suite('VisibleSessions', () => {
 
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A', undefined, 'B'],
-				active: 'B',
+				active: undefined,
 				sticky: ['A', 'B'],
 			});
 		});
@@ -544,7 +563,8 @@ suite('VisibleSessions', () => {
 			model.toggleStickiness(A);
 			model.setActive(B);
 			model.toggleStickiness(B);     // [A, B] sticky:[A, B]
-			model.insertAt(undefined, 'A', 'right'); // [A, undefined, B]
+			model.insertAt(undefined, 'A', 'right'); // [A, undefined, B] active becomes empty slot
+			model.setActive(B);                       // re-activate B
 			model.insertAt(undefined, 'B', 'right'); // no-op — empty slot already exists
 
 			assert.deepStrictEqual(snapshot(model), {

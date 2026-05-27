@@ -41,7 +41,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type CopilotSdkMode, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
-import { parsedPluginsEqual, toCustomizationAgentRefs, toSdkCustomAgents, toSdkHooks, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { parsedPluginsEqual, toCustomizationAgentRefs, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { SessionCustomizationDiscovery } from './sessionCustomizationDiscovery.js';
@@ -1504,6 +1504,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
 				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				tools: [...shellTools, ...callbacks.clientTools],
 				// Enable infinite sessions so the SDK provisions a workspace

@@ -29,6 +29,7 @@ import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -263,6 +264,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+	}());
+	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
+		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
 	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
