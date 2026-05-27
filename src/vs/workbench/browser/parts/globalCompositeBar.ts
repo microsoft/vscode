@@ -298,14 +298,73 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		this.initialize();
 	}
 
+	private currentAvatarUrl: string | undefined;
+	private avatarElement: HTMLImageElement | undefined;
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.updateAvatar();
+	}
+
+	protected override updateLabel(): void {
+		super.updateLabel();
+		// Re-apply avatar styling after the parent resets the label classes
+		if (this.currentAvatarUrl && this.label) {
+			this.applyAvatarToLabel(this.currentAvatarUrl);
+		}
+	}
+
+	private updateAvatar(): void {
+		// Find the first account with an avatarUrl
+		let avatarUrl: string | undefined;
+		for (const accounts of this.groupedAccounts.values()) {
+			for (const account of accounts) {
+				if (account.avatarUrl) {
+					avatarUrl = account.avatarUrl;
+					break;
+				}
+			}
+			if (avatarUrl) {
+				break;
+			}
+		}
+
+		if (avatarUrl && this.label) {
+			this.currentAvatarUrl = avatarUrl;
+			this.applyAvatarToLabel(avatarUrl);
+		} else if (this.currentAvatarUrl && this.label) {
+			this.currentAvatarUrl = undefined;
+			this.label.classList.remove('has-avatar');
+			this.avatarElement?.remove();
+		}
+	}
+
+	private applyAvatarToLabel(avatarUrl: string): void {
+		this.label.classList.add('has-avatar');
+		if (!this.avatarElement) {
+			this.avatarElement = document.createElement('img');
+			this.avatarElement.className = 'accounts-avatar';
+			this.avatarElement.alt = '';
+			this.avatarElement.draggable = false;
+		}
+		if (this.avatarElement.src !== avatarUrl) {
+			this.avatarElement.src = avatarUrl;
+		}
+		if (!this.label.contains(this.avatarElement)) {
+			this.label.appendChild(this.avatarElement);
+		}
+	}
+
 	private registerListeners(): void {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async (e) => {
 			await this.addAccountsFromProvider(e.id);
+			this.updateAvatar();
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider((e) => {
 			this.groupedAccounts.delete(e.id);
 			this.problematicProviders.delete(e.id);
+			this.updateAvatar();
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
@@ -321,6 +380,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					this.logService.error(e);
 				}
 			}
+			this.updateAvatar();
 		}));
 	}
 
@@ -351,6 +411,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 
 		this.initialized = true;
+		this.updateAvatar();
 	}
 
 	//#region overrides
