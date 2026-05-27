@@ -59,11 +59,11 @@ export interface IChatModes {
 	findModeByName(name: string): IChatMode | undefined;
 
 	/**
-	 * Awaits the most recently scheduled refresh of custom prompt modes.
+	 * Awaits the most recently scheduled update of custom prompt modes.
 	 * After this resolves, {@link custom} reflects the latest data from the
 	 * prompts service.
 	 */
-	waitForRefresh(): Promise<void>;
+	waitForPendingUpdates(): Promise<void>;
 }
 
 class ChatModes extends Disposable implements IChatModes {
@@ -139,7 +139,7 @@ class ChatModes extends Disposable implements IChatModes {
 		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name || mode.id === name);
 	}
 
-	waitForRefresh(): Promise<void> {
+	waitForPendingUpdates(): Promise<void> {
 		return this._pendingRefresh;
 	}
 
@@ -308,7 +308,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		if (!this.localMode) {
 			this.localMode = (async () => {
 				const modes = this._register(this.createModes(LocalChatSessionUri.getNewSessionUri())); // we make up a new session. Local mdes fall back to the promptService and are not actually tied to the session, so it doesn't matter which one we use here.
-				await modes.waitForRefresh();
+				await modes.waitForPendingUpdates();
 				return modes;
 			})();
 		}
