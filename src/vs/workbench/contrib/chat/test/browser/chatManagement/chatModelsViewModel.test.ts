@@ -131,6 +131,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 	}
 
+	async renameLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
 	async configureModel(_modelId: string): Promise<void> {
 	}
 
@@ -158,6 +170,12 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	unpinModel(_modelIdentifier: string): void { }
 	isModelPinned(_modelIdentifier: string): boolean { return false; }
 	onDidChangePinnedModels = Event.None;
+	isModelHidden(_modelIdentifier: string): boolean { return false; }
+	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
+	setModelHidden(_modelIdentifier: string, _hidden: boolean): void { }
+	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
+	getHiddenModelIds(): string[] { return []; }
+	onDidChangeModelVisibility = Event.None;
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }

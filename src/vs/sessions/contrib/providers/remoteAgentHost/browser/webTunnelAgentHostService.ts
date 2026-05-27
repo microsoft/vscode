@@ -84,15 +84,29 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			// The embedder acquires tokens internally via its own auth flow
 			const discovered = await this._discoveryProvider.listTunnels();
 			const results: ITunnelInfo[] = [];
+			let droppedByProtocolVersion = 0;
+			let withoutIds = 0;
 
 			for (const tunnel of discovered) {
 				const info = this._toTunnelInfo(tunnel);
-				if (info && info.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION) {
-					results.push(info);
+				if (!info) {
+					withoutIds++;
+					continue;
 				}
+				if (info.protocolVersion < TUNNEL_MIN_PROTOCOL_VERSION) {
+					droppedByProtocolVersion++;
+					this._logService.debug(
+						`${LOG_PREFIX} Dropping tunnel ${info.tunnelId} (protocolVersion=${info.protocolVersion} < ${TUNNEL_MIN_PROTOCOL_VERSION})`
+					);
+					continue;
+				}
+				results.push(info);
 			}
 
-			this._logService.info(`${LOG_PREFIX} Found ${results.length} tunnel(s) with agent host support`);
+			const withActiveHost = results.filter(t => t.hostConnectionCount > 0).length;
+			this._logService.info(
+				`${LOG_PREFIX} Discovery complete: total=${discovered.length}, accepted=${results.length}, withActiveHost=${withActiveHost}, droppedByProtocolVersion=${droppedByProtocolVersion}, droppedMissingIds=${withoutIds}`
+			);
 			return results;
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to list tunnels`, err);
@@ -123,6 +137,9 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		if (!this._discoveryProvider) {
 			throw new Error('No tunnelDiscoveryProvider available');
 		}
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			throw new Error('Remote agent host connections are not enabled.');
+		}
 
 		const { tunnelId, clusterId } = tunnel;
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${tunnel.name}' (${tunnelId})`);
@@ -136,7 +153,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transport,
+			RemoteAgentHostProtocolClient, address, transport, undefined,
 		);
 
 		try {
@@ -208,7 +225,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			authProvider,
 		});
 		this.clearAutoConnectSuppression(tunnel.tunnelId);
-		this._storeCachedTunnels(filtered.slice(0, 20));
+		this._storeCachedTunnels(filtered);
 		this._onDidChangeTunnels.fire();
 	}
 

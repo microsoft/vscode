@@ -33,7 +33,7 @@ import { getAgentForIntent, Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { IIntentService } from '../../intents/node/intentService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
-import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 import { ContributedToolName } from '../../tools/common/toolNames';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
 import { Conversation, getGlobalContextCacheKey, GlobalContextMessageMetadata, ICopilotChatResult, ICopilotChatResultIn, normalizeSummariesOnRounds, RenderedUserMessageMetadata, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
@@ -259,12 +259,10 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				if (creditsUsed !== undefined) {
-					result.details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
+				if (this._authService.copilotToken?.isNoAuthUser) {
+					result.details = endpoint.name;
 				} else {
-					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
-						? `${endpoint.name}`
-						: `${endpoint.name} • ${endpoint.multiplier}x`;
+					result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 				}
 			}
 

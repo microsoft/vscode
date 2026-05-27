@@ -43,6 +43,11 @@
 	cursor: default;
 }
 
+.chat-status-bar-entry-tooltip .contributed-section {
+	display: flex;
+	flex-direction: column;
+}
+
 .chat-status-bar-entry-tooltip .collapsible-header:focus {
 	outline: none;
 }
@@ -104,13 +109,12 @@
 
 .chat-status-bar-entry-tooltip .contributed-detail {
 	font-size: 12px;
+	line-height: 16px;
 	font-weight: 400;
 	color: var(--vscode-descriptionForeground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 	min-width: 0;
-	flex-shrink: 1;
+	padding-bottom: 6px;
+	white-space: normal;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content {

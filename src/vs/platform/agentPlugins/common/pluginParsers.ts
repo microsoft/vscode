@@ -12,6 +12,7 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
+import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 
 // ---------------------------------------------------------------------------
@@ -60,6 +61,11 @@ export interface IMcpServerDefinition {
 export interface INamedPluginResource {
 	readonly uri: URI;
 	readonly name: string;
+	/**
+	 * Optional short description, populated for resources whose readers
+	 * parse it from the file's YAML frontmatter (e.g. agents).
+	 */
+	readonly description?: string;
 }
 
 /** The result of parsing a single plugin directory. */
@@ -68,6 +74,7 @@ export interface IParsedPlugin {
 	readonly mcpServers: readonly IMcpServerDefinition[];
 	readonly skills: readonly INamedPluginResource[];
 	readonly agents: readonly INamedPluginResource[];
+	readonly instructions: readonly INamedPluginResource[];
 }
 
 // ---------------------------------------------------------------------------
@@ -645,6 +652,8 @@ export async function pathExists(resource: URI, fileService: IFileService): Prom
 // ---------------------------------------------------------------------------
 
 const COMMAND_FILE_SUFFIX = '.md';
+const RULE_FILE_SUFFIX = '.mdc';
+const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 
 export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
@@ -734,6 +743,110 @@ export async function readMarkdownComponents(dirs: readonly URI[], fileService: 
 	return items;
 }
 
+function getInstructionFileName(resource: URI): string | undefined {
+	const fileName = basename(resource);
+	const lowerName = fileName.toLowerCase();
+	if (lowerName.endsWith(RULE_FILE_SUFFIX)) {
+		return fileName.slice(0, -RULE_FILE_SUFFIX.length);
+	}
+	if (lowerName.endsWith(INSTRUCTION_FILE_SUFFIX)) {
+		return fileName.slice(0, -INSTRUCTION_FILE_SUFFIX.length);
+	}
+	return undefined;
+}
+
+/**
+ * Reads rule/instruction files from plugin `rules` component directories.
+ *
+ * Open Plugins rules are conventionally `.mdc` files. We also accept
+ * `.instructions.md` for compatibility with VS Code-discovered instructions
+ * bundled as synthetic plugins.
+ */
+export async function readInstructionComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+	const seen = new Set<string>();
+	const items: INamedPluginResource[] = [];
+
+	const addItem = (name: string, uri: URI) => {
+		if (!seen.has(name)) {
+			seen.add(name);
+			items.push({ uri, name });
+		}
+	};
+
+	for (const dir of dirs) {
+		let stat;
+		try {
+			stat = await fileService.resolve(dir);
+		} catch {
+			continue;
+		}
+
+		if (stat.isFile) {
+			const instructionName = getInstructionFileName(dir);
+			if (instructionName) {
+				addItem(instructionName, dir);
+			}
+			continue;
+		}
+
+		if (!stat.isDirectory || !stat.children) {
+			continue;
+		}
+
+		for (const child of stat.children) {
+			if (!child.isFile) {
+				continue;
+			}
+			const instructionName = getInstructionFileName(child.resource);
+			if (instructionName) {
+				addItem(instructionName, child.resource);
+			}
+		}
+	}
+
+	items.sort((a, b) => a.name.localeCompare(b.name));
+	return items;
+}
+
+/**
+ * Reads `.md` files in agent directories and enriches each entry with
+ * the optional `name` / `description` from YAML frontmatter. Falls back
+ * to the file-derived name when frontmatter is missing or unreadable.
+ */
+export async function readAgentComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+	const files = await readMarkdownComponents(dirs, fileService);
+	if (files.length === 0) {
+		return files;
+	}
+	const enriched = await Promise.all(files.map(async file => {
+		try {
+			const content = await fileService.readFile(file.uri);
+			const frontmatter = parseFrontMatter(content.value.toString());
+			const fmName = frontmatter?.getStringValue('name')?.trim();
+			const fmDescription = frontmatter?.getStringValue('description')?.trim();
+			return {
+				uri: file.uri,
+				name: fmName || file.name,
+				...(fmDescription ? { description: fmDescription } : {}),
+			} satisfies INamedPluginResource;
+		} catch {
+			return file;
+		}
+	}));
+	// De-dupe again in case frontmatter `name` collides; first-seen wins.
+	const seen = new Set<string>();
+	const result: INamedPluginResource[] = [];
+	for (const item of enriched) {
+		if (seen.has(item.name)) {
+			continue;
+		}
+		seen.add(item.name);
+		result.push(item);
+	}
+	result.sort((a, b) => a.name.localeCompare(b.name));
+	return result;
+}
+
 async function readHooks(
 	pluginUri: URI,
 	paths: readonly URI[],
@@ -805,7 +918,8 @@ export function parseMcpServerDefinitionMap(
 // ---------------------------------------------------------------------------
 
 /**
- * Parses a plugin directory to extract hooks, MCP servers, skills, and agents.
+ * Parses a plugin directory to extract hooks, MCP servers, skills, agents,
+ * and instructions.
  * This is the main entry point for the agent host to discover plugin contents.
  */
 export async function parsePlugin(
@@ -826,6 +940,7 @@ export async function parsePlugin(
 	const mcpDirs = resolveComponentDirs(pluginUri, '.mcp.json', parseComponentPathConfig(manifest?.['mcpServers']), boundaryUri);
 	const skillDirs = resolveComponentDirs(pluginUri, 'skills', parseComponentPathConfig(manifest?.['skills']), boundaryUri);
 	const agentDirs = resolveComponentDirs(pluginUri, 'agents', parseComponentPathConfig(manifest?.['agents']), boundaryUri);
+	const instructionDirs = resolveComponentDirs(pluginUri, 'rules', parseComponentPathConfig(manifest?.['rules']), boundaryUri);
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];
@@ -847,7 +962,7 @@ export async function parsePlugin(
 		embeddedHooks = formatConfig.parseHooks(manifestUri, { hooks: hooksSection }, pluginUri, workspaceRoot, userHome);
 	}
 
-	const [hooks, mcpServers, skills, agents] = await Promise.all([
+	const [hooks, mcpServers, skills, agents, instructions] = await Promise.all([
 		embeddedHooks.length > 0
 			? Promise.resolve(embeddedHooks)
 			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
@@ -855,9 +970,10 @@ export async function parsePlugin(
 			? Promise.resolve(embeddedMcp)
 			: readMcpServers(mcpDirs, pluginUri.fsPath, formatConfig, fileService),
 		readSkills(pluginUri, skillDirs, fileService),
-		readMarkdownComponents(agentDirs, fileService),
+		readAgentComponents(agentDirs, fileService),
+		readInstructionComponents(instructionDirs, fileService),
 	]);
 
-	return { hooks, mcpServers, skills, agents };
+	return { hooks, mcpServers, skills, agents, instructions };
 }
 

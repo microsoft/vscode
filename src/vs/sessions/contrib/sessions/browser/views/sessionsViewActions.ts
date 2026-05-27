@@ -25,14 +25,14 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
-import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 //  Constants
 
@@ -349,13 +349,18 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			return;
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const viewsService = accessor.get(IViewsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
+
 		sessionsManagementService.openNewSessionView();
-		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
-		const workspace = context.sessions[0].workspace.get();
-		if (view && workspace) {
-			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
+
+		const session = context.sessions[0];
+		const workspace = session.workspace.get();
+		const folderUri = workspace?.folders[0]?.root;
+		const providerId = session.providerId;
+
+		if (folderUri) {
+			sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, providerId);
 		}
 		// On mobile web, the sidebar drawer covers the viewport; close it so
 		// the new session view becomes visible after creation. Routes through
@@ -389,7 +394,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionArchive',
 			title: localize2('archiveSection', "Mark All as Done"),
-			icon: Codicon.check,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -669,7 +674,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.resource, trimmedTitle);
+				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
 			}
 		}
 	}
@@ -728,6 +733,39 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 		for (const session of sessions) {
 			sessionsListModelService.markUnread(session);
 		}
+	}
+});
+
+registerAction2(class OpenSessionToTheSideAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.openToTheSide',
+			title: localize2('openToTheSide', "Open to the Side"),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: 'navigation',
+				order: -1,
+				when: IsSessionsWindowContext,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessions = Array.isArray(context) ? context : [context];
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		for (let i = 0; i < sessions.length - 1; i++) {
+			const session = sessions[i];
+			const visible = sessionsManagementService.visibleSessions.get();
+			const lastVisible = visible[visible.length - 1];
+			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+				sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+			}
+		}
+
+		await openSessionToTheSide(sessionsManagementService, sessions[sessions.length - 1]);
 	}
 });
 
@@ -862,37 +900,5 @@ registerAction2(class RestoreSessionAction extends Action2 {
 		}
 
 		await sessionsManagementService.unarchiveSession(activeSession);
-	}
-});
-
-registerAction2(class AddChatAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.addChat',
-			title: localize2('addChat', "New Sub-Session"),
-			icon: Codicon.plus,
-			menu: [{
-				id: Menus.CommandCenter,
-				order: 102,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					ActiveSessionSupportsMultiChatContext
-				)
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
-			return;
-		}
-
-		sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

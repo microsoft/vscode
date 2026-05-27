@@ -9,7 +9,7 @@ import { distinct } from '../../../util/vs/base/common/arrays';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../env/common/packagejson';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { AbstractConfigurationService, BaseConfig, Config, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from '../common/configurationService';
+import { AbstractConfigurationService, BaseConfig, Config, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, InspectConfigResult } from '../common/configurationService';
 
 // Helper to avoid JSON.stringify quoting strings
 function stringOrStringify(value: any) {
@@ -154,7 +154,18 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		return target;
 	}
 
-	async setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	private _toVSCodeConfigurationTarget(target: ConfigTarget): vscode.ConfigurationTarget {
+		switch (target) {
+			case ConfigTarget.Global:
+				return vscode.ConfigurationTarget.Global;
+			case ConfigTarget.Workspace:
+				return vscode.ConfigurationTarget.Workspace;
+			case ConfigTarget.WorkspaceFolder:
+				return vscode.ConfigurationTarget.WorkspaceFolder;
+		}
+	}
+
+	async setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Promise<void> {
 		if (key.advancedSubKey) {
 			// This is a `github.copilot.advanced.*` setting
 
@@ -188,11 +199,15 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 			} else {
 				currentValue[key.advancedSubKey] = value;
 			}
-			return this.config.update('advanced', currentValue, this._getTargetFromInspect(this.config.inspect('advanced')));
+			return this.config.update('advanced', currentValue, target === undefined ? this._getTargetFromInspect(this.config.inspect('advanced')) : this._toVSCodeConfigurationTarget(target));
 		}
 
 		const inspect = this.config.inspect(key.id);
 		if (value === undefined) {
+			if (target !== undefined) {
+				return this.config.update(key.id, value, this._toVSCodeConfigurationTarget(target));
+			}
+
 			if (!inspect) {
 				return this.config.update(key.id, value, vscode.ConfigurationTarget.Global);
 			}
@@ -212,7 +227,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 			return;
 		}
 
-		return this.config.update(key.id, value, this._getTargetFromInspect(inspect));
+		return this.config.update(key.id, value, target === undefined ? this._getTargetFromInspect(inspect) : this._toVSCodeConfigurationTarget(target));
 	}
 
 	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: vscode.ConfigurationScope): T {

@@ -323,6 +323,8 @@ function appendWithNewLineIfNeeded(base: string, toAppend: string, minNewLines: 
 }
 
 function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+	const xtab275BasePostScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
+
 	let postScript: string | undefined;
 	switch (strategy) {
 		case PromptingStrategy.PatchBased01:
@@ -340,13 +342,18 @@ function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath:
 		case PromptingStrategy.Xtab275EditIntentShort:
 		case PromptingStrategy.Xtab275EditIntent:
 		case PromptingStrategy.Xtab275:
-			postScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
+			postScript = xtab275BasePostScript;
 			break;
 		case PromptingStrategy.XtabAggressiveness:
 			postScript = `<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
 			break;
 		case PromptingStrategy.Xtab275Aggressiveness:
-			postScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.\n<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
+			postScript = `${xtab275BasePostScript}\n<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
+			break;
+		case PromptingStrategy.Xtab275AggressivenessHighLow:
+			postScript = aggressivenessLevel === AggressivenessLevel.Medium
+				? xtab275BasePostScript
+				: `${xtab275BasePostScript}\n<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
 			break;
 		case PromptingStrategy.PatchBased:
 			postScript = `Output a modified diff style format with the changes you want. Each change patch must start with \`<filename>:<line number>\` and then include some non empty "anchor lines" preceded by \`-\` and the new lines meant to replace them preceded by \`+\`. Put your changes in the order that makes the most sense, for example edits inside the code_to_edit region and near the user's <|cursor|> should always be prioritized. Output "<NO_EDIT>" if you don't have a good edit candidate.`;

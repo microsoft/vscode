@@ -14,6 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -114,13 +115,18 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 		}
 
+		const args = [
+			'--type=agentHost',
+			'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
+			'--user-data-dir', this._environmentService.userDataPath,
+		];
+		if (this._environmentService.disableTelemetry) {
+			args.push('--disable-telemetry');
+		}
+
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
-			args: [
-				'--type=agentHost',
-				'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
-				'--user-data-dir', this._environmentService.userDataPath,
-			],
+			args,
 			env,
 		};
 

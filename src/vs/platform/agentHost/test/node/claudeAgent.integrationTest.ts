@@ -257,6 +257,10 @@ class StubCopilotApiService implements ICopilotApiService {
 	async models(): Promise<CCAModel[]> {
 		return this.availableModels;
 	}
+
+	async utilityChatCompletion(): Promise<never> {
+		throw new Error('utilityChatCompletion not implemented in this test');
+	}
 }
 
 // #endregion
@@ -331,6 +335,17 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 	async getSessionMessages(_sessionId: string, _options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
 		return [];
 	}
+
+	async listSubagents(_sessionId: string): Promise<readonly string[]> {
+		return [];
+	}
+
+	async getSubagentMessages(_sessionId: string, _agentId: string): Promise<readonly SessionMessage[]> {
+		return [];
+	}
+
+	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in integration test fake'); }
+	async tool(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.capturedStartupOptions.push(params.options);
@@ -831,6 +846,11 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				{ kind: 'action', type: ActionType.SessionDelta, content: 'reading' },
 				{ kind: 'action', type: ActionType.SessionToolCallStart, toolCallId: TOOL_USE_ID, toolName: 'Read' },
 				{ kind: 'action', type: ActionType.SessionToolCallDelta, toolCallId: TOOL_USE_ID, content: '{"file_path":"/tmp/x"}' },
+				// Phase 8.5 — mapper emits `SessionToolCallReady` at
+				// `content_block_stop` so auto-allowed tools transition out of
+				// `Streaming`; `sessionPermissions` then emits a second Ready
+				// for the pending_confirmation card below.
+				{ kind: 'action', type: ActionType.SessionToolCallReady },
 				{ kind: 'pending_confirmation', toolCallId: TOOL_USE_ID, toolName: 'Read', permissionKind: 'read', permissionPath: '/tmp/x' },
 				{ kind: 'action', type: ActionType.SessionToolCallComplete, toolCallId: TOOL_USE_ID, success: true, content: [{ type: ToolResultContentType.Text, text: 'file contents' }] },
 				{ kind: 'action', type: ActionType.SessionResponsePart, partKind: ResponsePartKind.Markdown, content: '' },

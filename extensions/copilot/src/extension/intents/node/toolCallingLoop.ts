@@ -22,7 +22,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
 import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -738,6 +738,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
 		const modeInstructions = (this.options.request as { modeInstructions2?: { name?: string; isBuiltin?: boolean } }).modeInstructions2;
 		const customModeName = modeInstructions?.name && !modeInstructions.isBuiltin ? modeInstructions.name : undefined;
+		const agentType: 'builtin' | 'custom' = modeInstructions && modeInstructions.isBuiltin === false ? 'custom' : 'builtin';
 
 		// If this is a subagent request, look up the parent trace context stored by the parent agent's execute_tool span
 		// Try subAgentInvocationId first (unique per subagent, supports parallel), then request-level key
@@ -773,6 +774,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					...(customModeName ? { [CopilotChatAttr.MODE_NAME]: customModeName } : {}),
+					[GitHubCopilotAttr.AGENT_TYPE]: agentType,
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 				parentTraceContext,
@@ -891,14 +893,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						// Includes `parameters` (inputSchema) per OTel GenAI semantic convention so
 						// trace viewers can render full tool signatures (issue #300318).
 						if (result.availableTools.length > 0) {
-							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(
-								result.availableTools.map(t => ({
-									type: 'function',
-									name: t.name,
-									description: t.description,
-									parameters: t.inputSchema,
-								}))
-							)));
+							const toolDefsJson = stringifyToolDefinitionsForOTel(result.availableTools);
+							if (toolDefsJson) {
+								span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson));
+							}
 						}
 					}
 					span.setStatus(SpanStatusCode.OK);
@@ -1205,15 +1203,13 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// starts in fetch(). This lets the debug logger write tools_*.json early.
 		if (!this.toolsAvailableEmitted && this.agentSpan && availableTools.length > 0) {
 			this.toolsAvailableEmitted = true;
-			this.agentSpan.addEvent('tools_available', {
-				toolDefinitions: truncateForOTel(JSON.stringify(availableTools.map(t => ({
-					type: 'function',
-					name: t.name,
-					description: t.description,
-					parameters: t.inputSchema,
-				})))),
-				...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
-			});
+			const toolDefsJson = stringifyToolDefinitionsForOTel(availableTools);
+			if (toolDefsJson) {
+				this.agentSpan.addEvent('tools_available', {
+					toolDefinitions: truncateForOTel(toolDefsJson),
+					...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
+				});
+			}
 		}
 
 		const context = this.createPromptContext(availableTools, outputStream);

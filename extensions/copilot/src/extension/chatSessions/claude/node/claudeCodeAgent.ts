@@ -9,10 +9,13 @@ import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
+import { extractToolParameters } from '../../../../platform/otel/node/extractToolParameters';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -20,11 +23,13 @@ import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifec
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { getErrorDetailsFromChatFetchError } from '../../../../platform/chat/common/commonTypes';
+import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
-import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
+import { dispatchMessage, ClaudeProxyError, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
@@ -54,6 +59,8 @@ export class ClaudeAgentManager extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IOctoKitService private readonly octoKitService: IOctoKitService,
 	) {
 		super();
 	}
@@ -98,6 +105,24 @@ export class ClaudeAgentManager extends Disposable {
 			if (isAbortError) {
 				this.logService.trace('[ClaudeAgentManager] Request was aborted/cancelled');
 				return {};
+			}
+
+			if (invokeError instanceof ClaudeProxyError) {
+				this.logService.info(`[ClaudeAgentManager] Request failed due to proxy error: ${invokeError.fetchError.type}`);
+				try {
+					const copilotToken = await this.authenticationService.getCopilotToken();
+					const outageStatus = await this.octoKitService.getGitHubOutageStatus();
+					const errorDetails = getErrorDetailsFromChatFetchError(
+						invokeError.fetchError,
+						copilotToken.copilotPlan,
+						outageStatus,
+						copilotToken.tokenBasedBilling,
+						copilotToken.quotaInfo.quota_reset_date,
+					);
+					return { errorDetails };
+				} catch {
+					return { errorDetails: { message: invokeError.message } };
+				}
 			}
 
 			this.logService.error(invokeError as Error);
@@ -215,10 +240,11 @@ export class ClaudeCodeSession extends Disposable {
 		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this._isResumed = !isNewSession;
-		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService);
+		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService, this._gitService);
 		this._debugFileLogger.startSession(this.sessionId).catch(err => {
 			this.logService.error('[ClaudeCodeSession] Failed to start debug log session', err);
 		});
@@ -473,7 +499,7 @@ export class ClaudeCodeSession extends Disposable {
 					ANTHROPIC_AUTH_TOKEN: `${serverConfig.nonce}.${this.sessionId}`,
 					CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 					USE_BUILTIN_RIPGREP: '0',
-					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`,
+					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}${pathSep}${process.env.PATH}`,
 					// Forward OTel configuration to the Claude SDK subprocess
 					...deriveClaudeOTelEnv(this._otelService.config),
 				},
@@ -598,6 +624,7 @@ export class ClaudeCodeSession extends Disposable {
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
 		const otelHookSpans = new Map<string, ISpanHandle>();
+		const hookStartTimes = new Map<string, number>();
 		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
@@ -639,10 +666,15 @@ export class ClaudeCodeSession extends Disposable {
 						toolStartTimes,
 						otelToolSpans,
 						otelHookSpans,
+						hookStartTimes,
 						parentTraceContext: this._otelTracker.traceContext,
 						subagentTraceContexts,
+						extractToolParameters,
 					});
 				} catch (dispatchError) {
+					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {
+						throw dispatchError;
+					}
 					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
 				}
 

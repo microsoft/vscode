@@ -65,10 +65,6 @@ export interface ICopilotCLIModels {
 	registerLanguageModelChatProvider(lm: typeof vscode['lm']): void;
 }
 
-export function formatModelDetails(model: CopilotCLIModelInfo): string {
-	return `${model.name}${model.multiplier ? ` • ${model.multiplier}x` : ''}`;
-}
-
 export function matchesCopilotCLIModel(model: Pick<CopilotCLIModelInfo, 'id' | 'name'>, modelId: string): boolean {
 	const normalizedModelId = modelId.trim().toLowerCase();
 	return model.id.trim().toLowerCase() === normalizedModelId || model.name.trim().toLowerCase() === normalizedModelId;
@@ -95,19 +91,26 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		super();
 		this._fetchAndCacheModels();
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			// Auth changed which means models could've changed. Clear caches and re-fetch.
-			this._availableModels = undefined;
-			this._resolvedModelInfos = undefined;
+			// Auth changed which means models could've changed.
 			this._onDidChange.fire();
 			this._fetchAndCacheModels();
 		}));
 	}
 
 	private _fetchAndCacheModels(): void {
+		if (!this._authenticationService.hasCopilotTokenSource) {
+			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no Copilot token source');
+			return;
+		}
 		const availableModels = this._availableModels = this._getAvailableModels();
 		availableModels.then(models => {
 			// Bail out if a newer fetch has superseded this one (e.g. auth changed mid-flight).
 			if (this._availableModels !== availableModels) {
+				return;
+			}
+			// Don't overwrite a previously-good list with an empty result from a transient auth state.
+			if (models.length === 0 && this._resolvedModelInfos?.length) {
+				this._availableModels = undefined;
 				return;
 			}
 			this._resolvedModelInfos = this._buildModelInfos(models);
@@ -141,7 +144,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	public async getModels(): Promise<CopilotCLIModelInfo[]> {
-		if (!this._authenticationService.anyGitHubSession) {
+		if (!this._authenticationService.hasCopilotTokenSource) {
 			return [];
 		}
 
@@ -178,6 +181,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			});
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
+			// Clear cached promise so subsequent calls retry instead of
+			// permanently returning an empty list after a transient failure.
+			this._availableModels = undefined;
 			return [];
 		}
 	}
@@ -186,11 +192,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				if (!this._authenticationService.anyGitHubSession || !this._resolvedModelInfos) {
-					return autoModelEnabled ? [buildAutoModel()] : [];
-				}
-				return this._resolvedModelInfos;
+				return this._resolvedModelInfos?? [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -300,8 +302,9 @@ export interface CLIAgentInfo {
 	readonly agent: Readonly<SweCustomAgent>;
 	/** File URI for prompt-file agents, synthetic `copilotcli:` URI for SDK-only agents. */
 	readonly sourceUri: URI;
-	readonly extensionId?: string;
-	readonly pluginUri?: URI;
+	readonly source: vscode.ChatResourceSource;
+	readonly extensionId: string | undefined;
+	readonly pluginUri: URI | undefined;
 }
 
 export interface ICopilotCLIAgents {
@@ -394,7 +397,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 			});
 		}
 
-		return this._agentsPromise.then(infos => infos.map(i => ({ agent: this.cloneAgent(i.agent), sourceUri: i.sourceUri })));
+		return this._agentsPromise.then(infos => infos.map(i => ({ agent: this.cloneAgent(i.agent), sourceUri: i.sourceUri, source: i.source, extensionId: i.extensionId, pluginUri: i.pluginUri })));
 	}
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
@@ -455,6 +458,9 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 				...(model ? { model } : {}),
 			},
 			sourceUri: customAgent.uri,
+			source: customAgent.source,
+			extensionId: customAgent.extensionId,
+			pluginUri: customAgent.pluginUri
 		};
 	}
 
@@ -583,7 +589,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 				host: 'https://github.com',
 				copilotUser: {
 					endpoints: {
-						api: overrideProxyUrl
+						api: overrideProxyUrl,
+						// `proxy` must also point at the mock server so that SDK
+						// calls to /copilot_internal/v2/token and /models/session
+						// are routed to the mock instead of the real GitHub API
+						// (which would reject the fake HMAC with a 401).
+						proxy: overrideProxyUrl,
 					}
 				}
 			};
