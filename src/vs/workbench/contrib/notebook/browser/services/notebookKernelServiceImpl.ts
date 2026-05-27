@@ -17,6 +17,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { getActiveWindow, runWhenWindowIdle } from '../../../../../base/browser/dom.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
 
 class KernelInfo {
 
@@ -27,6 +28,7 @@ class KernelInfo {
 	readonly time: number;
 
 	readonly notebookPriorities = new ResourceMap<number>();
+	readonly replPriorities = new ResourceMap<number>();
 
 	constructor(kernel: INotebookKernel) {
 		this.kernel = kernel;
@@ -127,7 +129,8 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@INotebookLoggingService private readonly _notebookLogService: INotebookLoggingService,
 	) {
 		super();
 
@@ -298,15 +301,53 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		}
 	}
 
-	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
-		const info = this._kernels.get(kernel.id);
+	getPreferredReplKernel(notebook: INotebookTextModelLike): INotebookKernel | undefined {
+		let preferred: INotebookKernel | undefined;
+		for (const info of this._kernels.values()) {
+			if (info.replPriorities.get(notebook.uri)) {
+				if (preferred) {
+					return undefined; // more than one kernel has a preference for this notebook
+				}
+				preferred = info.kernel;
+			}
+		}
+		return preferred;
+	}
+
+	preselectKernelForRepl(notebook: INotebookTextModelLike): void {
+		const kernel = this.getPreferredReplKernel(notebook);
+
+		if (kernel) {
+			this._notebookLogService.debug('KernelService', `Preselecting kernel '${kernel.id}' for notebook '${notebook.uri.toString()}' as REPL`);
+			this.preselectKernelForNotebook(kernel, notebook);
+
+			if (notebook.uri.scheme === Schemas.untitled) {
+				// Untitled URIs can be reused for different notebooks, so we clear the affinity
+				this.updateKernelNotebookAffinity(kernel, notebook.uri, undefined);
+			}
+		}
+	}
+
+	updateKernelNotebookAffinity(kernel: INotebookKernel | string, notebook: URI, preference: number | undefined): void {
+		const kernelId = typeof kernel === 'string' ? kernel : kernel.id;
+		const info = this._kernels.get(kernelId);
 		if (!info) {
-			throw new Error(`UNKNOWN kernel '${kernel.id}'`);
+			throw new Error(`UNKNOWN kernel '${kernelId}'`);
 		}
 		if (preference === undefined) {
+			this._notebookLogService.debug('KernelService', `Clearing affinity for kernel '${kernelId}' and notebook '${notebook.toString()}'`);
 			info.notebookPriorities.delete(notebook);
+			info.replPriorities.delete(notebook);
 		} else {
 			info.notebookPriorities.set(notebook, preference);
+			// when setting a preference for an existing notebook,
+			// we also set the repl preference so it can be auto-selected when the notebook is opened as a REPL
+			if (this._notebookService.getNotebookTextModel(notebook)) {
+				this._notebookLogService.debug('KernelService', `Setting kernel affinity of kernel '${kernelId}' for (REPL) notebook '${notebook.toString()}' to ${preference}`);
+				info.replPriorities.set(notebook, preference);
+			} else {
+				this._notebookLogService.debug('KernelService', `Setting kernel affinity of kernel '${kernelId}' for notebook '${notebook.toString()}' to ${preference}`);
+			}
 		}
 		this._onDidChangeNotebookAffinity.fire();
 	}
