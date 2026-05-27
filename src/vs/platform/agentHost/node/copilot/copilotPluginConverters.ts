@@ -10,7 +10,8 @@ import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import type { CustomizationAgentRef } from '../../common/state/protocol/state.js';
+import { CustomizationType, type AgentCustomization } from '../../common/state/protocol/state.js';
+import { customizationId } from '../../common/state/sessionState.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -106,15 +107,21 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 }
 
 /**
- * Projects parsed plugin agents into the protocol's {@link CustomizationAgentRef}
- * shape so they can be advertised on the owning {@link CustomizationRef.agents}.
+ * Projects parsed plugin agents into the protocol's {@link AgentCustomization}
+ * shape so they can be advertised as children of the owning container
+ * customization.
  */
-export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]): CustomizationAgentRef[] {
-	return agents.map(a => ({
-		uri: a.uri.toString(),
-		name: a.name,
-		...(a.description ? { description: a.description } : {}),
-	}));
+export function toAgentCustomizations(agents: readonly INamedPluginResource[]): AgentCustomization[] {
+	return agents.map(a => {
+		const uri = a.uri.toString();
+		return {
+			type: CustomizationType.Agent,
+			id: customizationId(uri),
+			uri,
+			name: a.name,
+			...(a.description ? { description: a.description } : {}),
+		};
+	});
 }
 
 // ---------------------------------------------------------------------------

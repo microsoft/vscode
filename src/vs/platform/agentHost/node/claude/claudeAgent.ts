@@ -26,7 +26,7 @@ import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESO
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { CustomizationRef, isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -908,7 +908,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		entry?.session.completeClientToolCall(toolCallId, result);
 	}
 
-	setClientCustomizations(_session: URI, _clientId: string, _customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+	setClientCustomizations(_session: URI, _clientId: string, _customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 		throw new Error('TODO: Phase 11');
 	}
 
