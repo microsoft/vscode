@@ -14,3 +14,8 @@
 	color: var(--vscode-textLink-foreground);
 	pointer-events: auto;
 }
+
+.monaco-editor .contentWidgets .empty-editor-hint a:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
