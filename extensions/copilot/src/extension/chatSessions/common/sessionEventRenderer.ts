@@ -3,29 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent } from '@github/copilot/sdk';
+import type { SessionEvent, ToolExecutionCompleteEvent, ToolExecutionStartEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { ILogger } from '../../../platform/log/common/logService';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ChatResponseCodeblockUriPart, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseTextEditPart, ChatResponseThinkingProgressPart, ChatToolInvocationPart, MarkdownString } from '../../../vscodeTypes';
 import type { ExtendedChatResponsePart } from 'vscode';
-import { enrichToolInvocationWithSubagentMetadata, getAffectedUrisForEditTool, isCopilotCliEditToolCall, processToolExecutionComplete, processToolExecutionStart, ToolCall } from '../copilotcli/common/copilotCLITools';
 
 /**
- * Map of in-flight tool invocations keyed by `toolCallId`. Populated by
- * `processToolExecutionStart` and drained by `processToolExecutionComplete`.
+ * A tool invocation entry tracked between `tool.execution_start` and
+ * `tool.execution_complete`. The exact shape of the second element (the
+ * provider-specific `ToolCall`) is opaque to the renderer; it is forwarded
+ * verbatim to the injected handlers.
  */
-export type PendingToolInvocations = Map<string, [ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart, toolData: ToolCall, parentToolCallId: string | undefined]>;
+export type PendingToolInvocation<TToolCall> = [
+	ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart,
+	toolData: TToolCall,
+	parentToolCallId: string | undefined,
+];
+
+/**
+ * Provider-specific hooks that turn raw tool events into chat parts. The
+ * renderer owns event dispatch and ordering; the handlers own per-tool
+ * formatting. The handlers receive the renderer's pending-tool map so that
+ * `tool.execution_start` can register an entry and `tool.execution_complete`
+ * can finalize it.
+ */
+export interface ToolEventHandlers<TToolCall> {
+	processStart: (
+		event: ToolExecutionStartEvent,
+		pending: Map<string, PendingToolInvocation<TToolCall>>,
+		workingDirectory?: URI,
+	) => ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart | undefined;
+	processComplete: (
+		event: ToolExecutionCompleteEvent,
+		pending: Map<string, PendingToolInvocation<TToolCall>>,
+		logger: ILogger,
+		workingDirectory?: URI,
+	) => PendingToolInvocation<TToolCall> | undefined;
+	enrichSubagent: (
+		toolCallId: string,
+		agentDisplayName: string,
+		agentDescription: string | undefined,
+		pending: Map<string, PendingToolInvocation<TToolCall>>,
+	) => void;
+	isEditToolCall: (toolCall: TToolCall) => boolean;
+	getEditedUris: (toolCall: TToolCall) => readonly URI[];
+}
 
 /**
  * State carried across calls to {@link appendResponsePartsForEvent} for a single
  * response turn. Owners must call {@link flushPendingAssistantMessage} once they
  * are done forwarding events so any trailing streamed text is committed.
  */
-export interface ResponseEventRenderContext {
+export interface ResponseEventRenderContext<TToolCall = unknown> {
 	readonly workingDirectory?: URI;
 	readonly logger: ILogger;
-	readonly pendingToolInvocations: PendingToolInvocations;
+	readonly handlers: ToolEventHandlers<TToolCall>;
+	readonly pendingToolInvocations: Map<string, PendingToolInvocation<TToolCall>>;
 	/** Message ids that have already been streamed via deltas; the final
 	 * `assistant.message` for the same id is skipped to avoid duplicate text. */
 	readonly processedMessages: Set<string>;
@@ -40,14 +75,16 @@ export interface ResponseEventRenderContext {
 	readonly getEditId?: (toolCallId: string) => string | undefined;
 }
 
-export function createResponseEventRenderContext(
+export function createResponseEventRenderContext<TToolCall>(
 	logger: ILogger,
+	handlers: ToolEventHandlers<TToolCall>,
 	workingDirectory?: URI,
 	getEditId?: (toolCallId: string) => string | undefined,
-): ResponseEventRenderContext {
+): ResponseEventRenderContext<TToolCall> {
 	return {
 		workingDirectory,
 		logger,
+		handlers,
 		pendingToolInvocations: new Map(),
 		processedMessages: new Set(),
 		currentAssistantMessage: { chunks: [] },
@@ -56,7 +93,17 @@ export function createResponseEventRenderContext(
 	};
 }
 
-export function flushPendingAssistantMessage(ctx: ResponseEventRenderContext): void {
+/**
+ * Subset of {@link ResponseEventRenderContext} that does not reference the
+ * provider-specific tool-call shape. The internal text-buffering helpers
+ * operate on this view so they don't need to be generic over `TToolCall`.
+ */
+interface AssistantMessageBufferCtx {
+	readonly currentAssistantMessage: { chunks: string[] };
+	readonly currentResponseParts: ExtendedChatResponsePart[];
+}
+
+export function flushPendingAssistantMessage(ctx: AssistantMessageBufferCtx): void {
 	if (ctx.currentAssistantMessage.chunks.length === 0) {
 		return;
 	}
@@ -65,7 +112,7 @@ export function flushPendingAssistantMessage(ctx: ResponseEventRenderContext): v
 	appendAssistantMessageContent(ctx, content);
 }
 
-function appendAssistantMessageContent(ctx: ResponseEventRenderContext, content: string): void {
+function appendAssistantMessageContent(ctx: AssistantMessageBufferCtx, content: string): void {
 	const { cleanedContent, prPart } = extractPRMetadata(content);
 	if (prPart) {
 		ctx.currentResponseParts.push(prPart);
@@ -117,7 +164,7 @@ function extractPRMetadata(content: string): { cleanedContent: string; prPart?: 
  * the equivalent `subagent.*` SDK types before invoking — both follow the same
  * CMC OpenAPI schema, only the event-type names differ.
  */
-export function appendResponsePartsForEvent(event: SessionEvent, ctx: ResponseEventRenderContext): boolean {
+export function appendResponsePartsForEvent<TToolCall>(event: SessionEvent, ctx: ResponseEventRenderContext<TToolCall>): boolean {
 	if (event.type !== 'assistant.message') {
 		flushPendingAssistantMessage(ctx);
 	}
@@ -141,14 +188,14 @@ export function appendResponsePartsForEvent(event: SessionEvent, ctx: ResponseEv
 			return true;
 		}
 		case 'tool.execution_start': {
-			const part = processToolExecutionStart(event, ctx.pendingToolInvocations, ctx.workingDirectory);
+			const part = ctx.handlers.processStart(event, ctx.pendingToolInvocations, ctx.workingDirectory);
 			if (part instanceof ChatResponseThinkingProgressPart) {
 				ctx.currentResponseParts.push(part);
 			}
 			return true;
 		}
 		case 'subagent.started': {
-			enrichToolInvocationWithSubagentMetadata(
+			ctx.handlers.enrichSubagent(
 				event.data.toolCallId,
 				event.data.agentDisplayName,
 				event.data.agentDescription,
@@ -161,13 +208,13 @@ export function appendResponsePartsForEvent(event: SessionEvent, ctx: ResponseEv
 			// Completion is already handled by `tool.execution_complete` for the task tool.
 			return true;
 		case 'tool.execution_complete': {
-			const [part, toolCall] = processToolExecutionComplete(event, ctx.pendingToolInvocations, ctx.logger, ctx.workingDirectory) ?? [undefined, undefined];
+			const [part, toolCall] = ctx.handlers.processComplete(event, ctx.pendingToolInvocations, ctx.logger, ctx.workingDirectory) ?? [undefined, undefined];
 			if (!part || !toolCall || part instanceof ChatResponseThinkingProgressPart) {
 				return true;
 			}
-			const editId = ctx.getEditId?.(toolCall.toolCallId);
-			const editedUris = getAffectedUrisForEditTool(toolCall);
-			if (!(part instanceof ChatResponseMarkdownPart) && isCopilotCliEditToolCall(toolCall) && editId && editedUris.length > 0) {
+			const editId = ctx.getEditId?.(event.data.toolCallId);
+			const editedUris = ctx.handlers.getEditedUris(toolCall);
+			if (!(part instanceof ChatResponseMarkdownPart) && ctx.handlers.isEditToolCall(toolCall) && editId && editedUris.length > 0) {
 				part.presentation = 'hidden';
 				ctx.currentResponseParts.push(part);
 				for (const uri of editedUris) {

@@ -13,6 +13,7 @@ import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/com
 import { ILogService } from '../../../platform/log/common/logService';
 import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage } from '../common/sessionEventRenderer';
+import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
 import { getAuthorDisplayName } from '../vscode/copilotCodingAgentUtils';
 
 export interface SessionResponseLogChunk {
@@ -231,7 +232,7 @@ export class ChatSessionContentBuilder {
 	private buildTaskResponseTurn(turn: AgentTaskSession, events: readonly AgentTaskSessionEvent[]): ChatResponseTurn2[] {
 		const lastFinalMessage = findLast(events, e => !e.dismissed && e.type === 'assistant.message' && !!e.data.content && !e.data.parentToolCallId);
 
-		const ctx = createResponseEventRenderContext(this._logService);
+		const ctx = createResponseEventRenderContext(this._logService, CLI_TOOL_EVENT_HANDLERS);
 		for (const event of events) {
 			if (event.dismissed || (event.type === 'assistant.message' && event !== lastFinalMessage)) {
 				continue;

@@ -24,7 +24,7 @@ import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '..
 import { formatUriForFileWidget } from '../../../tools/common/toolUtils';
 import { StoredModeInstructions } from '../../common/chatSessionMetadataStore';
 import { formatModelDetails, ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
-import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../../common/sessionEventRenderer';
+import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext, ToolEventHandlers } from '../../common/sessionEventRenderer';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
 
@@ -510,8 +510,9 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	// processed message ids, and the response parts being accumulated for the
 	// current response turn. The shared renderer reads/writes these in place;
 	// `flushResponseParts` drains `currentResponseParts` between turns.
-	const ctx: ResponseEventRenderContext = createResponseEventRenderContext(
+	const ctx: ResponseEventRenderContext<ToolCall> = createResponseEventRenderContext(
 		logger,
+		CLI_TOOL_EVENT_HANDLERS,
 		workingDirectory,
 		toolCallId => details?.toolIdEditMap?.[toolCallId],
 	);
@@ -553,6 +554,14 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 
 	const lastUserMessageId = findLast(events, event => event.type === 'user.message' && !isSyntheticUserMessage(event))?.id;
 	for (const event of events) {
+		// Flush buffered `assistant.message_delta` chunks before any non-message
+		// event runs so lifecycle guards like `ctx.currentResponseParts.length === 0`
+		// (used by `session.model_change`) see the streamed text that has already
+		// been produced. Mirrors the pre-extraction behavior in the CLI builder.
+		if (event.type !== 'assistant.message') {
+			flushPendingAssistantMessage(ctx);
+		}
+
 		switch (event.type) {
 			case 'session.start':
 			case 'session.resume': {
@@ -928,6 +937,19 @@ export function processToolExecutionComplete(event: ToolExecutionCompleteEvent, 
 
 	return invocation;
 }
+
+/**
+ * CLI tool-event handlers bundle for the shared session-event renderer. The
+ * cloud Task API renderer reuses the same bundle since both providers emit
+ * the same CMC tool event payloads.
+ */
+export const CLI_TOOL_EVENT_HANDLERS: ToolEventHandlers<ToolCall> = {
+	processStart: processToolExecutionStart,
+	processComplete: processToolExecutionComplete,
+	enrichSubagent: enrichToolInvocationWithSubagentMetadata,
+	isEditToolCall: isCopilotCliEditToolCall,
+	getEditedUris: getAffectedUrisForEditTool,
+};
 
 /**
  * Creates a formatted tool invocation part for CopilotCLI tools
