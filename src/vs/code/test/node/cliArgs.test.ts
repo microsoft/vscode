@@ -45,4 +45,23 @@ suite('combineUriFlags', () => {
 			['--wait', '--new-window', 'C:\\some\\path']
 		);
 	});
+
+	test('does not rewrite past the -- end-of-options marker', () => {
+		assert.deepStrictEqual(
+			combineUriFlags([
+				'--wait',
+				'--folder-uri', 'vscode-remote://host/before',
+				'--',
+				'--folder-uri', 'vscode-remote://host/after',
+				'--file-uri', 'vscode-remote://host/file.txt',
+			]),
+			[
+				'--wait',
+				'--folder-uri=vscode-remote://host/before',
+				'--',
+				'--folder-uri', 'vscode-remote://host/after',
+				'--file-uri', 'vscode-remote://host/file.txt',
+			]
+		);
+	});
 });

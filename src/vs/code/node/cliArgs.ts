@@ -13,6 +13,10 @@ export function combineUriFlags(args: string[]): string[] {
 	const result: string[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
+		if (arg === '--') { // end-of-options marker: copy the rest verbatim
+			result.push(...args.slice(i));
+			break;
+		}
 		if ((arg === '--folder-uri' || arg === '--file-uri') && i + 1 < args.length && !args[i + 1].startsWith('-')) {
 			result.push(`${arg}=${args[i + 1]}`);
 			i++; // skip the value, it's now part of the flag
