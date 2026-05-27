@@ -418,6 +418,12 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
 	readonly onDidAICustomizationItemsChange: Event<void>;
+	// Caches the raw, unfiltered items returned by the provider so each
+	// `fetchAICustomizationItems` call can apply its own `promptType` filter.
+	// Previously the cache stored items already filtered/normalized for the
+	// first requested `promptType`, which caused every subsequent section
+	// (Instructions, Skills, …) to see an empty list whenever the Agents tab
+	// was loaded first.
 	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
 
 	constructor(

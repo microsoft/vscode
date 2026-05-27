@@ -23,6 +23,8 @@ import { CircuitBreaker } from '../common/circuitBreaker';
 import {
 	createSessionTranslationState,
 	deriveTitleFromUserMessage,
+	isTerminalFlushEvent,
+	STREAMING_EVENT_TYPES,
 	translateSpan,
 	type SessionTranslationState,
 } from '../common/eventTranslator';
@@ -39,20 +41,24 @@ import { reindexSessions, reindexCloudSessions, type CloudReindexResult } from '
 
 // ── Configuration ───────────────────────────────────────────────────────────────
 
-/** How often to flush buffered events to the cloud (ms). */
+/**
+ * Delay between a terminal event arriving and the resulting flush. Small enough
+ * to feel realtime, large enough to coalesce events from the same turn into one
+ * request.
+ */
 const BATCH_INTERVAL_MS = 500;
 
-/** Faster drain interval when buffer is above soft cap. */
-const FAST_BATCH_INTERVAL_MS = 200;
+/**
+ * Safety-net interval for buffered events that did not trigger a terminal
+ * flush.
+ */
+export const SAFETY_INTERVAL_MS = 60_000;
 
-/** Max events per flush request. */
+/** Max events per flush request — also acts as a buffer-size flush trigger. */
 const MAX_EVENTS_PER_FLUSH = 500;
 
 /** Hard cap on buffered events (drop oldest beyond this). */
 const MAX_BUFFER_SIZE = 1_000;
-
-/** Soft cap — switch to faster drain. */
-const SOFT_BUFFER_CAP = 500;
 
 /** Max CHAT spans buffered per session while awaiting INVOKE_AGENT. */
 const MAX_PENDING_CHAT_SPANS_PER_SESSION = 32;
@@ -64,7 +70,11 @@ const POLICY_BLOCKED_TTL_MS = 60 * 60 * 1000;
  * Exports VS Code chat session events to the cloud in real-time.
  *
  * - Listens to OTel spans, translates to cloud SessionEvent format
- * - Buffers events and flushes in batches every 500ms
+ * - Buffers events; flushes within ~500ms when a terminal event arrives
+ *   (assistant.message, tool.execution_complete) or when the buffer reaches
+ *   {@link MAX_EVENTS_PER_FLUSH}, otherwise waits up to
+ *   {@link SAFETY_INTERVAL_MS} as a safety net
+ * - Streaming delta events are dropped before buffering
  * - Circuit breaker prevents cascading failures when the cloud is unavailable
  * - Lazy initialization: no work until the first real chat interaction
  *
@@ -113,7 +123,8 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	private readonly _cloudClient: CloudSessionApiClient;
 	private readonly _circuitBreaker: CircuitBreaker;
 
-	private _flushTimer: ReturnType<typeof setInterval> | undefined;
+	private _flushTimer: ReturnType<typeof setTimeout> | undefined;
+	private _flushTimerKind: 'fast' | 'safety' | undefined;
 	private _isFlushing = false;
 	private _firstCloudWriteLogged = false;
 
@@ -321,10 +332,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	}
 
 	override dispose(): void {
-		if (this._flushTimer !== undefined) {
-			clearInterval(this._flushTimer);
-			this._flushTimer = undefined;
-		}
+		this._stopFlushTimer();
 
 		// Best-effort final flush with timeout
 		const pending = this._eventBuffer.length;
@@ -781,7 +789,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 			if (events.length > 0) {
 				this._bufferEvents(sessionId, events);
-				this._ensureFlushTimer();
 			}
 
 			// Replay any CHAT spans that arrived before session initialization
@@ -796,6 +803,11 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 						}
 					}
 				}
+				// Parent INVOKE_AGENT completion marks a turn boundary. Force a fast
+				// flush even when the turn produced no terminal event (e.g. cancelled
+				// before any tokens streamed) so buffered user.message/session.start
+				// don't sit until the 60s safety timer.
+				this._scheduleFlush(BATCH_INTERVAL_MS);
 			}
 		} catch {
 			// Non-fatal — individual span processing failure
@@ -1124,9 +1136,28 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 	// ── Buffering ────────────────────────────────────────────────────────────────
 
+	/**
+	 * Buffer events, drop streaming deltas, and schedule a flush.
+	 *
+	 * Scheduling cadence:
+	 * - terminal event present in the batch → fast flush ({@link BATCH_INTERVAL_MS})
+	 * - buffer at/over {@link MAX_EVENTS_PER_FLUSH} → fast flush
+	 * - otherwise → safety flush ({@link SAFETY_INTERVAL_MS})
+	 */
 	private _bufferEvents(chatSessionId: string, events: SessionEvent[]): void {
+		let hasTerminal = false;
 		for (const event of events) {
+			if (STREAMING_EVENT_TYPES.has(event.type)) {
+				continue;
+			}
 			this._eventBuffer.push({ chatSessionId, event });
+			if (!hasTerminal && isTerminalFlushEvent(event)) {
+				hasTerminal = true;
+			}
+		}
+
+		if (this._eventBuffer.length === 0) {
+			return;
 		}
 
 		// Hard cap — drop oldest events
@@ -1140,20 +1171,34 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				bufferSize: MAX_BUFFER_SIZE,
 			});
 		}
+
+		if (hasTerminal || this._eventBuffer.length >= MAX_EVENTS_PER_FLUSH) {
+			this._scheduleFlush(BATCH_INTERVAL_MS);
+		} else {
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
+		}
 	}
 
-	// ── Flush timer ──────────────────────────────────────────────────────────────
+	// ── Flush scheduling ─────────────────────────────────────────────────────────
 
-	private _ensureFlushTimer(): void {
+	/**
+	 * Schedule a one-shot flush. Upgrade-only: a pending fast flush is never
+	 * downgraded by a later safety request.
+	 */
+	private _scheduleFlush(intervalMs: number): void {
+		const kind: 'fast' | 'safety' = intervalMs === SAFETY_INTERVAL_MS ? 'safety' : 'fast';
+
 		if (this._flushTimer !== undefined) {
-			return;
+			if (kind === 'safety' || this._flushTimerKind === 'fast') {
+				return;
+			}
+			clearTimeout(this._flushTimer);
 		}
 
-		const interval = this._eventBuffer.length > SOFT_BUFFER_CAP
-			? FAST_BATCH_INTERVAL_MS
-			: BATCH_INTERVAL_MS;
-
-		this._flushTimer = setInterval(() => {
+		this._flushTimerKind = kind;
+		this._flushTimer = setTimeout(() => {
+			this._flushTimer = undefined;
+			this._flushTimerKind = undefined;
 			this._flushBatch().catch(err => {
 
 				this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
@@ -1162,13 +1207,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					error: err instanceof Error ? err.message.substring(0, 100) : 'unknown',
 				}, {});
 			});
-		}, interval);
+		}, intervalMs);
 	}
 
 	private _stopFlushTimer(): void {
 		if (this._flushTimer !== undefined) {
-			clearInterval(this._flushTimer);
+			clearTimeout(this._flushTimer);
 			this._flushTimer = undefined;
+			this._flushTimerKind = undefined;
 		}
 	}
 
@@ -1180,9 +1226,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 
 		if (this._eventBuffer.length === 0) {
-			if (this._cloudSessions.size === 0) {
-				this._stopFlushTimer();
-			}
 			return;
 		}
 
@@ -1191,6 +1234,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				const dropped = this._eventBuffer.length - MAX_BUFFER_SIZE;
 				this._eventBuffer.splice(0, dropped);
 			}
+			// Re-arm at the safety cadence so buffered events are retried once the
+			// breaker transitions to HALF_OPEN, even if no new spans arrive.
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
 			return;
 		}
 
@@ -1202,6 +1248,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// Release the probe slot consumed by canRequest() above so we don't
 			// burn it on a flush we never actually attempted.
 			this._circuitBreaker.cancelProbe();
+			// Re-arm at the safety cadence so buffered events are retried once the
+			// client's Retry-After window elapses, even if no new spans arrive.
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
 			return;
 		}
 
@@ -1211,6 +1260,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		const uniqueSessionsInBatch = new Set(batch.map(e => e.chatSessionId)).size;
 		this._setSyncState({ kind: 'syncing', sessionCount: uniqueSessionsInBatch });
 
+		let flushFailed = false;
 		try {
 			// Group events by chat session ID for correct cloud session routing
 			const eventsBySession = new Map<string, { events: SessionEvent[]; chatSessionIds: Set<string>; entries: typeof batch }>();
@@ -1289,9 +1339,12 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					}
 				} else if (result.reason === 'rate_limited') {
 					// Client is already self-backing-off; don't trip the circuit breaker.
-					// Requeue the unsent events so they're retried after the backoff.
+					// Requeue the unsent events so they're retried after the backoff, and
+					// fall into the safety cadence (60s) so we don't busy-poll the
+					// isRateLimited() flag at the fast batch interval until it lifts.
 					rateLimitedSessions++;
 					requeueOnRateLimit.push(...slot.entries);
+					flushFailed = true;
 				} else {
 					hadTransientError = true;
 				}
@@ -1324,6 +1377,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			} else if (hadTransientError) {
 				this._circuitBreaker.recordFailure();
 				this._setSyncState({ kind: 'error' });
+				flushFailed = true;
 
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
 					operation: 'flushFailure',
@@ -1366,6 +1420,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			// Re-queue on unexpected error
 			this._eventBuffer.unshift(...batch);
 			this._circuitBreaker.recordFailure();
+			flushFailed = true;
 
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.cloudSync', {
 				operation: 'flushBatch',
@@ -1377,9 +1432,20 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._isFlushing = false;
 		}
 
-		if (this._eventBuffer.length > SOFT_BUFFER_CAP && this._flushTimer !== undefined) {
-			this._stopFlushTimer();
-			this._ensureFlushTimer();
+		// Re-arm after a flush:
+		//  - transient failure or rate limit → back off at safety cadence (60s)
+		//    so we don't busy-loop against a failing or throttled endpoint;
+		//    the circuit breaker (for failures) and the client's own backoff
+		//    (for rate limits) still gate the actual request independently
+		//  - buffer still has work (re-queued orphans) → fast flush
+		//  - otherwise, keep a safety timer running while any cloud session is active
+		//    so late spans are caught even without a terminal event
+		if (flushFailed && this._eventBuffer.length > 0) {
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
+		} else if (this._eventBuffer.length > 0) {
+			this._scheduleFlush(BATCH_INTERVAL_MS);
+		} else if (this._cloudSessions.size > 0) {
+			this._scheduleFlush(SAFETY_INTERVAL_MS);
 		}
 	}
 

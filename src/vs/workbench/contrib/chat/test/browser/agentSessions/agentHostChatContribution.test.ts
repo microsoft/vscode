@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -20,7 +20,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { CustomizationRef, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -54,6 +54,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
@@ -497,9 +498,45 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		disposeSession: async () => { },
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+	const customizationsByType = new Map<string, IObservable<readonly CustomizationRef[]>>();
+	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly CustomizationRef[]> }): IDisposable => {
+		customizationsByType.set(sessionType, entry.customizations);
+		return toDisposable(() => {
+			if (customizationsByType.get(sessionType) === entry.customizations) {
+				customizationsByType.delete(sessionType);
+			}
+		});
+	};
+	const activeClientService: IAgentHostActiveClientService = {
+		_serviceBrand: undefined,
+		registerForAgent: (sessionType) => {
+			// Tests that exercise customization changes seed entries via
+			// `seedActiveClient` directly. This stub just records an empty
+			// entry so the contribution flow completes.
+			const inner = seedActiveClient(sessionType, {
+				customizations: constObservable<readonly CustomizationRef[]>([]),
+			});
+			return {
+				syncProvider: {
+					onDidChange: Event.None,
+					isDisabled: () => false,
+					setDisabled: () => { },
+				},
+				dispose: () => inner.dispose(),
+			};
+		},
+		getActiveClient: (sessionType: string, clientId: string) => ({
+			clientId,
+			tools: [],
+			customizations: [...(customizationsByType.get(sessionType)?.get() ?? [])],
+		}),
+		getCustomizations: (sessionType: string) => derived(reader => customizationsByType.get(sessionType)?.read(reader) ?? []),
+		clientTools: constObservable<readonly ToolDefinition[]>([]),
+	};
+	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient };
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService> }) {
@@ -4358,11 +4395,12 @@ suite('AgentHostChatContribution', () => {
 	suite('customizations', () => {
 
 		test('dispatches activeClientChanged when a new session is created', async () => {
-			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
 			const customizations = observableValue<CustomizationRef[]>('customizations', [
 				{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
 			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
@@ -4372,7 +4410,6 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				customizations,
 			}));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -4390,9 +4427,10 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('re-dispatches activeClientChanged when customizations observable changes', async () => {
-			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
 			const customizations = observableValue<CustomizationRef[]>('customizations', []);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
@@ -4402,7 +4440,6 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				customizations,
 			}));
 
 			// Create a session first
@@ -4505,10 +4542,11 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('dispatches activeClientChanged when restoring a session where current client customizations are stale', async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<CustomizationRef[]>('customizations', [
 				{ uri: 'file:///plugin-new', displayName: 'Plugin New' },
 			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
 			const summary: SessionSummary = {
 				resource: sessionResource.toString(),
@@ -4536,7 +4574,6 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				customizations,
 			}));
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
