@@ -70,7 +70,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			return null;
 		}
 
-		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
+		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']) || location.matches(['catalog']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
 				if (currentWord[0] === '@') {
@@ -184,7 +184,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			return null;
 		}
 
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
+		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']) || location.matches(['catalog', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
 				const info = await this.fetchPackageInfo(currentKey, resource);
@@ -385,7 +385,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		if (!this.isEnabled()) {
 			return null;
 		}
-		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
+		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']) || location.matches(['catalog', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
 				return this.fetchPackageInfo(pack, resource).then(info => {
