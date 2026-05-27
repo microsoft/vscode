@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
@@ -10,11 +11,15 @@ import { EditorAction } from '../../../../browser/editorExtensions.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
+import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { NullState } from '../../../../common/languages/nullTokenize.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction, ReverseLinesAction } from '../../browser/linesOperations.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
-import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../../../../test/common/testTextModel.js';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
@@ -1361,6 +1366,218 @@ suite('Editor Contrib - Line Operations', () => {
 
 			}
 		);
+	});
+
+	suite('transformCase.skipStringsAndComments', () => {
+		// Lightweight tokenizer for the tests below: any character inside paired single quotes is
+		// classified as a string and any text following `//` to end-of-line is classified as a
+		// comment. Everything else is `Other`. The tokenizer is deliberately tiny so the tests
+		// can stay focused on the case-action's skip behaviour rather than language plumbing.
+		const TEST_LANGUAGE_ID = 'transformCaseSkipTestLang';
+
+		function makeTokenizationSupport(encodedLanguageId: number): ITokenizationSupport {
+			const otherMetadata = (
+				(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+				| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			) >>> 0;
+			const stringMetadata = (
+				(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+				| (StandardTokenType.String << MetadataConsts.TOKEN_TYPE_OFFSET)
+			) >>> 0;
+			const commentMetadata = (
+				(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+				| (StandardTokenType.Comment << MetadataConsts.TOKEN_TYPE_OFFSET)
+			) >>> 0;
+
+			return {
+				getInitialState: () => NullState,
+				tokenize: undefined!,
+				tokenizeEncoded: (line, _hasEOL, state) => {
+					type RawToken = { offset: number; metadata: number };
+					const raw: RawToken[] = [];
+					const pushIfNew = (offset: number, metadata: number) => {
+						if (raw.length === 0 || raw[raw.length - 1].metadata !== metadata) {
+							raw.push({ offset, metadata });
+						}
+					};
+					let i = 0;
+					while (i < line.length) {
+						if (line[i] === '/' && line[i + 1] === '/') {
+							pushIfNew(i, commentMetadata);
+							i = line.length;
+							break;
+						}
+						if (line[i] === '\'') {
+							pushIfNew(i, stringMetadata);
+							i++;
+							while (i < line.length && line[i] !== '\'') {
+								i++;
+							}
+							if (i < line.length) {
+								i++; // consume closing quote
+							}
+							pushIfNew(i, otherMetadata);
+							continue;
+						}
+						pushIfNew(i, otherMetadata);
+						i++;
+					}
+					if (raw.length === 0) {
+						pushIfNew(0, otherMetadata);
+					}
+					const result = new Uint32Array(raw.length * 2);
+					for (let t = 0; t < raw.length; t++) {
+						result[2 * t] = raw[t].offset;
+						result[2 * t + 1] = raw[t].metadata;
+					}
+					return new EncodedTokenizationResult(result, [], state);
+				}
+			};
+		}
+
+		function withTokenizedTestEditor(
+			lines: string[],
+			options: { skipStringsAndComments: boolean },
+			callback: (editor: ICodeEditor, model: ITextModel) => void
+		): void {
+			const disposables = new DisposableStore();
+			const instantiationService = createModelServices(disposables);
+			const languageService = instantiationService.get(ILanguageService);
+			disposables.add(languageService.registerLanguage({ id: TEST_LANGUAGE_ID }));
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(TEST_LANGUAGE_ID);
+			disposables.add(TokenizationRegistry.register(TEST_LANGUAGE_ID, makeTokenizationSupport(encodedLanguageId)));
+			const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), TEST_LANGUAGE_ID));
+			for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
+				model.tokenization.forceTokenization(lineNumber);
+			}
+			withTestCodeEditor(model, { transformCase: { skipStringsAndComments: options.skipStringsAndComments } }, (editor) => {
+				callback(editor, model);
+			});
+			disposables.dispose();
+		}
+
+		test('default behaviour is unchanged: strings are upper-cased', () => {
+			withTokenizedTestEditor(
+				[`const greeting = 'hello world';`],
+				{ skipStringsAndComments: false },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					editor.setSelection(new Selection(1, 1, 1, model.getLineMaxColumn(1)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `CONST GREETING = 'HELLO WORLD';`);
+				}
+			);
+		});
+
+		test('uppercase preserves string literals when skipStringsAndComments is on', () => {
+			withTokenizedTestEditor(
+				[`const greeting = 'hello world';`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					editor.setSelection(new Selection(1, 1, 1, model.getLineMaxColumn(1)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `CONST GREETING = 'hello world';`);
+				}
+			);
+		});
+
+		test('lowercase preserves string literals when skipStringsAndComments is on', () => {
+			withTokenizedTestEditor(
+				[`CONST GREETING = 'HELLO WORLD';`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new LowerCaseAction();
+					editor.setSelection(new Selection(1, 1, 1, model.getLineMaxColumn(1)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `const greeting = 'HELLO WORLD';`);
+				}
+			);
+		});
+
+		test('uppercase preserves line comments when skipStringsAndComments is on', () => {
+			withTokenizedTestEditor(
+				[`var x = 1; // keep me lowercase`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					editor.setSelection(new Selection(1, 1, 1, model.getLineMaxColumn(1)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `VAR X = 1; // keep me lowercase`);
+				}
+			);
+		});
+
+		test('title case preserves string literals when skipStringsAndComments is on', () => {
+			withTokenizedTestEditor(
+				[`select * from users where name = 'john doe'`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new TitleCaseAction();
+					editor.setSelection(new Selection(1, 1, 1, model.getLineMaxColumn(1)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `Select * From Users Where Name = 'john doe'`);
+				}
+			);
+		});
+
+		test('multiple strings on a single line are all preserved', () => {
+			withTokenizedTestEditor(
+				[`const a = 'first'; const b = 'second';`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					editor.setSelection(new Selection(1, 1, 1, model.getLineMaxColumn(1)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `CONST A = 'first'; CONST B = 'second';`);
+				}
+			);
+		});
+
+		test('cursor inside a string with empty selection is left untouched', () => {
+			withTokenizedTestEditor(
+				[`const greeting = 'hello world';`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					// cursor is in column 22, which is inside the 'hello world' string literal
+					editor.setSelection(new Selection(1, 22, 1, 22));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `const greeting = 'hello world';`);
+				}
+			);
+		});
+
+		test('cursor inside an identifier with empty selection is still transformed', () => {
+			withTokenizedTestEditor(
+				[`const greeting = 'hello world';`],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					// cursor is in column 9, inside the `greeting` identifier (column 7..15)
+					editor.setSelection(new Selection(1, 9, 1, 9));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `const GREETING = 'hello world';`);
+				}
+			);
+		});
+
+		test('multi-line selection preserves strings on each line', () => {
+			withTokenizedTestEditor(
+				[
+					`const a = 'first';`,
+					`const b = 'second';`,
+				],
+				{ skipStringsAndComments: true },
+				(editor, model) => {
+					const action = new UpperCaseAction();
+					editor.setSelection(new Selection(1, 1, 2, model.getLineMaxColumn(2)));
+					executeAction(action, editor);
+					assert.strictEqual(model.getLineContent(1), `CONST A = 'first';`);
+					assert.strictEqual(model.getLineContent(2), `CONST B = 'second';`);
+				}
+			);
+		});
 	});
 
 	suite('DeleteAllRightAction', () => {
