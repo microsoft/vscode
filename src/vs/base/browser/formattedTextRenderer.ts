@@ -91,6 +91,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 		child = document.createElement('code');
 	} else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
+		a.tabIndex = 0;
 		actionHandler.disposables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
 			actionHandler.callback(String(treeNode.index), event);
 		}));
