@@ -40,7 +40,6 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 // ---- Mock IAgentHostService -------------------------------------------------
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
-const STORAGE_KEY_ISOLATION_MODE_LEGACY = 'sessions.agentHost.isolationPicker.selectedMode';
 
 type SubscriptionState = SessionState | ChangesetState;
 
@@ -1075,13 +1074,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
 		await provider.setSessionConfigValue(session.sessionId, '__proto__', 'polluted');
 
-		assert.deepStrictEqual({
-			rememberedValues: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
-			legacyIsolation: storageService.get(STORAGE_KEY_ISOLATION_MODE_LEGACY, StorageScope.PROFILE),
-		}, {
-			rememberedValues: { [SessionConfigKey.Isolation]: 'folder' },
-			legacyIsolation: 'folder',
-		});
+		assert.deepStrictEqual(
+			storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			{ [SessionConfigKey.Isolation]: 'folder' },
+		);
 	});
 
 	test('createNewSession seeds remembered values and skips unsafe remembered keys', () => {
@@ -1096,21 +1092,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			seededImmediately: { isolation: 'folder', branch: 'main' },
 			forwardedToAgentHost: { isolation: 'folder', branch: 'main' },
-		});
-	});
-
-	test('createNewSession uses legacy isolation key when remembered values do not include isolation', () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		storageService.store(STORAGE_KEY_ISOLATION_MODE_LEGACY, 'folder', StorageScope.PROFILE, StorageTarget.MACHINE);
-		const provider = createProvider(disposables, agentHost, undefined, { storageService });
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-
-		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
-		}, {
-			seededImmediately: { isolation: 'folder' },
-			forwardedToAgentHost: { isolation: 'folder' },
 		});
 	});
 

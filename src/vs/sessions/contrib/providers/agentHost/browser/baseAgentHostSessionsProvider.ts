@@ -47,7 +47,6 @@ import { createChangesets } from '../../copilotChatSessions/browser/copilotChatS
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
-const STORAGE_KEY_ISOLATION_MODE_LEGACY = 'sessions.agentHost.isolationPicker.selectedMode';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function isSafeSessionConfigKey(property: string): boolean {
@@ -1404,17 +1403,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const autopilotEnabled = this._baseConfigurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		// Seed session config values from the last user picks.
-		// Legacy fallback: isolation was previously stored on its own key.
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
 			if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
 				config[property] = value;
-			}
-		}
-		if (typeof config[SessionConfigKey.Isolation] !== 'string') {
-			const legacyIsolationValue = this._storageService.get(STORAGE_KEY_ISOLATION_MODE_LEGACY, StorageScope.PROFILE);
-			if (typeof legacyIsolationValue === 'string') {
-				config[SessionConfigKey.Isolation] = legacyIsolationValue;
 			}
 		}
 
@@ -1472,10 +1464,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			nextRememberedValues[property] = value;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
-			if (property === SessionConfigKey.Isolation) {
-				// Keep writing the legacy isolation key for backward compatibility.
-				this._storageService.store(STORAGE_KEY_ISOLATION_MODE_LEGACY, value, StorageScope.PROFILE, StorageTarget.MACHINE);
-			}
 		}
 
 		// New session: re-resolve the full config schema. Flip the
