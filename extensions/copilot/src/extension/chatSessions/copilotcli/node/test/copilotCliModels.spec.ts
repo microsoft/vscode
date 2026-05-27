@@ -387,7 +387,7 @@ describe('CopilotCLIModels', () => {
 			expect(result[0]).toEqual(expect.objectContaining({ id: 'auto', name: 'Auto' }));
 		});
 
-		it('returns undefined when not authenticated', async () => {
+		it('returns an empty array when not authenticated', async () => {
 			const configService = new MockConfigurationService();
 			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
 			const { models } = createModels({ hasSession: false, configService });
