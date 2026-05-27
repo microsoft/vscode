@@ -853,7 +853,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
-	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
+	private _getTextDirection(lineNumber: number, lineContent: string, decorations: ViewModelDecoration[]): TextDirection {
 		let rtlCount = 0;
 
 		for (const decoration of decorations) {
@@ -869,12 +869,22 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		if (rtlCount > 0) {
+			return TextDirection.RTL;
+		}
+		if (rtlCount < 0) {
+			return TextDirection.LTR;
+		}
+		if (this._configuration.options.get(EditorOption.rtlAutoDetect) && strings.containsRTL(lineContent)) {
+			return TextDirection.RTL;
+		}
+
+		return TextDirection.LTR;
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
 		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
-		return this._getTextDirection(lineNumber, decorationsCollection.decorations);
+		return this._getTextDirection(lineNumber, this.getLineContent(lineNumber), decorationsCollection.decorations);
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
@@ -914,7 +924,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			inlineDecorations,
 			tabSize,
 			lineData.startVisibleColumn,
-			this._getTextDirection(lineNumber, decorations),
+			this._getTextDirection(lineNumber, lineData.content, decorations),
 			hasVariableFonts
 		);
 	}
