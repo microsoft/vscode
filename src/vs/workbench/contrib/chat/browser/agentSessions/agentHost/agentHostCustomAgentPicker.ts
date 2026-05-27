@@ -20,7 +20,7 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { agentHostAgentPickerStorageKey, getEffectiveAgents, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { CustomizationAgentRef, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AgentCustomization, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -80,7 +80,7 @@ function toBackendSessionUri(sessionResource: URI): URI | undefined {
  */
 export class WorkbenchAgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 
-	private readonly _currentAgent = observableValue<CustomizationAgentRef | undefined>('agentHostCurrentAgent', undefined);
+	private readonly _currentAgent = observableValue<AgentCustomization | undefined>('agentHostCurrentAgent', undefined);
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & { readonly sub: IAgentSubscription<SessionState>; readonly backendSession: URI }>());
 	/** Captured at construction so the footer menu doesn't depend on a private parent field. */
 	private readonly _ctxKeyService: IContextKeyService;
@@ -261,7 +261,7 @@ export class WorkbenchAgentHostAgentPickerActionItem extends ChatInputPickerActi
 		return value && !(value instanceof Error) ? value : undefined;
 	}
 
-	private _currentAgents(): readonly CustomizationAgentRef[] {
+	private _currentAgents(): readonly AgentCustomization[] {
 		return getEffectiveAgents(this._readState()?.customizations);
 	}
 
@@ -279,7 +279,7 @@ export class WorkbenchAgentHostAgentPickerActionItem extends ChatInputPickerActi
 		this._currentAgent.set(resolved, undefined);
 	}
 
-	private _userSetAgent(agent: CustomizationAgentRef | undefined): void {
+	private _userSetAgent(agent: AgentCustomization | undefined): void {
 		const resource = this._sessionResource();
 		const backend = resource ? this._resolveBackend(resource) : undefined;
 		if (!resource || !backend) {

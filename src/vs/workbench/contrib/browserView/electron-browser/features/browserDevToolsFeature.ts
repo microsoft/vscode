@@ -30,14 +30,14 @@ class BrowserEditorDevToolsContribution extends BrowserEditorContribution {
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._devToolsOpenContext.set(model.isDevToolsOpen);
 		store.add(model.onDidChangeDevToolsState(e => {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._devToolsOpenContext.reset();
 	}
 }

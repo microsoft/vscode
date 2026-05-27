@@ -14,6 +14,16 @@
 	background-color: var(--vscode-agentsPanel-background);
 }
 
+.monaco-workbench .part.sessionspart .session-view,
+.monaco-workbench .part.sessionspart .session-view > .session-view-content {
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+}
+
+.monaco-workbench .part.sessionspart .session-view .interactive-session {
+	--vscode-interactive-session-foreground: var(--session-view-foreground) !important;
+}
+
 .monaco-workbench .part.sessionspart > .content > .monaco-progress-container {
 	top: 0;
 }

@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ChangesetSummary, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type ChangesetSummary, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -746,34 +746,46 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			turns: [],
 			customizations: [{
-				customization: { uri: 'plugin://session-1', displayName: 'session plugin' },
+				type: CustomizationType.Plugin,
+				id: 'plugin://session-1',
+				uri: 'plugin://session-1',
+				name: 'session plugin',
 				enabled: true,
-				status: CustomizationStatus.Loaded,
-				agents: [
-					{ uri: 'agent://shared', name: 'shared', description: 'from session' },
-					{ uri: 'agent://session-only', name: 'session-only' },
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [
+					{ type: CustomizationType.Agent, id: 'agent://shared', uri: 'agent://shared', name: 'shared', description: 'from session' },
+					{ type: CustomizationType.Agent, id: 'agent://session-only', uri: 'agent://session-only', name: 'session-only' },
 				],
 			}, {
-				customization: { uri: 'plugin://session-2', displayName: 'second session plugin' },
+				type: CustomizationType.Plugin,
+				id: 'plugin://session-2',
+				uri: 'plugin://session-2',
+				name: 'second session plugin',
 				enabled: true,
-				status: CustomizationStatus.Loaded,
-				agents: [
-					{ uri: 'agent://another', name: 'another' },
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [
+					{ type: CustomizationType.Agent, id: 'agent://another', uri: 'agent://another', name: 'another' },
 					// Duplicate URI — must NOT replace the first-seen entry.
-					{ uri: 'agent://shared', name: 'shared (duplicate)' },
+					{ type: CustomizationType.Agent, id: 'agent://shared-dup', uri: 'agent://shared', name: 'shared (duplicate)' },
 				],
 			}, {
 				// Disabled customizations are skipped entirely.
-				customization: { uri: 'plugin://disabled', displayName: 'disabled plugin' },
+				type: CustomizationType.Plugin,
+				id: 'plugin://disabled',
+				uri: 'plugin://disabled',
+				name: 'disabled plugin',
 				enabled: false,
-				status: CustomizationStatus.Loaded,
-				agents: [{ uri: 'agent://disabled', name: 'disabled' }],
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [{ type: CustomizationType.Agent, id: 'agent://disabled', uri: 'agent://disabled', name: 'disabled' }],
 			}, {
-				// Customizations with `agents === undefined` are treated as
+				// Customizations with `children === undefined` are treated as
 				// "unknown" (host not yet finished parsing) and skipped.
-				customization: { uri: 'plugin://unparsed', displayName: 'unparsed plugin' },
+				type: CustomizationType.Plugin,
+				id: 'plugin://unparsed',
+				uri: 'plugin://unparsed',
+				name: 'unparsed plugin',
 				enabled: true,
-				status: CustomizationStatus.Loading,
+				load: { kind: CustomizationLoadStatus.Loading },
 			}],
 		};
 		// Force a session-state subscription so `_lastSessionStates` gets
@@ -783,10 +795,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState('agents-merge', 'copilotcli', fakeState);
 
 		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), [
-			{ uri: 'agent://another', name: 'another' },
-			{ uri: 'agent://session-only', name: 'session-only' },
+			{ type: CustomizationType.Agent, id: 'agent://another', uri: 'agent://another', name: 'another' },
+			{ type: CustomizationType.Agent, id: 'agent://session-only', uri: 'agent://session-only', name: 'session-only' },
 			// First-seen wins for the duplicate `agent://shared` URI.
-			{ uri: 'agent://shared', name: 'shared', description: 'from session' },
+			{ type: CustomizationType.Agent, id: 'agent://shared', uri: 'agent://shared', name: 'shared', description: 'from session' },
 		]);
 	});
 
@@ -803,8 +815,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 				description: '',
 				models: [],
 				customizations: [{
+					type: CustomizationType.Plugin,
+					id: 'plugin://root',
 					uri: 'plugin://root',
-					displayName: 'root plugin',
+					name: 'root plugin',
+					enabled: true,
 				}],
 			} as AgentInfo,
 		]);
@@ -846,13 +861,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			turns: [],
 			customizations: [{
-				customization: {
-					uri: 'plugin://s',
-					displayName: 'session plugin',
-				},
+				type: CustomizationType.Plugin,
+				id: 'plugin://s',
+				uri: 'plugin://s',
+				name: 'session plugin',
 				enabled: true,
-				status: CustomizationStatus.Loaded,
-				agents: [{ uri: 'agent://s', name: 's' }],
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [{ type: CustomizationType.Agent, id: 'agent://s', uri: 'agent://s', name: 's' }],
 			}],
 		});
 		assert.ok(fired > afterRoot, 'expected event to fire on session state customization change');
@@ -891,13 +906,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// Push a SessionState carrying customizations as if the host had
 		// resolved them and dispatched a SessionCustomizationsChanged.
-		const customizations = [{
-			customization: { uri: 'plugin://new-session', displayName: 'p' },
+		const customizations: Customization[] = [{
+			type: CustomizationType.Plugin,
+			id: 'plugin://new-session',
+			uri: 'plugin://new-session',
+			name: 'p',
 			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [
-				{ uri: 'agent://reviewer', name: 'reviewer' },
-				{ uri: 'agent://triage', name: 'triage' },
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [
+				{ type: CustomizationType.Agent, id: 'agent://reviewer', uri: 'agent://reviewer', name: 'reviewer' },
+				{ type: CustomizationType.Agent, id: 'agent://triage', uri: 'agent://triage', name: 'triage' },
 			],
 		}];
 		const state: SessionState = {
@@ -916,8 +934,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState(rawId, sessionTypeId, state);
 
 		assert.deepStrictEqual(provider.getCustomAgents(session.sessionId), [
-			{ uri: 'agent://reviewer', name: 'reviewer' },
-			{ uri: 'agent://triage', name: 'triage' },
+			{ type: CustomizationType.Agent, id: 'agent://reviewer', uri: 'agent://reviewer', name: 'reviewer' },
+			{ type: CustomizationType.Agent, id: 'agent://triage', uri: 'agent://triage', name: 'triage' },
 		]);
 		assert.ok(fired > 0, 'expected onDidChangeCustomAgents to fire when SessionState arrives');
 
@@ -928,11 +946,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			...state,
 			customizations: [{
 				...customizations[0],
-				agents: [{ uri: 'agent://only', name: 'only' }],
+				children: [{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' }],
 			}],
 		});
 		assert.deepStrictEqual(provider.getCustomAgents(session.sessionId), [
-			{ uri: 'agent://only', name: 'only' },
+			{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' },
 		]);
 		assert.ok(fired > after, 'expected onDidChangeCustomAgents to fire again on a second update');
 	});
@@ -956,10 +974,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			turns: [],
 			customizations: [{
-				customization: { uri: 'plugin://x', displayName: 'p' },
+				type: CustomizationType.Plugin,
+				id: 'plugin://x',
+				uri: 'plugin://x',
+				name: 'p',
 				enabled: true,
-				status: CustomizationStatus.Loaded,
-				agents: [{ uri: 'agent://x', name: 'x' }],
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [{ type: CustomizationType.Agent, id: 'agent://x', uri: 'agent://x', name: 'x' }],
 			}],
 		});
 		assert.strictEqual(provider.getCustomAgents(first.sessionId).length, 1);
