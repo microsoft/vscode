@@ -208,7 +208,7 @@ export class Menu extends ActionBar {
 					this.updateFocus();
 				}
 			}
-		}));
+		}, true));
 
 		// Support touch on actions list to focus items (needed for submenus)
 		this._register(Gesture.addTarget(this.actionsList));
