@@ -545,6 +545,13 @@ export interface McpServerTransportHTTPAuthentication {
 
 export interface McpServerTransportHTTPOAuth {
 	readonly clientId?: string;
+	/**
+	 * (Preview) When true, the MCP server uses enterprise-managed authentication via the configured
+	 * SSO issuer (see `mcp.enterpriseManagedAuth.idp`). Tokens are obtained through OAuth Identity
+	 * Assertion Authorization Grant (ID-JAG) so that, after a one-time sign-in, subsequent enterprise-managed
+	 * servers connect silently.
+	 */
+	readonly enterpriseManaged?: boolean;
 }
 
 /**
