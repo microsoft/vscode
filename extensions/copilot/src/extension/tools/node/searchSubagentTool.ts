@@ -141,7 +141,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		// Create a new capturing token to group this search subagent and all its nested tool calls
 		// Similar to how DefaultIntentRequestHandler does it
 		// Pass the subAgentInvocationId so the trajectory uses this ID for explicit linking
-		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId;
+		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId ?? parentSessionId;
 		const searchSubagentToken = new CapturingToken(
 			`Search: ${options.input.query.substring(0, 50)}${options.input.query.length > 50 ? '...' : ''}`,
 			'search',
@@ -149,7 +149,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			'search',  // subAgentName for trajectory tracking
 			// Use invocation ID as chatSessionId so spans get their own log file
 			subAgentInvocationId,
-			// Link back to the parent session for debug log grouping
+			// Link back to the parent session for debug log grouping and cloud session folding
 			parentChatSessionId,
 			'searchSubagent',
 		);

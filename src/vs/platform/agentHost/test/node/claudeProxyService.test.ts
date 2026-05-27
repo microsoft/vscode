@@ -119,6 +119,10 @@ class FakeCopilotApiService implements ICopilotApiService {
 		}
 		return this.modelsResult.value;
 	}
+
+	async utilityChatCompletion(): Promise<never> {
+		throw new Error('utilityChatCompletion not implemented in this test');
+	}
 }
 
 // #endregion
@@ -1240,6 +1244,7 @@ suite('ClaudeProxyService', () => {
 				}) as ICopilotApiService['messages'],
 				countTokens: () => Promise.reject(new Error('not used')),
 				models: () => Promise.resolve([]),
+				utilityChatCompletion: () => Promise.reject(new Error('not used')),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);
@@ -1307,6 +1312,7 @@ suite('ClaudeProxyService', () => {
 				}) as ICopilotApiService['messages'],
 				countTokens: fake.countTokens.bind(fake),
 				models: fake.models.bind(fake),
+				utilityChatCompletion: fake.utilityChatCompletion.bind(fake),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);
