@@ -47,7 +47,7 @@ import { IExtensionHostManager } from '../common/extensionHostManagers.js';
 import { ExtensionHostExitCode } from '../common/extensionHostProtocol.js';
 import { IExtensionManifestPropertiesService } from '../common/extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
-import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from '../common/extensionRunningLocationTracker.js';
+import { EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY, ExtensionRunningLocationTracker, filterExtensionDescriptions } from '../common/extensionRunningLocationTracker.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from '../common/extensions.js';
 import { ExtensionsProposedApi } from '../common/extensionsProposedApi.js';
 import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from '../common/remoteExtensionHost.js';
@@ -527,23 +527,24 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._webWorkerExtHostEnablement = determineLocalWebWorkerExtHostEnablement(environmentService, configurationService);
+		this._webWorkerExtHostEnablement = determineLocalWebWorkerExtHostEnablement(environmentService, this._configurationService);
 	}
 
 	public createExtensionHost(runningLocations: ExtensionRunningLocationTracker, runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
+				const workerIsolatedExtensions = this._configurationService.getValue<string[]>(EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY) || [];
 				const startup = (
 					isInitialStart
 						? ExtensionHostStartup.EagerManualStart
 						: ExtensionHostStartup.EagerAutoStart
 				);
-				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalProcessExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
+				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalProcessExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation), workerIsolatedExtensions);
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled) {
