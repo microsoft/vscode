@@ -9,6 +9,8 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
@@ -137,13 +139,15 @@ suite('ChatQuotaNotificationContribution', () => {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
 		const contextKeyService = store.add(new MockContextKeyService());
+		// Simulate a Copilot model being selected so notifications are shown
+		contextKeyService.createKey('chatModelId', 'gpt-4.1');
 		const languageModelsService = {
 			_serviceBrand: undefined,
 			onDidChangeLanguageModelVendors: Event.None,
 			onDidChangeLanguageModels: Event.None,
-			getLanguageModelIds: () => [],
+			getLanguageModelIds: () => ['gpt-4.1'],
 			getVendors: () => [],
-			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => undefined,
+			lookupLanguageModel: (_id: string): ILanguageModelChatMetadata | undefined => ({ vendor: 'copilot' } as ILanguageModelChatMetadata),
 			lookupLanguageModelByQualifiedName: () => undefined,
 		} as unknown as ILanguageModelsService;
 
@@ -157,6 +161,8 @@ suite('ChatQuotaNotificationContribution', () => {
 			notificationMock.service,
 			contextKeyService as IContextKeyService,
 			languageModelsService,
+			new NullLogService(),
+			store.add(new InMemoryStorageService()),
 		));
 
 		return { contribution, entitlementMock, notificationMock };

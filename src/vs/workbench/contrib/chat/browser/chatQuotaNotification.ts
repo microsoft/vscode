@@ -7,9 +7,12 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { getSelectedModelVendor } from '../common/chatSelectedModel.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
@@ -50,6 +53,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -94,10 +99,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const entitlement = this._chatEntitlementService.entitlement;
+		const isCopilot = this._isCopilotModelSelected();
 
-		// Defer new notifications when a BYOK model is selected — quota only
-		// applies to Copilot models. Already-shown notifications stay visible.
-		if (this._isUsingByokModel()) {
+		this._logService.info(`[quota notification] _update: entitlement=${entitlement}, isCopilot=${isCopilot}, quotaUsedUp=${this._isQuotaUsedUp()}, ubb=${this._isUBBEligible()}, modelId=${this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatModelId.key) ?? '(none)'}`);
+
+		// Defer new notifications when a BYOK model is selected or the model
+		// selection hasn't loaded yet — quota only applies to Copilot models.
+		// Already-shown notifications stay visible.
+		if (!isCopilot) {
+			this._logService.info('[quota notification] _update: deferred — not a Copilot model');
 			return;
 		}
 
@@ -332,16 +342,20 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Helpers ------------------------------------------------------------
 
-	private _isUsingByokModel(): boolean {
-		const modelId = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatModelId.key);
-		if (!modelId) {
-			return false; // no model selected — treat as Copilot (show notifications)
+	/**
+	 * Returns `true` only when a Copilot model is actively selected.
+	 * Returns `false` if no model is selected yet (widget not initialized)
+	 * or if the selected model is from a non-Copilot vendor (BYOK).
+	 */
+	private _isCopilotModelSelected(): boolean {
+		const vendor = getSelectedModelVendor(this._contextKeyService, this._storageService, this._languageModelsService);
+		if (!vendor) {
+			// No model selection available — assume Copilot
+			this._logService.info('[quota notification] _isCopilotModelSelected: no vendor found, assuming Copilot');
+			return true;
 		}
-		const metadata = this._languageModelsService.lookupLanguageModel(modelId);
-		if (!metadata) {
-			return false; // unknown model — treat as Copilot
-		}
-		return metadata.vendor !== COPILOT_VENDOR_ID;
+		this._logService.info(`[quota notification] _isCopilotModelSelected: vendor=${vendor}`);
+		return vendor === COPILOT_VENDOR_ID;
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
