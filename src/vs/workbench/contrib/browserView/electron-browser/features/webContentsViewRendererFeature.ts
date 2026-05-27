@@ -33,8 +33,8 @@ import { BrowserOverlayManager, BrowserOverlayType } from '../overlayManager.js'
  * - the focus dance that bounces focus between the workbench DOM and the WCV,
  * - native key event forwarding through the keybinding service,
  * - the pixel-snap layout contribution that keeps the container on physical
- *   pixel boundaries (registered at low priority so other contributions can
- *   override).
+ *   pixel boundaries (registered late in the priority chain so it refines
+ *   whatever sizing other contributions produce).
  *
  * An alternative renderer (e.g. an in-DOM iframe) would replace this
  * contribution and need none of the above.
@@ -86,7 +86,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		return [this._placeholderContent, this._overlayPauseContent];
 	}
 
-	override getContainerLayoutOverride(): IContainerLayoutOverride {
+	override beforeContainerLayout(): IContainerLayoutOverride {
 		return {
 			padding: { right: 3, bottom: 3, left: 3 },
 
@@ -94,25 +94,29 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			// main places the WCV at `round(v × hostZoom) × systemDPR` physical
 			// pixels while CSS renders it at `v × hostZoom × systemDPR`, so this
 			// collapses main's rounding to a no-op and keeps the WebContentsView
-			// aligned with the placeholder screenshot. Runs late so it refines
-			// whatever sizing upstream contributions (e.g. device emulation)
-			// produced.
-			compute: (current): IContainerLayout => {
+			// aligned with the placeholder screenshot. We snap the absolute
+			// origin (pane origin + local offset) then derive the corresponding
+			// local position so the DOM element and the WCV land on the same
+			// physical pixel. Runs late so it refines whatever sizing upstream
+			// contributions (e.g. device emulation) produced.
+			compute: (current, pane): IContainerLayout => {
 				const z = getZoomFactor(this.editor.window);
 				const snap = (v: number) => Math.floor(v * z) / z;
+				const absLeft = pane.originX + (current.left ?? 0);
+				const absTop = pane.originY + (current.top ?? 0);
 				return {
 					...current,
 					width: snap(current.width),
 					height: snap(current.height),
-					top: current.top !== undefined ? snap(current.top) : undefined,
-					left: current.left !== undefined ? snap(current.left) : undefined,
+					left: snap(absLeft) - pane.originX,
+					top: snap(absTop) - pane.originY,
 				};
 			},
 			priority: 1000,
 		};
 	}
 
-	override onContainerReady(container: HTMLElement): void {
+	override onContainerCreated(container: HTMLElement): void {
 		this._container = container;
 
 		this._register(addDisposableListener(container, EventType.FOCUS, (event: FocusEvent) => {
@@ -137,12 +141,19 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	// -- Base contribution hooks --------------------------------------------
 
-	override setEditorVisible(visible: boolean): void {
+	override onPaneVisibilityChanged(visible: boolean): void {
 		if (this._editorVisible === visible) {
 			return;
 		}
 		this._editorVisible = visible;
 		this._refresh();
+	}
+
+	override afterContainerLayout(): void {
+		// Container moved or resized — overlays that overlap us might have
+		// shifted relative to the container even though their own DOM didn't
+		// change. Recompute obscured state so the page can hide accordingly.
+		this._refreshOverlayObscured();
 	}
 
 	override focusPage(): void {
@@ -160,7 +171,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	// -- Model lifecycle ----------------------------------------------------
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._model = model;
 		this._setBackgroundImage(model.screenshot);
 
@@ -168,6 +179,9 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		store.add(model.onDidKeyCommand(keyEvent => void this._handleKeyEvent(keyEvent)));
 		store.add(model.onDidChangeFocus(({ focused }) => {
 			if (focused) {
+				// The WCV lives outside the DOM focus tracker, so the editor
+				// pane won't otherwise observe page focus. Notify it directly.
+				this.editor.notifyPageFocused();
 				this.editor.ensureBrowserFocus();
 			}
 		}));
@@ -178,7 +192,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		void this._doScreenshot();
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		if (this._model) {
 			void this._model.setVisible(false);
 		}
@@ -288,7 +302,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 			this.keybindingService.dispatchEvent(standardEvent, this._container);
 		} catch (error) {
-			this.logService.error('BrowserViewRendererFeature: Error dispatching key event', error);
+			this.logService.error('WebContentsViewRendererFeature: Error dispatching key event', error);
 		}
 	}
 

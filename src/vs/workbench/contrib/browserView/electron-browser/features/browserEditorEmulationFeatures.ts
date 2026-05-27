@@ -398,7 +398,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		return [this._toolbar.element];
 	}
 
-	override onContainerReady(container: HTMLElement): void {
+	override onContainerCreated(container: HTMLElement): void {
 		this._createResizeSashes(container);
 
 		const observer = new (getWindow(container).ResizeObserver)(() => {
@@ -409,14 +409,14 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._register({ dispose: () => observer.disconnect() });
 	}
 
-	override getContainerLayoutOverride(): IContainerLayoutOverride | undefined {
+	override beforeContainerLayout(): IContainerLayoutOverride | undefined {
 		if (!this.editor.model?.device) {
 			return undefined;
 		}
 		return {
 			// Reserve space for the east + south resize sashes that sit just outside the container.
 			padding: { right: 16, bottom: 16 },
-			compute: (_current, w, h) => this._computeLayout(w, h),
+			compute: (_current, pane) => this._computeLayout(pane.width, pane.height),
 			priority: 0
 		};
 	}
@@ -446,7 +446,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		};
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._toolbar.refresh();
 		this._syncContextKeys(model.device);
 		this._updateSashState();
@@ -468,7 +468,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		// Editor input is being cleared — drop renderer-side state so a freshly
 		// reopened input starts without stale viewport overrides.
 		this._scale = undefined;

@@ -52,7 +52,7 @@ const originalHtmlElementFocus = HTMLElement.prototype.focus;
 /**
  * Base class for browser editor services that track the model lifecycle.
  *
- * Subclasses implement {@link subscribeToModel} which is called whenever a new model is set.
+ * Subclasses implement {@link onModelAttached} which is called whenever a new model is set.
  * A {@link DisposableStore} is provided that is automatically cleared when the model
  * changes or the editor input is cleared.
  */
@@ -64,9 +64,9 @@ export abstract class BrowserEditorContribution extends Disposable {
 		this._register(editor.onDidChangeModel(({ model, isNew }) => {
 			this._modelStore.clear();
 			if (model) {
-				this.subscribeToModel(model, this._modelStore, isNew);
+				this.onModelAttached(model, this._modelStore, isNew);
 			} else {
-				this.clear();
+				this.onModelDetached();
 			}
 		}));
 	}
@@ -74,12 +74,12 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called whenever the editor model changes to update state.
 	 */
-	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, _isNew: boolean): void { }
+	protected onModelAttached(_model: IBrowserViewModel, _store: DisposableStore, _isNew: boolean): void { }
 
 	/**
 	 * Called when the model is cleared to reset state.
 	 */
-	clear(): void { }
+	onModelDetached(): void { }
 
 	/**
 	 * Optional widgets to display inside the URL bar (on the right side of the URL input,
@@ -97,13 +97,21 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called when the editor is laid out with a new dimension.
 	 */
-	layout(_width: number): void { }
+	onPaneResized(_width: number): void { }
+
+	/**
+	 * Called after the browser container has been laid out and its bounds
+	 * pushed to the model. Contributions can use this to react to position
+	 * changes (e.g. recompute overlay overlap), unlike {@link onPaneResized} which
+	 * only fires on pane dimension changes.
+	 */
+	afterContainerLayout(): void { }
 
 	/**
 	 * Called when the editor pane's visibility changes (e.g. tab switched).
 	 * Contributions that drive page rendering use this to pause/resume work.
 	 */
-	setEditorVisible(_visible: boolean): void { }
+	onPaneVisibilityChanged(_visible: boolean): void { }
 
 	/**
 	 * Called when the editor wants focus to land on the page content. Most
@@ -116,7 +124,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * Called once after the editor's browser container DOM has been created.
 	 * Use to do setup that needs to attach to `editor.browserContainer`.
 	 */
-	onContainerReady(_container: HTMLElement): void { }
+	onContainerCreated(_container: HTMLElement): void { }
 
 	/**
 	 * Optional contributions to how the browser container is sized and
@@ -128,7 +136,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * previous result so contributions can stack (e.g. device emulation sizes
 	 * and centers the viewport, then pixel-snap aligns it).
 	 */
-	getContainerLayoutOverride(): IContainerLayoutOverride | undefined { return undefined; }
+	beforeContainerLayout(): IContainerLayoutOverride | undefined { return undefined; }
 
 	/**
 	 * Content elements to mount inside the browser container's placeholder
@@ -139,14 +147,14 @@ export abstract class BrowserEditorContribution extends Disposable {
 	get containerContents(): readonly IBrowserContainerContent[] { return []; }
 }
 
-/** Customization returned by {@link BrowserEditorContribution.getContainerLayoutOverride}. */
+/** Customization returned by {@link BrowserEditorContribution.beforeContainerLayout}. */
 export interface IContainerLayoutOverride {
 	/**
 	 * Wrapper padding (CSS px) reserved by this contribution — e.g. for
 	 * widgets that sit outside the container (resize sashes), or a baseline
 	 * visual margin. The editor takes the per-side max across all
 	 * contributors and subtracts the result from the wrapper before passing
-	 * `paneWidth`/`paneHeight` to {@link compute}. Default 0 per side.
+	 * the pane info to {@link compute}. Default 0 per side.
 	 */
 	readonly padding?: {
 		top?: number;
@@ -156,14 +164,16 @@ export interface IContainerLayoutOverride {
 	};
 	/**
 	 * Transform the layout. Called in priority order (lower runs first); each
-	 * call receives the result of the previous compute plus the available
-	 * pane size (wrapper minus aggregated padding) for reference. The initial
-	 * input is `{ width: paneWidth, height: paneHeight, top: 0, left: 0 }`
-	 * with no emulation — `top`/`left` are local coordinates relative to the
-	 * top-left of the available area. Returning `undefined` leaves the
-	 * current layout unchanged.
+	 * call receives the result of the previous compute plus pane info
+	 * (available size and the absolute screen origin of layout-space (0,0)).
+	 * The initial input is `{ width: pane.width, height: pane.height, top: 0,
+	 * left: 0 }` with no emulation — `top`/`left` are local coordinates
+	 * relative to the top-left of the available area. The pane origin lets
+	 * contributions reason about absolute pixel alignment (e.g. snap to
+	 * physical pixels) and convert back to local coords. Returning
+	 * `undefined` leaves the current layout unchanged.
 	 */
-	readonly compute?: (current: IContainerLayout, paneWidth: number, paneHeight: number) => IContainerLayout | undefined;
+	readonly compute?: (current: IContainerLayout, pane: IContainerLayoutPane) => IContainerLayout | undefined;
 	/**
 	 * Priority for {@link compute}. Lower numbers run earlier so later
 	 * contributions can refine the result (e.g. emulation runs at priority 0
@@ -171,6 +181,18 @@ export interface IContainerLayoutOverride {
 	 * align). Default 0.
 	 */
 	readonly priority?: number;
+}
+
+/** Pane info passed to {@link IContainerLayoutOverride.compute}. */
+export interface IContainerLayoutPane {
+	/** Available width after aggregated padding is applied (CSS px). */
+	readonly width: number;
+	/** Available height after aggregated padding is applied (CSS px). */
+	readonly height: number;
+	/** Absolute screen x of layout-space (0, 0). */
+	readonly originX: number;
+	/** Absolute screen y of layout-space (0, 0). */
+	readonly originY: number;
 }
 
 export interface IContainerLayout {
@@ -524,7 +546,7 @@ export class BrowserEditor extends EditorPane {
 
 		// Notify contributions that the container DOM is ready.
 		for (const contribution of this._contributionInstances.values()) {
-			contribution.onContainerReady(this._browserContainer);
+			contribution.onContainerCreated(this._browserContainer);
 		}
 
 		// Wrapper around placeholder contents for border radius clipping. Holds
@@ -639,7 +661,7 @@ export class BrowserEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		for (const c of this._contributionInstances.values()) {
-			c.setEditorVisible(visible);
+			c.onPaneVisibilityChanged(visible);
 		}
 		this.updateVisibility();
 	}
@@ -649,6 +671,16 @@ export class BrowserEditor extends EditorPane {
 	 */
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
+	}
+
+	/**
+	 * Notify the editor pane that focus has landed on the page content.
+	 * The renderer-providing contribution calls this when the underlying
+	 * page reports focus, since the page lives outside the DOM focus tracker
+	 * and so doesn't propagate through {@link EditorPane.onDidFocus}.
+	 */
+	notifyPageFocused(): void {
+		this._onDidFocus?.fire();
 	}
 
 	private updateVisibility(): void {
@@ -891,7 +923,7 @@ export class BrowserEditor extends EditorPane {
 	override layout(dimension?: Dimension, _position?: IDomPosition): void {
 		if (dimension) {
 			for (const contribution of this._contributionInstances.values()) {
-				contribution.layout(dimension.width);
+				contribution.onPaneResized(dimension.width);
 			}
 		}
 
@@ -918,7 +950,7 @@ export class BrowserEditor extends EditorPane {
 
 		const overrides: IContainerLayoutOverride[] = [];
 		for (const c of this._contributionInstances.values()) {
-			const o = c.getContainerLayoutOverride();
+			const o = c.beforeContainerLayout();
 			if (o) {
 				overrides.push(o);
 			}
@@ -943,13 +975,21 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		// Chain compute callbacks in priority order over the area available
-		// after padding. layout.top/left are local to the available area.
+		// after padding. layout.top/left are local to the available area; pane
+		// info also carries the absolute screen origin so contributions can
+		// reason about pixel alignment.
 		const paneWidth = Math.max(0, wrapperRect.width - padding.left - padding.right);
 		const paneHeight = Math.max(0, wrapperRect.height - padding.top - padding.bottom);
+		const pane: IContainerLayoutPane = {
+			width: paneWidth,
+			height: paneHeight,
+			originX: wrapperRect.left + padding.left,
+			originY: wrapperRect.top + padding.top,
+		};
 		const sorted = overrides.slice().sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
 		let layout: IContainerLayout = { width: paneWidth, height: paneHeight, top: 0, left: 0 };
 		for (const o of sorted) {
-			const next = o.compute?.(layout, paneWidth, paneHeight);
+			const next = o.compute?.(layout, pane);
 			if (next) {
 				layout = next;
 			}
@@ -957,6 +997,7 @@ export class BrowserEditor extends EditorPane {
 
 		const left = padding.left + (layout.left ?? 0);
 		const top = padding.top + (layout.top ?? 0);
+
 		this._browserContainer.style.width = `${layout.width}px`;
 		this._browserContainer.style.height = `${layout.height}px`;
 		this._browserContainer.style.left = `${left}px`;
@@ -973,6 +1014,10 @@ export class BrowserEditor extends EditorPane {
 			cornerRadius,
 			emulation: layout.emulation,
 		});
+
+		for (const c of this._contributionInstances.values()) {
+			c.afterContainerLayout();
+		}
 	}
 
 	/**

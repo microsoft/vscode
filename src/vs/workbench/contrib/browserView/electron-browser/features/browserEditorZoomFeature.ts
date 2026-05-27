@@ -91,14 +91,14 @@ export class BrowserEditorZoomSupport extends BrowserEditorContribution {
 		return [{ element: this._zoomPill.element, order: 0 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._updateZoomContext(model);
 		store.add(model.onDidChangeZoom(() => {
 			this._updateZoomContext(model);
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._canZoomInContext.reset();
 		this._canZoomOutContext.reset();
 	}
