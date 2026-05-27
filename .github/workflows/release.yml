@@ -10,15 +10,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      quality:
-        description: 'Quality (oss, insider, stable)'
-        required: false
-        default: 'oss'
-        type: choice
-        options:
-          - oss
-          - insider
-          - stable
       platforms:
         description: 'Platforms to build'
         required: false
@@ -46,7 +37,7 @@ permissions:
   contents: write
 
 env:
-  VSCODE_QUALITY: ${{ github.event.inputs.quality || 'oss' }}
+  VSCODE_QUALITY: stable
 
 jobs:
   build-win32-x64:
@@ -159,21 +150,11 @@ jobs:
         shell: pwsh
         run: npm run gulp vscode-win32-x64-user-setup
 
-      - name: Build Windows x64 System Setup
-        shell: pwsh
-        run: npm run gulp vscode-win32-x64-system-setup
-
       - name: Upload User Setup Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-win32-x64-user-setup
           path: .build/win32-x64/user-setup/*.exe
-
-      - name: Upload System Setup Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vscode-win32-x64-system-setup
-          path: .build/win32-x64/system-setup/*.exe
 
   build-win32-arm64:
     name: Build Windows arm64
@@ -285,21 +266,11 @@ jobs:
         shell: pwsh
         run: npm run gulp vscode-win32-arm64-user-setup
 
-      - name: Build Windows arm64 System Setup
-        shell: pwsh
-        run: npm run gulp vscode-win32-arm64-system-setup
-
       - name: Upload User Setup Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-win32-arm64-user-setup
           path: .build/win32-arm64/user-setup/*.exe
-
-      - name: Upload System Setup Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vscode-win32-arm64-system-setup
-          path: .build/win32-arm64/system-setup/*.exe
 
   build-darwin:
     name: Build macOS

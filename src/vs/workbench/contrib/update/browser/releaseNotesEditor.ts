@@ -149,7 +149,7 @@ export class ReleaseNotesManager extends Disposable {
 	}
 
 	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
-		const match = /^v(\d+\.\d+)\./.exec(version);
+		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			throw new Error('not found');
 		}

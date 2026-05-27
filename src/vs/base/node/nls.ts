@@ -204,7 +204,7 @@ function defaultNLSConfiguration(userLocale: string, osLocale: string, nlsMetada
 	return {
 		userLocale,
 		osLocale,
-		resolvedLanguage: 'en',
+		resolvedLanguage: userLocale, // test-workbench_change: use userLocale so Language.value() matches
 		defaultMessagesFile: join(nlsMetadataPath, 'nls.messages.json'),
 
 		// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
