@@ -257,6 +257,10 @@ class StubCopilotApiService implements ICopilotApiService {
 	async models(): Promise<CCAModel[]> {
 		return this.availableModels;
 	}
+
+	async utilityChatCompletion(): Promise<never> {
+		throw new Error('utilityChatCompletion not implemented in this test');
+	}
 }
 
 // #endregion
