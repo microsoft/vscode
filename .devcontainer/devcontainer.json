@@ -4,6 +4,7 @@
 		"dockerfile": "Dockerfile"
 	},
 	"features": {
+		"ghcr.io/devcontainers/features/git-lfs:": {},
 		"ghcr.io/devcontainers/features/desktop-lite:": {},
 		"ghcr.io/devcontainers/features/rust:": {}
 	},
