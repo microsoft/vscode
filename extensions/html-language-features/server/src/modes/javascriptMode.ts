@@ -186,9 +186,14 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (info) {
 				const contents = ts.displayPartsToString(info.displayParts);
+				const documentation = ts.displayPartsToString(info.documentation);
+				const parts = ['```typescript', contents, '```'];
+				if (documentation) {
+					parts.push(documentation);
+				}
 				return {
 					range: convertRange(jsDocument, info.textSpan),
-					contents: ['```typescript', contents, '```'].join('\n')
+					contents: parts.join('\n')
 				};
 			}
 			return null;
