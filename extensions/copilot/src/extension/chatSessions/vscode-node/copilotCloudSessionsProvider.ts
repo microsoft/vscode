@@ -18,6 +18,7 @@ import { GithubRepoId, IGitService } from '../../../platform/git/common/gitServi
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
 import { CCAModel } from '@vscode/copilot-api';
+import { getModelCapabilitiesDescription } from '../../conversation/common/languageModelAccess';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -487,9 +488,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				},
 				targetChatSessionType: CopilotCloudSessionsProvider.TYPE,
 				isDefault: model.id === DEFAULT_MODEL_ID ? true : undefined,
-				tooltip: buildCloudModelTooltip(model, isUBB),
 			};
-			return info;
+			return { ...info, tooltip: getModelCapabilitiesDescription(info) ?? '' };
 		});
 
 		// Ensure an Auto model exists
@@ -2900,48 +2900,4 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.refresh();
 		return { kind: 'pr', number: result.prNumber, sessionId: result.sessionId };
 	}
-}
-
-function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		return `${Math.ceil(count / 1_000_000)}M`;
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
-}
-
-function buildCloudModelTooltip(model: CCAModel, isUBB: boolean): string {
-	const lines: string[] = [];
-
-	lines.push(`**${model.name}**`);
-
-	if (model.preview) {
-		lines.push(l10n.t('*(Preview)*'));
-	}
-
-	// Cost info
-	if (isUBB) {
-		if (model.billing?.multiplier !== undefined) {
-			lines.push('');
-			lines.push(l10n.t('Cost: {0}x', model.billing.multiplier));
-		}
-	} else {
-		if (model.billing?.multiplier !== undefined) {
-			lines.push('');
-			lines.push(l10n.t('Multiplier: {0}x', model.billing.multiplier));
-		}
-	}
-
-	// Context size
-	const limits = model.capabilities?.limits;
-	if (limits) {
-		const totalTokens = (limits.max_prompt_tokens ?? 0) + (limits.max_output_tokens ?? 0);
-		if (totalTokens > 0) {
-			lines.push('');
-			lines.push(l10n.t('Max context: {0}', formatTokenCount(totalTokens)));
-		}
-	}
-
-	return lines.join('\n');
 }
