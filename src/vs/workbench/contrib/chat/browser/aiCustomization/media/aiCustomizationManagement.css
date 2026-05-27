@@ -341,7 +341,7 @@
 .ai-customization-group-header {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	padding: 4px 8px;
 	cursor: pointer;
 	-webkit-user-select: none;
@@ -397,7 +397,6 @@
 	font-size: var(--vscode-agents-fontSize-label2);
 	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-descriptionForeground);
-	min-width: 14px;
 	text-align: right;
 	margin-top: 2px;
 }
@@ -426,8 +425,8 @@
 /* List item styling */
 .ai-customization-list-item {
 	display: flex;
-	align-items: flex-start;
-	padding: 6px 8px 6px 30px;
+	align-items: center;
+	padding: 6px 12px 6px 16px;
 	cursor: pointer;
 	border-radius: 4px;
 	min-height: 32px;
@@ -567,7 +566,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	margin-left: 8px;
+	margin-left: 16px;
 	gap: 4px;
 	opacity: 0;
 	transition: opacity 0.1s ease;

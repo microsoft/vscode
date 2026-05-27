@@ -362,6 +362,7 @@ export class McpListWidget extends Disposable {
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
+	private backButton!: Button;
 	private addButton!: Button;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
@@ -474,6 +475,22 @@ export class McpListWidget extends Disposable {
 
 		// Button container (Browse Marketplace + Add Server)
 		const buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
+
+		// Back button (visible only in marketplace browse mode)
+		const backButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
+		this.backButton = this._register(new Button(backButtonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: localize('backToInstalled', "Back to installed servers"),
+			ariaLabel: localize('backToInstalled', "Back to installed servers")
+		}));
+		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('back', "Back")}`;
+		this.backButton.element.classList.add('list-add-button');
+		backButtonContainer.style.display = 'none';
+		this._register(this.backButton.onDidClick(() => {
+			this.toggleBrowseMode(false);
+		}));
 
 		// Browse Marketplace button
 		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
@@ -646,6 +663,7 @@ export class McpListWidget extends Disposable {
 		// Update UI for browse vs installed mode
 		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
+		this.backButton.element.parentElement!.style.display = browse ? '' : 'none';
 
 		this.searchInput.setPlaceHolder(browse
 			? localize('searchGalleryPlaceholder', "Search MCP marketplace...")
