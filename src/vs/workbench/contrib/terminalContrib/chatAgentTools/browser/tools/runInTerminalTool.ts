@@ -77,7 +77,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
-import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
+import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
@@ -434,8 +434,7 @@ export function shouldAutomaticallyRetryUnsandboxed(options: IAutomaticUnsandbox
 		&& !options.isPersistentSession
 		&& !options.isBackgroundExecution
 		&& !options.didTimeout
-		&& options.exitCode !== 0
-		&& outputLooksSandboxBlocked(options.output);
+		&& options.exitCode !== 0;
 }
 
 /**
