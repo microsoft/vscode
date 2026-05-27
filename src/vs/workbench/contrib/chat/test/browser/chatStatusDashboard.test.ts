@@ -595,6 +595,40 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
+	test('Callout: Enterprise — shows org-specific wording when approaching limit with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, your organization has enabled additional usage to allow for continued use.');
+	});
+
+	test('Callout: Business — shows org-specific wording when approaching limit with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, your organization has enabled additional usage to allow for continued use.');
+	});
+
+	test('Callout: Enterprise — shows org-specific wording when quota exhausted with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Your organization has enabled additional usage. Usage will continue until limits reset.');
+	});
+
 	// --- LIVE UPDATES ---
 
 	function createMutableEntitlementService(opts: {
