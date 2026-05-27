@@ -914,6 +914,12 @@ export namespace ConfigKey {
 		/** Enable WebSocket transport for Responses API requests. When enabled, uses a persistent WebSocket connection per conversation instead of individual HTTP requests. */
 		export const ResponsesApiWebSocketEnabled = defineTeamInternalSetting<boolean>('chat.advanced.responsesApi.webSocket.enabled', ConfigType.ExperimentBased, true);
 		export const DebugSimulateWebSocketResponse = defineTeamInternalSetting<string>('chat.advanced.debug.simulateWebSocketResponse', ConfigType.Simple, '');
+
+		/** Max events per cloud session sync flush request — also acts as a buffer-size flush trigger. */
+		export const SessionSyncMaxEventsPerFlush = defineTeamInternalSetting<number>('chat.advanced.sessionSync.maxEventsPerFlush', ConfigType.ExperimentBased, 500);
+
+		/** Safety-net interval (ms) for buffered cloud session sync events that did not trigger a terminal flush. */
+		export const SessionSyncSafetyIntervalMs = defineTeamInternalSetting<number>('chat.advanced.sessionSync.safetyIntervalMs', ConfigType.ExperimentBased, 60_000);
 	}
 
 	/**
@@ -1066,12 +1072,6 @@ export namespace ConfigKey {
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/
 	export const LocalIndexEnabled = defineSetting<boolean>('chat.localIndex.enabled', ConfigType.ExperimentBased, false);
-
-	/** Max events per cloud session sync flush request — also acts as a buffer-size flush trigger. */
-	export const SessionSyncMaxEventsPerFlush = defineSetting<number>('chat.sessionSync.maxEventsPerFlush', ConfigType.ExperimentBased, 500);
-
-	/** Safety-net interval (ms) for buffered cloud session sync events that did not trigger a terminal flush. */
-	export const SessionSyncSafetyIntervalMs = defineSetting<number>('chat.sessionSync.safetyIntervalMs', ConfigType.ExperimentBased, 60_000);
 }
 
 export function getAllConfigKeys(): string[] {

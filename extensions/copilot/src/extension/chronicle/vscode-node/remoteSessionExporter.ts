@@ -51,7 +51,7 @@ const BATCH_INTERVAL_MS = 500;
 /**
  * Default safety-net interval for buffered events that did not trigger a
  * terminal flush. The effective value is read from
- * {@link ConfigKey.SessionSyncSafetyIntervalMs} at runtime; this constant is
+ * {@link ConfigKey.TeamInternal.SessionSyncSafetyIntervalMs} at runtime; this constant is
  * only used as the fallback when no configuration service is available
  * (e.g. in tests that bypass the constructor).
  */
@@ -60,7 +60,7 @@ export const SAFETY_INTERVAL_MS = 60_000;
 /**
  * Default max events per flush request — also acts as a buffer-size flush
  * trigger. The effective value is read from
- * {@link ConfigKey.SessionSyncMaxEventsPerFlush} at runtime.
+ * {@link ConfigKey.TeamInternal.SessionSyncMaxEventsPerFlush} at runtime.
  */
 const MAX_EVENTS_PER_FLUSH = 500;
 
@@ -204,7 +204,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	 * safety backoff into an immediate timer and busy-poll a failing endpoint.
 	 */
 	private _getSafetyIntervalMs(): number {
-		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncSafetyIntervalMs, this._expService);
+		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSyncSafetyIntervalMs, this._expService);
 		return typeof configured === 'number' && Number.isFinite(configured) && configured > 0
 			? configured
 			: SAFETY_INTERVAL_MS;
@@ -218,7 +218,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	 * re-arming fast flushes without uploading any events.
 	 */
 	private _getMaxEventsPerFlush(): number {
-		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncMaxEventsPerFlush, this._expService);
+		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSyncMaxEventsPerFlush, this._expService);
 		return Number.isInteger(configured) && configured > 0
 			? configured
 			: MAX_EVENTS_PER_FLUSH;
