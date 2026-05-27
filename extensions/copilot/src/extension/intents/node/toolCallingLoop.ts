@@ -50,7 +50,7 @@ import { ThinkingDataItem, ToolCallRound } from '../../prompt/common/toolCallRou
 import { IBuildPromptResult, IResponseProcessor } from '../../prompt/node/intents';
 import { PseudoStopStartResponseProcessor } from '../../prompt/node/pseudoStartStopConversationCallback';
 import { ResponseProcessorContext } from '../../prompt/node/responseProcessorContext';
-import { ResponsesApiCompactionTriggerMetadata, SummarizedConversationHistoryMetadata } from '../../prompts/node/agent/summarizedConversationHistory';
+import { SummarizedConversationHistoryMetadata } from '../../prompts/node/agent/summarizedConversationHistory';
 import { ToolFailureEncountered, ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService, ToolCallCancelledError } from '../../tools/common/toolsService';
@@ -105,7 +105,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId' | 'triggerResponsesApiCompaction'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -1256,8 +1256,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (conversationSummary) {
 			this.turn.setMetadata(conversationSummary);
 		}
-		const responsesApiCompactionTriggerMetadata = effectiveBuildPromptResult.metadata.get(ResponsesApiCompactionTriggerMetadata);
-		const responsesApiCompactionTrigger = !!responsesApiCompactionTriggerMetadata;
 		const hasResponsesApiCompactionData = ToolCallingLoop.hasResponsesApiCompactionData(effectiveBuildPromptResult.messages);
 
 		// Find the latest summarized round.
@@ -1364,11 +1362,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		let compaction: OpenAIContextManagementResponse | undefined;
 		this._sendResponsesApiCompactionRequestTelemetry({
 			model: endpoint.model,
-			triggerRequested: isResponsesApiEndpoint && responsesApiCompactionTrigger,
+			triggerRequested: false,
 			compactionDataReplayed: isResponsesApiEndpoint && hasResponsesApiCompactionData,
-			contextLengthBefore: responsesApiCompactionTriggerMetadata?.contextLengthBefore,
-			contextRatio: responsesApiCompactionTriggerMetadata?.contextRatio,
-			tokenBudget: responsesApiCompactionTriggerMetadata?.tokenBudget,
+			contextLengthBefore: undefined,
+			contextRatio: undefined,
+			tokenBudget: undefined,
 			promptTokenLength,
 			toolTokenCount,
 			iterationNumber,
@@ -1379,7 +1377,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			turnId: this.options.request.id,
 			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
-			triggerResponsesApiCompaction: responsesApiCompactionTrigger,
 			finishedCb: async (text, index, delta) => {
 				fetchStreamSource?.update(text, delta);
 				if (delta.copilotToolCalls) {
@@ -1471,7 +1468,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (fetchResult.type === ChatFetchResponseType.Success) {
 			this._sendResponsesApiCompactionResponseTelemetry({
 				model: endpoint.model,
-				triggerRequested: isResponsesApiEndpoint && responsesApiCompactionTrigger,
+				triggerRequested: false,
 				compactionReturned: isResponsesApiEndpoint && !!compaction,
 				promptTokens: fetchResult.usage?.prompt_tokens,
 				completionTokens: fetchResult.usage?.completion_tokens,

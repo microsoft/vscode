@@ -13,7 +13,6 @@ import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/stati
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { openAIContextManagementCompactionType } from '../../../../platform/networking/common/openai';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -190,33 +189,6 @@ suite('defaultIntentRequestHandler', () => {
 		// Wait for event loop to finish as we often fire off telemetry without properly awaiting it as it doesn't matter when it is sent
 		await new Promise(setImmediate);
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
-	});
-
-	test('continues after a compaction-only Responses API result and returns the next visible response', async () => {
-		const handler = makeHandler();
-		chatResponse[0] = [{
-			text: '',
-			contextManagement: {
-				type: openAIContextManagementCompactionType,
-				id: 'cmp-1',
-				encrypted_content: 'encrypted-compaction',
-			},
-		}];
-		chatResponse[1] = 'response after compaction';
-		promptResult = {
-			...nullRenderPromptResult(),
-			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
-		};
-
-		const result = await handler.getResult();
-
-		expect(result.errorDetails).toBeUndefined();
-		expect(builtPrompts).toHaveLength(2);
-		expect(builtPrompts[1].toolCallRounds?.[0].compaction).toEqual({
-			type: openAIContextManagementCompactionType,
-			id: 'cmp-1',
-			encrypted_content: 'encrypted-compaction',
-		});
 	});
 
 	test('propagates resolvedModel into result metadata from a successful response', async () => {

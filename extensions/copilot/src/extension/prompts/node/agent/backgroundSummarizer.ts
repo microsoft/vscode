@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OpenAIContextManagementResponse } from '../../../../platform/networking/common/openai';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 
 /**
@@ -37,6 +38,24 @@ export interface IBackgroundSummarizationResult {
 	readonly summarizationMode?: string;
 	readonly numRounds?: number;
 	readonly numRoundsSinceLastSummarization?: number;
+}
+
+export interface IBackgroundResponsesApiCompactionResult {
+	readonly kind: 'responsesApiCompaction';
+	readonly compaction: OpenAIContextManagementResponse;
+	/** Round IDs represented by the prompt sent to the background compaction request. */
+	readonly includedRoundIds: readonly string[];
+	readonly promptTokens?: number;
+	readonly promptCacheTokens?: number;
+	readonly outputTokens?: number;
+	readonly durationMs?: number;
+	readonly model?: string;
+}
+
+export type IBackgroundCompactionResult = IBackgroundSummarizationResult | IBackgroundResponsesApiCompactionResult;
+
+export function isBackgroundResponsesApiCompactionResult(result: IBackgroundCompactionResult): result is IBackgroundResponsesApiCompactionResult {
+	return 'kind' in result && result.kind === 'responsesApiCompaction';
 }
 
 /**
@@ -94,10 +113,10 @@ export function shouldKickOffBackgroundSummarization(
  * on every tool-call iteration to decide whether to start, wait for, or
  * apply a background summary.
  */
-export class BackgroundSummarizer {
+export class BackgroundSummarizer<TResult extends IBackgroundCompactionResult = IBackgroundSummarizationResult> {
 
 	private _state: BackgroundSummarizationState = BackgroundSummarizationState.Idle;
-	private _result: IBackgroundSummarizationResult | undefined;
+	private _result: TResult | undefined;
 	private _error: unknown;
 	private _promise: Promise<void> | undefined;
 	private _cts: CancellationTokenSource | undefined;
@@ -106,6 +125,8 @@ export class BackgroundSummarizer {
 
 	get state(): BackgroundSummarizationState { return this._state; }
 	get error(): unknown { return this._error; }
+	/** Peek at a completed result without resetting state, for results awaiting a safe replay boundary. */
+	get completedResult(): TResult | undefined { return this._state === BackgroundSummarizationState.Completed ? this._result : undefined; }
 
 	get token() { return this._cts?.token; }
 
@@ -113,7 +134,7 @@ export class BackgroundSummarizer {
 		this.modelMaxPromptTokens = modelMaxPromptTokens;
 	}
 
-	start(work: (token: CancellationToken) => Promise<IBackgroundSummarizationResult>, parentToken?: CancellationToken): void {
+	start(work: (token: CancellationToken) => Promise<TResult>, parentToken?: CancellationToken): void {
 		if (this._state !== BackgroundSummarizationState.Idle && this._state !== BackgroundSummarizationState.Failed) {
 			return; // already running or completed
 		}
@@ -146,7 +167,7 @@ export class BackgroundSummarizer {
 		}
 	}
 
-	consumeAndReset(): IBackgroundSummarizationResult | undefined {
+	consumeAndReset(): TResult | undefined {
 		if (this._state === BackgroundSummarizationState.InProgress) {
 			return undefined;
 		}

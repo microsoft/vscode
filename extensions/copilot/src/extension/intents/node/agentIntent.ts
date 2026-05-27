@@ -13,13 +13,16 @@ import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGpt54, isGpt55, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { rawPartAsCompactionData } from '../../../platform/endpoint/common/compactionDataContainer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
+import { isOpenAIContextManagementResponse } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -45,12 +48,12 @@ import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
-import { IBuildPromptResult, IIntent, IIntentInvocation, promptResultMetadata } from '../../prompt/node/intents';
+import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundCompactionResult, IBackgroundResponsesApiCompactionResult, IBackgroundSummarizationResult, isBackgroundResponsesApiCompactionResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { appendTranscriptHintToSummary, computeSummarizationRoundCounts, extractSummary, ResponsesApiCompactionTriggerMetadata, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
+import { appendTranscriptHintToSummary, computeSummarizationRoundCounts, extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
@@ -70,6 +73,21 @@ import { ToolCallingLoop } from './toolCallingLoop';
 
 function isResponsesApiCompactionTriggerModel(endpoint: IChatEndpoint): boolean {
 	return endpoint.apiType === 'responses' && (isGpt54(endpoint) || isGpt55(endpoint));
+}
+
+function getMessagesRetainedAfterResponsesApiCompaction(messages: readonly Raw.ChatMessage[]): Raw.ChatMessage[] | undefined {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (message.role === Raw.ChatRole.Assistant && message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.Opaque && !!rawPartAsCompactionData(part))) {
+			// Match Responses API serialization: a compaction item replaces earlier
+			// conversational history, while current system instructions are retained.
+			return [
+				...messages.slice(0, index).filter(message => message.role === Raw.ChatRole.System),
+				...messages.slice(index),
+			];
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -220,7 +238,7 @@ export class AgentIntent extends EditCodeIntent {
 
 	override readonly id = AgentIntent.ID;
 
-	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer>();
+	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer<IBackgroundCompactionResult>>();
 	private readonly _backgroundTodoProcessors = new Map<string, BackgroundTodoProcessor>();
 
 	constructor(
@@ -249,10 +267,10 @@ export class AgentIntent extends EditCodeIntent {
 		});
 	}
 
-	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number): BackgroundSummarizer {
+	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number): BackgroundSummarizer<IBackgroundCompactionResult> {
 		let summarizer = this._backgroundSummarizers.get(sessionId);
 		if (!summarizer) {
-			summarizer = new BackgroundSummarizer(modelMaxPromptTokens);
+			summarizer = new BackgroundSummarizer<IBackgroundCompactionResult>(modelMaxPromptTokens);
 			this._backgroundSummarizers.set(sessionId, summarizer);
 		}
 		return summarizer;
@@ -567,7 +585,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		//                shouldKickOffBackgroundSummarization) so it is
 		//                ready for a future turn.
 		//
-		const backgroundSummarizer = summarizationEnabled ? this._getOrCreateBackgroundSummarizer(promptContext.conversation?.sessionId) : undefined;
+		const backgroundSummarizer = (summarizationEnabled || responsesApiCompactionTriggerEnabled) ? this._getOrCreateBackgroundSummarizer(promptContext.conversation?.sessionId) : undefined;
 		// Walk back through turns to find the most recent one with token usage
 		// metadata. On iteration 1 of a fresh user turn, the current turn has
 		// no fetch yet, so fall back to the previous turn — otherwise the floor
@@ -577,10 +595,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		const contextRatio = (summarizationEnabled || responsesApiCompactionTriggerEnabled) && baseBudget > 0
 			? Math.max(this._lastRenderTokenCount + toolTokens, lastTurnPromptTokens ?? 0) / baseBudget
 			: 0;
-		let triggerResponsesApiCompaction = false;
-		let responsesApiCompactionContextLengthBefore = 0;
-		let responsesApiCompactionContextRatio = 0;
-
 		// Track whether this iteration already performed compaction-related work
 		// (including applying a summary or using a foreground fallback path) so
 		// we don't immediately re-trigger background compaction in the post-render check.
@@ -589,7 +603,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// If a previous background pass completed, apply its summary now.
 		if (summarizationEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
 			const bgResult = backgroundSummarizer.consumeAndReset();
-			if (bgResult) {
+			if (bgResult && !isBackgroundResponsesApiCompactionResult(bgResult)) {
 				this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
 				progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
 				this._applySummaryToRounds(bgResult, promptContext);
@@ -600,6 +614,20 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
 				this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
 				this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+			}
+		}
+
+		// A background Responses API request compacted exactly the messages it saw
+		// at kick-off. Attach its opaque boundary before the first assistant round
+		// created afterwards, never to a round already contained in that snapshot.
+		if (responsesApiCompactionTriggerEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
+			const bgResult = backgroundSummarizer.completedResult;
+			if (bgResult && isBackgroundResponsesApiCompactionResult(bgResult) && this._applyResponsesApiCompactionToRounds(bgResult, promptContext)) {
+				backgroundSummarizer.consumeAndReset();
+				this.logService.debug(`[ResponsesApiCompactionTrigger] applied completed background compaction to next context window`);
+				progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
+				this._sendBackgroundCompactionTelemetry('responsesApiPreRender', 'applied', contextRatio, promptContext);
+				didSummarizeThisIteration = true;
 			}
 		}
 
@@ -725,7 +753,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
 					}
 					const bgResult = backgroundSummarizer.consumeAndReset();
-					if (bgResult) {
+					if (bgResult && !isBackgroundResponsesApiCompactionResult(bgResult)) {
 						this.logService.debug(`[ConversationHistorySummarizer] background compaction applied after budget exceeded (roundId=${bgResult.toolCallRoundId})`);
 						this._applySummaryToRounds(bgResult, promptContext);
 						this._persistSummaryOnTurn(bgResult, promptContext, contextLengthBefore);
@@ -790,8 +818,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// here — so we gate kick-off on a completed tool call (cache has been
 		// warmed) before checking the background summarization threshold.
 		if ((summarizationEnabled || responsesApiCompactionTriggerEnabled) && !didSummarizeThisIteration) {
-			const localPostRender = result.tokenCount + toolTokens;
-			const effectivePostRender = Math.max(localPostRender, lastTurnPromptTokens ?? 0);
+			const retainedAfterResponsesApiCompaction = responsesApiCompactionTriggerEnabled ? getMessagesRetainedAfterResponsesApiCompaction(result.messages) : undefined;
+			const localPostRender = retainedAfterResponsesApiCompaction
+				? await this.endpoint.acquireTokenizer().countMessagesTokens(retainedAfterResponsesApiCompaction) + toolTokens
+				: result.tokenCount + toolTokens;
+			// Once an opaque compaction boundary is replayed, serialization discards
+			// history before that boundary. Older usage therefore cannot be a floor
+			// for deciding when to start the next background compaction.
+			const effectivePostRender = Math.max(localPostRender, retainedAfterResponsesApiCompaction ? 0 : (lastTurnPromptTokens ?? 0));
 			const postRenderRatio = baseBudget > 0
 				? effectivePostRender / baseBudget
 				: 0;
@@ -800,14 +834,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 			const kickOff = shouldKickOffBackgroundSummarization(effectivePostRender, postRenderRatio, cacheWarm, this._thresholdRng);
 
-			if (responsesApiCompactionTriggerEnabled) {
-				if (kickOff) {
-					triggerResponsesApiCompaction = true;
-					responsesApiCompactionContextLengthBefore = effectivePostRender;
-					responsesApiCompactionContextRatio = postRenderRatio;
-					this.logService.debug(`[ResponsesApiCompactionTrigger] requesting server compaction at ratio=${postRenderRatio.toFixed(3)}, contextLength=${effectivePostRender}`);
-				}
-			} else if (backgroundSummarizer) {
+			if (backgroundSummarizer) {
 				const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
 					|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
 
@@ -828,7 +855,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
 						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
 					};
-					this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+					if (responsesApiCompactionTriggerEnabled) {
+						this._startBackgroundResponsesApiCompaction(backgroundSummarizer, result.messages, promptContext, token, postRenderRatio);
+					} else {
+						this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+					}
 				}
 			}
 		}
@@ -858,10 +889,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 
-		let metadata = codebase ? mergeMetadata(result.metadata, codebase.metadatas) : result.metadata;
-		if (triggerResponsesApiCompaction) {
-			metadata = mergeMetadata(metadata, promptResultMetadata([new ResponsesApiCompactionTriggerMetadata(responsesApiCompactionContextLengthBefore, responsesApiCompactionContextRatio, baseBudget)]));
-		}
+		const metadata = codebase ? mergeMetadata(result.metadata, codebase.metadatas) : result.metadata;
 
 		return {
 			...result,
@@ -904,8 +932,87 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 	}
 
+	private _startBackgroundResponsesApiCompaction(
+		backgroundSummarizer: BackgroundSummarizer<IBackgroundCompactionResult>,
+		mainRenderMessages: Raw.ChatMessage[],
+		promptContext: IBuildPromptContext,
+		token: vscode.CancellationToken,
+		contextRatio: number,
+	): void {
+		this.logService.debug(`[ResponsesApiCompactionTrigger] context at ${(contextRatio * 100).toFixed(0)}% — starting background server compaction`);
+
+		// The opaque compaction item represents only rounds present in this
+		// request. Its replay boundary must be placed before a later round.
+		const includedRoundIds = [
+			...promptContext.history.flatMap(turn => turn.rounds.map(round => round.id)),
+			...(promptContext.toolCallRounds ?? []).map(round => round.id),
+		];
+		const availableTools = promptContext.tools?.availableTools;
+		const normalizedTools = availableTools?.length ? normalizeToolSchema(
+			this.endpoint.family,
+			availableTools.map(tool => ({
+				function: {
+					name: tool.name,
+					description: tool.description,
+					parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
+				},
+				type: 'function' as const,
+			})),
+			(tool, rule) => {
+				this.logService.warn(`[ResponsesApiCompactionTrigger] Tool ${tool} failed validation: ${rule}`);
+			},
+		) : undefined;
+		const toolOpts = normalizedTools?.length ? { tools: normalizedTools } : undefined;
+		const conversationId = promptContext.conversation?.sessionId;
+		const associatedRequestId = promptContext.conversation?.getLatestTurn()?.id;
+		const modelCapabilities = this._lastModelCapabilities;
+		const bgStartTime = Date.now();
+
+		backgroundSummarizer.start(async bgToken => {
+			let compaction: OpenAIContextManagementResponse | undefined;
+			const response = await this.endpoint.makeChatRequest2({
+				debugName: 'responsesApiCompactConversationHistory',
+				messages: ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages),
+				finishedCb: async (_text, _index, delta) => {
+					if (delta.contextManagement && isOpenAIContextManagementResponse(delta.contextManagement)) {
+						compaction = delta.contextManagement;
+					}
+					return undefined;
+				},
+				location: ChatLocation.Agent,
+				conversationId,
+				requestOptions: {
+					temperature: 0,
+					...toolOpts,
+				},
+				modelCapabilities,
+				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
+				enableRetryOnFilter: true,
+				interactionTypeOverride: 'conversation-compaction',
+				triggerResponsesApiCompaction: true,
+			}, bgToken);
+			if (response.type !== ChatFetchResponseType.Success) {
+				throw new Error(`Background Responses API compaction request failed: ${response.type}`);
+			}
+			if (!compaction) {
+				throw new Error('Background Responses API compaction request returned no compaction item');
+			}
+			this.logService.debug(`[ResponsesApiCompactionTrigger] background server compaction completed`);
+			return {
+				kind: 'responsesApiCompaction',
+				compaction,
+				includedRoundIds,
+				promptTokens: response.usage?.prompt_tokens,
+				promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
+				outputTokens: response.usage?.completion_tokens,
+				durationMs: Date.now() - bgStartTime,
+				model: this.endpoint.model,
+			};
+		}, token);
+	}
+
 	private _startBackgroundSummarization(
-		backgroundSummarizer: BackgroundSummarizer,
+		backgroundSummarizer: BackgroundSummarizer<IBackgroundCompactionResult>,
 		mainRenderMessages: Raw.ChatMessage[],
 		promptContext: IBuildPromptContext,
 		props: AgentPromptProps,
@@ -1113,7 +1220,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	 * Returns the `BackgroundSummarizer` for this session, or `undefined` if
 	 * the intent is not an `AgentIntent` (e.g. `AskAgentIntent`).
 	 */
-	private _getOrCreateBackgroundSummarizer(sessionId: string | undefined): BackgroundSummarizer | undefined {
+	private _getOrCreateBackgroundSummarizer(sessionId: string | undefined): BackgroundSummarizer<IBackgroundCompactionResult> | undefined {
 		if (!sessionId || !(this.intent instanceof AgentIntent)) {
 			return undefined;
 		}
@@ -1147,6 +1254,25 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// Invalidate the auto mode router cache so the next getChatEndpoint()
 		// call re-evaluates which model to use after compaction.
 		this.automodeService.invalidateRouterCache(this.request);
+	}
+
+	/**
+	 * Place a server compaction item before the first assistant round not in the
+	 * background request snapshot. Returns false until such a round exists.
+	 */
+	private _applyResponsesApiCompactionToRounds(bgResult: IBackgroundResponsesApiCompactionResult, promptContext: IBuildPromptContext): boolean {
+		const includedRoundIds = new Set(bgResult.includedRoundIds);
+		const rounds = [
+			...promptContext.history.flatMap(turn => turn.rounds),
+			...(promptContext.toolCallRounds ?? []),
+		];
+		const firstPostSnapshotRound = rounds.find(round => !includedRoundIds.has(round.id));
+		if (!firstPostSnapshotRound) {
+			return false;
+		}
+		firstPostSnapshotRound.compaction = bgResult.compaction;
+		this.automodeService.invalidateRouterCache(this.request);
+		return true;
 	}
 
 	/**

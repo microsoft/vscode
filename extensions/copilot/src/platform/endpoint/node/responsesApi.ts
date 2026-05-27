@@ -331,11 +331,17 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		markerIndex = undefined;
 	}
 
-	// A compaction item is an explicit retained-history boundary when no stateful
-	// continuation can be used, including the first request after a mode change.
-	// Current system instructions are preserved below so the compacted context is
-	// interpreted using the instructions for this request rather than the old mode.
-	const compactionIndex = markerIndex === undefined ? getLatestCompactionMessageIndex(messages) : undefined;
+	// A compaction item newer than (or attached on the same assistant round as)
+	// the selected marker supersedes that old stateful continuation. This is how
+	// a compaction returned by a background request opens its next foreground
+	// context window. Once a subsequent foreground response produces a marker
+	// after this item, that later marker can be used normally again.
+	const latestCompactionIndex = getLatestCompactionMessageIndex(messages);
+	if (latestCompactionIndex !== undefined && (markerIndex === undefined || latestCompactionIndex >= markerIndex)) {
+		previousResponseId = undefined;
+		markerIndex = undefined;
+	}
+	const compactionIndex = markerIndex === undefined ? latestCompactionIndex : undefined;
 
 	const toolSearchCallIds = new Set<string>();
 	const toolSearchLoadedTools = new Set<string>();

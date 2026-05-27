@@ -713,6 +713,70 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
+	it('uses a newer compaction item instead of a stateful marker from before its boundary', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const latestCompaction = createCompactionResponse('cmp_background', 'enc_background');
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'history before marker' }],
+			},
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-before-compaction'),
+			createCompactionAssistantMessage(latestCompaction, 'assistant response after snapshot'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'follow up' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toEqual([
+			latestCompaction,
+			{
+				role: 'assistant',
+				content: [{ type: 'output_text', text: 'assistant response after snapshot' }],
+				type: 'message',
+				phase: undefined,
+			},
+			{
+				role: 'user',
+				content: [{ type: 'input_text', text: 'follow up' }],
+			},
+		]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('resumes stateful continuation from a marker after a replayed compaction item', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			createCompactionAssistantMessage(createCompactionResponse('cmp_background', 'enc_background')),
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-after-compaction'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'follow up' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.previous_response_id).toBe('resp-after-compaction');
+		expect(body.input).toEqual([{
+			role: 'user',
+			content: [{ type: 'input_text', text: 'follow up' }],
+		}]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('appends a compaction trigger input item as the final item when requested', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();

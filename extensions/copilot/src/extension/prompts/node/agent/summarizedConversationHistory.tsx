@@ -392,16 +392,6 @@ export class SummarizedConversationHistoryMetadata extends PromptMetadata {
 	}
 }
 
-export class ResponsesApiCompactionTriggerMetadata extends PromptMetadata {
-	constructor(
-		public readonly contextLengthBefore: number,
-		public readonly contextRatio: number | undefined,
-		public readonly tokenBudget: number | undefined,
-	) {
-		super();
-	}
-}
-
 export interface SummarizedAgentHistoryProps extends BasePromptElementProps, AgentUserMessageCustomizations {
 	readonly priority: number;
 	readonly endpoint: IChatEndpoint;

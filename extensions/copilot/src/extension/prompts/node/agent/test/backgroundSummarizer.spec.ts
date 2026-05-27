@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test } from 'vitest';
-import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../backgroundSummarizer';
+import { openAIContextManagementCompactionType } from '../../../../../platform/networking/common/openai';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundCompactionResult, IBackgroundResponsesApiCompactionResult, IBackgroundSummarizationResult, isBackgroundResponsesApiCompactionResult, shouldKickOffBackgroundSummarization } from '../backgroundSummarizer';
 
 describe('BackgroundSummarizer', () => {
 
@@ -53,6 +54,29 @@ describe('BackgroundSummarizer', () => {
 		expect(result).toEqual(expected);
 		expect(summarizer.state).toBe(BackgroundSummarizationState.Idle);
 		expect(summarizer.token).toBeUndefined();
+	});
+
+	test('Responses API compaction result can remain completed until it has a replay boundary', async () => {
+		const summarizer = new BackgroundSummarizer<IBackgroundCompactionResult>(100_000);
+		const expected: IBackgroundResponsesApiCompactionResult = {
+			kind: 'responsesApiCompaction',
+			compaction: {
+				type: openAIContextManagementCompactionType,
+				id: 'cmp-1',
+				encrypted_content: 'encrypted-compaction',
+			},
+			includedRoundIds: ['r1', 'r2'],
+		};
+		summarizer.start(async _token => expected);
+		await summarizer.waitForCompletion();
+
+		expect(summarizer.completedResult).toEqual(expected);
+		expect(summarizer.state).toBe(BackgroundSummarizationState.Completed);
+
+		const result = summarizer.consumeAndReset();
+		expect(result && isBackgroundResponsesApiCompactionResult(result)).toBe(true);
+		expect(result).toEqual(expected);
+		expect(summarizer.state).toBe(BackgroundSummarizationState.Idle);
 	});
 
 	test('consumeAndReset returns undefined while InProgress', async () => {
