@@ -107,7 +107,10 @@ export function findDefaultModel(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier | undefined {
-	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
+	if (models.length === 0) {
+		return undefined;
+	}
+	return models.find(m => m.metadata.isDefaultForLocation?.[location]) || models[0];
 }
 
 /**
