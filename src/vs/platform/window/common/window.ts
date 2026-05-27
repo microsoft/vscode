@@ -191,7 +191,7 @@ export interface IWindowsConfiguration {
 
 export interface IWindowSettings {
 	readonly openFilesInNewWindow: 'on' | 'off' | 'default';
-	readonly openFoldersInNewWindow: 'on' | 'off' | 'default';
+	readonly openFoldersInNewWindow: 'on' | 'off' | 'default' | 'ask';
 	readonly openWithoutArgumentsInNewWindow: 'on' | 'off';
 	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
 	readonly restoreFullscreen: boolean;
