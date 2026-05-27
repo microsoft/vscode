@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
@@ -503,45 +503,73 @@ describe('stringifyToolDefinitionsForOTel', () => {
 		expect(stringifyToolDefinitionsForOTel([])).toBeUndefined();
 	});
 
-	it('returns the same string instance when called with the same array reference', () => {
-		const tools = [{ name: 'readFile', description: 'd', inputSchema: { type: 'object' } }];
-		const a = stringifyToolDefinitionsForOTel(tools);
-		const b = stringifyToolDefinitionsForOTel(tools);
-		expect(a).toBeDefined();
-		// Same reference, same string instance from the WeakMap cache.
-		expect(a).toBe(b);
-		expect(JSON.parse(a!)).toEqual([{ type: 'function', name: 'readFile', description: 'd', parameters: { type: 'object' } }]);
+	it('skips re-stringification on repeated calls with the same array reference', () => {
+		const tools = [{ name: 'readFile_byref_' + Math.random(), description: 'd', inputSchema: { type: 'object' } }];
+		stringifyToolDefinitionsForOTel(tools); // prime the WeakMap
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const a = stringifyToolDefinitionsForOTel(tools);
+			const b = stringifyToolDefinitionsForOTel(tools);
+			expect(spy).not.toHaveBeenCalled();
+			expect(a).toBe(b);
+			expect(JSON.parse(a!)).toEqual([{ type: 'function', name: tools[0].name, description: 'd', parameters: { type: 'object' } }]);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 
-	it('intern collapses content-equal serializations across distinct array references', () => {
-		const t1 = [{ name: 'readFile', description: 'd', inputSchema: { type: 'object' } }];
-		const t2 = [{ name: 'readFile', description: 'd', inputSchema: { type: 'object' } }];
+	it('content-interns across distinct references (one stringify per new ref, same instance returned)', () => {
+		const unique = 'readFile_intern_' + Math.random();
+		const t1 = [{ name: unique, description: 'd', inputSchema: { type: 'object' } }];
+		const t2 = [{ name: unique, description: 'd', inputSchema: { type: 'object' } }];
 		const a = stringifyToolDefinitionsForOTel(t1);
-		const b = stringifyToolDefinitionsForOTel(t2);
-		expect(a).toBe(b);
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const b = stringifyToolDefinitionsForOTel(t2);
+			// Distinct ref forces one new JSON.stringify; intern then collapses the result.
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(Object.is(a, b)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
 
 describe('stringifyToolsRawForTelemetry', () => {
-	it('returns undefined for empty / undefined input', () => {
+	it('mirrors JSON.stringify for empty / undefined input', () => {
 		expect(stringifyToolsRawForTelemetry(undefined)).toBeUndefined();
-		expect(stringifyToolsRawForTelemetry([])).toBeUndefined();
+		expect(stringifyToolsRawForTelemetry([])).toBe('[]');
 	});
 
-	it('returns JSON.stringify(tools) and memoizes by reference', () => {
-		const tools = [{ type: 'function', name: 'x' }];
-		const a = stringifyToolsRawForTelemetry(tools);
-		const b = stringifyToolsRawForTelemetry(tools);
-		expect(a).toBe(JSON.stringify(tools));
-		expect(a).toBe(b);
+	it('skips re-stringification on repeated calls with the same array reference', () => {
+		const tools = [{ type: 'function', name: 'raw_byref_' + Math.random() }];
+		const expected = JSON.stringify(tools);
+		stringifyToolsRawForTelemetry(tools); // prime the WeakMap
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const a = stringifyToolsRawForTelemetry(tools);
+			const b = stringifyToolsRawForTelemetry(tools);
+			expect(spy).not.toHaveBeenCalled();
+			expect(a).toBe(expected);
+			expect(a).toBe(b);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 
-	it('intern collapses content-equal raw serializations across distinct references', () => {
-		const t1 = [{ type: 'function', name: 'x' }];
-		const t2 = [{ type: 'function', name: 'x' }];
+	it('content-interns across distinct references (one stringify per new ref, same instance returned)', () => {
+		const unique = 'raw_intern_' + Math.random();
+		const t1 = [{ type: 'function', name: unique }];
+		const t2 = [{ type: 'function', name: unique }];
 		const a = stringifyToolsRawForTelemetry(t1);
-		const b = stringifyToolsRawForTelemetry(t2);
-		expect(a).toBe(b);
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const b = stringifyToolsRawForTelemetry(t2);
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(Object.is(a, b)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
 

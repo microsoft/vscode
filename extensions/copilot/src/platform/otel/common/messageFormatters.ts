@@ -513,10 +513,12 @@ export function stringifyToolDefinitionsForOTel(tools: Parameters<typeof toToolD
  * Return `JSON.stringify(tools)` memoized by array reference, with a
  * single-slot content intern so consecutive rounds producing identical content
  * share one string instance. Used for telemetry sinks that consume the raw
- * tools shape rather than the OTel-normalized one.
+ * tools shape rather than the OTel-normalized one. Mirrors `JSON.stringify`
+ * exactly: returns `'[]'` for an empty array and `undefined` only when
+ * `tools` itself is `undefined`.
  */
 export function stringifyToolsRawForTelemetry(tools: ReadonlyArray<unknown> | undefined): string | undefined {
-	if (!tools || tools.length === 0) {
+	if (!tools) {
 		return undefined;
 	}
 	const cached = toolsRawJsonByRef.get(tools);

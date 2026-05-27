@@ -1172,7 +1172,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				continue;
 			} // Skip messages (PII)
 			if (key === 'tools') {
-				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? JSON.stringify(value) ?? 'undefined';
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
 				continue;
 			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
@@ -1183,7 +1183,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId,
-				messagesJson: stringifyToolsRawForTelemetry(request.tools) ?? '',
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
 			}), telemetryData.measurements);
 		}
 
@@ -1450,7 +1450,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				continue;
 			} // Skip messages (PII)
 			if (key === 'tools') {
-				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? JSON.stringify(value) ?? 'undefined';
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
 				continue;
 			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
@@ -1467,7 +1467,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId: telemetryProperties?.conversationId,
-				messagesJson: stringifyToolsRawForTelemetry(request.tools) ?? '',
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
 			}), telemetryData.measurements);
 		}
 
