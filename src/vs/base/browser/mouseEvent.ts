@@ -119,6 +119,35 @@ interface IGeckoMouseWheelEvent {
 	detail: number;
 }
 
+const STALE_MOUSE_WHEEL_EVENT_THRESHOLD = 1000;
+
+export function isStaleMouseWheelEvent(e: IMouseWheelEvent, now: number = Date.now()): boolean {
+	const timestamp = e.timeStamp;
+	if (!Number.isFinite(timestamp) || timestamp <= 0) {
+		return false;
+	}
+
+	const eventEpoch = timestamp > 1_000_000_000_000
+		? timestamp
+		: getMouseWheelEventTimeOrigin(e) + timestamp;
+
+	return eventEpoch < now - STALE_MOUSE_WHEEL_EVENT_THRESHOLD;
+}
+
+function getMouseWheelEventTimeOrigin(e: IMouseWheelEvent): number {
+	const eventPerformance = e.view?.performance ?? globalThis.performance;
+
+	if (typeof eventPerformance?.timeOrigin === 'number') {
+		return eventPerformance.timeOrigin;
+	}
+
+	if (typeof eventPerformance?.now === 'function') {
+		return Date.now() - eventPerformance.now();
+	}
+
+	return Date.now();
+}
+
 export class StandardWheelEvent {
 
 	public readonly browserEvent: IMouseWheelEvent | null;

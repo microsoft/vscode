@@ -6,7 +6,7 @@
 import { getZoomFactor, isChrome } from '../../browser.js';
 import * as dom from '../../dom.js';
 import { FastDomNode, createFastDomNode } from '../../fastDomNode.js';
-import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from '../../mouseEvent.js';
+import { IMouseEvent, IMouseWheelEvent, isStaleMouseWheelEvent, StandardWheelEvent } from '../../mouseEvent.js';
 import { ScrollbarHost } from './abstractScrollbar.js';
 import { HorizontalScrollbar } from './horizontalScrollbar.js';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from './scrollableElementOptions.js';
@@ -427,6 +427,12 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
 		if (e.browserEvent?.defaultPrevented) {
+			return;
+		}
+
+		if (e.browserEvent && isStaleMouseWheelEvent(e.browserEvent)) {
+			e.preventDefault();
+			e.stopPropagation();
 			return;
 		}
 
