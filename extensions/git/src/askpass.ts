@@ -108,7 +108,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	}
 
 	async handleSSHAskpass(argv: string[]): Promise<string> {
-		// SSH (passphrase | authenticity)
+		// SSH (passphrase | authenticity | keyboard-interactive)
 		const request = argv[3];
 
 		// passphrase
@@ -136,19 +136,41 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		}
 
 		// authenticity
-		const host = argv[6].replace(/^["']+|["':]+$/g, '');
-		const fingerprint = argv[15];
+		if (/authenticity/i.test(request)) {
+			const host = argv[6].replace(/^["']+|["':]+$/g, '');
+			const fingerprint = argv[15];
 
-		this.logger.trace(`[Askpass][handleSSHAskpass] request: ${request}, host: ${host}, fingerprint: ${fingerprint}`);
+			this.logger.trace(`[Askpass][handleSSHAskpass] request: ${request}, host: ${host}, fingerprint: ${fingerprint}`);
 
-		const options: QuickPickOptions = {
-			canPickMany: false,
-			ignoreFocusOut: true,
-			placeHolder: l10n.t('Are you sure you want to continue connecting?'),
-			title: l10n.t('"{0}" has fingerprint "{1}"', host ?? '', fingerprint ?? '')
+			const options: QuickPickOptions = {
+				canPickMany: false,
+				ignoreFocusOut: true,
+				placeHolder: l10n.t('Are you sure you want to continue connecting?'),
+				title: l10n.t('"{0}" has fingerprint "{1}"', host ?? '', fingerprint ?? '')
+			};
+			const items = [l10n.t('yes'), l10n.t('no')];
+			return await window.showQuickPick(items, options) ?? '';
+		}
+
+		// keyboard-interactive: forward the SSH prompt to the user
+		const prompt = argv.slice(2).join(' ').trim();
+		this.logger.trace(`[Askpass][handleSSHAskpass] keyboard-interactive prompt: ${prompt}`);
+
+		// Touch/presence prompts require physical key interaction but no text input.
+		// Show an informational message and return an empty response so SSH can proceed.
+		if (/touch|confirm.*presence|security.?key.*presence/i.test(prompt)) {
+			void window.showInformationMessage(l10n.t('Touch your security key to continue.'));
+			return '';
+		}
+
+		const inputOptions: InputBoxOptions = {
+			password: true,
+			placeHolder: prompt.replace(/:\s*$/, ''),
+			prompt: l10n.t('SSH: Keyboard Interactive'),
+			ignoreFocusOut: true
 		};
-		const items = [l10n.t('yes'), l10n.t('no')];
-		return await window.showQuickPick(items, options) ?? '';
+
+		return await window.showInputBox(inputOptions) || '';
 	}
 
 	getEnv(): { [key: string]: string } {
