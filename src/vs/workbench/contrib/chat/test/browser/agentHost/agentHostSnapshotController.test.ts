@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -16,39 +17,59 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 
+interface RecordedCommand {
+	readonly id: string;
+	readonly args: unknown[];
+}
+
 function makeToolCall(opts: {
 	toolCallId: string;
-	filePath: string;
-	beforeURI: string;
-	afterURI: string;
+	filePath?: string;
+	beforeURI?: string;
+	afterURI?: string;
+	edits?: Array<{
+		filePath: string;
+		beforeURI: string;
+		afterURI: string;
+		added?: number;
+		removed?: number;
+	}>;
 	added?: number;
 	removed?: number;
 }): ToolCallCompletedState {
+	const edits = opts.edits ?? [{
+		filePath: opts.filePath!,
+		beforeURI: opts.beforeURI!,
+		afterURI: opts.afterURI!,
+		added: opts.added,
+		removed: opts.removed,
+	}];
+
 	return {
 		status: ToolCallStatus.Completed,
 		toolCallId: opts.toolCallId,
 		toolName: 'codeEdit',
 		displayName: 'Edit File',
 		invocationMessage: 'Editing file',
-		toolInput: JSON.stringify({ path: opts.filePath }),
+		toolInput: JSON.stringify({ path: edits[0].filePath }),
 		success: true,
 		pastTenseMessage: 'Edited file',
 		confirmed: ToolCallConfirmationReason.NotNeeded,
-		content: [{
+		content: edits.map(edit => ({
 			type: ToolResultContentType.FileEdit,
 			before: {
-				uri: URI.file(opts.filePath).toString(),
-				content: { uri: opts.beforeURI },
+				uri: URI.file(edit.filePath).toString(),
+				content: { uri: edit.beforeURI },
 			},
 			after: {
-				uri: URI.file(opts.filePath).toString(),
-				content: { uri: opts.afterURI },
+				uri: URI.file(edit.filePath).toString(),
+				content: { uri: edit.afterURI },
 			},
 			diff: {
-				added: opts.added ?? 0,
-				removed: opts.removed ?? 0,
+				added: edit.added ?? 0,
+				removed: edit.removed ?? 0,
 			},
-		}],
+		})),
 	};
 }
 
@@ -79,16 +100,46 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 	};
 }
 
-function createController(store: DisposableStore, contentMap: Map<string, string>): AgentHostSnapshotController {
+function makeMockCommandService(recordedCommands?: RecordedCommand[]): ICommandService {
+	return new class extends mock<ICommandService>() {
+		override async executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+			recordedCommands?.push({ id, args });
+			return undefined as T;
+		}
+	};
+}
+
+function createController(store: DisposableStore, contentMap: Map<string, string>, options?: { recordedCommands?: RecordedCommand[]; authority?: string }): AgentHostSnapshotController {
 	const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/test-session' });
 	const controller = new AgentHostSnapshotController(
 		sessionResource,
-		'local',
+		options?.authority ?? 'local',
 		new NullLogService(),
 		makeMockFileService(contentMap),
+		makeMockCommandService(options?.recordedCommands),
 	);
 	store.add(controller);
 	return controller;
+}
+
+function extractCommandResources(command: RecordedCommand): string[] {
+	const [arg] = command.args;
+	if (!Array.isArray(arg)) {
+		return [];
+	}
+
+	return arg.map(entry => {
+		if (URI.isUri(entry)) {
+			return entry.toString();
+		}
+
+		if (typeof entry === 'object' && entry !== null && Object.hasOwn(entry, 'resource')) {
+			const resource = (entry as { resource: URI }).resource;
+			return resource.toString();
+		}
+
+		return String(entry);
+	});
 }
 
 suite('AgentHostSnapshotController', () => {
@@ -118,6 +169,55 @@ suite('AgentHostSnapshotController', () => {
 		}));
 		assert.strictEqual(controller.canUndo.get(), true);
 		assert.strictEqual(controller.canRedo.get(), false);
+	});
+
+	test('addToolCallEdits delegates AI contribution marks through command service', () => {
+		const recordedCommands: RecordedCommand[] = [];
+		const controller = createController(store, new Map(), { recordedCommands });
+		const file = URI.file('/file.ts').toString();
+
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/file.ts',
+			beforeURI: 'agenthost-content:///snap/before',
+			afterURI: 'agenthost-content:///snap/after',
+		}));
+
+		assert.deepStrictEqual(recordedCommands.map(command => ({
+			id: command.id,
+			resources: extractCommandResources(command),
+		})), [
+			{
+				id: '_aiEdits.markAiContributions',
+				resources: [file],
+			},
+		]);
+	});
+
+	test('addToolCallEdits normalizes non-local resources before marking AI contributions', () => {
+		const recordedCommands: RecordedCommand[] = [];
+		const controller = createController(store, new Map(), {
+			recordedCommands,
+			authority: 'remote-authority',
+		});
+		const file = URI.file('/file.ts').toString();
+
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/file.ts',
+			beforeURI: 'agenthost-content:///snap/before',
+			afterURI: 'agenthost-content:///snap/after',
+		}));
+
+		assert.deepStrictEqual(recordedCommands.map(command => ({
+			id: command.id,
+			resources: extractCommandResources(command),
+		})), [
+			{
+				id: '_aiEdits.markAiContributions',
+				resources: [file],
+			},
+		]);
 	});
 
 	test('addToolCallEdits is idempotent on toolCallId', () => {
@@ -184,6 +284,54 @@ suite('AgentHostSnapshotController', () => {
 		assert.deepStrictEqual(controller.requestDisablement.get().map(d => d.requestId), ['req-2']);
 	});
 
+	test('restoreSnapshot clears stale AI contribution marks and re-marks active resources', async () => {
+		const recordedCommands: RecordedCommand[] = [];
+		const before1 = URI.file('/snap/before-1').toString();
+		const after1 = URI.file('/snap/after-1').toString();
+		const before2 = URI.file('/snap/before-2').toString();
+		const after2 = URI.file('/snap/after-2').toString();
+		const file1 = URI.file('/file-1.ts').toString();
+		const file2 = URI.file('/file-2.ts').toString();
+		const controller = createController(store, new Map([
+			[before1, 'a'],
+			[after1, 'b'],
+			[before2, 'b'],
+			[after2, 'c'],
+			[file1, 'b'],
+			[file2, 'c'],
+		]), { recordedCommands });
+
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/file-1.ts',
+			beforeURI: before1,
+			afterURI: after1,
+		}));
+		controller.addToolCallEdits('req-2', makeToolCall({
+			toolCallId: 'tc-2',
+			filePath: '/file-2.ts',
+			beforeURI: before2,
+			afterURI: after2,
+		}));
+
+		recordedCommands.length = 0;
+		await controller.restoreSnapshot('req-2', undefined);
+
+		assert.deepStrictEqual(recordedCommands.map(command => ({
+			id: command.id,
+			resources: extractCommandResources(command),
+		})), [
+			{
+				id: '_aiEdits.clearAiContributions',
+				resources: [file1, file2],
+			},
+			{
+				id: '_aiEdits.markAiContributions',
+				resources: [file1],
+			},
+		]);
+	});
+
 	test('ensureRequestCheckpoint creates sentinel and is idempotent', () => {
 		const controller = createController(store, new Map());
 		controller.ensureRequestCheckpoint('req-1');
@@ -216,6 +364,109 @@ suite('AgentHostSnapshotController', () => {
 			content: [],
 		});
 		assert.strictEqual(controller.canUndo.get(), false);
+	});
+
+	test('dispose clears AI contribution marks for tracked resources', () => {
+		const recordedCommands: RecordedCommand[] = [];
+		const controller = createController(store, new Map(), { recordedCommands });
+		const file = URI.file('/file.ts').toString();
+
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/file.ts',
+			beforeURI: 'agenthost-content:///snap/before',
+			afterURI: 'agenthost-content:///snap/after',
+		}));
+
+		recordedCommands.length = 0;
+		controller.dispose();
+
+		assert.deepStrictEqual(recordedCommands.map(command => ({
+			id: command.id,
+			resources: extractCommandResources(command),
+		})), [{
+			id: '_aiEdits.clearAiContributions',
+			resources: [file],
+		}]);
+	});
+
+	test('dispose after restore only clears currently tracked AI contribution marks', async () => {
+		const recordedCommands: RecordedCommand[] = [];
+		const before1 = URI.file('/snap/before-1').toString();
+		const after1 = URI.file('/snap/after-1').toString();
+		const before2 = URI.file('/snap/before-2').toString();
+		const after2 = URI.file('/snap/after-2').toString();
+		const file1 = URI.file('/file-1.ts').toString();
+		const file2 = URI.file('/file-2.ts').toString();
+		const controller = createController(store, new Map([
+			[before1, 'a'],
+			[after1, 'b'],
+			[before2, 'b'],
+			[after2, 'c'],
+			[file1, 'b'],
+			[file2, 'c'],
+		]), { recordedCommands });
+
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/file-1.ts',
+			beforeURI: before1,
+			afterURI: after1,
+		}));
+		controller.addToolCallEdits('req-2', makeToolCall({
+			toolCallId: 'tc-2',
+			filePath: '/file-2.ts',
+			beforeURI: before2,
+			afterURI: after2,
+		}));
+
+		await controller.restoreSnapshot('req-2', undefined);
+
+		recordedCommands.length = 0;
+		controller.dispose();
+
+		assert.deepStrictEqual(recordedCommands.map(command => ({
+			id: command.id,
+			resources: extractCommandResources(command),
+		})), [{
+			id: '_aiEdits.clearAiContributions',
+			resources: [file1],
+		}]);
+	});
+
+	test('restoreSnapshot applies same-path edits within one checkpoint in order', async () => {
+		const before1 = URI.file('/snap/before-1').toString();
+		const after1 = URI.file('/snap/after-1').toString();
+		const before2 = URI.file('/snap/before-2').toString();
+		const after2 = URI.file('/snap/after-2').toString();
+		const file = URI.file('/file.ts').toString();
+		const contentMap = new Map([
+			[before1, 'base'],
+			[after1, 'middle'],
+			[before2, 'middle'],
+			[after2, 'final'],
+			[file, 'final'],
+		]);
+		const controller = createController(store, contentMap);
+
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			edits: [{
+				filePath: '/file.ts',
+				beforeURI: before1,
+				afterURI: after1,
+			}, {
+				filePath: '/file.ts',
+				beforeURI: before2,
+				afterURI: after2,
+			}],
+		}));
+
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.strictEqual(contentMap.get(file), 'base');
+
+		await controller.restoreSnapshot('req-1', 'tc-1');
+		assert.strictEqual(contentMap.get(file), 'final');
 	});
 
 	test('streaming-edits APIs throw — agent host owns edits server-side', () => {

@@ -11,8 +11,9 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
@@ -95,6 +96,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		private readonly _connectionAuthority: string,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -131,6 +133,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			return;
 		}
 
+		const previousCheckpointIndex = this._currentCheckpointIndex.get();
+
 		// Deduplicate
 		if (this._checkpoints.some(cp => cp.undoStopId === tc.toolCallId)) {
 			return;
@@ -159,6 +163,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		transaction(tx => {
 			this._currentCheckpointIndex.set(this._checkpoints.length - 1, tx);
 		});
+
+		this._syncAiContributionMarks(previousCheckpointIndex);
 	}
 
 	// ---- Snapshots ----------------------------------------------------------
@@ -216,6 +222,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			transaction(tx => {
 				this._currentCheckpointIndex.set(targetIdx, tx);
 			});
+
+			this._syncAiContributionMarks(currentIdx);
 		});
 	}
 
@@ -306,14 +314,57 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	override dispose(): void {
+		this._clearAiContributionMarks(this._currentCheckpointIndex.get());
 		this._onDidDispose.fire();
 		super.dispose();
 	}
 
 	// ---- Private helpers ----------------------------------------------------
 
+	private _syncAiContributionMarks(previousCheckpointIndex: number): void {
+		this._clearAiContributionMarks(previousCheckpointIndex);
+
+		const activeResources = this._collectAiContributionResources(this._currentCheckpointIndex.get());
+		if (activeResources.length === 0) {
+			return;
+		}
+
+		void this._commandService.executeCommand('_aiEdits.markAiContributions', activeResources.map(resource => ({
+			resource,
+			feature: 'chat' as const,
+		})));
+	}
+
+	private _clearAiContributionMarks(lastCheckpointIndex: number): void {
+		const resources = this._collectAiContributionResources(lastCheckpointIndex);
+		if (resources.length === 0) {
+			return;
+		}
+
+		void this._commandService.executeCommand('_aiEdits.clearAiContributions', resources);
+	}
+
+	private _collectAiContributionResources(lastCheckpointIndex: number): URI[] {
+		const resources = new Map<string, URI>();
+
+		for (let i = 0; i <= lastCheckpointIndex && i < this._checkpoints.length; i++) {
+			for (const edit of this._checkpoints[i].edits) {
+				const resource = fromAgentHostUri(edit.resource);
+				resources.set(resource.toString(), resource);
+				if (edit.kind === FileEditKind.Rename && edit.originalResource) {
+					const originalResource = fromAgentHostUri(edit.originalResource);
+					resources.set(originalResource.toString(), originalResource);
+				}
+			}
+		}
+
+		return [...resources.values()];
+	}
+
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		const ops = checkpoint.edits.map(async edit => {
+		const edits = direction === 'before' ? [...checkpoint.edits].reverse() : checkpoint.edits;
+
+		for (const edit of edits) {
 			try {
 				if (direction === 'before') {
 					// Undoing this edit
@@ -375,7 +426,6 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			} catch (err) {
 				this._logService.warn(`[AgentHostSnapshotController] Failed to ${direction === 'before' ? 'undo' : 'redo'} ${edit.kind} for ${edit.resource.toString()}`, err);
 			}
-		});
-		await Promise.all(ops);
+		}
 	}
 }
