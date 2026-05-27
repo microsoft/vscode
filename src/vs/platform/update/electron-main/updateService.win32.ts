@@ -479,14 +479,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.updateCancellationTokenSource?.dispose(true);
 		this.updateCancellationTokenSource = undefined;
 
-		if (!updateProcess) {
-			this.availableUpdate = undefined;
-			return;
-		}
+		if (updateProcess && updateProcess.exitCode === null) {
+			this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
 
-		this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
-
-		if (updateProcess.exitCode === null) {
 			// Remove all listeners to prevent the exit handler from changing state
 			updateProcess.removeAllListeners();
 			const exitPromise = new Promise<boolean>(resolve => updateProcess.once('exit', () => resolve(true)));
