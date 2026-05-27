@@ -29,6 +29,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when it's surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process."),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task."),
+	'`\${branch}`: ' + localize('branch', "the git branch name for the terminal's current working directory."),
 	'`\${shellType}`: ' + localize('shellType', "the detected shell type."),
 	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line, which may not work in some prompt frameworks."),
 	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration."),
