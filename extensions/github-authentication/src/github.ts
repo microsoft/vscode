@@ -283,11 +283,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			let userInfo: { id: string; accountName: string } | undefined;
-			if (!session.account) {
+			let userInfo: { id: string; accountName: string; avatarUrl: string | undefined } | undefined;
+			if (!session.account || !session.account.iconUrl) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					if (!session.account) {
+						this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					}
 				} catch (e) {
 					// Remove sessions that return unauthorized response
 					if (e.message === 'Unauthorized') {
@@ -313,8 +315,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				account: {
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
-						: userInfo?.accountName ?? '<unknown>',
-					id: accountId
+						: (userInfo?.accountName ?? '<unknown>'),
+					id: accountId,
+					iconUrl: userInfo?.avatarUrl,
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -412,7 +415,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { label: userInfo.accountName, id: userInfo.id, iconUrl: userInfo.avatarUrl },
 			scopes
 		};
 	}

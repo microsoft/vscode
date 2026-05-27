@@ -16,6 +16,10 @@ export const INTERNAL_AUTH_PROVIDER_PREFIX = '__';
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
+	/**
+	 * An optional icon URL string for the account (e.g. a profile avatar URL).
+	 */
+	iconUrl?: string;
 }
 
 export interface AuthenticationSession {
