@@ -134,6 +134,15 @@ suite('History Navigator', () => {
 		assert.strictEqual(testObject.isFirst(), true);
 	});
 
+	test('previous returns null if the current position is the first one (falsy value)', () => {
+		const testObject = new HistoryNavigator(new Set(['', '1', '2']));
+
+		testObject.first();
+
+		assert.deepStrictEqual(testObject.previous(), null);
+		assert.strictEqual(testObject.isFirst(), true);
+	});
+
 	test('previous returns object if the current position is not the first one', () => {
 		const testObject = new HistoryNavigator(new Set(['1', '2', '3']));
 
