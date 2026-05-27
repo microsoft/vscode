@@ -335,6 +335,11 @@ export enum PromptingStrategy {
 	 * Xtab275 prompt + aggressiveness level tag.
 	 */
 	Xtab275Aggressiveness = 'xtab275Aggressiveness',
+	/**
+	 * Xtab275 prompt + aggressiveness level tag only for high/low.
+	 * Medium uses the plain xtab275 prompt (no tag).
+	 */
+	Xtab275AggressivenessHighLow = 'xtab275AggressivenessHighLow',
 	PatchBased = 'patchBased',
 	PatchBased01 = 'patchBased01',
 	PatchBased02 = 'patchBased02',
@@ -359,6 +364,7 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
 	return strategy === PromptingStrategy.XtabAggressiveness
 		|| strategy === PromptingStrategy.Xtab275Aggressiveness
+		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
 		|| strategy === PromptingStrategy.Xtab275EditIntent
 		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
 }
@@ -382,6 +388,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.Xtab275:
 			case PromptingStrategy.XtabAggressiveness:
 			case PromptingStrategy.Xtab275Aggressiveness:
+			case PromptingStrategy.Xtab275AggressivenessHighLow:
 				return ResponseFormat.EditWindowOnly;
 			case PromptingStrategy.PatchBased:
 			case PromptingStrategy.PatchBased01:

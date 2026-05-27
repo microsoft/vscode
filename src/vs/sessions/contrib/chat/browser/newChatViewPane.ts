@@ -9,21 +9,12 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { derived } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
-import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
@@ -34,7 +25,7 @@ import { IAgentHostFilterService } from '../../../services/agentHostFilter/commo
 
 // #region --- New Chat Widget ---
 
-class NewChatWidget extends Disposable {
+export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
@@ -419,82 +410,6 @@ class NewChatWidget extends Disposable {
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId });
-	}
-}
-
-// #endregion
-
-// #region --- New Chat View Pane ---
-
-export const SessionsViewId = 'workbench.view.sessions.chat';
-
-export class NewChatViewPane extends ViewPane {
-
-	private _widget: NewChatWidget | undefined;
-
-	constructor(
-		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-	}
-
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
-
-		this._widget = this._register(this.instantiationService.createInstance(
-			NewChatWidget,
-		));
-
-		this._widget.render(container);
-		this._widget.focusInput();
-	}
-
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this._widget?.layout(height, width);
-	}
-
-	override focus(): void {
-		super.focus();
-		this._widget?.focusInput();
-	}
-
-	prefillInput(text: string): void {
-		this._widget?.prefillInput(text);
-	}
-
-	sendQuery(text: string): void {
-		this._widget?.sendQuery(text);
-	}
-
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._widget?.selectWorkspace(folderUri, providerId);
-	}
-
-	override setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		this._widget?.setHostVisible(visible);
-		if (visible) {
-			this._widget?.focusInput();
-		}
-	}
-
-	override saveState(): void {
-		this._widget?.saveState();
-	}
-
-	override dispose(): void {
-		this._widget?.saveState();
-		super.dispose();
 	}
 }
 

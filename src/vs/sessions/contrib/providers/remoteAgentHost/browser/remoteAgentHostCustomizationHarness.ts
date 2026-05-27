@@ -21,9 +21,8 @@ import { ROOT_STATE_URI, type AgentInfo, type CustomizationRef } from '../../../
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, type IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { type IHarnessDescriptor, type ICustomizationItem, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItem, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { AgentCustomizationSyncProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationSyncProvider.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 
 function customizationKey(customization: CustomizationRef): string {
@@ -174,7 +173,7 @@ export function createRemoteAgentHarnessDescriptor(
 	displayName: string,
 	controller: RemoteAgentPluginController,
 	itemProvider: AgentCustomizationItemProvider,
-	syncProvider: AgentCustomizationSyncProvider,
+	syncProvider: ICustomizationSyncProvider,
 ): IHarnessDescriptor {
 	const allSources = [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, AICustomizationSources.extension, AICustomizationSources.builtin];
 	const filter: IStorageSourceFilter = { sources: allSources };

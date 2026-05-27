@@ -21,6 +21,8 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
+import '../common/agentHost.config.contribution.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
