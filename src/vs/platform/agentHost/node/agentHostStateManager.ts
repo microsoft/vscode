@@ -85,6 +85,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
+	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
+	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -346,6 +348,7 @@ export class AgentHostStateManager extends Disposable {
 		// Without this, evicting a session that still has an active turn
 		// silently strands the active-sessions count above zero forever.
 		if (this._sessionsWithActiveTurn.delete(session)) {
+			this._onDidChangeSessionActiveTurn.fire({ session, active: false });
 			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 		}
 
@@ -597,6 +600,7 @@ export class AgentHostStateManager extends Disposable {
 					} else {
 						this._sessionsWithActiveTurn.delete(key);
 					}
+					this._onDidChangeSessionActiveTurn.fire({ session: key, active: hasActive });
 					this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 				}
 

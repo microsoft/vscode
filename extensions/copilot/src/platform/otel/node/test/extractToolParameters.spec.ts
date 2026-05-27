@@ -59,4 +59,14 @@ describe('extractToolParameters', () => {
 		expect(extractToolParameters('edit_notebook_file', { filePath: '/a.ipynb' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('update');
 		expect(extractToolParameters('read_file', { filePath: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBeUndefined();
 	});
+
+	it('classifies Claude (capitalized) tool names', () => {
+		expect(extractToolParameters('Write', { file_path: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('create');
+		expect(extractToolParameters('Edit', { file_path: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('str_replace');
+		expect(extractToolParameters('MultiEdit', { file_path: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('str_replace');
+		expect(extractToolParameters('NotebookEdit', { file_path: '/a.ipynb' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('update');
+		expect(extractToolParameters('Read', { file_path: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBeUndefined();
+		const bash = extractToolParameters('Bash', { command: 'ls' });
+		expect(bash.gatedAttrs[GitHubCopilotAttr.TOOL_PARAM_COMMAND]).toBe('ls');
+	});
 });

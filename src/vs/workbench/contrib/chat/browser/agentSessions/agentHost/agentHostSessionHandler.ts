@@ -15,48 +15,49 @@ import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, tr
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
+import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
+import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
-import { IChatWidgetService } from '../../chat.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult } from '../../../common/chatSessionsService.js';
 import { isAgentFeedbackVariableEntry, isImageVariableEntry, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult } from '../../../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { IChatWidgetService } from '../../chat.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
+import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
+import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+export { toolDataToDefinition };
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -348,12 +349,6 @@ export interface IAgentHostSessionHandlerConfig {
 	 *   state that require authentication.
 	 */
 	readonly resolveAuthentication?: (protectedResources: ProtectedResourceMetadata[]) => Promise<boolean>;
-
-	/**
-	 * Observable set of agent-level customizations to include in the active
-	 * client set. When the value changes, active sessions are updated.
-	 */
-	readonly customizations?: IObservable<CustomizationRef[]>;
 }
 
 /**
@@ -391,9 +386,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
 
-	/** Observable of client-provided tools filtered by the allowlist and `when` clauses. */
-	private readonly _clientToolsObs: IObservable<readonly IToolData[]>;
-
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -408,40 +400,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 		this._config = config;
 
-		// Build an observable of client tools: all tools matching the
-		// allowlist setting, filtered by `when` clauses via observeTools.
-		// We pass `undefined` for the model since agent host sessions use
-		// server-side model selection and client tools should be available
-		// regardless of which model is active.
-		const allToolsObs = this._toolsService.observeTools(undefined);
-		const allowlistObs = observableConfigValue<string[]>(ChatConfiguration.AgentHostClientTools, [], this._configurationService);
-		this._clientToolsObs = derived(reader => {
-			const allowlist = new Set(allowlistObs.read(reader));
-			const allTools = allToolsObs.read(reader);
-			return allTools.filter(t => t.toolReferenceName !== undefined && allowlist.has(t.toolReferenceName));
-		});
-
-		// When the client tools set changes, dispatch
-		// activeClientToolsChanged for all active sessions owned by this
-		// client so the server sees the updated tool list.
 		this._register(autorun(reader => {
-			const tools = this._clientToolsObs.read(reader);
-			const defs = tools.map(toolDataToDefinition);
+			const defs = this._activeClientService.clientTools.read(reader);
 			for (const [sessionResource] of this._activeSessions) {
 				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
 				if (state?.activeClient?.clientId === this._config.connection.clientId) {
 					this._dispatchAction(backendSession, {
 						type: ActionType.SessionActiveClientToolsChanged,
-						tools: defs,
+						tools: [...defs],
 					});
 				}
 			}
@@ -479,20 +454,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		));
 
-		// When this client's exposed customization list changes, update sessions
-		// where this client is already active without reclaiming observed sessions.
-		if (config.customizations) {
-			this._register(autorun(reader => {
-				const refs = config.customizations!.read(reader);
-				for (const [sessionResource] of this._activeSessions) {
-					const backendSession = this._resolveSessionUri(sessionResource);
-					const state = this._getSessionState(backendSession.toString());
-					if (state?.activeClient?.clientId === this._config.connection.clientId && !equals(state.activeClient.customizations ?? [], refs)) {
-						this._dispatchActiveClient(backendSession, refs);
-					}
+		// Push customization changes to sessions where this client is already active without reclaiming.
+		const customizationsObs = this._activeClientService.getCustomizations(config.sessionType);
+		this._register(autorun(reader => {
+			const refs = customizationsObs.read(reader);
+			for (const [sessionResource] of this._activeSessions) {
+				const backendSession = this._resolveSessionUri(sessionResource);
+				const state = this._getSessionState(backendSession.toString());
+				if (state?.activeClient?.clientId === this._config.connection.clientId && !equals(state.activeClient.customizations ?? [], refs)) {
+					this._dispatchActiveClient(backendSession, [...refs]);
 				}
-			}));
-		}
+			}
+		}));
 
 		this._registerAgent();
 	}
@@ -937,12 +910,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config.connection.dispatch(channel.toString(), action);
 	}
 
-	private _getCurrentActiveClient(customizations: CustomizationRef[] = this._config.customizations?.get() ?? []): SessionActiveClient {
-		return {
-			clientId: this._config.connection.clientId,
-			tools: this._clientToolsObs.get().map(toolDataToDefinition),
-			customizations,
-		};
+	private _getCurrentActiveClient(): SessionActiveClient {
+		return this._activeClientService.getActiveClient(this._config.sessionType, this._config.connection.clientId);
 	}
 
 	private _ensureActiveClientForMessage(backendSession: URI): void {
@@ -951,7 +920,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (equals(state?.activeClient, activeClient)) {
 			return;
 		}
-		this._dispatchActiveClient(backendSession, activeClient.customizations ?? []);
+		this._dispatchAction(backendSession, {
+			type: ActionType.SessionActiveClientChanged,
+			activeClient,
+		});
 	}
 
 	/**
@@ -960,9 +932,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * client-provided tools.
 	 */
 	private _dispatchActiveClient(backendSession: URI, customizations: CustomizationRef[]): void {
+		const current = this._getCurrentActiveClient();
 		this._dispatchAction(backendSession, {
 			type: ActionType.SessionActiveClientChanged,
-			activeClient: this._getCurrentActiveClient(customizations),
+			activeClient: { ...current, customizations },
 		});
 	}
 
@@ -1449,11 +1422,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const delta = content.substring(lastEmitted);
 			lastEmitted = content.length;
-			// supportHtml is load bearing. Without this the markdown string
-			// gets merged into the edit part in chatModel.ts which breaks
-			// rendering because the thinking content part does not deal
-			// with this.
-			opts.sink([{ kind: 'markdownContent', content: rawMarkdownToString(delta, this._config.connectionAuthority, { supportHtml: true }) }]);
+			opts.sink([{ kind: 'markdownContent', content: rawMarkdownToString(delta, this._config.connectionAuthority) }]);
 		}));
 	}
 
@@ -2499,11 +2468,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		const activeClient = {
-			clientId: this._config.connection.clientId,
-			tools: this._clientToolsObs.get().map(toolDataToDefinition),
-			customizations: this._config.customizations?.get() ?? [],
-		};
+		const activeClient = this._getCurrentActiveClient();
 
 		let session: URI;
 		try {
@@ -2833,6 +2798,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			text: item.text,
 			resourceUri: item.resourceUri.toString(),
 			range: this._toTextRange(item.range),
+			...(item.replies?.length ? { replies: [...item.replies] } : {}),
 		}));
 		return this._toSimpleAttachment(
 			v.name,
@@ -2972,20 +2938,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 // =============================================================================
 // Client-provided tool helpers
 // =============================================================================
-
-/**
- * Converts an internal {@link IToolData} to a protocol {@link ToolDefinition}.
- */
-export function toolDataToDefinition(tool: IToolData): ToolDefinition {
-	return {
-		name: tool.toolReferenceName ?? tool.id,
-		title: tool.displayName,
-		description: tool.modelDescription,
-		inputSchema: tool.inputSchema?.type === 'object'
-			? tool.inputSchema as ToolDefinition['inputSchema']
-			: undefined,
-	};
-}
 
 /**
  * Converts an internal {@link IToolResult} to a protocol

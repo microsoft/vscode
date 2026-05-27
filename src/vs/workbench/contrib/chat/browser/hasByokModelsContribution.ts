@@ -7,7 +7,6 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -20,7 +19,7 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
 /**
  * Owns the `github.copilot.hasByokModels` context key. The key is true iff:
  *  - `github.copilot.clientByokEnabled` is true (set by `ChatEntitlementService` + Copilot extension),
- *  - `chat.offlineByok` is enabled and `chat.aiDisabled` is off, and
+ *  - `chat.aiDisabled` is off, and
  *  - the language-models configuration has at least one non-Copilot vendor group (post extension scan),
  *    or — pre-scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
  *
@@ -53,7 +52,6 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IProductService private readonly _productService: IProductService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
@@ -71,19 +69,14 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		});
 
 		this._register(Event.any(
-			Event.filter(this._configurationService.onDidChangeConfiguration, e =>
-				e.affectsConfiguration(ChatConfiguration.OfflineByok) ||
-				e.affectsConfiguration(ChatConfiguration.AIDisabled)),
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AIDisabled)),
 			Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(HasByokModelsContribution.TRACKED_KEYS)),
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
 		)(() => this._update()));
 	}
 
 	private _isFeatureEnabled(): boolean {
-		const offlineByokRaw = this._configurationService.getValue<boolean | undefined>(ChatConfiguration.OfflineByok);
-		const offlineByok = offlineByokRaw ?? (this._productService.quality !== 'stable');
 		return !this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)
-			&& !!offlineByok
 			&& !!this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key);
 	}
 

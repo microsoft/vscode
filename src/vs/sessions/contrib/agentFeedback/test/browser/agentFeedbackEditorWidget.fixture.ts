@@ -56,7 +56,7 @@ function createRange(startLineNumber: number, endLineNumber: number = startLineN
 	};
 }
 
-function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion): ISessionEditorComment {
+function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion, replies?: readonly string[]): ISessionEditorComment {
 	return {
 		id: `agentFeedback:${id}`,
 		sourceId: id,
@@ -67,6 +67,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
+		replies,
 	};
 }
 
@@ -115,6 +116,8 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		}
 
 		override removeFeedback(): void { }
+
+		override addReply(): void { }
 
 		override getFeedback(): readonly IAgentFeedback[] {
 			return [];
@@ -270,6 +273,20 @@ const prReviewOnly = [
 	createPRReviewComment('pr-2', 'Please add error handling for the edge case when second is zero.', 7, 8),
 ];
 
+const threadedFeedback = [
+	createFeedbackComment(
+		'f-thread',
+		'Consider extracting this into a helper function.',
+		7,
+		7,
+		undefined,
+		[
+			'I agree, and we should also unit test the helper.',
+			'Make sure the helper name matches the domain concept.',
+		],
+	),
+];
+
 const allSourcesMixed = [
 	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
 	createPRReviewComment('pr-1', 'Our style guide says to use descriptive names here.', 3),
@@ -372,6 +389,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 			commentItems: allSourcesMixed,
 			expanded: true,
 			focusedCommentId: 'prReview:pr-2',
+		}),
+	}),
+
+	ExpandedThreadedFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: threadedFeedback,
+			expanded: true,
 		}),
 	}),
 
