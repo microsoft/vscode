@@ -20,7 +20,7 @@ export interface HTMLDocumentRegions {
 
 export const CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean }
+interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; isModule?: boolean }
 
 
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
@@ -29,6 +29,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 	let lastTagName: string = '';
 	let lastAttributeName: string | null = null;
 	let languageIdFromType: string | undefined = undefined;
+	let isModuleScript = false;
 	const importedScripts: string[] = [];
 
 	let token = scanner.scan();
@@ -38,12 +39,13 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 				lastTagName = scanner.getTokenText();
 				lastAttributeName = null;
 				languageIdFromType = 'javascript';
+				isModuleScript = false;
 				break;
 			case TokenType.Styles:
 				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.Script:
-				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd(), isModule: isModuleScript });
 				break;
 			case TokenType.AttributeName:
 				lastAttributeName = scanner.getTokenText();
@@ -57,7 +59,10 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
 					const token = scanner.getTokenText();
-					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(token) || token === 'module') {
+					if (/["']module["']/.test(token) || token === 'module') {
+						languageIdFromType = 'javascript';
+						isModuleScript = true;
+					} else if (/["'](text|application)\/(java|ecma)script["']/.test(token) || /["']text\/babel["']/.test(token)) {
 						languageIdFromType = 'javascript';
 					} else if (/["']text\/typescript["']/.test(token)) {
 						languageIdFromType = 'typescript';
@@ -184,6 +189,9 @@ function getPrefix(c: EmbeddedRegion) {
 			case 'css': return CSS_STYLE_RULE + '{';
 		}
 	}
+	if (c.isModule) {
+		return '{';
+	}
 	return '';
 }
 function getSuffix(c: EmbeddedRegion) {
@@ -192,6 +200,9 @@ function getSuffix(c: EmbeddedRegion) {
 			case 'css': return '}';
 			case 'javascript': return ';';
 		}
+	}
+	if (c.isModule) {
+		return '}';
 	}
 	return '';
 }
