@@ -5,13 +5,10 @@
 
 import { PromptElement, PromptElementProps, PromptSizing } from '@vscode/prompt-tsx';
 import assert from 'assert';
-import type * as vscode from 'vscode';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ITestGenInfo } from '../../intents/node/testIntent/testInfoStorage';
 import { Tag } from '../../prompts/node/base/tag';
 import { DocumentSummarizer } from '../../prompts/node/inline/summarizedDocument/summarizeDocumentHelpers';
 import { CodeBlock } from '../../prompts/node/panel/safeElements';
@@ -24,10 +21,6 @@ type Props = PromptElementProps<{
 	 * Document here is expected to be a test file.
 	 */
 	documentContext: IDocumentContext;
-	/**
-	 * Src (ie impl) file to include if already known.
-	 */
-	srcFile?: ITestGenInfo;
 }>;
 
 /**
@@ -46,21 +39,13 @@ export class Test2Impl extends PromptElement<Props> {
 
 	override async render(state: void, sizing: PromptSizing) {
 
-		const { documentContext, srcFile, } = this.props;
+		const { documentContext } = this.props;
 
 		assert(isTestFile(documentContext.document), 'Test2Impl must be invoked on a test file.');
 
-		let candidateFile: URI | undefined;
-		let selection: vscode.Range | undefined;
-
-		if (srcFile) {
-			candidateFile = srcFile.uri;
-			selection = srcFile.target;
-		} else {
-			// @ulugbekna: find file that this test file corresponds to
-			const finder = this.instaService.createInstance(TestFileFinder);
-			candidateFile = await finder.findFileForTestFile(documentContext.document, CancellationToken.None);
-		}
+		// @ulugbekna: find file that this test file corresponds to
+		const finder = this.instaService.createInstance(TestFileFinder);
+		const candidateFile = await finder.findFileForTestFile(documentContext.document, CancellationToken.None);
 
 		if (candidateFile === undefined || await this.ignoreService.isCopilotIgnored(candidateFile)) {
 			return undefined;
@@ -73,7 +58,7 @@ export class Test2Impl extends PromptElement<Props> {
 		const summarizedDoc = await docSummarizer.summarizeDocument(
 			doc,
 			documentContext.fileIndentInfo,
-			selection,
+			undefined,
 			sizing.tokenBudget,
 		);
 

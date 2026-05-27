@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { isMobile, isWeb, OS } from '../../../../../base/common/platform.js';
+import { isWeb, OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -209,7 +209,7 @@ export class SessionsView extends ViewPane {
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
-					if (isWeb && isMobile) {
+					if (isWeb && isPhoneLayout(this.layoutService)) {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
 				};

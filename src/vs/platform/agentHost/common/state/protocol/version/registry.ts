@@ -90,6 +90,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionCustomizationsChanged]: '0.1.0',
 	[ActionType.SessionCustomizationToggled]: '0.1.0',
 	[ActionType.SessionCustomizationUpdated]: '0.1.0',
+	[ActionType.SessionCustomizationRemoved]: '0.2.0',
 	[ActionType.SessionTruncated]: '0.1.0',
 	[ActionType.SessionIsReadChanged]: '0.1.0',
 	[ActionType.SessionIsArchivedChanged]: '0.1.0',

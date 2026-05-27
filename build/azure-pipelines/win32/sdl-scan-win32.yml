@@ -82,6 +82,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
+      # Run preinstall script before root dependencies are installed
+      # so that Electron/v8 headers are patched correctly for native modules.
+      exec { node build/npm/preinstall.ts }
       exec { npm ci }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}

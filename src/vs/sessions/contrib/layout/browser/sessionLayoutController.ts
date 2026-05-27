@@ -63,6 +63,7 @@ export class LayoutController extends Disposable {
 	private readonly _viewStateBySession: ResourceMap<ISessionViewState>;
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
 	private readonly _workingSetSequencer = new Sequencer();
+	private readonly _useModalConfigObs;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
@@ -234,7 +235,7 @@ export class LayoutController extends Disposable {
 
 		// --- Editor working sets ---
 
-		const useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
+		this._useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
 
 		// Workspace folders — used to defer session switch until workspace is ready
 		const workspaceFoldersObs = observableFromEvent(
@@ -264,7 +265,7 @@ export class LayoutController extends Disposable {
 		});
 
 		this._register(autorun(reader => {
-			const useModalConfig = useModalConfigObs.read(reader);
+			const useModalConfig = this._useModalConfigObs.read(reader);
 			if (useModalConfig === 'all') {
 				return;
 			}
@@ -438,17 +439,23 @@ export class LayoutController extends Disposable {
 			: 'empty';
 
 		return this._workingSetSequencer.queue(async () => {
+			// Switching the active session must never reveal the main editor area
+			// (or restore editors into it) while modal-only mode is in effect — the
+			// outer autorun already guards against this, but `useModal` may have
+			// flipped to 'all' between this call being queued and now.
+			const isModal = this._useModalConfigObs.get() === 'all';
+
 			if (workingSet === 'empty') {
 				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
 				return;
 			}
 
-			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-			if (result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		});

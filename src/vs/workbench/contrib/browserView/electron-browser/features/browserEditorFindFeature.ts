@@ -236,16 +236,16 @@ export class BrowserEditorFindContribution extends BrowserEditorContribution {
 		return [this._findWidgetContainer];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, _store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, _store: DisposableStore): void {
 		this._findWidget.rawValue?.setModel(model);
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._findWidget.rawValue?.setModel(undefined);
 		this._findWidget.rawValue?.hide();
 	}
 
-	override layout(width: number): void {
+	override onPaneResized(width: number): void {
 		this._findWidget.rawValue?.layout(width);
 	}
 

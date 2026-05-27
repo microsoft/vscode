@@ -7,6 +7,7 @@ import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, Tool
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
@@ -757,7 +758,7 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		this._wrapper = this._register(await this._wrapperFactory({
+		const wrapper = await this._wrapperFactory({
 			onPermissionRequest: request => this.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => this.handleElicitationRequest(context),
@@ -767,7 +768,15 @@ export class CopilotAgentSession extends Disposable {
 				onPreToolUse: input => this._handlePreToolUse(input),
 				onPostToolUse: input => this._handlePostToolUse(input),
 			},
-		}));
+		});
+		// The session may have been disposed while we were awaiting the
+		// wrapper factory. If so, dispose the freshly-created wrapper and
+		// skip subscribing — registering on a disposed store would leak.
+		if (this._store.isDisposed) {
+			wrapper.dispose();
+			throw new CancellationError();
+		}
+		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 	}

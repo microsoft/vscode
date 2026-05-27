@@ -6,7 +6,8 @@
 .chat-composite-bar {
 	display: flex;
 	align-items: center;
-	background-color: var(--chat-bar-background);
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
 	padding: 0 4px;
 	height: 35px;
 	flex-shrink: 0;
@@ -58,7 +59,6 @@
 	border-radius: 4px;
 	user-select: none;
 	flex-shrink: 0;
-	min-width: 44px;
 	max-width: min(200px, 40cqi);
 }
 
