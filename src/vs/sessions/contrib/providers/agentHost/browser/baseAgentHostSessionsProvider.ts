@@ -31,7 +31,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
@@ -48,6 +48,25 @@ import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const STORAGE_KEY_ISOLATION_MODE_LEGACY = 'sessions.agentHost.isolationPicker.selectedMode';
+const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function isSafeSessionConfigKey(property: string): boolean {
+	return !UNSAFE_SESSION_CONFIG_KEYS.has(property);
+}
+
+function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean, autopilotEnabled: boolean): ChatPermissionLevel | undefined {
+	if (typeof value !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(value)) {
+		return undefined;
+	}
+	let normalized = value as ChatPermissionLevel;
+	if (!autopilotEnabled && normalized === ChatPermissionLevel.Autopilot) {
+		normalized = ChatPermissionLevel.AutoApprove;
+	}
+	if (policyRestricted && (normalized === ChatPermissionLevel.AutoApprove || normalized === ChatPermissionLevel.Autopilot)) {
+		return ChatPermissionLevel.Default;
+	}
+	return normalized;
+}
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -1369,11 +1388,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * Initial session-config values applied to a brand-new agent-host session
-	 * before its schema is resolved. The user-facing `chat.permissions.default`
-	 * setting seeds the `autoApprove` property so that agents which advertise
-	 * the well-known auto-approve enum (`default | autoApprove | autopilot`)
-	 * pick it up on their first `resolveSessionConfig` round-trip. Agents that
-	 * do not advertise `autoApprove` simply ignore the unknown key.
+	 * before its schema is resolved. Values are seeded from the profile-scoped
+	 * remembered session-config map (plus legacy isolation fallback) and then
+	 * normalized against policy/feature constraints. When no remembered
+	 * auto-approve value exists, `chat.permissions.default` is used as fallback.
 	 *
 	 * If enterprise policy disables global auto-approval
 	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
@@ -1381,13 +1399,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * permission level the user is not allowed to pick.
 	 */
 	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
-		const config: Record<string, unknown> = {};
+		const config = Object.create(null) as Record<string, unknown>;
+		const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const autopilotEnabled = this._baseConfigurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		// Seed session config values from the last user picks.
 		// Legacy fallback: isolation was previously stored on its own key.
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
-			if (typeof value === 'string') {
+			if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
 				config[property] = value;
 			}
 		}
@@ -1398,11 +1418,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 
-		// Seed autoApprove from user settings
+		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted, autopilotEnabled);
+		if (normalizedRememberedAutoApprove) {
+			config[SessionConfigKey.AutoApprove] = normalizedRememberedAutoApprove;
+		} else {
+			delete config[SessionConfigKey.AutoApprove];
+		}
+
+		// Seed autoApprove from user settings when no remembered value exists.
 		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		if (typeof config[SessionConfigKey.AutoApprove] !== 'string' && typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
-			const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+		if (typeof config[SessionConfigKey.AutoApprove] !== 'string') {
+			const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted, autopilotEnabled);
+			if (normalizedConfiguredAutoApprove) {
+				config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
+			}
 		}
 
 		return Object.keys(config).length > 0 ? config : undefined;
@@ -1438,9 +1467,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
 		// Remember config picks across sessions
-		if (typeof value === 'string') {
+		if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
-			const nextRememberedValues = { ...rememberedValues, [property]: value };
+			const nextRememberedValues = Object.create(null) as Record<string, string>;
+			for (const [key, rememberedValue] of Object.entries(rememberedValues)) {
+				if (typeof rememberedValue === 'string' && isSafeSessionConfigKey(key)) {
+					nextRememberedValues[key] = rememberedValue;
+				}
+			}
+			nextRememberedValues[property] = value;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 			if (property === SessionConfigKey.Isolation) {
 				// Keep writing the legacy isolation key for backward compatibility.

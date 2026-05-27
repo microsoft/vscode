@@ -18,10 +18,12 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ChangesetSummary, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -36,6 +38,9 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
+
+const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+const STORAGE_KEY_ISOLATION_MODE_LEGACY = 'sessions.agentHost.isolationPicker.selectedMode';
 
 type SubscriptionState = SessionState | ChangesetState;
 
@@ -233,7 +238,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined> }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -258,6 +263,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
@@ -1058,6 +1064,99 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			seededImmediately: 'default',
 			forwardedToAgentHost: 'default',
+		});
+	});
+
+	test('setSessionConfigValue remembers string picks and ignores unsafe keys', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await provider.setSessionConfigValue(session.sessionId, '__proto__', 'polluted');
+
+		assert.deepStrictEqual({
+			rememberedValues: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			legacyIsolation: storageService.get(STORAGE_KEY_ISOLATION_MODE_LEGACY, StorageScope.PROFILE),
+		}, {
+			rememberedValues: { [SessionConfigKey.Isolation]: 'folder' },
+			legacyIsolation: 'folder',
+		});
+	});
+
+	test('createNewSession seeds remembered values and skips unsafe remembered keys', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, `{"${SessionConfigKey.Isolation}":"folder","${SessionConfigKey.Branch}":"main","__proto__":"polluted"}`, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: { isolation: 'folder', branch: 'main' },
+			forwardedToAgentHost: { isolation: 'folder', branch: 'main' },
+		});
+	});
+
+	test('createNewSession uses legacy isolation key when remembered values do not include isolation', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_ISOLATION_MODE_LEGACY, 'folder', StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: { isolation: 'folder' },
+			forwardedToAgentHost: { isolation: 'folder' },
+		});
+	});
+
+	test('createNewSession normalizes remembered autoApprove by policy and feature flags before applying fallback defaults', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'autopilot',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const policyRestrictedConfig = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.tools.global.autoApprove') {
+					return { ...base, policyValue: false as unknown as T };
+				}
+				return base;
+			}
+		}();
+		await policyRestrictedConfig.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
+		const policyRestrictedSession = policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+
+		const autopilotDisabledConfig = new TestConfigurationService();
+		await autopilotDisabledConfig.setUserConfiguration('chat.permissions.default', 'default');
+		await autopilotDisabledConfig.setUserConfiguration('chat.autopilot.enabled', false);
+		const autopilotDisabledProvider = createProvider(disposables, agentHost, undefined, { configurationService: autopilotDisabledConfig, storageService });
+		const autopilotDisabledSession = autopilotDisabledProvider.createNewSession(URI.parse('file:///home/user/project'), autopilotDisabledProvider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			policyRestricted: {
+				seededImmediately: policyRestrictedProvider.getSessionConfig(policyRestrictedSession.sessionId)?.values.autoApprove,
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			},
+			autopilotDisabled: {
+				seededImmediately: autopilotDisabledProvider.getSessionConfig(autopilotDisabledSession.sessionId)?.values.autoApprove,
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			},
+		}, {
+			policyRestricted: {
+				seededImmediately: 'default',
+				forwardedToAgentHost: 'default',
+			},
+			autopilotDisabled: {
+				seededImmediately: 'autoApprove',
+				forwardedToAgentHost: 'autoApprove',
+			},
 		});
 	});
 
