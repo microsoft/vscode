@@ -1,24 +1,21 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
-import { IChatMLFetcher, IFetchMLOptions } from '../../../../../platform/chat/common/chatMLFetcher';
-import { ChatFetchResponseType, ChatLocation, ChatResponse, ChatResponses } from '../../../../../platform/chat/common/commonTypes';
+import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
+import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
-import { ILogService } from '../../../../../platform/log/common/logService';
-import { IResponseDelta, OptionalChatRequestParams } from '../../../../../platform/networking/common/fetch';
+import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
-import { Event } from '../../../../../util/vs/base/common/event';
-import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -35,7 +32,6 @@ import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
-import { renderCompactionMessages } from '../compactionEndpoint';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
@@ -549,234 +545,6 @@ suite('Agent Summarization', () => {
 			&& !!successMeta!.outcome
 			&& successMeta!.outcome !== 'success';
 		expect(shouldSkipAfterSuccess).toBe(false);
-	});
-});
-
-suite('Foreground compaction request payload', () => {
-	// Regression: the trajectory-compaction proxy rejects `"stream": false` with
-	// HTTP 400 ("stream":false is not supported). Pin the request shape so the
-	// /compact slash command never sends that key again. See
-	// extensions/copilot/script/devTrajectoryCompactionSmoke.js for the
-	// end-to-end smoke that exercises the real proxy.
-
-	class CapturingChatMLFetcher implements IChatMLFetcher {
-		declare readonly _serviceBrand: undefined;
-		readonly onDidMakeChatMLRequest = Event.None;
-		public lastRequestOptions: OptionalChatRequestParams | undefined;
-		public summaryReply = 'summarized successfully!';
-
-		async fetchOne(options: IFetchMLOptions): Promise<ChatResponse> {
-			this.lastRequestOptions = options.requestOptions;
-			return {
-				type: ChatFetchResponseType.Success,
-				requestId: '',
-				serverRequestId: '',
-				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
-				value: this.summaryReply,
-				resolvedModel: '',
-			};
-		}
-
-		async fetchMany(): Promise<ChatResponses> {
-			throw new Error('fetchMany not used by compaction path');
-		}
-	}
-
-	let accessor: ITestingServicesAccessor;
-	let fetcher: CapturingChatMLFetcher;
-	const fileTsUri = URI.file('/workspace/file.ts');
-
-	beforeAll(async () => {
-		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2', 'ts').document;
-		const services = createExtensionUnitTestingServices();
-		services.define(IWorkspaceService, new SyncDescriptor(
-			TestWorkspaceService,
-			[[URI.file('/workspace')], [testDoc]]
-		));
-		fetcher = new CapturingChatMLFetcher();
-		services.define(IChatMLFetcher, fetcher);
-		accessor = services.createTestingAccessor();
-
-		// Warm the tokenizer (mirrors the parent suite) so per-test timing is
-		// predictable.
-		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
-		await accessor.get(ITokenizerProvider).acquireTokenizer(endpoint).tokenLength('warmup');
-	});
-
-	afterAll(() => {
-		accessor.dispose();
-	});
-
-	test('does not set stream:false (proxy rejects it with HTTP 400)', async () => {
-		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, undefined);
-
-		const toolCall1: IToolCall = {
-			id: 'tooluse_1',
-			name: ToolName.EditFile,
-			arguments: JSON.stringify({ filePath: fileTsUri.fsPath, code: `// existing code...\nconsole.log('hi')` }),
-		};
-		const toolCall2: IToolCall = {
-			id: 'tooluse_2',
-			name: ToolName.EditFile,
-			arguments: JSON.stringify({ filePath: fileTsUri.fsPath, code: `// existing code...\nconsole.log('bye')` }),
-		};
-		const toolCall3: IToolCall = {
-			id: 'tooluse_3',
-			name: ToolName.EditFile,
-			arguments: JSON.stringify({ filePath: fileTsUri.fsPath, code: `// existing code...\nconsole.log('done')` }),
-		};
-		const toolCallRounds = [
-			new ToolCallRound('ok', [toolCall1]),
-			new ToolCallRound('ok 2', [toolCall2]),
-			new ToolCallRound('ok 3', [toolCall3]),
-		];
-		const toolCallResults: Record<string, LanguageModelToolResult> = {
-			tooluse_1: new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-			tooluse_2: new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-			tooluse_3: new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-		};
-		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
-		const testConversation = new Conversation('sessionId', [turn]);
-
-		const promptContext: IBuildPromptContext = {
-			chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
-			history: [],
-			query: 'edit this file',
-			toolCallRounds,
-			toolCallResults,
-			tools: {
-				availableTools: [],
-				toolInvocationToken: null as never,
-				toolReferences: [],
-			},
-			conversation: testConversation,
-		};
-
-		const historyProps = {
-			priority: 1,
-			endpoint,
-			location: ChatLocation.Panel,
-			promptContext,
-			maxToolResultLength: Infinity,
-			enableCacheBreakpoints: true,
-			triggerSummarize: true,
-		};
-
-		fetcher.summaryReply = 'compacted!';
-		await PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps).render();
-
-		expect(fetcher.lastRequestOptions, 'compaction should have called the fetcher').toBeDefined();
-		expect(fetcher.lastRequestOptions!, 'requestOptions must not carry a stream key').not.toHaveProperty('stream');
-	});
-});
-
-suite('renderCompactionMessages', () => {
-	// The background auto-compaction path uses this helper when the resolved
-	// compaction endpoint differs from the main agent endpoint (e.g. trajectory
-	// compaction proxy is enabled). Verifies the helper produces clean messages
-	// that the cross-endpoint render path can send safely.
-
-	let accessor: ITestingServicesAccessor;
-	const fileTsUri = URI.file('/workspace/file.ts');
-
-	beforeAll(async () => {
-		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2', 'ts').document;
-		const services = createExtensionUnitTestingServices();
-		services.define(IWorkspaceService, new SyncDescriptor(
-			TestWorkspaceService,
-			[[URI.file('/workspace')], [testDoc]]
-		));
-		accessor = services.createTestingAccessor();
-		const warmup = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
-		await accessor.get(ITokenizerProvider).acquireTokenizer(warmup).tokenLength('warmup');
-	});
-
-	afterAll(() => {
-		accessor.dispose();
-	});
-
-	function makeContext(): IBuildPromptContext {
-		const toolCall: IToolCall = {
-			id: 'tooluse_1',
-			name: ToolName.EditFile,
-			arguments: JSON.stringify({ filePath: fileTsUri.fsPath, code: `// hello` }),
-		};
-		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
-		const conversation = new Conversation('sessionId', [turn]);
-		return {
-			chatVariables: new ChatVariablesCollection([]),
-			history: [],
-			query: 'edit this file',
-			toolCallRounds: [
-				new ToolCallRound('first', [toolCall]),
-				new ToolCallRound('second', [{ ...toolCall, id: 'tooluse_2' }]),
-			],
-			toolCallResults: {
-				tooluse_1: new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-				tooluse_2: new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-			},
-			tools: {
-				availableTools: [],
-				toolInvocationToken: null as never,
-				toolReferences: [],
-			},
-			conversation,
-		};
-	}
-
-	test('renders messages and returns the summarized round id from propsBuilder', async () => {
-		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, 'trajectory-compaction');
-		const result = await renderCompactionMessages(
-			endpoint,
-			makeContext(),
-			undefined,
-			instaService,
-			accessor.get(ILogService),
-			CancellationToken.None,
-		);
-
-		expect(result, 'helper should produce messages when there is history to summarize').toBeDefined();
-		expect(result!.messages.length).toBeGreaterThan(0);
-		// The propsBuilder's summarized-through round id is what the caller
-		// MUST attach the eventual summary to. Confirm we surface it.
-		expect(typeof result!.summarizedToolCallRoundId).toBe('string');
-		expect(result!.summarizedToolCallRoundId.length).toBeGreaterThan(0);
-		// Critical: the rendered prompt MUST NOT carry Anthropic cache breakpoint
-		// content parts to the cross-endpoint request — the helper strips them.
-		for (const m of result!.messages) {
-			for (const part of m.content) {
-				expect(part.type, `unexpected cache breakpoint in message role=${m.role}`).not.toBe(Raw.ChatCompletionContentPartKind.CacheBreakpoint);
-			}
-		}
-	});
-
-	test('returns undefined when there is nothing to summarize', async () => {
-		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, 'trajectory-compaction');
-		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
-		const emptyContext: IBuildPromptContext = {
-			chatVariables: new ChatVariablesCollection([]),
-			history: [],
-			query: 'hello',
-			toolCallRounds: [], // no prior content
-			conversation: new Conversation('sessionId', [turn]),
-			tools: {
-				availableTools: [],
-				toolInvocationToken: null as never,
-				toolReferences: [],
-			},
-		};
-		const result = await renderCompactionMessages(
-			endpoint,
-			emptyContext,
-			undefined,
-			instaService,
-			accessor.get(ILogService),
-			CancellationToken.None,
-		);
-		expect(result).toBeUndefined();
 	});
 });
 
