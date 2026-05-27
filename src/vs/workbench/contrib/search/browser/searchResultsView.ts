@@ -21,12 +21,15 @@ import { SearchView } from './searchView.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ISearchActionContext } from './searchActionsRemoveReplace.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { SearchActionsMenuPool } from './searchActionsToolBar.js';
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -38,10 +41,9 @@ import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
-	actions: MenuWorkbenchToolBar;
+	actions: ToolBar;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
-	contextKeyService: IContextKeyService;
 }
 
 interface ITextSearchResultTemplate {
@@ -55,10 +57,9 @@ interface IFileMatchTemplate {
 	el: HTMLElement;
 	label: IResourceLabel;
 	badge: CountBadge;
-	actions: MenuWorkbenchToolBar;
+	actions: ToolBar;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
-	contextKeyService: IContextKeyService;
 }
 
 interface IMatchTemplate {
@@ -68,9 +69,8 @@ interface IMatchTemplate {
 	match: HTMLElement;
 	replace: HTMLElement;
 	after: HTMLElement;
-	actions: MenuWorkbenchToolBar;
+	actions: ToolBar;
 	disposables: DisposableStore;
-	contextKeyService: IContextKeyService;
 }
 
 export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
@@ -175,6 +175,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 
 	readonly templateId = FolderMatchRenderer.TEMPLATE_ID;
 
+	private _menuPool: SearchActionsMenuPool | undefined;
+
 	constructor(
 		private searchView: SearchView,
 		private labels: ResourceLabels,
@@ -182,8 +184,26 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
+	}
+
+	private get menuPool(): SearchActionsMenuPool {
+		if (!this._menuPool) {
+			this._menuPool = this._register(new SearchActionsMenuPool(
+				this.contextKeyService,
+				this.instantiationService,
+				cks => {
+					SearchContext.AIResultsTitle.bindTo(cks).set(false);
+					SearchContext.MatchFocusKey.bindTo(cks).set(false);
+					SearchContext.FileFocusKey.bindTo(cks).set(false);
+					SearchContext.FolderFocusKey.bindTo(cks).set(true);
+				},
+				this.menuService,
+			));
+		}
+		return this._menuPool;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeFolderMatch>, any>, index: number, templateData: IFolderMatchTemplate): void {
@@ -217,22 +237,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const elementDisposables = new DisposableStore();
 		disposables.add(elementDisposables);
 
-		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
-		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
-
-		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
-		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
-			menuOptions: {
-				shouldForwardArgs: true
-			},
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			toolbarOptions: {
-				primaryGroup: (g: string) => /^inline/.test(g),
-			},
-		}));
+		const { toolbar: actions, dispose: disposeToolbar } = this.menuPool.createToolBar(actionBarContainer);
+		disposables.add({ dispose: disposeToolbar } satisfies IDisposable);
 
 		return {
 			label,
@@ -240,7 +246,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			actions,
 			disposables,
 			elementDisposables,
-			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -257,11 +262,10 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
 
-		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
-
-		templateData.elementDisposables.add(folderMatch.onChange(() => {
-			SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
-		}));
+		// Note: per-row IsEditableItemKey binding was removed when this renderer
+		// switched to a renderer-shared menu pool to fix listener leak (#308255).
+		// Replace inline icons may show on read-only matches when replace mode is
+		// active; the action's run() is responsible for no-op'ing in that case.
 
 		this.renderFolderDetails(folderMatch, templateData);
 	}
@@ -292,6 +296,8 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 	readonly templateId = FileMatchRenderer.TEMPLATE_ID;
 
+	private _menuPool: SearchActionsMenuPool | undefined;
+
 	constructor(
 		private searchView: SearchView,
 		private labels: ResourceLabels,
@@ -299,8 +305,26 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
+	}
+
+	private get menuPool(): SearchActionsMenuPool {
+		if (!this._menuPool) {
+			this._menuPool = this._register(new SearchActionsMenuPool(
+				this.contextKeyService,
+				this.instantiationService,
+				cks => {
+					SearchContext.AIResultsTitle.bindTo(cks).set(false);
+					SearchContext.MatchFocusKey.bindTo(cks).set(false);
+					SearchContext.FileFocusKey.bindTo(cks).set(true);
+					SearchContext.FolderFocusKey.bindTo(cks).set(false);
+				},
+				this.menuService,
+			));
+		}
+		return this._menuPool;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeFileMatch>, any>, index: number, templateData: IFileMatchTemplate): void {
@@ -318,22 +342,8 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		disposables.add(badge);
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
-		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
-		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(true);
-		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
-
-		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
-		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
-			menuOptions: {
-				shouldForwardArgs: true
-			},
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			toolbarOptions: {
-				primaryGroup: (g: string) => /^inline/.test(g),
-			},
-		}));
+		const { toolbar: actions, dispose: disposeToolbar } = this.menuPool.createToolBar(actionBarContainer);
+		disposables.add({ dispose: disposeToolbar } satisfies IDisposable);
 
 		return {
 			el: fileMatchElement,
@@ -342,7 +352,6 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			actions,
 			disposables,
 			elementDisposables,
-			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -358,11 +367,8 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: fileMatch } satisfies ISearchActionContext;
 
-		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
-
-		templateData.elementDisposables.add(fileMatch.onChange(() => {
-			SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
-		}));
+		// Note: per-row IsEditableItemKey binding was removed when this renderer
+		// switched to a renderer-shared menu pool to fix listener leak (#308255).
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.
@@ -385,16 +391,37 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 
 	readonly templateId = MatchRenderer.TEMPLATE_ID;
 
+	private _menuPool: SearchActionsMenuPool | undefined;
+
 	constructor(
 		private searchView: SearchView,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 	}
+
+	private get menuPool(): SearchActionsMenuPool {
+		if (!this._menuPool) {
+			this._menuPool = this._register(new SearchActionsMenuPool(
+				this.contextKeyService,
+				this.instantiationService,
+				cks => {
+					SearchContext.AIResultsTitle.bindTo(cks).set(false);
+					SearchContext.MatchFocusKey.bindTo(cks).set(true);
+					SearchContext.FileFocusKey.bindTo(cks).set(false);
+					SearchContext.FolderFocusKey.bindTo(cks).set(false);
+				},
+				this.menuService,
+			));
+		}
+		return this._menuPool;
+	}
+
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeMatch>, void>, index: number, templateData: IMatchTemplate): void {
 		throw new Error('Should never happen since node is incompressible.');
 	}
@@ -412,22 +439,8 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 
 		const disposables = new DisposableStore();
 
-		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
-		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(true);
-		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
-		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
-
-		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
-		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
-			menuOptions: {
-				shouldForwardArgs: true
-			},
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			toolbarOptions: {
-				primaryGroup: (g: string) => /^inline/.test(g),
-			},
-		}));
+		const { toolbar: actions, dispose: disposeToolbar } = this.menuPool.createToolBar(actionBarContainer);
+		disposables.add({ dispose: disposeToolbar } satisfies IDisposable);
 
 		return {
 			parent,
@@ -438,7 +451,6 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			lineNumber,
 			actions,
 			disposables,
-			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -458,7 +470,8 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
-		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
+		// Note: per-row IsEditableItemKey binding was removed when this renderer
+		// switched to a renderer-shared menu pool to fix listener leak (#308255).
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
