@@ -655,9 +655,6 @@ export function registerTerminalCompressors(compressor: IToolResultCompressor): 
 	compressor.registerFilter(gitStatusFilter);
 	// File ops
 	compressor.registerFilter(lsFilter);
-	compressor.registerFilter(findFilter);
-	compressor.registerFilter(grepFilter);
-	compressor.registerFilter(treeFilter);
 	// Test / build / lint
 	compressor.registerFilter(testRunnerFilter);
 	compressor.registerFilter(buildToolFilter);
