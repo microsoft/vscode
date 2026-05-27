@@ -635,6 +635,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 		}
 
 		// 1.) Show default file based dialog
+		let cancelled = false;
 		if (dirtyEditorsWithDefaultConfirm.size > 0) {
 			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
 
@@ -650,7 +651,8 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 			switch (confirmation) {
 				case ConfirmResult.CANCEL:
-					return;
+					cancelled = true;
+					break;
 				case ConfirmResult.DONT_SAVE:
 					await this.revertEditors(editorService, logService, progressService, editors);
 					break;
@@ -661,45 +663,59 @@ abstract class AbstractCloseAllAction extends Action2 {
 		}
 
 		// 2.) Show custom confirm based dialog
-		for (const [, editorIdentifiers] of editorsWithCustomConfirm) {
-			const editors = Array.from(editorIdentifiers.values());
+		if (!cancelled) {
+			for (const [, editorIdentifiers] of editorsWithCustomConfirm) {
+				const editors = Array.from(editorIdentifiers.values());
 
-			await this.revealEditorsToConfirm(editors, editorGroupService); // help user make a decision by revealing editors
+				await this.revealEditorsToConfirm(editors, editorGroupService); // help user make a decision by revealing editors
 
-			const confirmation = await editors.at(0)?.editor.closeHandler?.confirm?.(editors);
-			if (typeof confirmation === 'number') {
-				switch (confirmation) {
-					case ConfirmResult.CANCEL:
-						return;
-					case ConfirmResult.DONT_SAVE:
-						await this.revertEditors(editorService, logService, progressService, editors);
-						break;
-					case ConfirmResult.SAVE:
-						await editorService.save(editors, { reason: SaveReason.EXPLICIT });
-						break;
+				const confirmation = await editors.at(0)?.editor.closeHandler?.confirm?.(editors);
+				if (typeof confirmation === 'number') {
+					switch (confirmation) {
+						case ConfirmResult.CANCEL:
+							cancelled = true;
+							break;
+						case ConfirmResult.DONT_SAVE:
+							await this.revertEditors(editorService, logService, progressService, editors);
+							break;
+						case ConfirmResult.SAVE:
+							await editorService.save(editors, { reason: SaveReason.EXPLICIT });
+							break;
+					}
+				}
+
+				if (cancelled) {
+					break;
 				}
 			}
 		}
 
-		// 3.) Save autosaveable editors (focus change)
-		if (dirtyAutoSaveOnFocusChangeEditors.size > 0) {
-			const editors = Array.from(dirtyAutoSaveOnFocusChangeEditors.values());
+		if (!cancelled) {
+			// 3.) Save autosaveable editors (focus change)
+			if (dirtyAutoSaveOnFocusChangeEditors.size > 0) {
+				const editors = Array.from(dirtyAutoSaveOnFocusChangeEditors.values());
 
-			await editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
-		}
+				await editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
+			}
 
-		// 4.) Save autosaveable editors (window change)
-		if (dirtyAutoSaveOnWindowChangeEditors.size > 0) {
-			const editors = Array.from(dirtyAutoSaveOnWindowChangeEditors.values());
+			// 4.) Save autosaveable editors (window change)
+			if (dirtyAutoSaveOnWindowChangeEditors.size > 0) {
+				const editors = Array.from(dirtyAutoSaveOnWindowChangeEditors.values());
 
-			await editorService.save(editors, { reason: SaveReason.WINDOW_CHANGE });
+				await editorService.save(editors, { reason: SaveReason.WINDOW_CHANGE });
+			}
+
 		}
 
 		// 5.) Finally close all editors: even if an editor failed to
 		// save or revert and still reports dirty, the editor part makes
 		// sure to bring up another confirm dialog for those editors
 		// specifically.
-		return this.doCloseAll(editorGroupService);
+		// When the user cancelled a confirmation dialog, we still close
+		// all editors that do not require confirmation (i.e. non-dirty
+		// editors) so that the cancel only affects the unsaved editors.
+		// (see https://github.com/microsoft/vscode/issues/305306)
+		return this.doCloseAll(editorGroupService, cancelled);
 	}
 
 	private revertEditors(editorService: IEditorService, logService: ILogService, progressService: IProgressService, editors: IEditorIdentifier[]): Promise<void> {
@@ -749,8 +765,8 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 	protected abstract get excludeSticky(): boolean;
 
-	protected async doCloseAll(editorGroupService: IEditorGroupsService): Promise<void> {
-		await Promise.all(this.groupsToClose(editorGroupService).map(group => group.closeAllEditors({ excludeSticky: this.excludeSticky })));
+	protected async doCloseAll(editorGroupService: IEditorGroupsService, excludeConfirming?: boolean): Promise<void> {
+		await Promise.all(this.groupsToClose(editorGroupService).map(group => group.closeAllEditors({ excludeSticky: this.excludeSticky, excludeConfirming })));
 	}
 }
 
