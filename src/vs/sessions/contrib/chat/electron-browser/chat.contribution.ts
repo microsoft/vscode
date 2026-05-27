@@ -6,20 +6,15 @@
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
-import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
-import { ExportAgentHostDebugLogsAction } from '../../agentHost/electron-browser/exportDebugLogsAction.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-
-registerAction2(DebugAgentHostInDevToolsAction);
-registerAction2(ExportAgentHostDebugLogsAction);
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,6 +26,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 	) {
 		super();
 		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
@@ -65,16 +61,15 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private tryResolveAndSelect(folderUri: URI): boolean {
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			const workspace = provider.resolveWorkspace(folderUri);
-			if (workspace) {
-				this.viewsService.openView<NewChatViewPane>(SessionsViewId).then(view => {
-					view?.selectWorkspace({ providerId: provider.id, workspace });
-				});
-				return true;
-			}
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
+		if (!resolved) {
+			return false;
 		}
-		return false;
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
+			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
+		}
+		return true;
 	}
 }
 

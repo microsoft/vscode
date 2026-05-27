@@ -24,7 +24,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { ILogService } from '../../log/common/logService';
 import { IPromptPathRepresentationService } from '../../prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
-import { COPILOT_INSTRUCTIONS_PATH, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_LOCATION_KEY, PERSONAL_SKILL_FOLDERS, PromptsType, SKILLS_LOCATION_KEY, USE_AGENT_SKILLS_SETTING, WORKSPACE_SKILL_FOLDERS } from './promptTypes';
+import { COPILOT_INSTRUCTIONS_PATH, COPILOT_PERSONAL_INSTRUCTIONS_PATH, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_LOCATION_KEY, PERSONAL_SKILL_FOLDERS, PromptsType, SKILLS_LOCATION_KEY, USE_AGENT_SKILLS_SETTING, WORKSPACE_SKILL_FOLDERS } from './promptTypes';
 
 declare const TextDecoder: {
 	decode(input: Uint8Array): string;
@@ -316,6 +316,14 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 				} catch (e) {
 					// ignore non-existing instruction files
 				}
+			}
+			try {
+				const uri = extUriBiasedIgnorePathCase.joinPath(this.envService.userHome, COPILOT_PERSONAL_INSTRUCTIONS_PATH);
+				if ((await this.fileSystemService.stat(uri)).type === FileType.File) {
+					result.push(uri);
+				}
+			} catch (e) {
+				// ignore non-existing instruction files
 			}
 		}
 		return result;

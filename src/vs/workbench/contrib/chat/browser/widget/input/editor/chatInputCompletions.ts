@@ -229,6 +229,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
@@ -247,7 +251,7 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
-				const promptCommands = await this.harnessService.getSlashCommands(currentSessionType, token);
+				const promptCommands = await this.harnessService.getSlashCommands(widget.viewModel.model.sessionResource, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -287,6 +291,10 @@ class SlashCommandCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
+					return;
 				}
 
 				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`

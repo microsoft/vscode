@@ -126,6 +126,7 @@
 	display: flex;
 	padding: 0px 8px;
 	width: 100%;
+	box-sizing: border-box;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container {

@@ -30,7 +30,7 @@ import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -282,7 +282,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						id: GENERATE_RUN_ACTION_ID,
 						title: localize2('generateRunAction', "Generate New Task..."),
 						category: SessionsCategories.Sessions,
-						precondition: IsActiveSessionBackgroundProviderContext,
+						precondition: ActiveSessionWorkspaceIsVirtualContext.toNegated(),
 						menu: [{
 							id: RunScriptDropdownMenuId,
 							group: tasks.length === 0 ? 'navigation' : '1_configure',
@@ -302,12 +302,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private async _generateNewTask(session: ISession): Promise<void> {
 		const query = '/generate-run-commands';
 		// Prefer sending to the already-open chat widget for the session;
-		// fall back to sendAndCreateChat for untitled sessions or when no widget is loaded.
-		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.resource);
+		// fall back to sendRequest for untitled sessions or when no widget is loaded.
+		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.get().resource);
 		if (widget) {
 			await widget.acceptInput(query);
 		} else {
-			await this._sessionManagementService.sendAndCreateChat(session, { query });
+			await this._sessionManagementService.sendNewChatRequest(session, { query });
 		}
 	}
 
@@ -845,7 +845,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 8,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext)
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -861,7 +861,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 8,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

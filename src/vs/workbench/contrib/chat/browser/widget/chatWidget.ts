@@ -47,14 +47,14 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
-import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -974,8 +974,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.unlockFromCodingAgent();
 		}
 
-		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
-		this.inputPart.clearArtifactsWidget();
+		this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
+		this.inputPart?.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
 	}
@@ -1032,7 +1032,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Only show welcome getting started until setup is completed
-		this.container.classList.toggle('chat-view-getting-started-disabled', this.chatEntitlementService.sentiment.completed);
+		this.container.classList.toggle(
+			'chat-view-getting-started-disabled',
+			this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels);
 
 		this._onDidChangeEmptyState.fire();
 	}
@@ -1973,9 +1975,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderChatSuggestNextWidget();
 		}));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
+		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(foregroundSessionCountContextKeys) && this.isEmpty()) {
 				this.renderGettingStartedTipIfNeeded();
+			}
+			if (e.affectsSome(hasByokModelsContextKeys)) {
+				this.updateChatViewVisibility();
 			}
 		}));
 		let previousModelIdentifier: string | undefined;
@@ -2027,11 +2033,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 	setModel(model: IChatModel | undefined): void {
-		if (!this.container) {
-			throw new Error('Call render() before setModel()');
+		if (!this.container || !this.inputPart) {
+			// Widget hasn't finished rendering yet; skip rather than crash and
+			// break the session view. Caller will re-invoke once rendered.
+			this.logService.warn('ChatWidget#setModel called before render() completed');
+			return;
 		}
 
+		const currentInputModel = this.viewModel?.model?.inputModel?.state?.get();
 		if (!model) {
+			logChangesToStateModel(this.viewModel?.model?.inputModel, `ChatWidget.setModel to empty, old ${this.viewModel?.sessionResource.toString()}`, undefined, currentInputModel, this.logService);
 			// Flush any unsent draft to the outgoing input model before we drop our
 			// reference to it, so the host's `willDisposeModel` persistence sees it.
 			this.inputPart.flushInputStateToModel();
@@ -2049,11 +2060,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
+
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
 		}
-		this.inputPart.clearTodoListWidget(model.sessionResource, false);
-		this.inputPart.clearArtifactsWidget();
+		this.inputPart?.clearTodoListWidget(model.sessionResource, false);
+		this.inputPart?.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
@@ -2148,13 +2161,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, false);
+				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
 				this.chatSuggestNextWidget.hide();
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
-				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				this.chatSuggestNextWidget.hide();
 				this._sessionIsEmptyContextKey.set((this.viewModel?.model.getRequests().length ?? 0) === 0);
 			}
@@ -2164,7 +2177,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const wasCancelled = lastRequest?.response?.isCanceled ?? false;
 				if (wasCancelled) {
 					// Clear todo list when request is cancelled
-					this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+					this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				}
 				// Only show if response wasn't canceled
 				this.renderChatSuggestNextWidget();
@@ -2351,10 +2364,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Track them now so tip exclusions still update for commands like /init.
 		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
 
-		const sessionType = getChatSessionType(sessionResource);
-
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
+		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionResource, CancellationToken.None);
 		if (!slashCommand) {
 			return true;
 		}

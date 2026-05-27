@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as os from 'os';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress } from '../../common/sshRemoteAgentHost.js';
+import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
+import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
+
+const dataFolderName = '.vscode-insiders';
+const quality = 'insider';
+
+function stateJson(pid: number, port: number, connectionToken: string | undefined | null): string {
+	return JSON.stringify(createRemoteAgentHostState({
+		pid,
+		port,
+		connectionToken: connectionToken ?? undefined,
+		quality,
+	}));
+}
 
 /** Minimal mock SSHChannel for testing. */
 class MockSSHChannel {
@@ -128,6 +145,49 @@ class MockSSHClient {
 	}
 }
 
+class KeyboardInteractiveMockSSHClient {
+	ended = false;
+	finishResponses: readonly string[] | undefined;
+
+	private readonly _errorListeners: Array<(err: Error) => void> = [];
+
+	on(event: 'ready', listener: () => void): this;
+	on(event: 'error', listener: (err: Error) => void): this;
+	on(event: 'close', listener: () => void): this;
+	on(event: string, listener: ((err: Error) => void) | (() => void)): this {
+		if (event === 'error') {
+			this._errorListeners.push(listener as (err: Error) => void);
+		}
+		return this;
+	}
+
+	removeListener(_event: string, _listener: (...args: never[]) => void): this {
+		return this;
+	}
+
+	connect(config: ConnectConfig): void {
+		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
+		authHandler?.(null, false, method => {
+			if (method && method.type === 'keyboard-interactive') {
+				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
+					this.finishResponses = responses;
+					this.fireError(new Error('All configured authentication methods failed'));
+				});
+			}
+		});
+	}
+
+	end(): void {
+		this.ended = true;
+	}
+
+	private fireError(err: Error): void {
+		for (const listener of this._errorListeners) {
+			listener(err);
+		}
+	}
+}
+
 function makeConfig(overrides?: Partial<ISSHAgentHostConfig>): ISSHAgentHostConfig {
 	return {
 		host: '10.0.0.1',
@@ -174,7 +234,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	hangRelayCreationOnCall: number | undefined;
 
 	/** Public override so tests can shorten the relay creation timeout. */
-	override relayCreationTimeoutMs: number = 30_000;
+	protected override relayCreationTimeoutMs: number = 30_000;
 
 	/** Stored onMessage callbacks from relays, most recent last. */
 	private readonly _relayMessageCallbacks: Array<(data: string) => void> = [];
@@ -235,6 +295,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			port: 22,
 			user: 'testuser',
 			identityFile: [],
+			identityAgent: undefined,
 			forwardAgent: false,
 		};
 	}
@@ -279,6 +340,35 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			this._relayCloseCallbacks[this._relayCloseCallbacks.length - 1]();
 		}
 	}
+
+	/** Sets the relay creation timeout; exposed for tests only. */
+	setRelayCreationTimeoutForTest(ms: number): void {
+		this.relayCreationTimeoutMs = ms;
+	}
+
+	startKeyboardInteractiveForTest(
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		return this._handleKeyboardInteractive('ssh:test-host', 'test-host', 'testuser', '', '', prompts, finish, cancelConnect);
+	}
+}
+
+class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainService {
+	readonly client = new KeyboardInteractiveMockSSHClient();
+
+	protected override async _createSSHClient() {
+		return this.client as never;
+	}
+
+	protected override async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		return [{ type: 'keyboard-interactive', username: config.username }];
+	}
+
+	connectSSHForTest(config: ISSHAgentHostConfig) {
+		return this._connectSSH(config, 'ssh:test-host');
+	}
 }
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
@@ -288,9 +378,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	setup(() => {
 		const logService = new NullLogService();
-		const productService: Pick<IProductService, '_serviceBrand' | 'quality'> = {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
 			_serviceBrand: undefined,
-			quality: 'insider',
+			quality,
+			dataFolderName,
 		};
 		service = new TestableSSHRemoteAgentHostMainService(
 			logService,
@@ -433,7 +524,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('reuses existing agent host when state file has valid PID', async () => {
-		const existingState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
@@ -453,7 +544,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('starts fresh when state file PID is dead', async () => {
-		const staleState = JSON.stringify({ pid: 9999, port: 7777, connectionToken: 'old-tok' });
+		const staleState = stateJson(9999, 7777, 'old-tok');
 		service.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
@@ -473,7 +564,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('falls back to fresh start when relay to reused agent fails', async () => {
-		const existingState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
@@ -503,6 +594,24 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// Should have started a fresh agent host after relay failure
 		assert.strictEqual(service.startCalled, 1);
 		assert.strictEqual(relayCallCount, 2);
+		assert.strictEqual(result.connectionToken, 'tok-abc');
+	});
+
+	test('treats malformed legacy state as missing and starts fresh', async () => {
+		const legacyState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		service.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: legacyState, code: 0 }, // cat lockfile (no schemaVersion)
+			{ stdout: '', code: 0 },           // rm -f corrupt lockfile
+			{ stdout: '', code: 0 },           // write new lockfile
+		];
+
+		const result = await service.connect(makeConfig());
+
+		assert.strictEqual(service.startCalled, 1);
+		assert.strictEqual(service.relayCalled, 1);
 		assert.strictEqual(result.connectionToken, 'tok-abc');
 	});
 
@@ -824,6 +933,48 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.ok(progress.every(p => p.message.length > 0), 'all progress messages should be non-empty');
 	});
 
+	test('cancelling keyboard-interactive prompt rejects connect with cancellation', async () => {
+		const kbiService = disposables.add(new KeyboardInteractiveConnectTestService(
+			new NullLogService(),
+			{
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+			} as IProductService,
+		));
+		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
+		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
+
+		const connectPromise = kbiService.connectSSHForTest(makeConfig({ sshConfigHost: 'test-host' }));
+		const kbiRequest = await request.p;
+		await kbiService.respondKeyboardInteractive(kbiRequest.requestId, undefined);
+
+		await assert.rejects(connectPromise, error => isCancellationError(error));
+		assert.deepStrictEqual({
+			ended: kbiService.client.ended,
+			finishResponses: kbiService.client.finishResponses,
+		}, {
+			ended: true,
+			finishResponses: [],
+		});
+	});
+
+	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
+		let finished: readonly string[] | undefined;
+		let cancelled = false;
+
+		const requestId = service.startKeyboardInteractiveForTest([
+			{ prompt: 'Password: ', echo: false },
+		], responses => { finished = responses; }, () => { cancelled = true; });
+
+		await service.respondKeyboardInteractive(requestId, ['secret']);
+
+		assert.deepStrictEqual({ finished, cancelled }, {
+			finished: ['secret'],
+			cancelled: false,
+		});
+	});
+
 	// --- SSH client close triggers connection disposal ---
 
 	test('SSH client close event disposes the connection', async () => {
@@ -1017,7 +1168,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(originalClient.ended, false);
 
 		// Use a short timeout so the test completes quickly.
-		service.relayCreationTimeoutMs = 50;
+		service.setRelayCreationTimeoutForTest(50);
 		// Make the *reconnect* call's relay creation hang (the second relay).
 		service.hangRelayCreationOnCall = 2;
 
@@ -1097,9 +1248,10 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 	setup(() => {
 		const logService = new NullLogService();
-		const productService: Pick<IProductService, '_serviceBrand' | 'quality'> = {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
 			_serviceBrand: undefined,
-			quality: 'insider',
+			quality,
+			dataFolderName,
 		};
 		service = new AuthAttemptsTestService(
 			logService,
@@ -1115,6 +1267,25 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 	const RSA = Buffer.from('rsa-key-bytes');
 	const ED = Buffer.from('ed25519-key-bytes');
 	const EXPLICIT = Buffer.from('explicit-key-bytes');
+
+	function sshString(value: string): Buffer {
+		const valueBuffer = Buffer.from(value, 'utf8');
+		const lengthBuffer = Buffer.alloc(4);
+		lengthBuffer.writeUInt32BE(valueBuffer.length, 0);
+		return Buffer.concat([lengthBuffer, valueBuffer]);
+	}
+
+	function openSSHPrivateKeyWithCipher(cipher: string): Buffer {
+		const data = Buffer.concat([
+			Buffer.from('openssh-key-v1\0', 'utf8'),
+			sshString(cipher),
+		]);
+		return Buffer.from([
+			'-----BEGIN OPENSSH PRIVATE KEY-----',
+			data.toString('base64'),
+			'-----END OPENSSH PRIVATE KEY-----',
+		].join('\n'));
+	}
 
 	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa, then keyboard-interactive', async () => {
 		service.agentSock = undefined;
@@ -1169,7 +1340,50 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
-	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → explicit, agent, id_rsa, keyboard-interactive', async () => {
+	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: '//./pipe/pageant.user.1234',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '//./pipe/pageant.user.1234' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent SSH_AUTH_SOCK uses the default agent endpoint', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: 'SSH_AUTH_SOCK',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent none disables the default SSH_AUTH_SOCK fallback', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: 'none',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → agent first, then explicit, id_rsa, keyboard-interactive', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('/some/explicit/key', EXPLICIT);
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -1180,8 +1394,8 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		}));
 
 		assert.deepStrictEqual(attempts, [
-			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
 			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
@@ -1204,6 +1418,27 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
+	test('Agent + explicit privateKeyPath as absolute default path → agent first, key added once', async () => {
+		// Regression: `ssh -G` always returns absolute identity-file paths, so
+		// /Users/<me>/.ssh/id_ed25519 must be recognized as a default and not
+		// promoted to an explicit (encrypted) attempt that would fire a
+		// passphrase prompt before the agent ever gets a chance.
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_ed25519', ED);
+		const absoluteDefault = `${os.homedir()}/.ssh/id_ed25519`;
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: absoluteDefault,
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
 	test('KeyFile + explicit path → publickey only', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('/some/explicit/key', EXPLICIT);
@@ -1216,6 +1451,20 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
+		]);
+	});
+
+	test('KeyFile + encrypted OpenSSH key marks attempt as encrypted', async () => {
+		const encryptedKey = openSSHPrivateKeyWithCipher('aes256-ctr');
+		service.keyFiles.set('/some/encrypted/key', encryptedKey);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/some/encrypted/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: encryptedKey, keyPath: '/some/encrypted/key', encrypted: true },
 		]);
 	});
 
@@ -1325,5 +1574,23 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		(callsWithKbi[0] as { prompt: Function }).prompt('n', 'i', 'lang', [{ prompt: 'Password:', echo: false }], (responses: ReadonlyArray<string>) => finishCalls.push(responses));
 		assert.deepStrictEqual(promptArgs, { name: 'n', instructions: 'i', prompts: [{ prompt: 'Password:', echo: false }] });
 		assert.deepStrictEqual(finishCalls, [['secret']]);
+	});
+
+	test('encrypted publickey requests passphrase and passes it to ssh2', () => {
+		const encryptedAttempts: SSHAuthAttempt[] = [
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa', encrypted: true },
+		];
+
+		const calls: Array<object | false> = [];
+		const handler = makeAuthHandler(encryptedAttempts, new NullLogService(), undefined, (keyPath, finish) => {
+			assert.strictEqual(keyPath, '~/.ssh/id_rsa');
+			finish('passphrase');
+		});
+
+		handler(null, false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [
+			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
+		]);
 	});
 });

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -20,56 +19,6 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
-}
-
-/** Session type ID for local Copilot CLI sessions. */
-export const COPILOT_CLI_SESSION_TYPE = 'copilotcli';
-
-/** Session type ID for Copilot Cloud sessions. */
-export const COPILOT_CLOUD_SESSION_TYPE = 'copilot-cloud-agent';
-
-/** Copilot CLI session type — local background agent running in a Git worktree. */
-export const CopilotCLISessionType: ISessionType = {
-	id: COPILOT_CLI_SESSION_TYPE,
-	label: localize('copilotCLI', "Copilot CLI"),
-	icon: Codicon.copilot,
-};
-
-/** Copilot Cloud session type - cloud-hosted agent. */
-export const CopilotCloudSessionType: ISessionType = {
-	id: COPILOT_CLOUD_SESSION_TYPE,
-	label: localize('copilotCloud', "Cloud"),
-	icon: Codicon.cloud,
-};
-
-/** Session type ID for Claude Code sessions. */
-export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
-
-/** Claude Code session type — local agent powered by Claude. */
-export const ClaudeCodeSessionType: ISessionType = {
-	id: CLAUDE_CODE_SESSION_TYPE,
-	label: localize('claudeCode', "Claude"),
-	icon: Codicon.claude,
-};
-
-/** Session type ID for local VS Code chat sessions (in-process, no worktree). */
-export const LOCAL_SESSION_TYPE = 'local';
-
-/** Local session type — in-process VS Code chat, no background agent or worktree. */
-export const LocalSessionType: ISessionType = {
-	id: LOCAL_SESSION_TYPE,
-	label: localize('localSession', "Local"),
-	icon: Codicon.vm,
-};
-
-/**
- * Returns whether the given session type represents a workspace-backed
- * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
- * repository — regardless of whether the agent runs locally or remotely.
- * TODO: Somehow make this contributable so we don't have to hardcode session types here.
- */
-export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
-	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -156,6 +105,10 @@ export interface ISessionWorkspace {
 	readonly folders: ISessionFolder[];
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
+	/**
+	 * Whether this workspace is a virtual
+	 */
+	readonly isVirtualWorkspace: boolean;
 }
 
 /**
@@ -190,10 +143,41 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
+	/** Optional category for the changeset. */
+	readonly category?: string;
 	/** Whether the changeset is enabled. */
-	readonly enabled: IObservable<boolean>;
-	/** File changes associated with this changeset. */
+	readonly isEnabled: IObservable<boolean>;
+	/**
+	 * Whether this changeset should be selected by default when the UI
+	 * switches to its session. May change with session state (e.g. an
+	 * archived session may default to a snapshot changeset rather than a
+	 * live one). Producers should ensure at most one changeset in a
+	 * session reports `true` at any time.
+	 */
+	readonly isDefault: IObservable<boolean>;
+	/**
+	 * Whether this changeset is currently loading its file changes.
+	 */
+	readonly isLoadingChanges: IObservable<boolean>;
+	/** Observable for the file changes in this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Reference to the original checkpoint for this changeset. */
+	readonly originalCheckpointRef: IObservable<string | undefined>;
+	/** Reference to the modified checkpoint for this changeset. */
+	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+}
+
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
 }
 
 export interface IChatCheckpoints {
@@ -222,8 +206,6 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Changesets produced by the chat. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -274,7 +256,6 @@ export interface ISession {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
@@ -288,17 +269,10 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**
@@ -323,6 +297,16 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
+	 * environment provisioning. When `true`, the agents-window
+	 * client-side dispatcher must NOT run those tasks itself to avoid
+	 * double-execution. Defaults to `false` for sessions backed by local
+	 * or remote agent hosts, where the client is the only thing that
+	 * could trigger them.
+	 */
+	readonly runsWorktreeCreatedTasks?: boolean;
 }
 
 /**

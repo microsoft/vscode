@@ -112,6 +112,58 @@ export function logChangesViewReviewCommentAdded(telemetryService: ITelemetrySer
 	telemetryService.publicLog2<ChangesViewReviewCommentAddedEvent, ChangesViewReviewCommentAddedClassification>('vscodeAgents.changesView/reviewCommentAdded', data);
 }
 
+// --- Tunnel agent host discovery ---
+
+export type TunnelDiscoveryTrigger =
+	| 'startup'
+	| 'rediscover'
+	| 'sessionChange';
+
+type TunnelDiscoveryResultEvent = {
+	trigger: string;
+	totalFound: number;
+	withActiveHost: number;
+	cachedBefore: number;
+	autoConnectEnabled: boolean;
+	hostsEnabled: boolean;
+	success: boolean;
+};
+
+type TunnelDiscoveryResultClassification = {
+	owner: 'osortega';
+	comment: 'Tracks the outcome of agent-host tunnel discovery so we can diagnose stuck-after-discovery scenarios where tunnels are found but no providers ever appear.';
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What initiated the discovery (startup, rediscover, sessionChange).' };
+	totalFound: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tunnels returned by the embedder after the protocol-version filter.' };
+	withActiveHost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of discovered tunnels that have a host process currently connected (hostConnectionCount > 0).' };
+	cachedBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tunnels in the local recent-tunnels cache before this discovery run.' };
+	autoConnectEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat.remoteAgentHostsAutoConnect is enabled.' };
+	hostsEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat.remoteAgentHostsEnabled is enabled.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the discovery call itself completed (false when listTunnels threw).' };
+};
+
+export function logTunnelDiscoveryResult(
+	telemetryService: ITelemetryService,
+	data: {
+		trigger: TunnelDiscoveryTrigger;
+		totalFound: number;
+		withActiveHost: number;
+		cachedBefore: number;
+		autoConnectEnabled: boolean;
+		hostsEnabled: boolean;
+		success: boolean;
+	},
+): void {
+	telemetryService.publicLog2<TunnelDiscoveryResultEvent, TunnelDiscoveryResultClassification>('vscodeAgents.tunnelDiscovery/result', {
+		trigger: data.trigger,
+		totalFound: data.totalFound,
+		withActiveHost: data.withActiveHost,
+		cachedBefore: data.cachedBefore,
+		autoConnectEnabled: data.autoConnectEnabled,
+		hostsEnabled: data.hostsEnabled,
+		success: data.success,
+	});
+}
+
 // --- Tunnel agent host connect ---
 
 export type TunnelConnectErrorCategory =

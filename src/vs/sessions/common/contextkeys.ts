@@ -9,10 +9,9 @@ import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
-export const IsNewChatInSessionContext = new RawContextKey<boolean>('isNewChatInSession', false, localize('isNewChatInSession', "Whether the user is composing a new chat within the active session"));
 export const ActiveSessionProviderIdContext = new RawContextKey<string>('activeSessionProviderId', '', localize('activeSessionProviderId', "The provider ID of the active session"));
 export const ActiveSessionTypeContext = new RawContextKey<string>('activeSessionType', '', localize('activeSessionType', "The session type of the active session"));
-export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
+export const ActiveSessionWorkspaceIsVirtualContext = new RawContextKey<boolean>('activeSessionWorkspaceIsVirtual', true, localize('activeSessionWorkspaceIsVirtual', "Whether the active session's workspace is virtual"));
 export const IsActiveSessionArchivedContext = new RawContextKey<boolean>('isActiveSessionArchived', false, localize('isActiveSessionArchived', "Whether the active session is archived (marked as done)"));
 export const ActiveSessionHasGitRepositoryContext = new RawContextKey<boolean>('activeSessionHasGitRepository', false, localize('activeSessionHasGitRepository', "Whether the active session has an associated git repository"));
 export const ActiveSessionHasGitSyncActionRunningContext = new RawContextKey<boolean>('activeSessionHasGitSyncActionRunning', false, localize('activeSessionHasGitSyncActionRunning', "Whether the active session has a git sync action currently running"));
@@ -20,11 +19,20 @@ export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessi
 
 //#endregion
 
-//#region < --- Chat Bar --- >
+//#region < --- Session View --- >
 
-export const ActiveChatBarContext = new RawContextKey<string>('activeChatBar', '', localize('activeChatBar', "The identifier of the active chat bar panel"));
-export const ChatBarFocusContext = new RawContextKey<boolean>('chatBarFocus', false, localize('chatBarFocus', "Whether the chat bar has keyboard focus"));
-export const ChatBarVisibleContext = new RawContextKey<boolean>('chatBarVisible', false, localize('chatBarVisible', "Whether the chat bar is visible"));
+export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
+export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));
+export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMaximized', false, localize('sessionIsMaximized', "Whether the session view is currently maximized in the sessions part's grid"));
+
+//#endregion
+
+//#region < --- Sessions Part --- >
+
+export const ActiveSessionsContext = new RawContextKey<string>('activeSessions', '', localize('activeSessions', "The identifier of the active sessions panel"));
+export const SessionsFocusContext = new RawContextKey<boolean>('sessionsFocus', false, localize('sessionsFocus', "Whether the sessions part has keyboard focus"));
+export const SessionsVisibleContext = new RawContextKey<boolean>('sessionsVisible', false, localize('sessionsVisible', "Whether the sessions part is visible"));
+export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multipleSessionsVisible', false, localize('multipleSessionsVisible', "Whether more than one session is visible in the sessions part's grid"));
 
 //#endregion
 

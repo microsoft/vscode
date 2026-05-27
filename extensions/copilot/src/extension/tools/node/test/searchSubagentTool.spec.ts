@@ -6,11 +6,38 @@
 import type * as vscode from 'vscode';
 import { expect, suite, test } from 'vitest';
 import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { toolCategories, ToolCategory, ToolName } from '../../common/toolNames';
 import { ToolRegistry } from '../../common/toolsRegistry';
 
 // Ensure side-effect registration
 import '../searchSubagentTool';
+
+/**
+ * Returns an invokeFunction stub that dequeues outcomes in call order.
+ * Each outcome is either a value to resolve with, or a thunk that throws.
+ */
+function sequencedInvokeFunction(...outcomes: Array<unknown | (() => never)>) {
+	let i = 0;
+	return async (_fn: unknown) => {
+		const outcome = outcomes[i++];
+		if (typeof outcome === 'function') {
+			return (outcome as () => unknown)();
+		}
+		return outcome;
+	};
+}
+
+/** Minimal vscode.TextDocument-shaped object that satisfies TextDocumentSnapshot.create. */
+function makeFakeDocument(uri: URI, text: string) {
+	return {
+		uri,
+		getText: () => text,
+		languageId: 'typescript',
+		eol: 1,
+		version: 0,
+	} as unknown as vscode.TextDocument;
+}
 
 /** Minimal stub for LanguageModelToolInformation */
 function makeToolInfo(overrides: Partial<vscode.LanguageModelToolInformation> = {}): vscode.LanguageModelToolInformation {
@@ -25,7 +52,14 @@ function makeToolInfo(overrides: Partial<vscode.LanguageModelToolInformation> = 
 }
 
 /** Returns an instance of the (private) SearchSubagentTool via the registry */
-function makeToolInstance(thoroughnessEnabled: boolean, toolCallLimit: number = 4) {
+function makeToolInstance(
+	thoroughnessEnabled: boolean,
+	toolCallLimit: number = 4,
+	overrides: {
+		invokeFunction?: (fn: unknown) => Promise<unknown>;
+		openTextDocument?: (uri: URI) => Promise<vscode.TextDocument>;
+	} = {},
+) {
 	const toolCtor = ToolRegistry.getTools().find(t => t.toolName === ToolName.SearchSubagent)!;
 
 	const configService = {
@@ -49,12 +83,18 @@ function makeToolInstance(thoroughnessEnabled: boolean, toolCallLimit: number = 
 			// Return a minimal stub that exposes run()
 			return { run: async () => ({ response: { type: 'error', reason: 'stub' }, toolCallRounds: [], round: { response: '' } }) };
 		},
+		invokeFunction: overrides.invokeFunction ?? (async () => { throw new Error('invokeFunction not stubbed'); }),
+	};
+
+	const workspaceService = {
+		getWorkspaceFolders: () => [],
+		openTextDocument: overrides.openTextDocument ?? (async () => { throw new Error('openTextDocument not stubbed'); }),
 	};
 
 	const tool = new (toolCtor as any)(
 		instantiationService,
 		{ captureInvocation: async (_token: unknown, fn: () => unknown) => fn() }, // requestLogger
-		{ getWorkspaceFolders: () => [], openTextDocument: async () => { throw new Error('stub'); } }, // workspaceService
+		workspaceService,
 		configService,
 		experimentationService,
 	);
@@ -168,6 +208,68 @@ suite('SearchSubagentTool', () => {
 			}, { isCancellationRequested: true } as vscode.CancellationToken).catch(() => { /* stub errors expected */ });
 
 			expect(capturedLoopOptions[0]?.toolCallLimit).toBe(baseLimit);
+		});
+	});
+
+	suite('parseFinalAnswerAndHydrate', () => {
+		const notCancelled = { isCancellationRequested: false } as vscode.CancellationToken;
+
+		test('preserves non-matching lines verbatim when the model uses a different format', async () => {
+			const { tool } = makeToolInstance(false);
+			const response = [
+				'Here are the relevant snippets:',
+				'- /workspace/file.ts (lines 10-20): test1',
+				'- /workspace/other.ts (lines 30-40): test2',
+			].join('\n');
+
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
+
+			expect(result).toBe(response);
+		});
+
+		test('drops the line when the path is outside the workspace', async () => {
+			const { tool } = makeToolInstance(false, 4, {
+				invokeFunction: sequencedInvokeFunction(
+					() => { throw new Error('outside workspace'); },
+					true,
+				),
+			});
+
+			const response = '/external/secret.ts:5-10';
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
+
+			expect(result).toBe('');
+		});
+
+		test('keeps the original line when an inside-workspace path fails to open', async () => {
+			const { tool } = makeToolInstance(false, 4, {
+				invokeFunction: sequencedInvokeFunction(
+					undefined,
+					false,
+				),
+				openTextDocument: async () => { throw new Error('file not found'); },
+			});
+
+			const response = 'inside/file.ts:5-10';
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
+
+			expect(result).toBe(response);
+		});
+
+		test('hydrates the line with code when an inside-workspace path opens', async () => {
+			const cwd = '/workspace';
+			const filePath = 'inside/file.ts';
+			const fileText = 'line1\nline2';
+			const uri = URI.joinPath(URI.file(cwd), filePath);
+
+			const { tool } = makeToolInstance(false, 4, {
+				invokeFunction: sequencedInvokeFunction(undefined),
+				openTextDocument: async () => makeFakeDocument(uri, fileText),
+			});
+
+			const result = await tool['parseFinalAnswerAndHydrate'](`${filePath}:1-2`, cwd, undefined, notCancelled);
+
+			expect(result).toBe(`File: \`${uri.fsPath}\`, lines 1-2:\n\`\`\`\n${fileText}\n\`\`\``);
 		});
 	});
 });

@@ -32,6 +32,7 @@ function createSession(id: string, opts: {
 			icon: Codicon.folder,
 			folders: [],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		} : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
@@ -46,7 +47,7 @@ function createSession(id: string, opts: {
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
-		mainChat: undefined!,
+		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
 		capabilities: { supportsMultipleChats: false },
 	};
 }

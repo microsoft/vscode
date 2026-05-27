@@ -10,14 +10,12 @@ import { parse } from '../../../../base/common/jsonc.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
-import { TaskRunSource } from '../../../../workbench/contrib/tasks/common/tasks.js';
-import { ITaskService } from '../../../../workbench/contrib/tasks/common/taskService.js';
+import { ISessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
 type TaskRunOnOption = 'default' | 'folderOpen' | 'worktreeCreated';
@@ -41,6 +39,8 @@ export interface ITaskEntry {
 	readonly windows?: { command?: string; args?: CommandString[] };
 	readonly osx?: { command?: string; args?: CommandString[] };
 	readonly linux?: { command?: string; args?: CommandString[] };
+	readonly dependsOn?: string | readonly string[];
+	readonly dependsOrder?: 'sequence' | 'parallel';
 	readonly [key: string]: unknown;
 }
 
@@ -69,8 +69,33 @@ export interface ISessionsTasksService {
 	 * Observable list of tasks with `inAgents: true`, automatically
 	 * updated when the tasks.json file changes. Each entry includes the
 	 * storage target the task was loaded from.
+	 *
+	 * **Note:** This observable is shared across all sessions — repeated
+	 * calls with different sessions overwrite it with the most recently
+	 * requested session's tasks. It is intended for a single follower
+	 * (e.g. the toolbar tracking the active session). Consumers that need
+	 * a one-time snapshot for a specific session should use
+	 * {@link getSessionTasksOnce} instead.
 	 */
 	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]>;
+
+	/**
+	 * Returns a one-shot snapshot of the session tasks (with `inAgents: true`)
+	 * for the given session, reading from both workspace and user `tasks.json`.
+	 *
+	 * Unlike {@link getSessionTasks}, this method does NOT touch the shared
+	 * `_sessionTasks` observable, so it is safe to call concurrently for
+	 * multiple sessions.
+	 */
+	getSessionTasksOnce(session: ISession): Promise<readonly ISessionTaskWithTarget[]>;
+
+	/**
+	 * Returns a one-shot snapshot of **all** tasks (with or without
+	 * `inAgents`) declared for the given session, reading from both workspace
+	 * and user `tasks.json`. Used by the agent-host runner to look up
+	 * dependency tasks referenced via `dependsOn`.
+	 */
+	getAllTasks(session: ISession): Promise<readonly ISessionTaskWithTarget[]>;
 
 	/**
 	 * Returns tasks that do NOT have `inAgents: true` — used as
@@ -164,8 +189,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		@IFileService private readonly _fileService: IFileService,
 		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
-		@ITaskService private readonly _taskService: ITaskService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ISessionTaskRunnerRegistry private readonly _taskRunnerRegistry: ISessionTaskRunnerRegistry,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -185,29 +209,38 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		return this._sessionTasks;
 	}
 
+	async getSessionTasksOnce(session: ISession): Promise<readonly ISessionTaskWithTarget[]> {
+		return this._readTasksFromBothTargets(session, t => !!t.inAgents);
+	}
+
+	async getAllTasks(session: ISession): Promise<readonly ISessionTaskWithTarget[]> {
+		return this._readTasksFromBothTargets(session, () => true);
+	}
+
 	async getNonSessionTasks(session: ISession): Promise<readonly INonSessionTaskEntry[]> {
-		const result: INonSessionTaskEntry[] = [];
+		return this._readTasksFromBothTargets(session, t => !t.inAgents);
+	}
 
-		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
-		if (workspaceUri) {
-			const workspaceJson = await this._readTasksJson(workspaceUri);
-			for (const task of workspaceJson.tasks ?? []) {
-				if (!task.inAgents && this._isSupportedTask(task)) {
-					result.push({ task, target: 'workspace' });
+	/**
+	 * Reads tasks from both workspace and user `tasks.json` for a session,
+	 * filtering each entry through `predicate` (in addition to the supported-type
+	 * check) and tagging it with its storage target.
+	 */
+	private async _readTasksFromBothTargets(session: ISession, predicate: (task: ITaskEntry) => boolean): Promise<ISessionTaskWithTarget[]> {
+		const result: ISessionTaskWithTarget[] = [];
+		const targets: TaskStorageTarget[] = ['workspace', 'user'];
+		for (const target of targets) {
+			const uri = this._getTasksJsonUri(session, target);
+			if (!uri) {
+				continue;
+			}
+			const json = await this._readTasksJson(uri);
+			for (const task of json.tasks ?? []) {
+				if (predicate(task) && this._isSupportedTask(task)) {
+					result.push({ task, target });
 				}
 			}
 		}
-
-		const userUri = this._getTasksJsonUri(session, 'user');
-		if (userUri) {
-			const userJson = await this._readTasksJson(userUri);
-			for (const task of userJson.tasks ?? []) {
-				if (!task.inAgents && this._isSupportedTask(task)) {
-					result.push({ task, target: 'user' });
-				}
-			}
-		}
-
 		return result;
 	}
 
@@ -332,23 +365,11 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 	}
 
 	async runTask(task: ITaskEntry, session: ISession): Promise<void> {
-		const repo = this._getSessionRepo(session);
-		const cwd = repo?.workingDirectory ?? repo?.root;
-		if (!cwd) {
+		const runner = this._taskRunnerRegistry.getRunner(session);
+		if (!runner) {
 			return;
 		}
-
-		const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(cwd);
-		if (!workspaceFolder) {
-			return;
-		}
-
-		const resolvedTask = await this._taskService.getTask(workspaceFolder, task.label);
-		if (!resolvedTask) {
-			return;
-		}
-
-		await this._taskService.run(resolvedTask, undefined, TaskRunSource.User);
+		await runner.runTask(task, session);
 	}
 
 	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined> {

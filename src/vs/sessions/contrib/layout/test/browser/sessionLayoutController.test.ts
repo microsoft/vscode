@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -47,7 +47,6 @@ function makeSession(resource: URI, opts?: {
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', opts?.status ?? SessionStatus.Completed),
 		checkpoints: observableValue('checkpoints', undefined),
-		changesets: observableValue('changesets', []),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
@@ -76,11 +75,12 @@ function makeSession(resource: URI, opts?: {
 				gitRepository: undefined,
 			}],
 			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
 		}),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
-		changesets: chat.changesets,
+		changesets: constObservable([]),
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
@@ -91,8 +91,10 @@ function makeSession(resource: URI, opts?: {
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('activeChat', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
+		isCreated: observableValue('isCreated', true),
+		sticky: observableValue('sticky', false),
 	};
 }
 
@@ -125,6 +127,7 @@ suite('LayoutController', () => {
 
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
+			override readonly visibleSessions = constObservable([]);
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions() { return []; }
 		});
@@ -230,7 +233,7 @@ suite('LayoutController', () => {
 	test('does not open views when session has no workspace', () => {
 		createLayoutController();
 		const session = makeSession(URI.parse('session:1'), {
-			workspace: { uri: URI.file('/repo'), label: 'test', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false },
+			workspace: { uri: URI.file('/repo'), label: 'test', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false },
 		});
 		activeSessionObs.set(session, undefined);
 
@@ -400,6 +403,7 @@ suite('LayoutController', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSession;
+			override readonly visibleSessions = constObservable([]);
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions() { return []; }
 		});

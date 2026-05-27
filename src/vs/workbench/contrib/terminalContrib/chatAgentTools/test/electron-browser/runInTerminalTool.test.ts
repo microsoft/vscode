@@ -37,10 +37,10 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/wi
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
-import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -94,6 +94,10 @@ suite('RunInTerminalTool', () => {
 	let chatSessions: Map<string, ChatModel>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
+
+	function isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs: ITerminalSandboxPrecheckInputs | undefined): boolean {
+		return precheckInputs?.isDefaultApprovalPermissionEnabled !== false;
+	}
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
@@ -180,6 +184,7 @@ suite('RunInTerminalTool', () => {
 				createTerminalCallCount++;
 				return createdTerminalInstance;
 			},
+			foregroundInstances: [],
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: Event.None,
 			revealTerminal: async () => { },
@@ -193,14 +198,16 @@ suite('RunInTerminalTool', () => {
 		});
 		terminalSandboxService = {
 			_serviceBrand: undefined,
-			isEnabled: async () => sandboxEnabled,
+			isEnabled: async (precheckInputs) => sandboxEnabled && isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs),
 			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command: string, requestUnsandboxedExecution?: boolean) => ({
 				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
 				isSandboxWrapped: !requestUnsandboxedExecution,
 			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
-			checkForSandboxingPrereqs: async () => sandboxPrereqResult,
+			checkForSandboxingPrereqs: async (_forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs) => isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs)
+				? sandboxPrereqResult
+				: { enabled: false, sandboxConfigPath: undefined, failedCheck: undefined },
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
@@ -317,10 +324,21 @@ suite('RunInTerminalTool', () => {
 		}
 	}
 
-	function createChatModelWithRequest(sessionResource: URI): ChatModel {
+	function createChatModeInfo(permissionLevel: ChatPermissionLevel): IChatRequestModeInfo {
+		return {
+			kind: undefined,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			modeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+			permissionLevel,
+		};
+	}
+
+	function createChatModelWithRequest(sessionResource: URI, modeInfo?: IChatRequestModeInfo, requestId?: string): ChatModel {
 		const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'retry';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, modeInfo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, requestId);
 		chatSessions.set(sessionResource.toString(), model);
 		return model;
 	}
@@ -373,8 +391,8 @@ suite('RunInTerminalTool', () => {
 			ok(allowToRunUnsandboxedCommandsProperty?.description?.includes('chat.agent.sandbox.allowUnsandboxedCommands'), 'Expected allowToRunUnsandboxedCommands description to mention the source setting');
 			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution in schema when sandbox is enabled');
 			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason in schema when sandbox is enabled');
-			ok(requestUnsandboxedExecutionProperty?.description?.includes('after first executing the command in sandbox and observing that sandboxing caused the failure'), 'Expected schema description to require a sandboxed first attempt');
-			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('sandboxed execution failure or blocked-domain requirement'), 'Expected reason schema description to require concrete sandbox justification');
+			ok(requestUnsandboxedExecutionProperty?.description?.includes('Only set this when the command clearly needs unsandboxed access'), 'Expected schema description to require a clear need for unsandboxed access');
+			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('why this command must run outside the terminal sandbox'), 'Expected reason schema description to require concrete sandbox justification');
 		});
 
 		test('should set allowToRunUnsandboxedCommands from setting in schema when unsandboxed commands are disabled', async () => {
@@ -462,7 +480,7 @@ suite('RunInTerminalTool', () => {
 
 			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
-			ok(toolData.modelDescription?.includes('without first executing the command in sandbox mode'), 'Expected model description to require a sandboxed first attempt before unsandboxing');
+			ok(toolData.modelDescription?.includes('Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox'), 'Expected model description to require concrete evidence before unsandboxing');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {
@@ -497,6 +515,110 @@ suite('RunInTerminalTool', () => {
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+		});
+
+		test('should enable sandboxing when chat permission level is default', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+			const sessionResource = LocalChatSessionUri.forSession('sandbox-default-permission-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Default } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
+			const defaultPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const preparedInvocation = await defaultPermissionTool.prepareToolInvocation({
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					mode: 'sync',
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+			strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
+		});
+
+		test('should disable sandboxing when chat permission level is elevated', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const originalWrapCommand = terminalSandboxService.wrapCommand.bind(terminalSandboxService);
+			for (const permissionLevel of [ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot]) {
+				let wrapCalls = 0;
+				terminalSandboxService.wrapCommand = async (...args) => {
+					wrapCalls++;
+					return originalWrapCommand(...args);
+				};
+
+				const sessionResource = LocalChatSessionUri.forSession(`sandbox-${permissionLevel}-permission-session`);
+				instantiationService.stub(IChatWidgetService, {
+					getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+					lastFocusedWidget: undefined,
+				});
+				const elevatedPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+				const preparedInvocation = await elevatedPermissionTool.prepareToolInvocation({
+					parameters: {
+						command: 'echo hello',
+						explanation: 'Print hello',
+						goal: 'Print hello',
+						mode: 'sync',
+					} as IRunInTerminalInputParams,
+					chatSessionResource: sessionResource,
+				} as IToolInvocationPreparationContext, CancellationToken.None);
+
+				const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+				strictEqual(terminalData.commandLine.isSandboxWrapped, false, `Expected no sandbox wrapping for ${permissionLevel}`);
+				strictEqual(terminalData.requestUnsandboxedExecution, false, `Expected no unsandbox confirmation for ${permissionLevel}`);
+				strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello`');
+				strictEqual(wrapCalls, 0, `Expected sandbox wrapping to be skipped for ${permissionLevel}`);
+				terminalSandboxService.wrapCommand = originalWrapCommand;
+			}
+		});
+
+		test('should use request permission level before current widget permission level', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const sessionResource = LocalChatSessionUri.forSession('sandbox-request-permission-session');
+			const requestId = 'sandbox-request-permission-request';
+			createChatModelWithRequest(sessionResource, createChatModeInfo(ChatPermissionLevel.AutoApprove), requestId);
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Default } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
+			const requestPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const preparedInvocation = await requestPermissionTool.prepareToolInvocation({
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					mode: 'sync',
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+				chatRequestId: requestId,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, false);
+			strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello`');
 		});
 
 		test('should not show sandbox wrapper in chat when sandboxed async command is detached', async () => {
@@ -2016,6 +2138,7 @@ suite('RunInTerminalTool', () => {
 			instantiationService.stub(ITerminalService, {
 				onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 				instances: [mockTerminal1, mockTerminal2],
+				foregroundInstances: [],
 				setNextCommandId: async () => { }
 			});
 
@@ -2217,13 +2340,15 @@ suite('RunInTerminalTool', () => {
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'npm init' }, language: 'bash' } as IChatTerminalToolInvocationData;
+
 		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
 			getOutput: () => output,
 		});
 
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
-			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm init', outputMonitor);
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm init', toolSpecificData, outputMonitor);
 
 		inputNeededEmitter.fire();
 		inputNeededEmitter.fire();
@@ -2261,13 +2386,15 @@ suite('RunInTerminalTool', () => {
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'git --no-pager diff -- foo.ts' }, language: 'bash' } as IChatTerminalToolInvocationData;
+
 		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
 			getOutput: () => output,
 		});
 
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
-			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'git --no-pager diff -- foo.ts', outputMonitor);
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'git --no-pager diff -- foo.ts', toolSpecificData, outputMonitor);
 
 		// Simulate the user closing the terminal. The output monitor may still
 		// fire `inputNeeded` because the buffered output looks like a pager
@@ -2303,6 +2430,8 @@ suite('RunInTerminalTool', () => {
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'mkdir -p foo && cd foo && npm init' }, language: 'bash' } as IChatTerminalToolInvocationData;
+
 		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
 			getOutput: () => output,
 		});
@@ -2312,8 +2441,8 @@ suite('RunInTerminalTool', () => {
 		// monitor's first re-detection of the same prompt must not fire a steering
 		// message that would yield the agent's in-flight `send_to_terminal` reply.
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
-			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', outputMonitor, output);
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', toolSpecificData, outputMonitor, output);
 
 		inputNeededEmitter.fire();
 		strictEqual(capturedSteeringRequests.length, 0, 'Should not re-notify for output the agent already received via the foreground inputNeeded race');
@@ -2338,6 +2467,7 @@ suite('RunInTerminalTool', () => {
 			capabilities: {
 				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
 			},
+			shellLaunchConfig: { hideFromUser: false },
 			onDisposed: terminalDisposedEmitter.event,
 			onDidInputData: inputDataEmitter.event,
 		} as unknown as ITerminalInstance;
@@ -2349,6 +2479,11 @@ suite('RunInTerminalTool', () => {
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'ssh host' }, language: 'bash' } as IChatTerminalToolInvocationData;
+
+		// This is a foreground terminal, so it should be in foregroundInstances
+		(instantiationService.get(ITerminalService).foregroundInstances as ITerminalInstance[]).push(terminalInstance);
+
 		// Set up fg terminal association and active execution
 		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
 			instance: terminalInstance,
@@ -2356,13 +2491,14 @@ suite('RunInTerminalTool', () => {
 			isBackground: false,
 		});
 
-		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string; dispose(): void }> })._activeExecutions.set(termId, {
 			getOutput: () => 'Password:',
+			dispose: () => { },
 		});
 
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
-			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'ssh host', outputMonitor);
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'ssh host', toolSpecificData, outputMonitor);
 
 		// Fire inputNeeded — this simulates the output monitor detecting a prompt
 		inputNeededEmitter.fire();
@@ -2424,6 +2560,35 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'echo hello world' });
 			assertConfirmationRequired(result, 'Run `bash` command?');
+		});
+	});
+
+	suite('input-needed steering text', () => {
+		function buildSteeringText(hungHint: 'none' | 'timeout' | 'idleSilence'): string {
+			const sessionResource = LocalChatSessionUri.forSession('input-needed-steering-session');
+			// eslint-disable-next-line @typescript-eslint/naming-convention
+			return (runInTerminalTool as unknown as { _buildInputNeededSteeringText(s: URI, t: string, h: 'none' | 'timeout' | 'idleSilence'): string })
+				._buildInputNeededSteeringText(sessionResource, 'test-term-id', hungHint);
+		}
+
+		test('none mode does not mention timeout, idle silence, or kill_terminal', () => {
+			const text = buildSteeringText('none');
+			ok(!text.toLowerCase().includes('timeout'), 'Expected no mention of timeout in the input-needed (none) hint');
+			ok(!text.toLowerCase().includes('no output'), 'Expected no mention of idle silence in the input-needed (none) hint');
+			ok(!text.includes(TerminalToolId.KillTerminal), 'Expected kill_terminal not to be advertised in the input-needed (none) hint');
+		});
+
+		test('timeout mode advertises kill_terminal and mentions timeout', () => {
+			const text = buildSteeringText('timeout');
+			ok(text.toLowerCase().includes('timeout'), 'Expected timeout hint to mention "timeout"');
+			ok(text.includes(TerminalToolId.KillTerminal), 'Expected timeout hint to advertise kill_terminal');
+		});
+
+		test('idleSilence mode advertises kill_terminal without saying "timeout"', () => {
+			const text = buildSteeringText('idleSilence');
+			ok(!text.toLowerCase().includes('timeout'), 'Idle-silence hint must not refer to a timeout');
+			ok(text.toLowerCase().includes('no output'), 'Expected idle-silence hint to describe the no-output condition');
+			ok(text.includes(TerminalToolId.KillTerminal), 'Expected idle-silence hint to advertise kill_terminal');
 		});
 	});
 
@@ -2736,6 +2901,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		instantiationService.stub(ITerminalService, {
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: terminalInstancesChangedEmitter.event,
+			foregroundInstances: [],
 			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
@@ -2805,6 +2971,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		instantiationService.stub(IToolResultCompressor, {
 			_serviceBrand: undefined,
 			registerFilter: () => { },
+			registerCache: () => { },
 			maybeCompress: () => undefined,
 		});
 	});

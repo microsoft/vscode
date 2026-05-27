@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -18,12 +18,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
 	_serviceBrand: undefined;
@@ -54,6 +54,7 @@ suite('ChatModeService', () => {
 	let storageService: TestStorageService;
 	let configurationService: TestConfigurationService;
 	let chatModeService: ChatModeService;
+	let customizationHarnessService: CustomizationHarnessServiceBase;
 
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
@@ -61,26 +62,23 @@ suite('ChatModeService', () => {
 		chatAgentService = new TestChatAgentService();
 		storageService = testDisposables.add(new TestStorageService());
 		configurationService = new TestConfigurationService();
-
+		customizationHarnessService = testDisposables.add(new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService));
 		instantiationService.stub(IPromptsService, promptsService);
 		instantiationService.stub(IChatAgentService, chatAgentService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ICustomizationHarnessService, {
-			onDidChangeCustomAgents: Event.None,
-			getCustomAgents: async () => [],
-		});
+		instantiationService.stub(ICustomizationHarnessService, customizationHarnessService);
 
 		chatModeService = testDisposables.add(instantiationService.createInstance(ChatModeService));
 		// Eagerly create the ChatModes for the local session type and await
 		// its initial async refresh so tests can rely on a settled state.
-		await chatModeService.awaitModes(localChatSessionType);
+		await chatModeService.getLocalModes();
 	});
 
-	test('should return builtin modes', () => {
-		const modes = chatModeService.getModes(localChatSessionType);
+	test('should return builtin modes', async () => {
+		const modes = await chatModeService.getLocalModes();
 
 		assert.strictEqual(modes.builtin.length, 3);
 		assert.strictEqual(modes.custom.length, 0);
@@ -93,15 +91,15 @@ suite('ChatModeService', () => {
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
 	});
 
-	test('should adjust builtin modes based on tools agent availability', () => {
+	test('should adjust builtin modes based on tools agent availability', async () => {
 		// Agent mode should always be present regardless of tools agent availability
 		chatAgentService.setHasToolsAgent(true);
-		let agents = chatModeService.getModes(localChatSessionType);
+		let agents = await chatModeService.getLocalModes();
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
 
 		// Without tools agent - Agent mode should not be present
 		chatAgentService.setHasToolsAgent(false);
-		agents = chatModeService.getModes(localChatSessionType);
+		agents = await chatModeService.getLocalModes();
 		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
 
 		// Ask and Edit modes should always be present
@@ -109,15 +107,15 @@ suite('ChatModeService', () => {
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Edit));
 	});
 
-	test('should find builtin modes by id', () => {
-		const agentMode = chatModeService.getModes(localChatSessionType).findModeById(ChatModeKind.Agent);
+	test('should find builtin modes by id', async () => {
+		const agentMode = (await chatModeService.getLocalModes()).findModeById(ChatModeKind.Agent);
 		assert.ok(agentMode);
 		assert.strictEqual(agentMode.id, ChatMode.Agent.id);
 		assert.strictEqual(agentMode.kind, ChatModeKind.Agent);
 	});
 
-	test('should return undefined for non-existent mode', () => {
-		const mode = chatModeService.getModes(localChatSessionType).findModeById('non-existent-mode');
+	test('should return undefined for non-existent mode', async () => {
+		const mode = (await chatModeService.getLocalModes()).findModeById('non-existent-mode');
 		assert.strictEqual(mode, undefined);
 	});
 
@@ -139,7 +137,7 @@ suite('ChatModeService', () => {
 		// Wait for the service to refresh
 		await timeout(0);
 
-		const modes = chatModeService.getModes(localChatSessionType);
+		const modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 1);
 
 		const testMode = modes.custom[0];
@@ -157,7 +155,7 @@ suite('ChatModeService', () => {
 
 	test('should fire change event when custom modes are updated', async () => {
 		let eventFired = false;
-		testDisposables.add(chatModeService.getModes(localChatSessionType).onDidChange(() => {
+		testDisposables.add((await chatModeService.getLocalModes()).onDidChange(() => {
 			eventFired = true;
 		}));
 
@@ -199,7 +197,7 @@ suite('ChatModeService', () => {
 		// Wait for the service to refresh
 		await timeout(0);
 
-		const foundMode = chatModeService.getModes(localChatSessionType).findModeById(customMode.uri.toString());
+		const foundMode = (await chatModeService.getLocalModes()).findModeById(customMode.uri.toString());
 		assert.ok(foundMode);
 		assert.strictEqual(foundMode.id, customMode.uri.toString());
 		assert.strictEqual(foundMode.name.get(), customMode.name);
@@ -224,7 +222,7 @@ suite('ChatModeService', () => {
 		promptsService.setCustomModes([initialMode]);
 		await timeout(0);
 
-		const initialModes = chatModeService.getModes(localChatSessionType);
+		const initialModes = await chatModeService.getLocalModes();
 		const initialCustomMode = initialModes.custom[0];
 		assert.strictEqual(initialCustomMode.description.get(), 'Initial description');
 
@@ -240,7 +238,7 @@ suite('ChatModeService', () => {
 		promptsService.setCustomModes([updatedMode]);
 		await timeout(0);
 
-		const updatedModes = chatModeService.getModes(localChatSessionType);
+		const updatedModes = await chatModeService.getLocalModes();
 		const updatedCustomMode = updatedModes.custom[0];
 
 		// The instance should be the same (reused)
@@ -283,14 +281,14 @@ suite('ChatModeService', () => {
 		promptsService.setCustomModes([mode1, mode2]);
 		await timeout(0);
 
-		let modes = chatModeService.getModes(localChatSessionType);
+		let modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 2);
 
 		// Remove one mode
 		promptsService.setCustomModes([mode1]);
 		await timeout(0);
 
-		modes = chatModeService.getModes(localChatSessionType);
+		modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 1);
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
 	});

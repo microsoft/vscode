@@ -46,6 +46,7 @@ import { ChatModeKind } from '../common/constants.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
+import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
@@ -248,6 +249,7 @@ registerAction2(StopReadAloud);
 
 registerChatDeveloperActions();
 registerChatExportZipAction();
+registerExportAgentTracesDbAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
@@ -333,13 +335,6 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 		position,
 	}));
 }
-
-// Register command for opening a new Agent Host session from the session type picker
-CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostCopilot}`,
-	(accessor, chatSessionPosition: string) =>
-		openNewAgentHostSession(accessor, chatSessionPosition === 'editor' ? ChatSessionPosition.Editor : ChatSessionPosition.Sidebar)
-);
 
 // Static sidebar/editor open commands for the Agent Host umbrella scheme.
 // The dynamic per-agent commands (e.g. `agent-host-copilot`) are only

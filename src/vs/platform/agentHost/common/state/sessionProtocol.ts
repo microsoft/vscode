@@ -31,8 +31,6 @@ export type {
 	AhpSuccessResponse,
 	CommandMap,
 	ClientNotificationMap,
-	NotificationMap,
-	NotificationMethodParams,
 	ProtocolMessage,
 	ServerNotificationMap,
 } from './protocol/messages.js';

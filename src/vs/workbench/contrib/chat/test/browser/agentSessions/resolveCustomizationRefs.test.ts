@@ -113,7 +113,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const userAgent = URI.file('/user/agents/foo.agent.md');
 		const builtin = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.user}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.user)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.extension)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtin, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 		const bundler = new FakeBundler();

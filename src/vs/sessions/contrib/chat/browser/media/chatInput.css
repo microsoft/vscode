@@ -54,7 +54,8 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
-.chat-input-picker-item .action-label.disabled {
+.chat-input-picker-item .action-label.disabled,
+.chat-input-picker-item.disabled .action-label {
 	opacity: 0.5;
 	cursor: default;
 	pointer-events: none;
@@ -167,17 +168,6 @@
 	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
 	width: auto;
 	height: auto;
-}
-
-/* Left divider for the agents app welcome view */
-.sessions-chat-config-toolbar .action-label.model-picker-split::before {
-	content: '';
-	position: absolute;
-	top: 25%;
-	bottom: 25%;
-	left: 0;
-	width: 1px;
-	background-color: var(--vscode-editorWidget-border);
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
