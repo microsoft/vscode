@@ -553,7 +553,7 @@ describe('CopilotCLIModels', () => {
 			expect(result[0]).toEqual(expect.objectContaining({ id: 'gpt-4o' }));
 		});
 
-		it('returns undefined when not authenticated and auto model disabled', async () => {
+		it('returns an empty array when not authenticated and auto model disabled', async () => {
 			const configService = new MockConfigurationService();
 			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, false);
 			const { models } = createModels({ hasSession: false, configService });
