@@ -398,7 +398,7 @@ describe('CopilotCLIModels', () => {
 			await new Promise(r => setTimeout(r, 0));
 
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toBeUndefined();
+			expect(result).toEqual([]);
 		});
 
 		it('returns only auto while models are still being fetched', async () => {
@@ -421,7 +421,7 @@ describe('CopilotCLIModels', () => {
 
 			// Models are still pending — provider has no resolved infos yet
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toBeUndefined();
+			expect(result).toEqual([]);
 
 			// Flush microtasks so getPackage()/getAuthInfo() resolve and getAvailableModels is called,
 			// which captures resolveModels.
@@ -563,7 +563,7 @@ describe('CopilotCLIModels', () => {
 			await new Promise(r => setTimeout(r, 0));
 
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toBeUndefined();
+			expect(result).toEqual([]);
 		});
 
 		it('resolveModel does not short-circuit auto when disabled', async () => {
