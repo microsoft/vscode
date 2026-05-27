@@ -15,12 +15,13 @@
 	"redirection": {
 		"port": 5337
 	},
-	"viteConfig": "../../build/vite/vite.config.ts",
-	"vite": {
-		"hmr": {
-			"allowedPaths": [
-				"*.css"
-			]
-		}
+	"server": {
+		"type": "http",
+		"cmd": "npm run serve-out-rspack",
+		"cwd": "../../",
+		"wait": {
+			"stderr": "Loopback: http://localhost:(?<port>\\d+)/,"
+		},
+		"url": "http://localhost:${var:port}"
 	}
 }

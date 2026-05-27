@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { window, ViewColumn } from 'vscode';
+import { window, commands, ViewColumn } from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - browser', () => {
@@ -71,6 +71,33 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 		await tab.close();
 
 		assert.strictEqual(window.browserTabs.length, countBefore - 1);
+	});
+
+	test('Closing via workbench.action.closeActiveEditor removes tab from browserTabs', async () => {
+		const tab = await window.openBrowserTab('about:blank');
+		assert.ok(window.browserTabs.includes(tab));
+
+		const closed = new Promise<vscode.BrowserTab>(resolve => {
+			const disposable = window.onDidCloseBrowserTab(t => {
+				disposable.dispose();
+				resolve(t);
+			});
+		});
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		const firedTab = await closed;
+		assert.ok(firedTab);
+		assert.ok(!window.browserTabs.includes(tab));
+	});
+
+	test('Can move a browser tab to a new group and close it successfully', async () => {
+		const tab = await window.openBrowserTab('about:blank');
+		assert.ok(window.browserTabs.includes(tab));
+
+		await commands.executeCommand('workbench.action.moveEditorToNextGroup');
+
+		await tab.close();
+		assert.ok(!window.browserTabs.includes(tab));
 	});
 
 	// #endregion

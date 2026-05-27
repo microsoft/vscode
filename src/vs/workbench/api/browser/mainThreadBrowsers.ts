@@ -7,8 +7,9 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
-import { IBrowserViewCDPService } from '../../contrib/browserView/common/browserView.js';
+import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../../contrib/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -28,30 +29,24 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		extHostContext: IExtHostContext,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewCDPService private readonly cdpService: IBrowserViewCDPService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
 
-		// Track open browser editors
-		this._register(this.editorService.onWillOpenEditor((e) => {
-			if (e.editor instanceof BrowserEditorInput) {
-				this._track(e.editor);
-			}
-		}));
-		this._register(this.editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				this._knownBrowsers.deleteAndDispose(e.editor.id);
+		// Track open browser editors via the workbench service
+		this._register(this.browserViewService.onDidChangeBrowserViews(() => {
+			for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
+				this._track(editor);
 			}
 		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this._syncActiveBrowserTab()));
 
 		// Initial sync
-		for (const input of this.editorService.editors) {
-			if (input instanceof BrowserEditorInput) {
-				this._track(input);
-			}
+		for (const editor of this.browserViewService.getKnownBrowserViews().values()) {
+			this._track(editor);
 		}
 		this._syncActiveBrowserTab();
 	}
@@ -59,17 +54,17 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	// #region Browser tab open
 
 	async $openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions): Promise<BrowserTabDto> {
-		const browserUri = BrowserViewUri.forUrl(url);
-		const parsed = BrowserViewUri.parse(browserUri)!;
+		const id = generateUuid();
+		const browserUri = BrowserViewUri.forId(id);
 
 		await this.editorService.openEditor(
 			{
 				resource: browserUri,
-				options
+				options: { ...options, viewState: { url } }
 			},
 			columnToEditorGroup(this.editorGroupsService, this.configurationService, viewColumn),
 		);
-		const known = this._knownBrowsers.get(parsed.id);
+		const known = this._knownBrowsers.get(id);
 		if (!known) {
 			throw new Error('Failed to open browser tab');
 		}
@@ -81,12 +76,17 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 	// #region Browser tab tracking
 
+	private _lastActiveBrowserId: string | undefined = undefined;
 	private async _syncActiveBrowserTab(): Promise<void> {
 		const active = this.editorService.activeEditorPane?.input;
+		let activeId: string | undefined;
 		if (active instanceof BrowserEditorInput) {
-			this._proxy.$onDidChangeActiveBrowserTab(this._toDto(active));
-		} else {
-			this._proxy.$onDidChangeActiveBrowserTab(undefined);
+			this._track(active);
+			activeId = active.id;
+		}
+		if (this._lastActiveBrowserId !== activeId) {
+			this._lastActiveBrowserId = activeId;
+			this._proxy.$onDidChangeActiveBrowserTab(activeId);
 		}
 	}
 
@@ -98,11 +98,13 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 		// Track property changes. Currently all the tracked properties are covered under the `onDidChangeLabel` event.
 		disposables.add(input.onDidChangeLabel(() => {
-			this._proxy.$onDidChangeBrowserTabState(input.id, this._toDto(input));
+			this._proxy.$onDidChangeBrowserTabState(this._toDto(input));
 		}));
 		disposables.add(input.onWillDispose(() => {
-			this._proxy.$onDidCloseBrowserTab(input.id);
 			this._knownBrowsers.deleteAndDispose(input.id);
+		}));
+		disposables.add(toDisposable(() => {
+			this._proxy.$onDidCloseBrowserTab(input.id);
 		}));
 
 		this._knownBrowsers.set(input.id, { input, dispose: () => disposables.dispose() });

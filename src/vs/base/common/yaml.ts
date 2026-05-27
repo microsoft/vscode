@@ -26,6 +26,84 @@ export function parse(input: string, errors: YamlParseError[] = [], options: Par
 	return parser.parse();
 }
 
+/**
+ * Helper to parse a Markdown with YAML frontmatter document
+ * @returns
+ */
+export function parseFrontMatter(input: string, errors: YamlParseError[] = [], options: ParseOptions = {}): MarkdownNode | undefined {
+	const tokens = new YamlScanner(input).scan();
+	if (tokens.length === 0 || tokens[0].type !== TokenType.DocumentStart) {
+		// does not start with a frontmatter header (---)
+		return new MarkdownNode(undefined, input);
+	}
+	const hasClosingFrontMatter = tokens.slice(1).some(token => token.type === TokenType.DocumentStart);
+	if (!hasClosingFrontMatter) {
+		return new MarkdownNode(undefined, input);
+	}
+	const header = new YamlParser(tokens, input, errors, options).parse();
+	const lastToken = tokens[tokens.length - 1];
+	const body = lastToken.type === TokenType.EOF ? input.substring(lastToken.startOffset) : '';
+	return new MarkdownNode(header, body);
+}
+
+export class MarkdownNode {
+	constructor(public readonly header: YamlNode | undefined, public readonly body: string) {
+	}
+
+	getStringValue(name: string): string | undefined {
+		if (this.header && this.header.type === 'map') {
+			const property = this.header.properties.find(p => p.key.value === name);
+			if (property && property.value.type === 'scalar') {
+				return property.value.value;
+			}
+		}
+		return undefined;
+	}
+
+	getStringArrayValue(name: string): string[] | undefined {
+		if (this.header && this.header.type === 'map') {
+			const property = this.header.properties.find(p => p.key.value === name);
+			if (property && property.value.type === 'sequence') {
+				return property.value.items.filter(item => item.type === 'scalar').map(item => item.value);
+			} else if (property && property.value.type === 'scalar' && property.value.format === 'none') {
+				return parseCommaSeparatedList(property.value.value, 0).map(item => item.value);
+			}
+		}
+		return undefined;
+	}
+}
+
+
+/**
+ * Parses a comma-separated list from a scalar node's value into an array of scalars.
+ * Handles single-quoted and double-quoted items, trimming surrounding whitespace for
+ * unquoted items. Offsets on each produced scalar node are relative to the original
+ * document that the input scalar was parsed from.
+ *
+ * Internally wraps the scalar value in `[…]` and delegates to the full YAML parser so
+ * that quoting, whitespace, and escape handling are consistent with the rest of the parser.
+ *
+ * @param scalar A scalar node whose value contains a comma-separated list.
+ */
+export function parseCommaSeparatedList(value: string, offset: number = 0): YamlScalarNode[] {
+	// Wrap the value as a YAML flow sequence and parse it.
+	const parsed = parse(`[${value}]`);
+	// Items from the synthetic string start at offset 1 (after the '[').
+	// Shift them so they're relative to the original document position.
+	const shift = offset - 1;
+	const items: YamlScalarNode[] = [];
+	if (parsed && parsed.type === 'sequence') {
+		for (const item of parsed.items) {
+			if (item.type === 'scalar') {
+				items.push({ ...item, startOffset: item.startOffset + shift, endOffset: item.endOffset + shift });
+			}
+		}
+	} else {
+		items.push({ type: 'scalar', value, rawValue: value, startOffset: offset, endOffset: value.length + offset, format: 'none' });
+	}
+	return items;
+}
+
 // -- AST Node Types ----------------------------------------------------------
 
 export interface YamlScalarNode {
@@ -129,12 +207,16 @@ class YamlScanner {
 	// Track whether we've already seen a block colon on the current line.
 	// After the first key: value colon, subsequent ': ' on the same line is part of the scalar value.
 	private seenBlockColon = false;
+	private seenDocumentStart = 0;
 
 	constructor(private readonly input: string) { }
 
-	scan(): Token[] {
+	scan(maxDocuments = 1): Token[] {
 		while (this.pos < this.input.length) {
 			this.scanLine();
+			if (this.seenDocumentStart > maxDocuments) {
+				break;
+			}
 		}
 		this.tokens.push(makeToken(TokenType.EOF, this.pos, this.pos));
 		return this.tokens;
@@ -190,6 +272,7 @@ class YamlScanner {
 				this.pos += 3;
 				this.scanLineContent();
 				this.scanNewline();
+				this.seenDocumentStart++;
 				return;
 			}
 			if (c0 === '.' && c1 === '.' && c2 === '.' && isTerminator) {

@@ -78,14 +78,40 @@
 	color: var(--vscode-foreground);
 }
 
-.update-tooltip .release-notes-link {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
+/* Button bar */
+.update-tooltip .button-bar {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 8px;
 }
 
-.update-tooltip .release-notes-link:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
+.update-tooltip .button-bar button {
+	padding: 4px 12px;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-bodyFontSize-small);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.update-tooltip .release-notes-button {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-border, transparent);
+}
+
+.update-tooltip .release-notes-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.update-tooltip .action-button {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: 1px solid var(--vscode-button-border, transparent);
+}
+
+.update-tooltip .action-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
 }
 
 /* Progress bar */
@@ -136,24 +162,4 @@
 
 .update-tooltip .state-message-icon.codicon.codicon-error {
 	color: var(--vscode-editorError-foreground);
-}
-
-/* Markdown */
-.update-tooltip .update-markdown {
-	background: var(--vscode-editor-background);
-	border-radius: var(--vscode-cornerRadius-large);
-	padding: 12px;
-}
-
-.update-tooltip .update-markdown p {
-	margin-bottom: 16px;
-}
-
-.update-tooltip .update-markdown p:last-child {
-	margin-bottom: 0;
-}
-
-.update-tooltip .update-markdown .codicon[class*='codicon-'] {
-	font-size: 16px;
-	vertical-align: text-top;
 }

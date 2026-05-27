@@ -4,9 +4,9 @@
   "license": "MIT",
   "devDependencies": {
     "@azure/core-auth": "^1.9.0",
-    "@azure/cosmos": "^3",
-    "@azure/identity": "^4.2.1",
-    "@azure/msal-node": "^2.16.1",
+    "@azure/cosmos": "^4",
+    "@azure/identity": "^4.13.1",
+    "@azure/msal-node": "^5.2.2",
     "@azure/storage-blob": "^12.25.0",
     "@electron/get": "^2.0.0",
     "@electron/osx-sign": "^2.0.0",
@@ -32,7 +32,7 @@
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
-    "@types/node": "^22.18.10",
+    "@types/node": "24.x",
     "@types/p-all": "^1.0.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
@@ -42,7 +42,7 @@
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.1",
-    "@vscode/ripgrep": "^1.17.1",
+    "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/vsce": "3.6.1",
     "ansi-colors": "^3.2.3",
     "byline": "^5.0.0",
@@ -69,7 +69,7 @@
     "pretypecheck": "npm run copy-policy-dto",
     "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
     "watch": "npm run typecheck -- --watch",
-    "test": "mocha --ui tdd '{lib,next}/**/*.test.ts'"
+    "test": "node --test '{lib,next}/**/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",

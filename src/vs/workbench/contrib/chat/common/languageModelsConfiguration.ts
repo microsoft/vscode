@@ -14,6 +14,7 @@ export const ILanguageModelsConfigurationService = createDecorator<ILanguageMode
 export interface ConfigureLanguageModelsOptions {
 	group: ILanguageModelsProviderGroup;
 	snippet?: string;
+	snippetTarget?: 'group' | 'models';
 }
 
 export interface ILanguageModelsConfigurationService {
@@ -38,4 +39,6 @@ export interface ILanguageModelsProviderGroup extends IStringDictionary<unknown>
 	readonly name: string;
 	readonly vendor: string;
 	readonly range?: IRange;
+	readonly modelsRange?: IRange;
+	readonly settings?: IStringDictionary<IStringDictionary<unknown>>;
 }

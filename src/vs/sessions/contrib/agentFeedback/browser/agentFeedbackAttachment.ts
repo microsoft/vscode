@@ -69,6 +69,8 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 				range: f.range,
 				codeSelection: f.codeSelection,
 				diffHunks: f.diffHunks,
+				sourcePRReviewCommentId: f.sourcePRReviewCommentId,
+				replies: f.replies,
 			})),
 			value,
 		};
@@ -91,6 +93,9 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 				: `${item.range.startLineNumber}-${item.range.endLineNumber}`;
 
 			let part = `[${fileName}:${lineRef}]`;
+			if (item.sourcePRReviewCommentId) {
+				part += `\n(PR review comment, thread ID: ${item.sourcePRReviewCommentId} — resolve this thread when addressed)`;
+			}
 			if (item.codeSelection) {
 				part += `\nSelection:\n\`\`\`\n${item.codeSelection}\n\`\`\``;
 			}
@@ -98,6 +103,11 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 				part += `\nDiff Hunks:\n\`\`\`diff\n${item.diffHunks}\n\`\`\``;
 			}
 			part += `\nComment: ${item.text}`;
+			if (item.replies?.length) {
+				for (const reply of item.replies) {
+					part += `\nReply: ${reply}`;
+				}
+			}
 			parts.push(part);
 		}
 

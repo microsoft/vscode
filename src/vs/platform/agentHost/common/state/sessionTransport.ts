@@ -12,7 +12,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { IProtocolMessage } from './sessionProtocol.js';
+import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
@@ -20,13 +20,34 @@ import type { IProtocolMessage } from './sessionProtocol.js';
  */
 export interface IProtocolTransport extends IDisposable {
 	/** Fires when a message is received from the remote end. */
-	readonly onMessage: Event<IProtocolMessage>;
+	readonly onMessage: Event<ProtocolMessage>;
 
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;
 
-	/** Send a message to the remote end. */
-	send(message: IProtocolMessage): void;
+	/**
+	 * Send a message to the remote end.
+	 *
+	 * Accepts:
+	 * - `ProtocolMessage` — fully-typed client↔server messages.
+	 * - `AhpServerNotification` — server→client notifications.
+	 * - `JsonRpcResponse` — dynamically-constructed success/error responses.
+	 */
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void;
+}
+
+/**
+ * A client-side transport that requires an explicit connection step
+ * before messages can be exchanged.
+ */
+export interface IClientTransport extends IProtocolTransport {
+	/** Establish the underlying connection (e.g. open a WebSocket). */
+	connect(): Promise<void>;
+}
+
+/** Type guard for transports that require an explicit connection step. */
+export function isClientTransport(transport: IProtocolTransport): transport is IClientTransport {
+	return typeof (transport as IClientTransport).connect === 'function';
 }
 
 /**

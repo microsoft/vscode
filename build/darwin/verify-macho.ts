@@ -31,11 +31,19 @@ const FILES_TO_SKIP = [
 	'**/node_modules/@github/copilot-darwin-arm64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
-	// Copilot prebuilds and ripgrep: single-arch binaries in per-platform directories
+	// Copilot prebuilds: single-arch binaries in per-platform directories
 	'**/node_modules/@github/copilot/prebuilds/darwin-*/**',
-	'**/node_modules/@github/copilot/ripgrep/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/**',
-	'**/node_modules.asar.unpacked/@github/copilot/ripgrep/bin/darwin-*/**',
+	// Copilot SDK (extensions/copilot): single-arch prebuilds and ripgrep binaries
+	'**/node_modules/@github/copilot/sdk/prebuilds/darwin-*/**',
+	'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/**',
+	// ripgrep-universal: single-arch binaries in per-platform directories
+	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/**',
+	// MXC SDK ships per-arch native binaries under bin/<arch>; the package
+	// includes both arm64 and x64 trees regardless of host arch.
+	'**/node_modules/@microsoft/mxc-sdk/bin/**',
+	'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
 ];
 
 function isFileSkipped(file: string): boolean {
