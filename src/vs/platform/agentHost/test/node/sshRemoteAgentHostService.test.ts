@@ -397,10 +397,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('returns existing connection on duplicate connect without replacing relay', async () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },      // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -424,10 +424,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('creates fresh relay on reconnect without restarting agent', async () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },      // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -446,10 +446,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect does not fire onDidRelayClose for superseded relay', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -470,10 +470,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect suppresses synchronous close from old relay during replacement', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -493,10 +493,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('uses sshConfigHost as connection key when present', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -526,9 +526,6 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reuses existing agent host when state file has valid PID', async () => {
 		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
-			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: existingState, code: 0 },    // cat state file (found)
 			{ stdout: '', code: 0 },               // kill -0 (PID alive)
 		];
@@ -543,15 +540,34 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(result.connectionToken, 'existing-tok');
 	});
 
+	test('agent-host reuse skips platform detection and CLI install', async () => {
+		// Regression: on the AH-reuse path we must not pay for `uname -s`,
+		// `uname -m`, `--version`, install, or cleanup — those are only
+		// needed when we're actually about to spawn a fresh agent host.
+		const existingState = stateJson(1234, 7777, 'existing-tok');
+		service.execResponses = [
+			{ stdout: existingState, code: 0 },    // cat state file (found)
+			{ stdout: '', code: 0 },               // kill -0 (PID alive)
+		];
+
+		await service.connect(makeConfig());
+
+		const execCalls = service.mockClients[0].execCalls;
+		assert.ok(!execCalls.some(c => c.includes('uname')), `uname should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('--version')), `--version should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('test -x')), `test -x should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('curl')), `curl should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+	});
+
 	test('starts fresh when state file PID is dead', async () => {
 		const staleState = stateJson(9999, 7777, 'old-tok');
 		service.execResponses = [
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
-			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: staleState, code: 0 },       // cat state file
 			{ stdout: '', code: 1 },               // kill -0 (PID dead)
 			{ stdout: '', code: 0 },               // rm -f state file
+			{ stdout: 'Linux\n', code: 0 },       // uname -s
+			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: '', code: 0 },               // echo state file (write new)
 		];
 
@@ -566,15 +582,15 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('falls back to fresh start when relay to reused agent fails', async () => {
 		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
-			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: existingState, code: 0 },    // cat state file (found)
 			{ stdout: '', code: 0 },               // kill -0 (PID alive)
 			// cleanup: cat state file, kill PID, rm state file
 			{ stdout: existingState, code: 0 },
 			{ stdout: '', code: 0 },
 			{ stdout: '', code: 0 },
+			{ stdout: 'Linux\n', code: 0 },       // uname -s
+			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			// write new state file after fresh start
 			{ stdout: '', code: 0 },
 		];
@@ -600,11 +616,11 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('treats malformed legacy state as missing and starts fresh', async () => {
 		const legacyState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
 		service.execResponses = [
+			{ stdout: legacyState, code: 0 }, // cat lockfile (no schemaVersion)
+			{ stdout: '', code: 0 },           // rm -f corrupt lockfile
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: legacyState, code: 0 }, // cat lockfile (no schemaVersion)
-			{ stdout: '', code: 0 },           // rm -f corrupt lockfile
 			{ stdout: '', code: 0 },           // write new lockfile
 		];
 
@@ -617,10 +633,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('does not retry when relay fails on freshly started agent', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // no state file
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },               // no state file
 			{ stdout: '', code: 0 },               // write state
 		];
 
@@ -635,10 +651,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('cleans up SSH client on error', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -886,10 +902,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect after disconnect establishes a new SSH connection', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 		const r1 = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
@@ -898,10 +914,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		await service.disconnect(r1.connectionId);
 
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -915,10 +931,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('fires progress events during connect', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -1000,10 +1016,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('skips CLI download when CLI is already installed', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version succeeds
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -1017,11 +1033,11 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('downloads CLI when version check fails', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '', code: 127 },             // CLI --version fails (not found)
 			{ stdout: '', code: 0 },               // curl | tar install
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -1057,11 +1073,12 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		test('always invokes cleanup of old commit-keyed CLIs', async () => {
 			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
 				{ stdout: 'Linux\n', code: 0 },
 				{ stdout: 'x86_64\n', code: 0 },
-				{ stdout: '', code: 0 },               // cleanup (always runs)
 				{ stdout: '', code: 0 },               // test -x cliBin → present
-				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: '', code: 0 },               // touch cliBin (refresh mtime on reuse)
+				{ stdout: '', code: 0 },               // cleanup (runs after reuse decision)
 				{ stdout: '', code: 0 },               // write state
 			];
 			await pinnedService.connect(makeConfig());
@@ -1074,11 +1091,12 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		test('reuses existing commit-keyed CLI without re-downloading', async () => {
 			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
 				{ stdout: 'Linux\n', code: 0 },
 				{ stdout: 'x86_64\n', code: 0 },
-				{ stdout: '', code: 0 },               // cleanup
 				{ stdout: '', code: 0 },               // test -x cliBin → 0 (present)
-				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: '', code: 0 },               // touch cliBin
+				{ stdout: '', code: 0 },               // cleanup
 				{ stdout: '', code: 0 },               // write state
 			];
 
@@ -1093,13 +1111,13 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		test('downloads from commit-pinned URL when CLI is missing', async () => {
 			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
 				{ stdout: 'Linux\n', code: 0 },
 				{ stdout: 'x86_64\n', code: 0 },
-				{ stdout: '', code: 0 },               // cleanup
 				{ stdout: '', code: 1 },               // test -x → missing
 				{ stdout: '', code: 0 },               // mkdir+mktemp+curl|tar+mv+chmod+rm
 				{ stdout: '1.0.0\n', code: 0 },       // <cliBin> --version validation
-				{ stdout: '', code: 1 },               // cat state
+				{ stdout: '', code: 0 },               // cleanup (after successful install)
 				{ stdout: '', code: 0 },               // write state
 			];
 
@@ -1117,14 +1135,13 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		test('falls back to any usable CLI when commit-pinned download fails', async () => {
 			const fallbackBin = `~/.vscode-insiders/code-insiders-0000000000000000000000000000000000000000`;
 			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
 				{ stdout: 'Linux\n', code: 0 },
 				{ stdout: 'x86_64\n', code: 0 },
-				{ stdout: '', code: 0 },               // cleanup
 				{ stdout: '', code: 1 },               // test -x → missing
 				{ stdout: '', code: 7 },               // install fails (curl exit 7)
 				{ stdout: `${fallbackBin}\n`, code: 0 }, // fallback finder lists old commit-keyed
 				{ stdout: '1.0.0\n', code: 0 },       // fallback --version succeeds
-				{ stdout: '', code: 1 },               // cat state
 				{ stdout: '', code: 0 },               // write state
 			];
 
@@ -1141,13 +1158,12 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		test('propagates install error when no fallback CLI exists', async () => {
 			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
 				{ stdout: 'Linux\n', code: 0 },
 				{ stdout: 'x86_64\n', code: 0 },
-				{ stdout: '', code: 0 },               // cleanup
 				{ stdout: '', code: 1 },               // test -x → missing
 				{ stdout: '', code: 7 },               // install fails
 				{ stdout: '', code: 0 },               // fallback finder returns nothing
-				{ stdout: '', code: 1 },               // (unused — flow should abort earlier)
 			];
 
 			await assert.rejects(pinnedService.connect(makeConfig()));
@@ -1187,10 +1203,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect preserves connection token and address', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -1206,10 +1222,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('messages from superseded relay still arrive (only close is suppressed)', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -1237,10 +1253,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect cleans up SSH client when relay recreation fails', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -1278,10 +1294,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// never sees a rejection and never retries — even after a window
 		// reload, since the shared-process state survives.
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -1316,10 +1332,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect removes old close/error listeners from shared SSH client', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 

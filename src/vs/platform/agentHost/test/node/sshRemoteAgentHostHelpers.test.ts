@@ -18,6 +18,7 @@ import {
 	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
 	getRemoteCLIInstallRoot,
+	isValidFallbackCLIPath,
 	redactToken,
 	resolveRemotePlatform,
 	shellEscape,
@@ -256,16 +257,16 @@ suite('SSH Remote Agent Host Helpers', () => {
 			const cmd = buildCleanupOldCLIsCommand('.vscode-server-insiders', 'insider');
 			// Target the commit-keyed pattern (with 40 chars), under the shared install root.
 			assert.ok(cmd.includes('~/.vscode-server-insiders/code-insiders-'), `cmd missing install path: ${cmd}`);
-			assert.ok(cmd.includes('????????????????????????????????????????'), 'cmd should match exactly 40 chars');
+			assert.ok(/(\[0-9a-f\]){40}/.test(cmd), 'cmd should match exactly 40 hex chars');
 			// Retention via sort + awk drop-first-N + xargs rm.
 			assert.ok(/ls -1t/.test(cmd), `cmd should sort by mtime: ${cmd}`);
 			assert.ok(/awk\s+'NR>5'/.test(cmd), `cmd should keep 5: ${cmd}`);
-			assert.ok(/xargs\s+rm/.test(cmd), `cmd should rm: ${cmd}`);
+			assert.ok(/xargs\s+-I\{\}\s+rm\s+-f\s+--/.test(cmd), `cmd should rm safely: ${cmd}`);
 		});
 
 		test('uses `code-` archive name for stable', () => {
 			const cmd = buildCleanupOldCLIsCommand('.vscode-server', 'stable');
-			assert.ok(cmd.includes('~/.vscode-server/code-?'), `cmd should target stable archive: ${cmd}`);
+			assert.ok(cmd.includes('~/.vscode-server/code-[0-9a-f]'), `cmd should target stable archive: ${cmd}`);
 			assert.ok(!cmd.includes('code-insiders-'), 'stable cmd should not mention insiders archive');
 		});
 
@@ -294,6 +295,47 @@ suite('SSH Remote Agent Host Helpers', () => {
 		test('rejects unsafe inputs', () => {
 			assert.throws(() => buildFindFallbackCLICommand('foo bar', 'stable'), /Unsafe server data folder name/);
 			assert.throws(() => buildFindFallbackCLICommand('.vscode-server', 'foo bar'), /Unsafe quality/);
+		});
+	});
+
+	suite('isValidFallbackCLIPath', () => {
+		const sdf = '.vscode-server-insiders';
+		const q = 'insider';
+		const hex = '0123456789abcdef0123456789abcdef01234567';
+
+		test('accepts commit-keyed path under the shared install root', () => {
+			assert.strictEqual(isValidFallbackCLIPath(`~/${sdf}/code-insiders-${hex}`, sdf, q), true);
+		});
+
+		test('accepts legacy ~/.vscode-cli-<quality>/<archive> path for insider', () => {
+			assert.strictEqual(isValidFallbackCLIPath('~/.vscode-cli-insider/code-insiders', sdf, q), true);
+		});
+
+		test('accepts legacy ~/.vscode-cli/code path for stable', () => {
+			assert.strictEqual(isValidFallbackCLIPath('~/.vscode-cli/code', '.vscode-server', 'stable'), true);
+		});
+
+		test('rejects commit suffix with non-hex characters', () => {
+			const notHex = 'g'.repeat(40);
+			assert.strictEqual(isValidFallbackCLIPath(`~/${sdf}/code-insiders-${notHex}`, sdf, q), false);
+		});
+
+		test('rejects commit suffix with wrong length', () => {
+			assert.strictEqual(isValidFallbackCLIPath(`~/${sdf}/code-insiders-${hex.slice(0, 39)}`, sdf, q), false);
+			assert.strictEqual(isValidFallbackCLIPath(`~/${sdf}/code-insiders-${hex}a`, sdf, q), false);
+		});
+
+		test('rejects paths under an unexpected root', () => {
+			assert.strictEqual(isValidFallbackCLIPath(`~/.something-else/code-insiders-${hex}`, sdf, q), false);
+		});
+
+		test('rejects empty input', () => {
+			assert.strictEqual(isValidFallbackCLIPath('', sdf, q), false);
+		});
+
+		test('rejects shell metacharacters', () => {
+			assert.strictEqual(isValidFallbackCLIPath(`~/${sdf}/code-insiders-${hex}; rm -rf /`, sdf, q), false);
+			assert.strictEqual(isValidFallbackCLIPath(`~/${sdf}/code-insiders-${hex} && evil`, sdf, q), false);
 		});
 	});
 

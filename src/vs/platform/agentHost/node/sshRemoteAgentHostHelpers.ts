@@ -126,22 +126,26 @@ export function buildCLIDownloadUrl(os: string, arch: string, quality: string, c
 /**
  * Shell snippet that prunes older commit-keyed CLI binaries from the
  * install root, keeping the 5 most recently modified. Mirrors the
- * retention policy in Remote-SSH's exec-server installer. The pattern
- * matches `<archive>-<exactly-40-chars>` for all known archive names so
- * that the non-commit-keyed dev fallback binary is never deleted.
+ * retention policy in Remote-SSH's exec-server installer.
+ *
+ * The glob is tightened to exactly 40 hex chars (`[0-9a-f]`-only) so we
+ * never accidentally delete (or hand to `xargs`) any filename that
+ * happens to start with `<archive>-` but isn't actually one of our
+ * commit-keyed binaries — both for correctness and to avoid passing
+ * attacker-controlled filenames through `xargs rm` with option/whitespace
+ * splitting hazards. We also use `rm -f --` and `xargs -I{}` (which
+ * skips the command entirely on empty input on both GNU and BSD `xargs`).
  */
 export function buildCleanupOldCLIsCommand(serverDataFolderName: string, quality: string): string {
 	const root = getRemoteCLIInstallRoot(serverDataFolderName);
 	const archive = getRemoteCLIArchiveName(quality);
-	// 40 `?` chars match any 40-character commit suffix. Using `?` rather than
-	// a literal `[0-9a-f]` × 40 keeps the glob short; commit names produced by
-	// our build are always 40 hex chars, so the pattern is precise enough.
-	const commitGlob = '?'.repeat(40);
-	// `ls -1t` sorts by mtime newest-first across both Linux (coreutils) and
+	const commitGlob = '[0-9a-f]'.repeat(40);
+	// `ls -1t` sorts by mtime newest-first on both Linux (coreutils) and
 	// macOS (BSD). `awk 'NR>5'` drops the 5 most recent entries we want to
-	// keep. `xargs rm -f` ignores missing files; the leading `2>/dev/null`
-	// suppresses "No such file" complaints when the directory is empty.
-	return `ls -1t ${root}/${archive}-${commitGlob} 2>/dev/null | awk 'NR>5' | xargs rm -f 2>/dev/null; true`;
+	// keep. `xargs -I{} rm -f -- {}` is one-rm-per-line — slow but safe
+	// against whitespace splitting and option injection, and a no-op when
+	// input is empty on both BSDs and GNU.
+	return `ls -1t -- ${root}/${archive}-${commitGlob} 2>/dev/null | awk 'NR>5' | xargs -I{} rm -f -- {} 2>/dev/null; true`;
 }
 
 /**
@@ -151,25 +155,55 @@ export function buildCleanupOldCLIsCommand(serverDataFolderName: string, quality
  * then the legacy single-binary paths from the previous installer
  * (`~/.vscode-cli{,-<quality>}/<archive>`).
  *
- * Each line is a single path. Callers should `--version`-test each
- * candidate in order and pick the first one that succeeds. The list may
- * be empty.
+ * Each line is a single path. The glob for commit-keyed candidates is
+ * restricted to exactly 40 hex chars so the output can only contain
+ * filenames we recognise (callers should still re-validate with
+ * {@link isValidFallbackCLIPath}). The legacy paths are fixed strings
+ * derived from validated tokens, so they cannot contain shell
+ * metacharacters either.
  */
 export function buildFindFallbackCLICommand(serverDataFolderName: string, quality: string): string {
 	const root = getRemoteCLIInstallRoot(serverDataFolderName);
 	const archive = getRemoteCLIArchiveName(quality);
-	const commitGlob = '?'.repeat(40);
+	const commitGlob = '[0-9a-f]'.repeat(40);
 	const q = validateShellToken(quality, 'quality');
 	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
 	const legacyBin = `${legacyDir}/${archive}`;
-	// Print candidates one per line. Both `ls` invocations are tolerant of
-	// missing files / empty matches. The trailing `true` ensures the
-	// pipeline overall succeeds.
 	return [
-		`ls -1t ${root}/${archive}-${commitGlob} 2>/dev/null`,
-		`ls -1 ${legacyBin} 2>/dev/null`,
+		`ls -1t -- ${root}/${archive}-${commitGlob} 2>/dev/null`,
+		`ls -1 -- ${legacyBin} 2>/dev/null`,
 		'true',
 	].join('; ');
+}
+
+/**
+ * Validate that a candidate path string returned by the remote shell
+ * matches one of the two shapes we expect from
+ * {@link buildFindFallbackCLICommand}:
+ *
+ *  - `<installRoot>/<archive>-<40 hex chars>` — commit-keyed install
+ *  - `<legacyDir>/<archive>` — legacy single-binary install
+ *
+ * Anything else is rejected. This guards against the candidate being
+ * interpolated into a follow-up shell command (`<candidate> --version`,
+ * agent host spawn) with attacker-controlled metacharacters in the
+ * event that something unexpected ends up in the install root.
+ */
+export function isValidFallbackCLIPath(candidate: string, serverDataFolderName: string, quality: string): boolean {
+	const root = getRemoteCLIInstallRoot(serverDataFolderName);
+	const archive = getRemoteCLIArchiveName(quality);
+	const q = validateShellToken(quality, 'quality');
+	const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+	const legacyBin = `${legacyDir}/${archive}`;
+	if (candidate === legacyBin) {
+		return true;
+	}
+	const pinnedPrefix = `${root}/${archive}-`;
+	if (candidate.startsWith(pinnedPrefix)) {
+		const suffix = candidate.slice(pinnedPrefix.length);
+		return /^[0-9a-f]{40}$/.test(suffix);
+	}
+	return false;
 }
 
 /** Redact connection tokens from log output. */
