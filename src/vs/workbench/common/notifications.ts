@@ -11,6 +11,7 @@ import { isCancellationError } from '../../base/common/errors.js';
 import { Action } from '../../base/common/actions.js';
 import { equals } from '../../base/common/arrays.js';
 import { parseLinkedText, LinkedText } from '../../base/common/linkedText.js';
+import { NotificationMessageNode, parseNotificationMessage } from './notificationMessageParser.js';
 import { mapsStrictEqualIgnoreOrder } from '../../base/common/map.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
@@ -443,6 +444,7 @@ export interface INotificationMessage {
 	raw: string;
 	original: NotificationMessage;
 	linkedText: LinkedText;
+	nodes: NotificationMessageNode[];
 }
 
 export class NotificationViewItem extends Disposable implements INotificationViewItem {
@@ -528,7 +530,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		// Parse Links
 		const linkedText = parseLinkedText(message);
 
-		return { raw, linkedText, original: input };
+		// Parse code spans + Links (used by the renderer)
+		const nodes = parseNotificationMessage(message);
+
+		return { raw, linkedText, nodes, original: input };
 	}
 
 	private constructor(
