@@ -317,7 +317,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				commandPath = `"${npmCommandPath}"`;
 			}
 			cp.execFile(commandPath, args, options, (error, stdout) => {
-				resolve(error ? undefined : stdout);
+				resolve(error ? undefined : stdout.toString());
 			});
 		});
 	}
