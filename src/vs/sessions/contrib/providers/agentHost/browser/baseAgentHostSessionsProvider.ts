@@ -27,6 +27,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -44,6 +45,9 @@ import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js'
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+
+const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+const STORAGE_KEY_ISOLATION_MODE_LEGACY = 'sessions.agentHost.isolationPicker.selectedMode';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -1038,6 +1042,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
+		@IStorageService protected readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -1376,13 +1381,31 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * permission level the user is not allowed to pick.
 	 */
 	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
-		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		if (typeof configured !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
-			return undefined;
+		const config: Record<string, unknown> = {};
+
+		// Seed session config values from the last user picks.
+		// Legacy fallback: isolation was previously stored on its own key.
+		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+		for (const [property, value] of Object.entries(rememberedValues)) {
+			if (typeof value === 'string') {
+				config[property] = value;
+			}
 		}
-		const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const value = policyRestricted ? 'default' : configured;
-		return { [SessionConfigKey.AutoApprove]: value };
+		if (typeof config[SessionConfigKey.Isolation] !== 'string') {
+			const legacyIsolationValue = this._storageService.get(STORAGE_KEY_ISOLATION_MODE_LEGACY, StorageScope.PROFILE);
+			if (typeof legacyIsolationValue === 'string') {
+				config[SessionConfigKey.Isolation] = legacyIsolationValue;
+			}
+		}
+
+		// Seed autoApprove from user settings
+		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		if (typeof config[SessionConfigKey.AutoApprove] !== 'string' && typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+			const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+		}
+
+		return Object.keys(config).length > 0 ? config : undefined;
 	}
 
 	// -- Dynamic session config ----------------------------------------------
@@ -1414,6 +1437,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		// Remember config picks across sessions
+		if (typeof value === 'string') {
+			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+			const nextRememberedValues = { ...rememberedValues, [property]: value };
+			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
+			if (property === SessionConfigKey.Isolation) {
+				// Keep writing the legacy isolation key for backward compatibility.
+				this._storageService.store(STORAGE_KEY_ISOLATION_MODE_LEGACY, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		}
+
 		// New session: re-resolve the full config schema. Flip the
 		// resolving flag and `loading` *before* firing the change event
 		// so the first picker re-render already observes the in-flight
