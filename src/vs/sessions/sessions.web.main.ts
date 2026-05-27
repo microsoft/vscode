@@ -181,6 +181,14 @@ import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresent
 // without duplicate-registration conflicts.
 import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
 
+// Phone-only presenter for chat row actions. Replaces the desktop
+// hover toolbars (`.request-hover` / `.chat-footer-toolbar`, hidden
+// via the "Phone Layout: Hide Chat Row Hover Toolbars" section in
+// `mobileChatShell.css`) with a long-press → bottom-sheet picker that
+// surfaces the same `ChatMessageTitle` / `ChatMessageFooter` actions.
+// Web-only — desktop keeps the hover toolbars.
+import './contrib/chat/browser/mobile/mobileChatRowActions.js';
+
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';

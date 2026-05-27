@@ -29,9 +29,9 @@ import { clamp } from '../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { MenuEntryActionViewItem, createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { fillInActionBarActions, MenuEntryActionViewItem, createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -65,6 +65,7 @@ import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
+import { IChatRowActionsPhonePresenter } from './chatRowActionsPhonePresenter.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
@@ -274,6 +275,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IChatRowActionsPhonePresenter private readonly chatRowActionsPhonePresenter: IChatRowActionsPhonePresenter,
 	) {
 		super();
 
@@ -667,7 +670,47 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
+		// Phone-only: hand the row to the agents-window long-press
+		// presenter so users get a bottom-sheet action list instead of
+		// the desktop hover toolbar (which is hidden via CSS on phone).
+		// `attachToRow` is a no-op on desktop; on phone it wires a
+		// long-press handler that lazily re-queries the row's menu
+		// each open via `getRowActions(template)`.
+		templateDisposables.add(this.chatRowActionsPhonePresenter.attachToRow(rowContainer, () => this.getRowActions(template)));
+
 		return template;
+	}
+
+	/**
+	 * Collect the menu actions for the currently-rendered row, used by
+	 * the phone long-press presenter to populate its bottom sheet. The
+	 * menu id depends on the element kind: request rows surface
+	 * {@link MenuId.ChatMessageTitle} (the same menu the desktop hover
+	 * toolbar reads), response rows surface
+	 * {@link MenuId.ChatMessageFooter} (the upvote/copy/etc toolbar
+	 * below the response). The menu is created with the row's scoped
+	 * context-key service so the same when-clauses that gate the
+	 * desktop toolbar apply here too, and the element is forwarded as
+	 * an action arg so action handlers see the same context they do
+	 * when invoked from the desktop toolbar.
+	 */
+	private getRowActions(templateData: IChatListItemTemplate): readonly IAction[] {
+		const element = templateData.currentElement;
+		if (!element) {
+			return [];
+		}
+		const menuId = isRequestVM(element) ? MenuId.ChatMessageTitle : isResponseVM(element) ? MenuId.ChatMessageFooter : undefined;
+		if (!menuId) {
+			return [];
+		}
+		const menu = this.menuService.createMenu(menuId, templateData.contextKeyService);
+		try {
+			const actions: IAction[] = [];
+			fillInActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: element }), actions);
+			return actions;
+		} finally {
+			menu.dispose();
+		}
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
