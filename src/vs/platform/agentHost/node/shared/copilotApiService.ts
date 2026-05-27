@@ -300,6 +300,21 @@ export interface ICopilotApiService {
 	 * - `supported_endpoints`: `'/v1/messages'` for Anthropic chat models
 	 */
 	models(githubToken: string, options?: ICopilotApiServiceRequestOptions): Promise<CCAModel[]>;
+
+	/**
+	 * Pass-through to CAPI's OpenAI-shaped Responses endpoint
+	 * (`{capiBaseUrl}/responses`). Used by `CodexProxyService` to forward
+	 * `/v1/responses` requests from the Codex CLI without deserializing
+	 * the body. The caller owns the returned `Response` (its body and any
+	 * streaming) and is responsible for consuming or aborting it.
+	 *
+	 * @throws on non-2xx upstream response.
+	 */
+	responses(
+		githubToken: string,
+		body: string,
+		options?: ICopilotApiServiceRequestOptions,
+	): Promise<Response>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -376,6 +391,51 @@ export class CopilotApiService implements ICopilotApiService {
 
 		const json = await response.json();
 		return json.data ?? [];
+	}
+
+	async responses(
+		githubToken: string,
+		body: string,
+		options?: ICopilotApiServiceRequestOptions,
+	): Promise<Response> {
+		const capiClient = await this._getClientForToken(githubToken);
+		const requestId = generateUuid();
+
+		// Parse the request body to log the model being sent (debug aid; failures
+		// are non-fatal — the body is forwarded byte-for-byte regardless).
+		let requestModel = '<unknown>';
+		try {
+			const parsed = JSON.parse(body);
+			requestModel = parsed.model ?? '<none>';
+		} catch { /* ignore parse errors */ }
+		this._logService.info(`[CopilotApiService] POST responses: requestId=${requestId}, model=${requestModel}`);
+
+		const response = await capiClient.makeRequest<Response>(
+			{
+				method: 'POST',
+				headers: {
+					...options?.headers,
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${githubToken}`,
+					'X-Request-Id': requestId,
+					'OpenAI-Intent': 'conversation',
+				},
+				body,
+				signal: options?.signal,
+			},
+			{ type: RequestType.ChatResponses },
+		);
+
+		this._logService.info(`[CopilotApiService] responses status=${response.status}, requestId=${requestId}`);
+
+		if (!response.ok) {
+			if (response.status === 401 || response.status === 403) {
+				this._invalidateClientForToken(githubToken);
+			}
+			const text = await response.text().catch(() => '');
+			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI responses request failed');
+		}
+		return response;
 	}
 
 	// #endregion

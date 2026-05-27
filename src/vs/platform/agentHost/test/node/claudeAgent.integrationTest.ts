@@ -257,6 +257,10 @@ class StubCopilotApiService implements ICopilotApiService {
 	async models(): Promise<CCAModel[]> {
 		return this.availableModels;
 	}
+
+	async responses(): Promise<Response> {
+		throw new Error('responses not used in Claude integration tests');
+	}
 }
 
 // #endregion
