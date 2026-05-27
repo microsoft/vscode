@@ -69,6 +69,13 @@
 	top: 0;
 	bottom: 0;
 	position: absolute;
+	display: flex;
+	align-items: flex-end;
+}
+
+.monaco-editor .lines-content > .view-lines > .view-line > span > span {
+	line-height: normal;
+	padding-bottom: 3px;
 }
 
 .monaco-editor .mtkw {
