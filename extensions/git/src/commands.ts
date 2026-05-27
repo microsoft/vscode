@@ -5593,6 +5593,9 @@ export class CommandCenter {
 					case GitErrorCodes.PushRejected:
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
 						break;
+					case GitErrorCodes.RemoteInternalError:
+						message = l10n.t('Can\'t push refs to remote. The remote server encountered an internal error. If using GitHub, check https://www.githubstatus.com/ for details.');
+						break;
 					case GitErrorCodes.ForcePushWithLeaseRejected:
 					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
 						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
