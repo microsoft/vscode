@@ -158,6 +158,18 @@ export function getMultiSelectedResources(commandArg: unknown, listService: ILis
 		}
 	}
 
+	// When the explorer was the last focused list but lost DOM focus (e.g. to a
+	// context menu), its internal focus/selection state is still valid.  Check
+	// the explorer context before falling back to the active editor so that
+	// commands triggered via keyboard shortcut while a context menu is open act
+	// on the right-clicked item rather than the active editor.
+	if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
+		const context = explorerService.getContext(true, true);
+		if (context.length) {
+			return context.map(c => c.resource);
+		}
+	}
+
 	const result = getResourceForCommand(commandArg, editorSerice, listService);
 	return result ? [result] : [];
 }
