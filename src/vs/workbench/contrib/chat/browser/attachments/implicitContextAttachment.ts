@@ -36,6 +36,8 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ChatImplicitContext, ChatImplicitContexts } from './chatImplicitContext.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 
@@ -59,6 +61,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
@@ -209,9 +212,13 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		return title;
 	}
 
-	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel, contextNode: HTMLElement): string {
+	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel, contextNode: HTMLElement): string | undefined {
 		const file = URI.isUri(attachmentValue) ? attachmentValue : attachmentValue!.uri;
 		const range = URI.isUri(attachmentValue) || !isSelection ? undefined : attachmentValue!.range;
+
+		if (file.scheme === Schemas.vscodeBrowser) {
+			return this.renderBrowserResource(file, label, contextNode);
+		}
 
 		const attachmentTypeName = file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
@@ -237,6 +244,25 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		contextNode.ariaLabel = ariaLabel;
 
 		return title;
+	}
+
+	private renderBrowserResource(browserUri: URI, label: IResourceLabel, contextNode: HTMLElement): string | undefined {
+		const id = BrowserViewUri.getId(browserUri);
+		const input = id && this.browserViewService.getKnownBrowserViews().get(id);
+		if (!input) {
+			return undefined;
+		}
+
+		const update = () => {
+			label.setLabel(input.getName(), undefined, { iconPath: Codicon.globe });
+			contextNode.ariaLabel = localize('chat.implicitBrowserContext', "Suggested browser context, {0}", input.getName());
+		};
+		update();
+
+		// Keep label in sync as the user navigates
+		this.renderDisposables.add(input.onDidChangeLabel(() => update()));
+
+		return input.getTitle();
 	}
 
 	private async convertToRegularAttachment(attachment: ChatImplicitContext): Promise<void> {

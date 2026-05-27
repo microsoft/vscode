@@ -44,7 +44,7 @@ import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, 
 import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
-import { UriTemplate } from './uriTemplate.js';
+import { UriTemplate } from '../../../../base/common/uriTemplate.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -1198,6 +1198,14 @@ export class McpTool implements IMcpTool {
 			}
 			if (context?.chatRequestId) {
 				meta['vscode.requestId'] = context.chatRequestId;
+			}
+			// Propagate W3C trace context to the MCP server (MCP SEP-414) so server-side
+			// spans can be correlated with the client trace.
+			if (context?.traceparent) {
+				meta['traceparent'] = context.traceparent;
+				if (context.tracestate) {
+					meta['tracestate'] = context.tracestate;
+				}
 			}
 
 			const taskHint = this._definition.execution?.taskSupport;

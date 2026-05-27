@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { Configuration } from '@rspack/core';
-import { HtmlRspackPlugin, rspack } from '@rspack/core';
+import { type Configuration, HtmlRspackPlugin, rspack } from '@rspack/core';
 import { ComponentExplorerPlugin } from '@vscode/component-explorer-webpack-plugin';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
 import net from 'net';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -29,6 +28,7 @@ export default {
 	context: repoRoot,
 	mode: 'development',
 	target: 'web',
+	devtool: 'source-map',
 	entry: {
 		workbench: path.join(repoRoot, 'out', 'vs', 'code', 'browser', 'workbench', 'workbench.js'),
 	},
@@ -39,6 +39,19 @@ export default {
 		assetModuleFilename: 'bundled/assets/[name][ext][query]',
 		publicPath: '/',
 		clean: true,
+		devtoolModuleFilenameTemplate: (info: { absoluteResourcePath: string }) => {
+			return `file:///${info.absoluteResourcePath.replace(/\\/g, '/')}`;
+		},
+	},
+	resolve: {
+		fallback: {
+			path: path.resolve(repoRoot, 'node_modules', 'path-browserify'),
+			fs: false,
+			module: false,
+		},
+	},
+	resolveLoader: {
+		modules: [path.join(__dirname, 'node_modules'), 'node_modules'],
 	},
 	experiments: {
 		css: true,
@@ -46,12 +59,24 @@ export default {
 	module: {
 		rules: [
 			{
+				test: /\.js$/,
+				enforce: 'pre',
+				use: ['source-map-loader'],
+			},
+			{
 				test: /\.css$/,
 				type: 'css',
 			},
 			{
 				test: /\.ttf$/,
 				type: 'asset/resource',
+			},
+			{
+				// Built-in theme JSON files use JSONC (comments / trailing
+				// commas), so import them as raw strings and let VS Code's
+				// JSON parser handle them.
+				test: /[\\/]extensions[\\/]theme-defaults[\\/]themes[\\/].*\.json$/,
+				type: 'asset/source',
 			},
 		],
 	},
@@ -87,8 +112,8 @@ export default {
 	devServer: {
 		host: 'localhost',
 		port,
-		hot: 'only',
-		liveReload: false,
+		hot: true,
+		liveReload: true,
 		compress: false,
 		headers: {
 			'Access-Control-Allow-Origin': '*',

@@ -344,7 +344,7 @@ class AskVSCodeCopilot extends Action2 {
 			title: localize2('askVScode', 'Ask @vscode'),
 			category: Categories.Help,
 			f1: true,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), IsSessionsWindowContext.negate())
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabledInWorkspace', false), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -362,7 +362,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	},
 	order: 7,
 	group: '1_welcome',
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), IsSessionsWindowContext.negate())
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabledInWorkspace', false), IsSessionsWindowContext.negate())
 });
 
 // --- Actions Registration

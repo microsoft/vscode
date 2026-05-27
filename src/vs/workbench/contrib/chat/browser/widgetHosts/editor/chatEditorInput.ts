@@ -46,6 +46,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly _modelChangeListener = this._register(new MutableDisposable());
 
 	private get model(): IChatModel | undefined {
 		return this.modelRef.value?.object;
@@ -231,11 +232,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		this._sessionResource = this.model.sessionResource;
 
-		this._register(this.model.onDidChange((e) => {
-			// Invalidate icon cache when label changes
-			this.cachedIcon = undefined;
-			this._onDidChangeLabel.fire();
-		}));
+		this._trackModelChanges();
 
 		// Check if icon has changed after model resolution
 		const newIcon = this.resolveIcon();
@@ -246,6 +243,28 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this._onDidChangeLabel.fire();
 
 		return this._register(new ChatEditorModel(this.model));
+	}
+
+	/**
+	 * Updates the editor input to track a new model. Called when the widget swaps
+	 * from an untitled session to a real session.
+	 */
+	updateModel(model: IChatModel): void {
+		this._sessionResource = model.sessionResource;
+		this.modelRef.value = this.chatService.acquireExistingSession(model.sessionResource, 'ChatEditorInput#updateModel');
+		this._trackModelChanges();
+		this.cachedIcon = undefined;
+		this._onDidChangeLabel.fire();
+	}
+
+	private _trackModelChanges(): void {
+		if (!this.model) {
+			return;
+		}
+		this._modelChangeListener.value = this.model.onDidChange(() => {
+			this.cachedIcon = undefined;
+			this._onDidChangeLabel.fire();
+		});
 	}
 
 	private iconsEqual(a: ThemeIcon | URI, b: ThemeIcon | URI): boolean {

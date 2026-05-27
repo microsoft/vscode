@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext } from '../../../common/contextkeys.js';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -1065,13 +1065,44 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			editorTabsVisibleContext.set(this.partOptions.showTabs === 'multiple');
 		};
 
+		const updateTopRightGroupContextKey = () => {
+			if (!this.gridWidget || !this._contentDimension) {
+				return;
+			}
+
+			let topRightGroup: IEditorGroupView | undefined;
+			for (const group of this.groups) {
+				if (
+					this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
+					this.gridWidget.getNeighborViews(group, Direction.Right).length === 0
+				) {
+					topRightGroup = group;
+					break;
+				}
+			}
+
+			for (const group of this.groups) {
+				const contextKey = this.editorPartsView.bind(IsTopRightEditorGroupContext, group);
+				contextKey.set(group === topRightGroup);
+			}
+		};
+
 		updateContextKeys();
 		updateEditorTabsVisibleContext();
+		updateTopRightGroupContextKey();
 
-		this._register(this.onDidAddGroup(() => updateContextKeys()));
-		this._register(this.onDidRemoveGroup(() => updateContextKeys()));
+		this._register(this.onDidAddGroup(() => {
+			updateContextKeys();
+			updateTopRightGroupContextKey();
+		}));
+		this._register(this.onDidRemoveGroup(() => {
+			updateContextKeys();
+			updateTopRightGroupContextKey();
+		}));
 		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
+		this._register(this.onDidMoveGroup(() => updateTopRightGroupContextKey()));
+		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {

@@ -5,10 +5,12 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
@@ -118,12 +120,18 @@ suite('WebPageLoader', () => {
 		sinon.restore();
 	});
 
-	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean): WebPageLoader {
+	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean, isDomainAllowed?: (uri: URI) => boolean): WebPageLoader {
+		const agentNetworkFilterService: IAgentNetworkFilterService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			isUriAllowed: isDomainAllowed ?? (() => true),
+			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
+		};
 		const loader = new WebPageLoader((options) => {
 			window = new MockBrowserWindow(options);
 			// eslint-disable-next-line local/code-no-any-casts
 			return window as any;
-		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false));
+		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false), agentNetworkFilterService);
 		disposables.add(loader);
 		return loader;
 	}
@@ -539,6 +547,54 @@ suite('WebPageLoader', () => {
 		assert.ok(!(mockEvent.preventDefault!).called);
 
 		// Continue with normal load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('navigation to domain blocked by isDomainAllowed returns error', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const blockedUrl = 'https://blocked-domain.com/path';
+
+		const loader = createWebPageLoader(uri, { followRedirects: true }, undefined, (u) => u.authority !== 'blocked-domain.com');
+
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, blockedUrl);
+
+		const result = await loadPromise;
+
+		assert.ok((mockEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error?.includes('blocked-domain.com'));
+		}
+	});
+
+	test('navigation to allowed domain is not blocked by isDomainAllowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const allowedUrl = 'https://allowed-domain.com/path';
+
+		const loader = createWebPageLoader(uri, { followRedirects: true }, undefined, (u) => u.authority !== 'blocked-domain.com');
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, allowedUrl);
+
+		// Should not prevent navigation to allowed domain
+		assert.ok(!(mockEvent.preventDefault!).called);
+
 		window.webContents.emit('did-start-loading');
 		window.webContents.emit('did-finish-load');
 

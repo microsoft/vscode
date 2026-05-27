@@ -145,6 +145,7 @@
 }
 
 .ci-status-widget-list {
+	height: 100%;
 	background-color: transparent;
 }
 

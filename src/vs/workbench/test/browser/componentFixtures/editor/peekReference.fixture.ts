@@ -106,7 +106,7 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 		contributions: []
 	};
 
-	const editor = disposableStore.add(instantiationService.createInstance(
+	const editor = instantiationService.createInstance(
 		CodeEditorWidget,
 		container,
 		{
@@ -118,7 +118,7 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 			cursorBlinking: 'solid',
 		},
 		editorWidgetOptions
-	));
+	);
 
 	editor.setModel(textModel);
 	editor.focus();
@@ -131,7 +131,11 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 		true,
 		layoutData,
 	);
+	// Register widget BEFORE editor so widget.dispose() runs first; otherwise
+	// `ReferenceWidget.dispose()` calls `observableCodeEditor(disposed editor)`
+	// which creates a fresh untracked ObservableCodeEditor.
 	disposableStore.add(referenceWidget);
+	disposableStore.add(editor);
 
 	const range = { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 21 };
 	referenceWidget.setTitle('processFile');

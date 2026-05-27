@@ -11,8 +11,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -22,6 +22,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -36,6 +37,12 @@ export interface IAgentFeedback {
 	readonly diffHunks?: string;
 	/** When this feedback was converted from a PR review comment, the original thread ID. */
 	readonly sourcePRReviewCommentId?: string;
+	/**
+	 * Additional comment messages that belong to the same thread as this feedback,
+	 * talking about the same code region. The first {@link text} is the initial
+	 * comment; replies are subsequent messages added to it.
+	 */
+	readonly replies?: readonly string[];
 }
 
 export interface INavigableSessionComment {
@@ -76,6 +83,12 @@ export interface IAgentFeedbackService {
 	 * Update the text of an existing feedback item.
 	 */
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
+
+	/**
+	 * Append a reply to an existing feedback item, making it part of the same
+	 * comment thread.
+	 */
+	addReply(sessionResource: URI, feedbackId: string, replyText: string): void;
 
 	/**
 	 * Get all feedback items for a session.
@@ -256,6 +269,28 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 	}
 
+	addReply(sessionResource: URI, feedbackId: string, replyText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx < 0) {
+			return;
+		}
+
+		const existing = feedbackItems[idx];
+		const existingReplies = existing.replies ?? [];
+		feedbackItems[idx] = {
+			...existing,
+			replies: [...existingReplies, replyText],
+		};
+		this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
+		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+	}
+
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 		return this._feedbackBySession.get(sessionResource.toString()) ?? [];
 	}
@@ -363,16 +398,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this.setNavigationAnchor(sessionResource, commentId);
 	}
 
-	private _getSessionChange(resourceUri: URI, changes: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
-		readonly files: number;
-		readonly insertions: number;
-		readonly deletions: number;
-	} | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
+	private _getSessionChange(resourceUri: URI, changes: readonly ISessionFileChange[] | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
 		if (!(changes instanceof Array)) {
 			return undefined;
 		}
 
-		const matchingChange = changes.find(change => this._changeContainsResource(change, resourceUri));
+		const matchingChange = changes.find(change => changeMatchesResource(change, resourceUri));
 		if (!matchingChange) {
 			return undefined;
 		}
@@ -390,17 +421,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			modifiedUri: matchingChange.modifiedUri,
 			isDeletion: false,
 		};
-	}
-
-	private _changeContainsResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
-		if (isIChatSessionFileChange2(change)) {
-			return change.uri.fsPath === resourceUri.fsPath
-				|| change.originalUri?.fsPath === resourceUri.fsPath
-				|| change.modifiedUri?.fsPath === resourceUri.fsPath;
-		}
-
-		return change.modifiedUri.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {

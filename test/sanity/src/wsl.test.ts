@@ -60,9 +60,12 @@ export function setup(context: TestContext) {
 			return;
 		}
 
+		const wslEntryPoint = context.toWslPath(entryPoint);
+		context.applyWsl1Node24Workaround(wslEntryPoint);
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', context.getRandomToken(),
 				'--host', '0.0.0.0',
@@ -98,9 +101,12 @@ export function setup(context: TestContext) {
 		const token = context.getRandomToken();
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
 
+		const wslEntryPoint = context.toWslPath(entryPoint);
+		context.applyWsl1Node24Workaround(wslEntryPoint);
+
 		await context.runCliApp('WSL Server', 'wsl',
 			[
-				context.toWslPath(entryPoint),
+				wslEntryPoint,
 				'--accept-server-license-terms',
 				'--connection-token', token,
 				'--host', '0.0.0.0',
@@ -158,6 +164,8 @@ export function setup(context: TestContext) {
 			const window = await context.getPage(app.firstWindow());
 
 			try {
+				await test.dismissWelcomeDialog(window);
+
 				context.log('Installing WSL extension');
 				await window.getByRole('button', { name: 'Install and Reload' }).click();
 
@@ -170,8 +178,7 @@ export function setup(context: TestContext) {
 
 			await test.run(window);
 		} finally {
-			context.log('Closing the application');
-			await app.close();
+			await context.closeElectronApp(app);
 		}
 
 		test.validate();

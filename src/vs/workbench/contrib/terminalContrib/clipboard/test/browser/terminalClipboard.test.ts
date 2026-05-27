@@ -57,7 +57,15 @@ suite('TerminalClipboard', function () {
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined), true);
 		});
 		test('Single line string with trailing new line', async () => {
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined), true);
+			// Auto: strip the trailing newline to avoid auto-executing the command on paste
+			// (mitigates clipboard hijack auto-exec via right-click paste).
+			strictEqual(JSON.stringify(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined)), JSON.stringify({ modifiedText: 'foo' }));
+			strictEqual(JSON.stringify(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n ', undefined)), JSON.stringify({ modifiedText: 'foo' }));
+			strictEqual(JSON.stringify(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n\t', undefined)), JSON.stringify({ modifiedText: 'foo' }));
+			// Auto with bracketed paste mode: shell handles newline literally, safe to paste as-is.
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n ', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n\t', true), true);
 
 			setConfigValue('always');
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined), false);

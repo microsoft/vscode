@@ -8,14 +8,65 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
 
 export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
+
+/**
+ * Extracts the session ID from a tool invocation context.
+ * Falls back to a default string when no session context is available.
+ */
+export function getSessionId(invocation: IToolInvocation): string {
+	return invocation.context?.sessionResource?.toString() ?? '<default>';
+}
+
+export interface FormatBrowserEditorLinesOptions {
+	indent?: string;
+	numbered?: boolean;
+	excludeIds?: boolean;
+	agentNetworkFilterService?: IAgentNetworkFilterService;
+}
+
+/**
+ * Formats a list of browser editors as summary lines such as
+ * `- [pageId] Title (url) (active)`. Active/visible hints are
+ * derived from the editor service automatically.
+ *
+ * When {@link FormatBrowserEditorLinesOptions.agentNetworkFilterService} is
+ * provided, pages whose URL is blocked by network policy are masked to avoid
+ * leaking title or URL to the model.
+ */
+export function formatBrowserEditorList(editorService: IEditorService, editors: readonly BrowserEditorInput[], options?: FormatBrowserEditorLinesOptions): string {
+	const activeEditor = editorService.activeEditor;
+	const visibleEditors = new Set(editorService.visibleEditors);
+	const indent = options?.indent ?? '';
+	const filterService = options?.agentNetworkFilterService;
+	return editors.map((editor, index) => {
+		const url = editor.url || 'about:blank';
+
+		// If the page URL is blocked by network policy, mask its details.
+		let blocked = false;
+		if (filterService && url !== 'about:blank') {
+			try { blocked = !filterService.isUriAllowed(URI.parse(url)); } catch { }
+		}
+
+		const title = blocked ? localize('browser.blockedByPolicy', "Blocked by network domain policy") : (editor.title || 'Untitled');
+		const displayUrl = blocked ? '' : ` (${url})`;
+		const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : ' (not visible)';
+		const id = options?.excludeIds ? '' : `[${editor.id}] `;
+
+		// By default, use numbers only if we're excluding IDs, so models don't get confused about which ID to use.
+		const bullet = (options?.numbered ?? options?.excludeIds) ? `${index + 1}. ` : '- ';
+		return `${indent}${bullet}${id}${title}${displayUrl}${hint}`;
+	}).join('\n');
+}
 
 /**
  * Creates a markdown link to a browser page.
@@ -32,11 +83,12 @@ export function createBrowserPageLink(pageId: string | URI): string {
  */
 export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
+	sessionId: string,
 	pageId: string,
 	fn: (page: Page, ...args: TArgs) => Promise<TReturn>,
 	...args: TArgs
 ): Promise<TReturn> {
-	return playwrightService.invokeFunctionRaw(pageId, fn.toString(), ...args);
+	return playwrightService.invokeFunctionRaw(sessionId, pageId, fn.toString(), ...args);
 }
 
 /**
@@ -48,12 +100,13 @@ export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
  */
 export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
+	sessionId: string,
 	pageId: string,
 	fn: (page: Page, ...args: TArgs) => Promise<TReturn>,
 	...args: TArgs
 ): Promise<IToolResult> {
 	try {
-		const result = await playwrightService.invokeFunction(pageId, fn.toString(), args);
+		const result = await playwrightService.invokeFunction(sessionId, pageId, fn.toString(), args);
 		return invokeFunctionResultToToolResult(result);
 	} catch (e) {
 		return errorResult(e instanceof Error ? e.message : String(e));
@@ -99,52 +152,67 @@ export function errorResult(message: string): IToolResult {
 }
 
 /**
- * Checks whether a browser editor with the same host (hostname + port) already
- * exists. When {@link playwrightService} is provided, only pages tracked by Playwright
- * (i.e. shared with the agent) are considered.
+ * Checks whether a browser editor with the same host (hostname + port) already exists.
  *
- * @returns The first matching {@link BrowserEditorInput}, or `undefined` if none was found.
+ * @returns All matching {@link BrowserEditorInput}s.
  */
-export async function findExistingPageByHost(
-	editorService: IEditorService,
-	playwrightService: IPlaywrightService | undefined,
+export function findExistingPagesByHost(
+	browserViewService: IBrowserViewWorkbenchService,
 	url: string,
-): Promise<BrowserEditorInput | undefined> {
+	options?: {
+		includeBlank?: boolean;
+		sharingState?: BrowserViewSharingState;
+	}
+): BrowserEditorInput[] {
 	const parsed = URL.parse(url);
-	if (!parsed?.host) {
-		return undefined;
+	if (!parsed || (parsed.protocol !== 'file:' && !parsed.host)) {
+		return [];
 	}
 
-	const trackedIds = playwrightService
-		? new Set(await playwrightService.getTrackedPages())
-		: undefined;
-
-	for (const editor of editorService.editors) {
+	const results: BrowserEditorInput[] = [];
+	for (const editor of browserViewService.getKnownBrowserViews().values()) {
 		if (!(editor instanceof BrowserEditorInput)) {
 			continue;
 		}
-		if (trackedIds && !trackedIds.has(editor.id)) {
+		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
 			continue;
 		}
-		const editorUrl = editor.url;
-		if (editorUrl && URL.parse(editorUrl)?.host === parsed.host) {
-			return editor;
+		const editorUrl = URL.parse(editor.url || '');
+		if (
+			options?.includeBlank && (!editor.url || editor.url === 'about:blank') ||
+			editorUrl?.host === parsed.host ||
+			(parsed.protocol === 'file:' && editorUrl?.protocol === 'file:') ||
+			(editorUrl?.host && parsed.host && (
+				editorUrl.host.endsWith('.' + parsed.host) ||
+				parsed.host.endsWith('.' + editorUrl.host)
+			))
+		) {
+			results.push(editor);
 		}
 	}
-	return undefined;
+	return results;
 }
 
 /**
  * Builds the "already open" tool result returned when an existing page with the
- * same host is found by {@link findExistingPageByHost}.
+ * same host is found by {@link findExistingPagesByHost}.
  */
-export function alreadyOpenResult(existing: BrowserEditorInput): IToolResult {
-	const link = createBrowserPageLink(existing.id);
+export async function getExistingPagesResult(
+	editorService: IEditorService,
+	existing: BrowserEditorInput[],
+	formatOptions?: FormatBrowserEditorLinesOptions
+): Promise<IToolResult | undefined> {
+	if (existing.length === 0) {
+		return undefined;
+	}
+
+	const list = formatBrowserEditorList(editorService, existing, { indent: '  ', ...formatOptions });
+	const links = existing.map(e => createBrowserPageLink(e.id));
 	return {
 		content: [{
 			kind: 'text',
-			value: `A page on this host is already open (Page ID: ${existing.id}). Use this page or pass \`forceNew: true\` to open a new one.`,
+			value: `At least one similar page is already open:\n${list}\n\nUse an existing page or pass \`forceNew: true\` to open a new one.`
 		}],
-		toolResultMessage: new MarkdownString(localize('browser.open.alreadyOpen', "Already open: {0}", link)),
+		toolResultMessage: new MarkdownString(localize('browser.open.alreadyOpen', "Already open: {0}", links.join(', '))),
 	};
 }

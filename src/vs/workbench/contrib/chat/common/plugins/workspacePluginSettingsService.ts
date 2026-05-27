@@ -55,6 +55,7 @@ interface IMarketplaceSourceJson {
 	readonly source?: string;
 	readonly repo?: string;
 	readonly url?: string;
+	readonly ref?: string;
 	readonly path?: string;
 }
 
@@ -62,6 +63,7 @@ interface IExtraMarketplaceJson {
 	readonly source?: string | IMarketplaceSourceJson;
 	readonly repo?: string;
 	readonly url?: string;
+	readonly ref?: string;
 	readonly path?: string;
 }
 
@@ -79,27 +81,40 @@ function marketplaceEntryToReference(entry: IExtraMarketplaceJson): IMarketplace
 	let sourceType: string | undefined;
 	let repo: string | undefined;
 	let url: string | undefined;
+	let ref: string | undefined;
 
 	if (typeof entry.source === 'object' && entry.source !== null) {
 		const nested = entry.source;
 		sourceType = nested.source;
 		repo = nested.repo;
 		url = nested.url;
+		ref = nested.ref;
 	} else {
 		sourceType = entry.source as string | undefined;
 		repo = entry.repo;
 		url = entry.url;
+		ref = entry.ref;
 	}
 
 	if (sourceType === 'github' && typeof repo === 'string') {
-		return parseMarketplaceReference(repo);
+		return parseMarketplaceReference(appendMarketplaceRef(repo, ref));
 	}
 
 	if (sourceType === 'git' && typeof url === 'string') {
-		return parseMarketplaceReference(url);
+		return parseMarketplaceReference(appendMarketplaceRef(url, ref));
 	}
 
 	return undefined;
+}
+
+function appendMarketplaceRef(value: string, ref: string | undefined): string {
+	if (!ref) {
+		return value;
+	}
+
+	const fragmentIndex = value.indexOf('#');
+	const baseValue = fragmentIndex === -1 ? value : value.slice(0, fragmentIndex);
+	return `${baseValue}#${ref}`;
 }
 
 /**
@@ -187,7 +202,7 @@ class WorkspaceSettingsReader extends Disposable {
 		const settingsDirs = observableFromEvent(
 			this,
 			workspaceContextService.onDidChangeWorkspaceFolders,
-			() => workspaceContextService.getWorkspace().folders.map(f => joinPath(f.uri, configFolder)),
+			() => workspaceContextService.getWorkspace().folders.map(f => f.uri.path ? joinPath(f.uri, configFolder) : joinPath(f.uri.with({ path: '/' }), configFolder)),
 		);
 
 		const watcherStore = this._register(new DisposableStore());

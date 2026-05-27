@@ -10,7 +10,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 
 export const enum TerminalInitialHintSettingId {
 	Enabled = 'terminal.integrated.initialHint',
-	CopilotCli = 'terminal.integrated.initialHint.copilotCli',
+	CopilotCli = 'terminal.integrated.initialHintCopilotCli',
 }
 
 export const terminalInitialHintConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -18,13 +18,17 @@ export const terminalInitialHintConfiguration: IStringDictionary<IConfigurationP
 		restricted: true,
 		markdownDescription: localize('terminal.integrated.initialHint', "Controls if the first terminal without input will show a hint about available actions when it is focused. This will only show when {0} is disabled.", `\`#${TerminalSettingId.SendKeybindingsToShell}#\``),
 		type: 'boolean',
-		default: true
+		default: true,
+		agentsWindow: { default: false },
 	},
 	[TerminalInitialHintSettingId.CopilotCli]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.initialHint.copilotCli', "When enabled, the terminal initial hint will suggest using Copilot CLI by typing {0} instead of opening Copilot Chat.", '`copilot`'),
+		markdownDescription: localize('terminal.integrated.initialHintCopilotCli', "When enabled, the terminal initial hint will suggest using Copilot CLI by typing {0} instead of opening Copilot Chat.", '`copilot`'),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental']
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
 	}
 };
