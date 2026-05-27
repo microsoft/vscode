@@ -345,8 +345,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const gutterViewPortPaddingTop = 2;
 
 		// Entire gutter view from top left to bottom right
-		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft;
-		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPaddingTop;
+		const gutterWidthWithoutPadding = Math.max(0, layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft);
+		const gutterHeightWithoutPadding = Math.max(0, layout.height - 2 * gutterViewPortPaddingTop);
 		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPaddingLeft, gutterViewPortPaddingTop, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
 		const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
 		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop);
