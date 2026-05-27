@@ -568,7 +568,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
 		const summarizationTriggerEnabled = this.configurationService.getConfig(ConfigKey.SummarizeAgentConversationHistory) && this.prompt === AgentPrompt;
-		const responsesApiCompactionTriggerEnabled = summarizationTriggerEnabled && isResponsesApiCompactionTriggerModel(this.endpoint);
+		const responsesApiCompactionTriggerEnabled = summarizationTriggerEnabled
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, this.expService)
+			&& isResponsesApiCompactionTriggerModel(this.endpoint);
 		const summarizationEnabled = summarizationTriggerEnabled && !responsesApiCompactionTriggerEnabled;
 
 		// When tools are present, apply a 10% safety margin on the message portion

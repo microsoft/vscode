@@ -39,7 +39,9 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const expService = accessor.get(IExperimentationService);
 	const verbosity = getVerbosityForModelSync(endpoint);
 
-	const shouldTriggerResponsesApiCompaction = !!options.triggerResponsesApiCompaction && isResponsesApiCompactionTriggerModel(endpoint);
+	const shouldTriggerResponsesApiCompaction = !!options.triggerResponsesApiCompaction
+		&& configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService)
+		&& isResponsesApiCompactionTriggerModel(endpoint);
 	const webSocketStatefulMarker = shouldTriggerResponsesApiCompaction ? undefined : resolveWebSocketStatefulMarker(accessor, options);
 	// When WebSocket is in use, always defer to the WebSocket marker (which may be
 	// undefined if the connection is new or the summary state changed). Never fall

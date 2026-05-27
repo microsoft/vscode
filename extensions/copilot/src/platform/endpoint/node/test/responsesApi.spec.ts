@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -777,9 +778,10 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
-	it('appends a compaction trigger input item as the final item when requested', () => {
+	it('appends a compaction trigger input item as the final item when requested and context management is enabled', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiContextManagementEnabled, true);
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' };
 		const latestCompaction = createCompactionResponse('cmp_existing', 'enc_existing');
@@ -820,9 +822,10 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
-	it('sends explicit history instead of previous_response_id for compaction trigger requests', () => {
+	it('sends explicit history instead of previous_response_id for compaction trigger requests when context management is enabled', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiContextManagementEnabled, true);
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' };
 		const messages: Raw.ChatMessage[] = [
@@ -858,9 +861,43 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
+	it('does not append a compaction trigger input item when context management is disabled', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' };
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }],
+			},
+			createStatefulMarkerMessage(endpoint.model, 'resp-prev'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
+			...createRequestOptions(messages, false),
+			triggerResponsesApiCompaction: true,
+		}, endpoint.model, endpoint));
+
+		expect(body.previous_response_id).toBe('resp-prev');
+		expect(body.input?.at(-1)).not.toEqual({ type: openAIContextManagementCompactionTriggerType });
+		expect(body.input).toEqual([{
+			role: 'user',
+			content: [{ type: 'input_text', text: 'after marker' }],
+		}]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('does not append a compaction trigger input item for other Responses API models', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiContextManagementEnabled, true);
 		const instantiationService = accessor.get(IInstantiationService);
 		const messages: Raw.ChatMessage[] = [
 			{
