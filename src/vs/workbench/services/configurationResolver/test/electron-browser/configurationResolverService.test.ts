@@ -56,6 +56,20 @@ class TestConfigurationResolverService extends BaseConfigurationResolverService 
 
 }
 
+class TestEditorServiceWithRemoteActiveEditor extends TestEditorServiceWithActiveEditor {
+	constructor(private readonly _remoteResource: URI) {
+		super();
+	}
+	override get activeEditor(): any {
+		const resource = this._remoteResource;
+		return {
+			get resource(): URI {
+				return resource;
+			}
+		};
+	}
+}
+
 const nullContext = {
 	getAppRoot: () => undefined,
 	getExecPath: () => undefined
@@ -206,6 +220,22 @@ suite('Configuration Resolver Service', () => {
 
 	test('relative file with invalid argument and undefined workspace folder', () => {
 		assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile:invalidLocation} xyz'));
+	});
+
+	// https://github.com/microsoft/vscode/issues/172099
+	test('relative file uses posix separators when paths look posix (WSL on Windows)', async () => {
+		const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/project/src/app.ts' });
+		const remoteFolderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/project' });
+		const remoteEditorService = disposables.add(new TestEditorServiceWithRemoteActiveEditor(remoteUri));
+		const remoteLabelService = new MockRemoteLabelService();
+		const remotePathService = new MockPathService();
+		remotePathService.defaultUriScheme = Schemas.vscodeRemote;
+		const remoteContainingWorkspace = testWorkspace(remoteFolderUri);
+		const remoteWorkspace = remoteContainingWorkspace.folders[0];
+		const remoteContext = new TestContextService(remoteContainingWorkspace);
+		const resolver = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), remoteEditorService, new MockInputsConfigurationService(), mockCommandService, remoteContext, quickInputService, remoteLabelService, remotePathService, extensionService, disposables.add(new TestStorageService()));
+		assert.strictEqual(await resolver.resolveAsync(remoteWorkspace, '${relativeFile}'), 'src/app.ts');
+		assert.strictEqual(await resolver.resolveAsync(remoteWorkspace, '${relativeFileDirname}'), 'src');
 	});
 
 	test('substitute many', async () => {
@@ -834,6 +864,14 @@ class MockLabelService implements ILabelService {
 		throw new Error('Method not implemented.');
 	}
 	readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
+}
+
+class MockRemoteLabelService extends MockLabelService {
+	// Simulates a remote label formatter (e.g. WSL) that always uses posix
+	// separators regardless of the host operating system.
+	override getUriLabel(resource: URI): string {
+		return resource.path;
+	}
 }
 
 class MockPathService implements IPathService {
