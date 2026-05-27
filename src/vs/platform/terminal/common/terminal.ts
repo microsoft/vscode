@@ -207,6 +207,7 @@ export interface IPtyHostAttachTarget {
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
 	tabActions?: ITerminalTabAction[];
+	daemonId?: string;
 }
 
 export interface IReconnectionProperties {
@@ -581,6 +582,7 @@ export interface IShellLaunchConfig {
 		isFeatureTerminal?: boolean;
 		shellIntegrationNonce: string;
 		tabActions?: ITerminalTabAction[];
+		daemonId?: string;
 	};
 
 	/**
@@ -686,6 +688,11 @@ export interface IShellLaunchConfig {
 	 * title template for this terminal instance.
 	 */
 	titleTemplate?: string;
+
+	/**
+	 * Whether this terminal should be managed by the persistent terminal daemon.
+	 */
+	persistentDaemon?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -786,6 +793,7 @@ export interface ITerminalChildProcess {
 	 * example. The ID will be 0 if it does not support reconnection.
 	 */
 	id: number;
+	daemonId?: number;
 
 	/**
 	 * Whether the process should be persisted across reloads.
@@ -1260,4 +1268,24 @@ export interface ITerminalLogService extends ILogService {
 	 * ITerminalLogService.
 	 */
 	readonly _logBrand: undefined;
+}
+
+export const ITerminalDaemonService = createDecorator<ITerminalDaemonService>('terminalDaemonService');
+
+export interface ITerminalDaemonService {
+	readonly _serviceBrand: undefined;
+	readonly onDidProcessData: Event<{ id: number; data: string }>;
+	readonly onDidProcessExit: Event<{ id: number; exitCode: number | undefined }>;
+
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, options: ITerminalProcessOptions): Promise<number>;
+	attachToProcess(id: number): Promise<void>;
+	detachFromProcess(id: number): Promise<void>;
+	listProcesses(): Promise<IProcessDetails[]>;
+	input(id: number, data: string): Promise<void>;
+	resize(id: number, cols: number, rows: number): Promise<void>;
+	shutdown(id: number, immediate: boolean): Promise<void>;
+	clearBuffer(id: number): Promise<void>;
+	getProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
+	getSerializeBuffer(id: number): Promise<string>;
 }

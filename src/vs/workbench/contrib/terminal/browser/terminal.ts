@@ -913,6 +913,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * that supports reconnection.
 	 */
 	readonly persistentProcessId: number | undefined;
+	readonly daemonId: string | undefined;
 
 	/**
 	 * Whether the process should be persisted across reloads.
