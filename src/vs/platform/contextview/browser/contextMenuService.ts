@@ -12,6 +12,7 @@ import { getFlatContextMenuActions } from '../../actions/browser/menuEntryAction
 import { IMenuService, MenuId } from '../../actions/common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ContextMenuHandler, IContextMenuHandlerOptions } from './contextMenuHandler.js';
@@ -24,7 +25,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	private _contextMenuHandler: ContextMenuHandler | undefined = undefined;
 	private get contextMenuHandler(): ContextMenuHandler {
 		if (!this._contextMenuHandler) {
-			this._contextMenuHandler = new ContextMenuHandler(this.contextViewService, this.telemetryService, this.notificationService, this.keybindingService);
+			this._contextMenuHandler = new ContextMenuHandler(this.contextViewService, this.telemetryService, this.notificationService, this.keybindingService, this.layoutService);
 		}
 
 		return this._contextMenuHandler;
@@ -43,6 +44,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
 		super();
 	}

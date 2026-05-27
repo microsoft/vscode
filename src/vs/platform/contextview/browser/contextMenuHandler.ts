@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { getContextMenuTriggerElement, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
@@ -12,6 +12,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IContextViewService } from './contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
@@ -33,6 +34,7 @@ export class ContextMenuHandler {
 		private telemetryService: ITelemetryService,
 		private notificationService: INotificationService,
 		private keybindingService: IKeybindingService,
+		private layoutService: ILayoutService,
 	) { }
 
 	configure(options: IContextMenuHandlerOptions): void {
@@ -50,6 +52,13 @@ export class ContextMenuHandler {
 		let menu: Menu | undefined;
 
 		const shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
+		// Resolve the menu container to the workbench root of the trigger's
+		// window so the menu renders in the right window (e.g. auxiliary
+		// windows). Falls back to shadow root or activeContainer.
+		const triggerElement = getContextMenuTriggerElement(delegate);
+		const container = triggerElement
+			? this.layoutService.getContainer(getWindow(triggerElement))
+			: shadowRootElement;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -145,7 +154,7 @@ export class ContextMenuHandler {
 
 				this.lastContainer = null;
 			}
-		}, shadowRootElement, !!shadowRootElement);
+		}, container, !!shadowRootElement);
 	}
 
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {
