@@ -430,6 +430,14 @@ export class MarkupCell extends Disposable {
 				return;
 			}
 
+			// When the user clicks on the markdown preview to enter edit mode,
+			// don't reveal the previously saved cursor position - the click will
+			// place the caret at the new location and any reveal here causes a
+			// jarring scroll back to where the cursor used to be (issue #232077).
+			if (this.viewCell.editStateSource === 'setMarkdownCellEditState') {
+				return;
+			}
+
 			this.notebookEditor.revealRangeInViewAsync(this.viewCell, primarySelection);
 		}
 	}
