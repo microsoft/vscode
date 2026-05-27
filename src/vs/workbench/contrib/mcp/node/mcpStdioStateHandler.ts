@@ -62,11 +62,17 @@ export class McpStdioStateHandler implements IDisposable {
 		}
 	}
 
-	private killPolite() {
+	private async killPolite() {
 		this._procState = McpProcessState.KilledPolite;
 		this._nextTimeout = new TimeoutTimer(() => this.killForceful(), this._graceTimeMs);
 
-		if (!isWindows) {
+		if (this._child.pid) {
+			if (!isWindows) {
+				await killTree(this._child.pid, false).catch(() => {
+					this._child.kill('SIGTERM');
+				});
+			}
+		} else {
 			this._child.kill('SIGTERM');
 		}
 	}
