@@ -199,21 +199,29 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	/**
 	 * Effective safety-net interval (ms), read from configuration. Falls back to
 	 * {@link SAFETY_INTERVAL_MS} when the configuration service is unavailable
-	 * (e.g. tests that bypass the constructor).
+	 * (e.g. tests that bypass the constructor) or when the configured value is
+	 * not a positive finite number — otherwise an invalid treatment could turn
+	 * safety backoff into an immediate timer and busy-poll a failing endpoint.
 	 */
 	private _getSafetyIntervalMs(): number {
-		return this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncSafetyIntervalMs, this._expService)
-			?? SAFETY_INTERVAL_MS;
+		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncSafetyIntervalMs, this._expService);
+		return typeof configured === 'number' && Number.isFinite(configured) && configured > 0
+			? configured
+			: SAFETY_INTERVAL_MS;
 	}
 
 	/**
 	 * Effective max events per flush request, read from configuration. Falls back
 	 * to {@link MAX_EVENTS_PER_FLUSH} when the configuration service is
-	 * unavailable.
+	 * unavailable or when the configured value is not a positive integer —
+	 * otherwise an invalid treatment could splice an empty batch and busy-loop
+	 * re-arming fast flushes without uploading any events.
 	 */
 	private _getMaxEventsPerFlush(): number {
-		return this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncMaxEventsPerFlush, this._expService)
-			?? MAX_EVENTS_PER_FLUSH;
+		const configured = this._configService?.getExperimentBasedConfig(ConfigKey.SessionSyncMaxEventsPerFlush, this._expService);
+		return Number.isInteger(configured) && configured > 0
+			? configured
+			: MAX_EVENTS_PER_FLUSH;
 	}
 
 	/**
@@ -834,7 +842,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				// flush even when the turn produced no terminal event (e.g. cancelled
 				// before any tokens streamed) so buffered user.message/session.start
 				// don't sit until the 60s safety timer.
-				this._scheduleFlush(BATCH_INTERVAL_MS);
+				this._scheduleFlush(BATCH_INTERVAL_MS, 'fast');
 			}
 		} catch {
 			// Non-fatal — individual span processing failure
@@ -1200,9 +1208,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 
 		if (hasTerminal || this._eventBuffer.length >= this._getMaxEventsPerFlush()) {
-			this._scheduleFlush(BATCH_INTERVAL_MS);
+			this._scheduleFlush(BATCH_INTERVAL_MS, 'fast');
 		} else {
-			this._scheduleFlush(this._getSafetyIntervalMs());
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 		}
 	}
 
@@ -1212,8 +1220,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	 * Schedule a one-shot flush. Upgrade-only: a pending fast flush is never
 	 * downgraded by a later safety request.
 	 */
-	private _scheduleFlush(intervalMs: number): void {
-		const kind: 'fast' | 'safety' = intervalMs === this._getSafetyIntervalMs() ? 'safety' : 'fast';
+	private _scheduleFlush(intervalMs: number, kind: 'fast' | 'safety'): void {
 
 		if (this._flushTimer !== undefined) {
 			if (kind === 'safety' || this._flushTimerKind === 'fast') {
@@ -1263,7 +1270,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			}
 			// Re-arm at the safety cadence so buffered events are retried once the
 			// breaker transitions to HALF_OPEN, even if no new spans arrive.
-			this._scheduleFlush(this._getSafetyIntervalMs());
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 			return;
 		}
 
@@ -1277,7 +1284,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._circuitBreaker.cancelProbe();
 			// Re-arm at the safety cadence so buffered events are retried once the
 			// client's Retry-After window elapses, even if no new spans arrive.
-			this._scheduleFlush(this._getSafetyIntervalMs());
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 			return;
 		}
 
@@ -1468,11 +1475,11 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		//  - otherwise, keep a safety timer running while any cloud session is active
 		//    so late spans are caught even without a terminal event
 		if (flushFailed && this._eventBuffer.length > 0) {
-			this._scheduleFlush(this._getSafetyIntervalMs());
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 		} else if (this._eventBuffer.length > 0) {
-			this._scheduleFlush(BATCH_INTERVAL_MS);
+			this._scheduleFlush(BATCH_INTERVAL_MS, 'fast');
 		} else if (this._cloudSessions.size > 0) {
-			this._scheduleFlush(this._getSafetyIntervalMs());
+			this._scheduleFlush(this._getSafetyIntervalMs(), 'safety');
 		}
 	}
 
