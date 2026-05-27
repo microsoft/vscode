@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IEnterWorkspaceOptions, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
@@ -175,8 +175,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		return true; // OK
 	}
 
-	async enterWorkspace(workspaceUri: URI): Promise<void> {
-		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace"));
+	async enterWorkspace(workspaceUri: URI, options?: IEnterWorkspaceOptions): Promise<void> {
+		const reason = localize('restartExtensionHost.reason', "Opening a multi-root workspace");
+		const stopped = await this.extensionService.stopExtensionHosts(reason, /*auto*/ false, /*force*/ options?.suppressConfirmation);
 		if (!stopped) {
 			return;
 		}
