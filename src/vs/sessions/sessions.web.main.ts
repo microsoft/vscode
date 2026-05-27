@@ -175,6 +175,12 @@ import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker
 // already-opened chat input. Web-only for the same reason as above.
 import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
 
+// Phone-only contribution that scrolls the chat message list to the
+// last item when the iOS virtual keyboard appears, keeping the most
+// recent message visible above the lifted chat input (see the
+// keyboard-avoidance CSS section in `mobileChatShell.css`).
+import './contrib/chat/browser/mobile/mobileChatKeyboardScroll.js';
+
 // Mobile-aware Copilot permission picker. Replaces the desktop
 // permission picker registration (which the shared contribution
 // skips when `isWeb`), so we get the bottom-sheet sheet on phone
