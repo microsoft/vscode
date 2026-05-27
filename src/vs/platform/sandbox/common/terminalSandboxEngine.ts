@@ -20,7 +20,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
-import { ITerminalSandboxCommand, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck } from './terminalSandboxService.js';
+import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck } from './terminalSandboxService.js';
 
 interface ITerminalSandboxFileSystemSetting {
 	denyRead?: string[];
@@ -144,12 +144,12 @@ export class TerminalSandboxEngine extends Disposable {
 		this._register(this._host.onDidChangeRoots(() => this.setNeedsForceUpdateConfigFile()));
 	}
 
-	async isEnabled(): Promise<boolean> {
-		return this._isSandboxConfiguredEnabled();
+	async isEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		return this._isSandboxConfiguredEnabled(precheckInputs);
 	}
 
-	async isSandboxAllowNetworkEnabled(): Promise<boolean> {
-		if (!(await this._isSandboxConfiguredEnabled())) {
+	async isSandboxAllowNetworkEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		if (!(await this._isSandboxConfiguredEnabled(precheckInputs))) {
 			return false;
 		}
 		return this._isSandboxAllowNetworkConfigured();
@@ -274,8 +274,8 @@ export class TerminalSandboxEngine extends Disposable {
 		};
 	}
 
-	async checkForSandboxingPrereqs(forceRefresh: boolean = false): Promise<ITerminalSandboxPrerequisiteCheckResult> {
-		if (!(await this._isSandboxConfiguredEnabled())) {
+	async checkForSandboxingPrereqs(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult> {
+		if (!(await this._isSandboxConfiguredEnabled(precheckInputs))) {
 			return {
 				enabled: false,
 				sandboxConfigPath: undefined,
@@ -283,7 +283,7 @@ export class TerminalSandboxEngine extends Disposable {
 			};
 		}
 
-		const sandboxConfigPath = await this.getSandboxConfigPath(forceRefresh);
+		const sandboxConfigPath = await this.getSandboxConfigPath(forceRefresh, precheckInputs);
 		if (!sandboxConfigPath) {
 			return {
 				enabled: true,
@@ -308,8 +308,8 @@ export class TerminalSandboxEngine extends Disposable {
 		};
 	}
 
-	async getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
-		if (!(await this._isSandboxConfiguredEnabled())) {
+	async getSandboxConfigPath(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined> {
+		if (!(await this._isSandboxConfiguredEnabled(precheckInputs))) {
 			return undefined;
 		}
 		await this._resolveRuntimeInfo();
@@ -501,7 +501,14 @@ export class TerminalSandboxEngine extends Disposable {
 		return JSON.stringify(a) === JSON.stringify(b);
 	}
 
-	private async _isSandboxConfiguredEnabled(): Promise<boolean> {
+	private _isSandboxAllowedByPrecheckInputs(precheckInputs: ITerminalSandboxPrecheckInputs | undefined): boolean {
+		return precheckInputs?.isDefaultApprovalPermissionEnabled !== false;
+	}
+
+	private async _isSandboxConfiguredEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		if (!this._isSandboxAllowedByPrecheckInputs(precheckInputs)) {
+			return false;
+		}
 		await this.getOS();
 		if (this._os === OperatingSystem.Windows) {
 			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;

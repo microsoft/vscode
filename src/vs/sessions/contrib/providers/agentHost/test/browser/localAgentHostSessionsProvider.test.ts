@@ -15,13 +15,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationStatus, SessionLifecycle, type AgentInfo, type ChangesetSummary, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -29,12 +31,15 @@ import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
+
+const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 
 type SubscriptionState = SessionState | ChangesetState;
 
@@ -232,7 +237,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined> }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -257,12 +262,16 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+	}());
+	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
+		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
 	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
@@ -309,6 +318,16 @@ function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, prov
 		channel: 'ahp-root://',
 		type: NotificationType.SessionRemoved,
 		session: sessionUri.toString(),
+	});
+}
+
+function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: string, changes: Partial<SessionSummary>, provider = 'copilotcli'): void {
+	const sessionUri = AgentSession.uri(provider, rawId);
+	agentHost.fireNotification({
+		channel: 'ahp-root://',
+		type: NotificationType.SessionSummaryChanged,
+		session: sessionUri.toString(),
+		changes,
 	});
 }
 
@@ -1047,6 +1066,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('setSessionConfigValue remembers string picks and ignores unsafe keys', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await provider.setSessionConfigValue(session.sessionId, '__proto__', 'polluted');
+
+		assert.deepStrictEqual(
+			storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			{ [SessionConfigKey.Isolation]: 'folder' },
+		);
+	});
+
+	test('createNewSession seeds remembered values and skips unsafe remembered keys', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, `{"${SessionConfigKey.Isolation}":"folder","${SessionConfigKey.Branch}":"main","__proto__":"polluted"}`, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: { isolation: 'folder', branch: 'main' },
+			forwardedToAgentHost: { isolation: 'folder', branch: 'main' },
+		});
+	});
+
+	test('createNewSession gives chat.permissions.default precedence over remembered autoApprove while normalizing by policy and feature flags', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'autopilot',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Case 1: policy restricts auto-approve — setting 'autoApprove' is clamped to 'default'
+		const policyRestrictedConfig = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.tools.global.autoApprove') {
+					return { ...base, policyValue: false as unknown as T };
+				}
+				return base;
+			}
+		}();
+		await policyRestrictedConfig.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
+		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+
+		// Case 2: autopilot disabled — setting 'default' wins over remembered 'autopilot'
+		const autopilotDisabledConfig = new TestConfigurationService();
+		await autopilotDisabledConfig.setUserConfiguration('chat.permissions.default', 'default');
+		await autopilotDisabledConfig.setUserConfiguration('chat.autopilot.enabled', false);
+		const autopilotDisabledProvider = createProvider(disposables, agentHost, undefined, { configurationService: autopilotDisabledConfig, storageService });
+		autopilotDisabledProvider.createNewSession(URI.parse('file:///home/user/project'), autopilotDisabledProvider.sessionTypes[0].id);
+
+		// The forwarded config proves the setting took precedence over the
+		// remembered value and was properly normalized.
+		assert.deepStrictEqual({
+			policyRestricted: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			autopilotDisabled: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			policyRestricted: 'default',
+			autopilotDisabled: 'default',
+		});
+	});
+
 	test('getSessionByResource resolves current new session without listing it', () => {
 		const provider = createProvider(disposables, agentHost);
 		const workspaceUri = URI.parse('file:///home/user/my-project');
@@ -1759,6 +1845,10 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
 	}
 
+	function catalogueFor(rawId: string, additions: number, deletions: number, sessionType: string = 'copilotcli'): ChangesetSummary[] {
+		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), additions, deletions, files: 1 }];
+	}
+
 	test('subscribes to <activeSession>/changeset/uncommitted when an AHP session becomes active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 
@@ -1854,5 +1944,32 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 			insertions: 2,
 			deletions: 1,
 		}]);
+	});
+
+	test('catalogue count updates resume after active branch changeset subscription is released', () => {
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		fireSessionAdded(agentHost, 'sess-A', { title: 'Session A' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Session A');
+		assert.ok(session);
+
+		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		agentHost.setChangesetState(branchChangesKeyFor('sess-A'), {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///repo/file.ts',
+				edit: {
+					before: { uri: 'file:///repo/file.ts', content: { uri: 'session-db:///before/file.ts' } },
+					after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
+					diff: { added: 2, removed: 1 },
+				},
+			}],
+		});
+
+		activeSession.set(makeActive('sess-B', provider.id), undefined);
+		fireSessionSummaryChanged(agentHost, 'sess-A', { changesets: catalogueFor('sess-A', 5, 3) });
+
+		assert.deepStrictEqual(session.changes.get().map(change => ({ insertions: change.insertions, deletions: change.deletions })), [
+			{ insertions: 5, deletions: 3 },
+		]);
 	});
 });

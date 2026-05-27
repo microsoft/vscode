@@ -49,7 +49,7 @@ import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIn
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
@@ -253,13 +253,35 @@ export class AgentIntent extends EditCodeIntent {
 		});
 	}
 
-	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number): BackgroundSummarizer {
+	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer {
 		let summarizer = this._backgroundSummarizers.get(sessionId);
+		if (summarizer && summarizer.endpointId !== endpointId) {
+			// Endpoint switched mid-session. A summary kicked off against the
+			// previous endpoint's prefix would be applied unconditionally on the
+			// next pre-render, producing a surprising "Compacted conversation"
+			// notice on the new endpoint — cancel and start fresh.
+			summarizer.cancel();
+			this._backgroundSummarizers.delete(sessionId);
+			summarizer = undefined;
+		}
 		if (!summarizer) {
-			summarizer = new BackgroundSummarizer(modelMaxPromptTokens);
+			summarizer = new BackgroundSummarizer(modelMaxPromptTokens, endpointId);
 			this._backgroundSummarizers.set(sessionId, summarizer);
 		}
 		return summarizer;
+	}
+
+	/**
+	 * Cancel and forget the background summarizer for this session. Used by
+	 * `/compact` so a pending background result doesn't immediately overwrite
+	 * the user's explicit foreground compaction on the next turn.
+	 */
+	cancelBackgroundSummarizer(sessionId: string): void {
+		const summarizer = this._backgroundSummarizers.get(sessionId);
+		if (summarizer) {
+			summarizer.cancel();
+			this._backgroundSummarizers.delete(sessionId);
+		}
 	}
 
 	getOrCreateBackgroundTodoProcessor(sessionId: string): BackgroundTodoProcessor {
@@ -346,6 +368,11 @@ export class AgentIntent extends EditCodeIntent {
 			stream.markdown(l10n.t('Compaction is already managed by context management for this session.'));
 			return {};
 		}
+
+		// Foreground compaction is now authoritative for this session. Cancel any
+		// pending background summarizer so its (potentially stale) result doesn't
+		// overwrite this `/compact` on the next render.
+		this.cancelBackgroundSummarizer(conversation.sessionId);
 
 		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
@@ -593,20 +620,32 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// we don't immediately re-trigger background compaction in the post-render check.
 		let didSummarizeThisIteration = false;
 
-		// If a previous background pass completed, apply its summary now.
+		// If a previous background pass completed, apply its summary now — but
+		// only when the current context ratio still warrants it. After a model
+		// switch to a larger window (or an increased context-size override) the
+		// ratio can drop below `applyMinRatio`; applying a stale summary in that
+		// case surfaces a confusing "Compacted conversation" notice with
+		// plenty of headroom remaining.
 		if (summarizationEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
-			const bgResult = backgroundSummarizer.consumeAndReset();
-			if (bgResult) {
-				this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
-				progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
-				this._applySummaryToRounds(bgResult, promptContext);
-				this._persistSummaryOnTurn(bgResult, promptContext, this._lastRenderTokenCount);
-				this._sendBackgroundCompactionTelemetry('preRender', 'applied', contextRatio, promptContext);
-				didSummarizeThisIteration = true;
+			if (contextRatio >= BackgroundSummarizationThresholds.applyMinRatio) {
+				const bgResult = backgroundSummarizer.consumeAndReset();
+				if (bgResult) {
+					this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
+					progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
+					this._applySummaryToRounds(bgResult, promptContext);
+					this._persistSummaryOnTurn(bgResult, promptContext, this._lastRenderTokenCount);
+					this._sendBackgroundCompactionTelemetry('preRender', 'applied', contextRatio, promptContext);
+					didSummarizeThisIteration = true;
+				} else {
+					this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
+					this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
+					this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+				}
 			} else {
-				this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
-				this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
-				this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+				// Drop the stale summary so a fresh kick-off can replace it later.
+				backgroundSummarizer.consumeAndReset();
+				this.logService.debug(`[ConversationHistorySummarizer] discarding completed background summary; contextRatio ${(contextRatio * 100).toFixed(0)}% below applyMinRatio ${(BackgroundSummarizationThresholds.applyMinRatio * 100).toFixed(0)}% (likely model switch or context-size override)`);
+				this._sendBackgroundCompactionTelemetry('preRender', 'discardedBelowApplyMinRatio', contextRatio, promptContext);
 			}
 		}
 
@@ -1111,7 +1150,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		if (!sessionId || !(this.intent instanceof AgentIntent)) {
 			return undefined;
 		}
-		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens);
+		// Compose a stable endpoint identity. `model` alone is not unique across
+		// providers (the same model id can come from different providers / api
+		// types), so include those to avoid reusing a summary built against a
+		// different endpoint's prefix.
+		const endpointId = `${this.endpoint.modelProvider}:${this.endpoint.model}${this.endpoint.apiType ? `:${this.endpoint.apiType}` : ''}`;
+		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens, endpointId);
 	}
 
 	/**
@@ -1209,7 +1253,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				"owner": "bhavyau",
 				"comment": "Tracks background compaction orchestration decisions and outcomes in the agent loop.",
 				"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The code path that triggered background compaction consumption." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced)." },
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced), 'discardedBelowApplyMinRatio' (a completed background result was thrown away because the current context ratio dropped below the apply threshold \u2014 typically after a model switch to a larger window)." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this background compaction was consumed during." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },

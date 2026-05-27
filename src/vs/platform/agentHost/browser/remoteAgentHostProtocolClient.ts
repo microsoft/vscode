@@ -39,6 +39,7 @@ import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey,
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { dirname } from '../../../base/common/resources.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -880,14 +881,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} catch {
 				continue;
 			}
-			const key = uri.toString();
+			const grantUri = dirname(uri);
+			const key = grantUri.toString();
 			if (this._grantedCustomizationUris.has(key)) {
 				continue;
 			}
 			this._grantedCustomizationUris.add(key);
 			// Disposable is owned by the permission service; cleared on
 			// connectionClosed.
-			this._permissionService.grantImplicitRead(this._address, uri);
+			this._permissionService.grantImplicitRead(this._address, grantUri);
 		}
 	}
 

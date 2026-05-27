@@ -28,7 +28,7 @@ import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/c
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
-import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -295,9 +295,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per
 					// OTel GenAI semantic conventions (issue #300318).
-					const toolDefs = toToolDefinitions(requestBody.tools);
-					if (toolDefs) {
-						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
+					const toolDefsJson = stringifyToolDefinitionsForOTel(requestBody.tools);
+					if (toolDefsJson) {
+						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson, this._otelService.config.maxAttributeSizeChars));
 					}
 					// Cache-relevant request options. Anything in this blob, when changed
 					// between two requests, will invalidate the prompt cache even when
@@ -419,7 +419,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: timeToFirstToken,
 							...(result.serverRequestId ? { [CopilotChatAttr.SERVER_REQUEST_ID]: result.serverRequestId } : {}),
 							...(result.usage.completion_tokens_details?.reasoning_tokens
-								? { [GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens }
+								? {
+									[GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens,
+									[GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens,
+								}
 								: {}),
 							...(typeof result.usage.copilot_usage?.total_nano_aiu === 'number'
 								? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: result.usage.copilot_usage.total_nano_aiu }
@@ -1168,6 +1171,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
+			if (key === 'tools') {
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
+				continue;
+			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
@@ -1176,7 +1183,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId,
-				messagesJson: JSON.stringify(request.tools),
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
 			}), telemetryData.measurements);
 		}
 
@@ -1442,6 +1449,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
+			if (key === 'tools') {
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
+				continue;
+			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 
@@ -1456,7 +1467,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId: telemetryProperties?.conversationId,
-				messagesJson: JSON.stringify(request.tools),
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
 			}), telemetryData.measurements);
 		}
 

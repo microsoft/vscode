@@ -62,7 +62,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { bindContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -713,9 +713,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const models = this.getModels();
 			if (this._currentSessionType === SessionType.CopilotCLI) {
 				if (shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
-					const ids = models.map(m => m.identifier).join(', ');
-					const metadataIds = models.map(m => m.metadata.id).join(', ');
-					logChangesToStateModel(this._inputModel, `resetting current language model due to model list change from ${modelIdentifier}, identifiers: ${ids}, metadataIds: ${metadataIds}`, undefined, undefined, this.logService);
+					if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
+						const mergedModels = this.getAllMergedModels();
+						const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+						const messageparts: string[] = [
+							`resetting current language model due to model list change from ${modelIdentifier}`,
+							`this._widget?.viewModel?.model.sessionResource = ${this._widget?.viewModel?.model.sessionResource?.toString()}`,
+							`this.getCurrentSessionType = ${this.getCurrentSessionType()}`,
+							`this._currentSessionType = ${this._currentSessionType}`,
+							`model identifiers: ${models.map(m => m.identifier).join(', ')}`,
+							`model target Session Types: ${models.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`model metadataid: ${models.map(m => m.metadata.id).join(', ')}`,
+							`merged.model identifiers: ${mergedModels.map(m => m.identifier).join(', ')}`,
+							`merged.model target Session Types: ${mergedModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`merged.model metadataid: ${mergedModels.map(m => m.metadata.id).join(', ')}`,
+							`filtered.model identifiers: ${filteredModels.map(m => m.identifier).join(', ')}`,
+							`filtered.model target Session Types: ${filteredModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`filtered.model metadataid: ${filteredModels.map(m => m.metadata.id).join(', ')}`,
+						];
+						if (this.getCurrentSessionType() !== SessionType.CopilotCLI) {
+							const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+							if (delegateSessionType) {
+								messageparts.push(`delegateSessionType = ${delegateSessionType}`);
+							}
+							const sessionResource = this._widget?.viewModel?.model.sessionResource;
+							messageparts.push(`current session resource = ${sessionResource}`);
+						}
+
+						logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
+					}
 					this.setCurrentLanguageModelToDefault();
 				}
 			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
@@ -1096,7 +1122,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Observe changes from model and sync to view
-		this._modelSyncDisposables.add(autorun(reader => {
+		this._modelSyncDisposables.add(autorun(async reader => {
 			let state = model.state.read(reader);
 			let message = `syncing from model for ${forSessionResource.toString()} in ${this._currentSessionKey}`;
 			if (!state && this._chatSessionIsEmpty) {
@@ -1104,7 +1130,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 			}
 			logChangesToStateModel(this._inputModel, message, state, undefined, this.logService);
-			this._syncFromModel(state, forSessionResource);
+			await this._syncFromModel(state, forSessionResource);
 		}));
 	}
 
@@ -1144,7 +1170,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync from model to view (when model state changes)
 	 */
-	private _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): void {
+	private async _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): Promise<void> {
 		// Prevent circular updates
 		if (this._isSyncingToOrFromInputModel) {
 			return;
@@ -1157,6 +1183,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
 				if (currentMode.id !== state.mode.id) {
+					// Await mode list to be up to date before applying
+					await this._currentChatModesObservable.get().waitForPendingUpdates();
 					this.setChatMode(state.mode.id, false);
 				}
 			}

@@ -210,4 +210,27 @@ suite('AgentFeedbackService - Ordering', () => {
 		assert.strictEqual(feedback.codeSelection, 'const value = 1;');
 		assert.strictEqual(feedback.diffHunks, '@@ -1,1 +1,1 @@\n-const value = 0;\n+const value = 1;');
 	});
+
+	test('addReply appends replies to the comment thread', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'initial');
+		service.addReply(session, feedback.id, 'first reply');
+		service.addReply(session, feedback.id, 'second reply');
+
+		const items = service.getFeedback(session);
+		assert.deepStrictEqual({
+			text: items[0].text,
+			replies: items[0].replies,
+		}, {
+			text: 'initial',
+			replies: ['first reply', 'second reply'],
+		});
+	});
+
+	test('addReply ignores unknown feedback ids', () => {
+		service.addFeedback(session, fileA, r(10), 'initial');
+		service.addReply(session, 'unknown', 'should not crash');
+
+		const items = service.getFeedback(session);
+		assert.strictEqual(items[0].replies, undefined);
+	});
 });
