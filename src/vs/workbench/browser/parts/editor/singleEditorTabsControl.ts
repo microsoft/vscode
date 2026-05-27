@@ -214,7 +214,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		super.updateOptions(oldOptions, newOptions);
 
-		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
+		if (oldOptions.labelFormat !== newOptions.labelFormat || oldOptions.tabHoverVerbosity !== newOptions.tabHoverVerbosity || !equals(oldOptions.decorations, newOptions.decorations)) {
 			this.redraw();
 		}
 	}
