@@ -25,16 +25,7 @@ export class ChatQuotaContribution extends Disposable implements IExtensionContr
 
 		// Extension → Core: push updated quota state to core whenever it changes
 		// (e.g. from response headers, quota snapshots, or copilot token refresh).
-		// Skip the first event — it fires from the cached copilot token during
-		// startup and may carry stale data that briefly overrides core's fresh
-		// entitlements fetch, causing the notification to flicker.
-		let initialized = false;
 		this._register(chatQuotaService.onDidChange(() => {
-			if (!initialized) {
-				initialized = true;
-				return;
-			}
-
 			const info = chatQuotaService.quotaInfo;
 			if (!info) {
 				return;
