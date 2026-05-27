@@ -3351,7 +3351,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			throw new Error('Cannot render tool confirmation carousel without an active session');
 		}
 
-		const part = new ChatToolConfirmationCarouselPart(factory, [], scrollToSubagent, subAgentInvocationId, agentName);
+		const part = this.instantiationService.createInstance(ChatToolConfirmationCarouselPart, factory, [], scrollToSubagent, subAgentInvocationId, agentName);
 		part.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
 		this._chatToolConfirmationCarousels.set(key, part);
 		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);

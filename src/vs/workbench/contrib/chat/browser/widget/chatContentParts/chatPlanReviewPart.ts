@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -42,6 +43,7 @@ import { IChatRendererContent, isResponseVM } from '../../../common/model/chatVi
 import { ChatTreeItem } from '../../chat.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatPlanReviewPhonePresenter } from './chatPlanReviewPhonePresenter.js';
 import './media/chatPlanReview.css';
 
 // Sub-path for the embedded editor's in-memory model. Uses `inmemory:` so
@@ -95,6 +97,17 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private _initialEditorContent: string | undefined;
 	private readonly _messageEditorDisposables = this._register(new DisposableStore());
 
+	// Phone-only members. The plan-review root element (`_planReviewRoot`)
+	// lives either inside `this.domNode` (desktop) or parked under
+	// `_hiddenHost` (phone, sheet closed) or temporarily reparented into
+	// the bottom-sheet body by the phone presenter (phone, sheet open).
+	// The placeholder (`_phonePlaceholder`) is shown in `this.domNode` in
+	// place of the plan-review root when in phone mode.
+	private readonly _planReviewRoot: HTMLElement;
+	private readonly _hiddenHost: HTMLElement;
+	private readonly _phonePlaceholder: HTMLElement;
+	private readonly _openSheet = this._register(new MutableDisposable<IDisposable>());
+
 	constructor(
 		public readonly review: IChatPlanReview,
 		context: IChatContentPartRenderContext,
@@ -111,6 +124,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatPlanReviewPhonePresenter private readonly _phonePresenter: IChatPlanReviewPhonePresenter,
 	) {
 		super();
 
@@ -170,6 +184,44 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this.domNode.id = generateUuid();
 		this.domNode.setAttribute('role', 'region');
 		this.domNode.setAttribute('aria-label', localize('chat.planReview.ariaLabel', 'Plan review: {0}', review.title));
+
+		this._planReviewRoot = elements.root;
+
+		// Off-screen host that keeps the plan-review root DOM (and its
+		// observers, editor instance, feedback handlers, etc.) alive
+		// while the root is mounted into a phone bottom sheet rather
+		// than into `domNode`. The host is itself a child of `domNode`
+		// so it disposes along with the part. Using `display:none`
+		// would suppress layout/resize callbacks, so we keep it
+		// visually hidden via `visibility:hidden` + zero size.
+		this._hiddenHost = dom.$('.chat-plan-review-host');
+		this._hiddenHost.style.position = 'absolute';
+		this._hiddenHost.style.visibility = 'hidden';
+		this._hiddenHost.style.pointerEvents = 'none';
+		this._hiddenHost.style.width = '0';
+		this._hiddenHost.style.height = '0';
+		this._hiddenHost.style.overflow = 'hidden';
+		this._hiddenHost.setAttribute('aria-hidden', 'true');
+		this.domNode.appendChild(this._hiddenHost);
+
+		// Phone-only trigger that replaces the inline plan-review root.
+		// Tapping it hands the (still-live) plan-review root to the
+		// phone presenter, which mounts it into a bottom sheet.
+		this._phonePlaceholder = dom.$('.chat-plan-review-mobile-trigger');
+		this._phonePlaceholder.setAttribute('role', 'button');
+		this._phonePlaceholder.tabIndex = 0;
+		this._phonePlaceholder.textContent = localize('chat.planReview.mobileTrigger', "Review plan — tap to open");
+		this._phonePlaceholder.setAttribute('aria-label', localize('chat.planReview.mobileTriggerAria', "Open plan review for {0}", review.title));
+		this._register(dom.addDisposableListener(this._phonePlaceholder, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._openPhoneSheet();
+		}));
+		this._register(dom.addDisposableListener(this._phonePlaceholder, dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				dom.EventHelper.stop(e, true);
+				this._openPhoneSheet();
+			}
+		}));
 
 		this._titleActionsEl = elements.titleActions;
 		this._inlineActionsEl = elements.inlineActions;
@@ -268,6 +320,60 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (!this._isSubmitted && this.getInlineFeedbackItems().length > 0) {
 			void this.enterFeedbackMode({ focus: false });
 		}
+
+		// Swap the mount between the inline plan-review root (desktop)
+		// and the tap-to-open placeholder (phone) whenever the
+		// presenter's `enabled` observable flips. Runs once on
+		// construction, then on every viewport rotation across the
+		// phone breakpoint.
+		this._register(autorun(reader => {
+			const isPhone = this._phonePresenter.enabled.read(reader);
+			this._applyMount(isPhone);
+		}));
+	}
+
+	/**
+	 * Swap the plan-review root between its inline desktop mount and
+	 * the phone tap-to-open placeholder. The plan-review root always
+	 * remains alive — when in phone mode, it parks under
+	 * {@link _hiddenHost} so its embedded editor, feedback observers,
+	 * and registered listeners keep running until the user either taps
+	 * the placeholder (mount into the bottom sheet) or the viewport
+	 * flips back to desktop (re-mount inline).
+	 */
+	private _applyMount(isPhone: boolean): void {
+		// On every flip, close any open phone sheet so we don't leave
+		// the plan-review root parented to a stale sheet body across a
+		// breakpoint change.
+		this._openSheet.clear();
+
+		if (isPhone) {
+			if (this._planReviewRoot.parentElement !== this._hiddenHost) {
+				this._hiddenHost.appendChild(this._planReviewRoot);
+			}
+			if (this._phonePlaceholder.parentElement !== this.domNode) {
+				this.domNode.appendChild(this._phonePlaceholder);
+			}
+		} else {
+			if (this._phonePlaceholder.parentElement === this.domNode) {
+				this.domNode.removeChild(this._phonePlaceholder);
+			}
+			// Re-attach the plan-review root as the visible child.
+			// Order relative to `_hiddenHost` doesn't matter since the
+			// host is zero-size + visibility-hidden, but keep the
+			// plan-review root last so it paints in the usual position.
+			this.domNode.appendChild(this._planReviewRoot);
+		}
+	}
+
+	private _openPhoneSheet(): void {
+		if (!this._phonePresenter.enabled.get() || this._isSubmitted) {
+			return;
+		}
+		// `MutableDisposable.value = ...` disposes the previous handle,
+		// so re-tapping after an auto-dismissed sheet (Done / backdrop /
+		// Escape) collapses to "dispose stale + open fresh" in one step.
+		this._openSheet.value = this._phonePresenter.showPlanReview(this._planReviewRoot, this.review.title);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

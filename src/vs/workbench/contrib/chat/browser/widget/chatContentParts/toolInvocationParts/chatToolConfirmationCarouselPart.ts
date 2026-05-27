@@ -10,13 +10,14 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatToolInvocationPart } from './chatToolInvocationPart.js';
+import { IChatConfirmationPhonePresenter } from './chatConfirmationPhonePresenter.js';
 import '../media/chatToolConfirmationCarousel.css';
 
 const COLLAPSED_CAROUSEL_MAX_HEIGHT = 300;
@@ -50,6 +51,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	private readonly toolCallIds = new Set<string>();
 	private activeIndex = 0;
 
+	private readonly _carouselRoot: HTMLElement;
+	private readonly _hiddenHost: HTMLElement;
+	private readonly _phonePlaceholder: HTMLElement;
+	private readonly _openSheet = this._register(new MutableDisposable<IDisposable>());
 	private readonly collapsedTitle: HTMLElement;
 	private readonly agentLabel: HTMLButtonElement;
 	private readonly contentContainer: HTMLElement;
@@ -69,11 +74,18 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	constructor(
 		private readonly toolPartFactory: ToolInvocationPartFactory,
 		initialTools: IChatToolInvocation[],
-		private readonly scrollToSubagent?: ScrollToSubagentCallback,
-		private readonly initialSubAgentInvocationId?: string,
-		private readonly initialAgentName?: string,
+		private readonly scrollToSubagent: ScrollToSubagentCallback | undefined,
+		private readonly initialSubAgentInvocationId: string | undefined,
+		private readonly initialAgentName: string | undefined,
+		@IChatConfirmationPhonePresenter private readonly _phonePresenter: IChatConfirmationPhonePresenter,
 	) {
 		super();
+
+		// Outer wrapper appended to the chat message column by the
+		// caller. Its single child is swapped between the inline
+		// carousel root (desktop) and the tap-to-review placeholder
+		// (phone) — see the `_phonePresenter.enabled` autorun below.
+		this.domNode = dom.$('.chat-tool-confirmation-carousel-wrapper');
 
 		const elements = dom.h('.chat-tool-confirmation-carousel@root', [
 			dom.h('.chat-tool-carousel-overlay@overlay', [
@@ -89,17 +101,53 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			dom.h('.chat-tool-carousel-content@content'),
 		]);
 
-		this.domNode = elements.root;
-		this.domNode.tabIndex = -1;
-		this.domNode.setAttribute('role', 'group');
-		this.domNode.setAttribute('aria-label', localize('toolConfirmationCarousel', "Tool confirmation carousel"));
+		this._carouselRoot = elements.root;
+		this._carouselRoot.tabIndex = -1;
+		this._carouselRoot.setAttribute('role', 'group');
+		this._carouselRoot.setAttribute('aria-label', localize('toolConfirmationCarousel', "Tool confirmation carousel"));
+
+		// Off-screen host that keeps the carousel DOM (and its
+		// observers) alive while the carousel is mounted into a phone
+		// bottom sheet rather than into `domNode`. The host is itself a
+		// child of `domNode` so it disposes along with the part. Using
+		// `display:none` would suppress layout/resize callbacks, so we
+		// keep it visually hidden via `visibility:hidden` + zero size.
+		this._hiddenHost = dom.$('.chat-tool-confirmation-carousel-host');
+		this._hiddenHost.style.position = 'absolute';
+		this._hiddenHost.style.visibility = 'hidden';
+		this._hiddenHost.style.pointerEvents = 'none';
+		this._hiddenHost.style.width = '0';
+		this._hiddenHost.style.height = '0';
+		this._hiddenHost.style.overflow = 'hidden';
+		this._hiddenHost.setAttribute('aria-hidden', 'true');
+		this.domNode.appendChild(this._hiddenHost);
+
+		// Phone-only trigger that replaces the inline carousel. Clicking
+		// hands the (still-live) carousel root to the phone presenter,
+		// which mounts it into a bottom sheet.
+		this._phonePlaceholder = dom.$('.chat-confirmation-mobile-trigger');
+		this._phonePlaceholder.setAttribute('role', 'button');
+		this._phonePlaceholder.tabIndex = 0;
+		this._phonePlaceholder.textContent = localize('chatToolConfirmationCarousel.mobileTrigger', "Tap to review");
+		this._phonePlaceholder.setAttribute('aria-label', localize('chatToolConfirmationCarousel.mobileTriggerAria', "Review pending tool confirmation"));
+		this._register(dom.addDisposableListener(this._phonePlaceholder, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._openPhoneSheet();
+		}));
+		this._register(dom.addDisposableListener(this._phonePlaceholder, dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				dom.EventHelper.stop(e, true);
+				this._openPhoneSheet();
+			}
+		}));
+
 		this.collapsedTitle = elements.collapsedTitle;
 		this.agentLabel = elements.agentLabel;
 		this.contentContainer = elements.content;
 		this.contentContainer.id = generateUuid();
 		this.stepIndicator = elements.stepIndicator;
 		this.activeContentDisposables = this._register(new DisposableStore());
-		this.updateContentExpansionStateScheduler = this._register(new dom.AnimationFrameScheduler(this.domNode, () => this.updateContentExpansionState()));
+		this.updateContentExpansionStateScheduler = this._register(new dom.AnimationFrameScheduler(this._carouselRoot, () => this.updateContentExpansionState()));
 		this.contentResizeObserver = this._register(new dom.DisposableResizeObserver('ChatToolConfirmationCarouselPart.contentExpansion', () => this.updateContentExpansionStateScheduler.schedule()));
 		this._register(this.contentResizeObserver.observe(this.contentContainer));
 
@@ -150,7 +198,16 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			this.scrollToActiveSubagent();
 		}));
 
-		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this.onKeydown(e)));
+		this._register(dom.addDisposableListener(this._carouselRoot, 'keydown', e => this.onKeydown(e)));
+
+		// Swap the mount between inline carousel (desktop) and the
+		// tap-to-review placeholder (phone) whenever the presenter's
+		// `enabled` observable flips. Runs once on construction, then
+		// on every viewport rotation across the phone breakpoint.
+		this._register(autorun(reader => {
+			const isPhone = this._phonePresenter.enabled.read(reader);
+			this._applyMount(isPhone);
+		}));
 
 		for (const tool of initialTools) {
 			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialAgentName, this.scrollToSubagent);
@@ -276,6 +333,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		if (this.items.length === 0) {
 			dom.hide(this.domNode);
+			this._openSheet.clear();
 			this._onDidEmpty.fire();
 			return;
 		}
@@ -355,7 +413,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	}
 
 	private focusActiveContent(): void {
-		this.domNode.focus();
+		this._carouselRoot.focus();
 	}
 
 	private updateUI(): void {
@@ -434,7 +492,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			this._isContentExpanded = false;
 		}
 
-		this.domNode.classList.toggle('chat-tool-carousel-content-expanded', this.canExpandContent && this._isContentExpanded);
+		this._carouselRoot.classList.toggle('chat-tool-carousel-content-expanded', this.canExpandContent && this._isContentExpanded);
 		this.updateMaxHeightStyle();
 		dom.setVisibility(this.canExpandContent, this.expandContentButton.element);
 		this.updateExpandContentButton();
@@ -442,13 +500,13 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private updateMaxHeightStyle(): void {
 		if (this.maxHeight === undefined) {
-			this.domNode.style.removeProperty('max-height');
+			this._carouselRoot.style.removeProperty('max-height');
 			return;
 		}
 
 		const expanded = this.canExpandContent && this._isContentExpanded;
 		const maxHeight = expanded ? Math.max(MIN_CAROUSEL_MAX_HEIGHT, this.maxHeight) : this.getCollapsedMaxHeight();
-		this.domNode.style.maxHeight = `${Math.floor(maxHeight)}px`;
+		this._carouselRoot.style.maxHeight = `${Math.floor(maxHeight)}px`;
 	}
 
 	private updateExpandContentButton(): void {
@@ -512,7 +570,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	}
 
 	private getExpandableContentHeightLimit(element: HTMLElement): number {
-		const window = dom.getWindow(this.domNode);
+		const window = dom.getWindow(this._carouselRoot);
 		if (element.classList.contains('interactive-result-editor')) {
 			return Math.min(COLLAPSED_CODE_BLOCK_MAX_HEIGHT, window.innerHeight * 0.25);
 		}
@@ -522,7 +580,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private getCollapsedMaxHeight(): number {
 		const configuredMaxHeight = this.maxHeight === undefined ? Number.POSITIVE_INFINITY : Math.max(MIN_CAROUSEL_MAX_HEIGHT, this.maxHeight);
-		return Math.min(configuredMaxHeight, COLLAPSED_CAROUSEL_MAX_HEIGHT, dom.getWindow(this.domNode).innerHeight * 0.45);
+		return Math.min(configuredMaxHeight, COLLAPSED_CAROUSEL_MAX_HEIGHT, dom.getWindow(this._carouselRoot).innerHeight * 0.45);
 	}
 
 	allowAll(): void {
@@ -586,5 +644,50 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		if (index >= 0) {
 			this.setActiveIndex(index);
 		}
+	}
+
+	/**
+	 * Swap the carousel between its inline desktop mount and the phone
+	 * tap-to-review placeholder. The carousel root always remains alive
+	 * — when in phone mode, it parks under {@link _hiddenHost} so its
+	 * observers and tool subscriptions keep running until the user
+	 * either taps the placeholder (mount into the bottom sheet) or the
+	 * viewport flips back to desktop (re-mount inline).
+	 */
+	private _applyMount(isPhone: boolean): void {
+		// On every flip, close any open phone sheet so we don't leave
+		// the carousel parented to a stale sheet body across a
+		// breakpoint change.
+		this._openSheet.clear();
+
+		if (isPhone) {
+			if (this._carouselRoot.parentElement !== this._hiddenHost) {
+				this._hiddenHost.appendChild(this._carouselRoot);
+			}
+			if (this._phonePlaceholder.parentElement !== this.domNode) {
+				this.domNode.appendChild(this._phonePlaceholder);
+			}
+		} else {
+			if (this._phonePlaceholder.parentElement === this.domNode) {
+				this.domNode.removeChild(this._phonePlaceholder);
+			}
+			// Re-attach the carousel root as the visible child. Order
+			// relative to `_hiddenHost` doesn't matter since the host
+			// is zero-size + visibility-hidden, but keep the carousel
+			// last so it paints in the usual position.
+			this.domNode.appendChild(this._carouselRoot);
+		}
+	}
+
+	private _openPhoneSheet(): void {
+		if (!this._phonePresenter.enabled.get() || this.items.length === 0) {
+			return;
+		}
+		const item = this.items[this.activeIndex];
+		const title = this.getToolTitle(item) ?? localize('chatToolConfirmationCarousel.sheetTitle', "Tool Confirmation");
+		// `MutableDisposable.value = ...` disposes the previous handle,
+		// so re-tapping after an auto-dismissed sheet (Done / backdrop /
+		// Escape) collapses to "dispose stale + open fresh" in one step.
+		this._openSheet.value = this._phonePresenter.showCarousel(this._carouselRoot, title);
 	}
 }
