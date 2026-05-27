@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import * as fs from 'original-fs';
 import * as os from 'node:os';
 import { performance } from 'node:perf_hooks';
+import { createHash } from 'node:crypto';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
@@ -453,6 +454,99 @@ function getArgvConfigPath(): string {
 
 // test-workbench_change start
 /**
+ * Finds a Chinese language pack (zh-cn) extension in the built-in extensions directory
+ */
+function findChineseLanguagePack(): { version: string; extensionId: string; translations: Record<string, string> } | undefined {
+	let extensionsDir: string;
+	if (process.env['VSCODE_DEV']) {
+		extensionsDir = path.resolve(import.meta.dirname, '..', '.build', 'extensions');
+	} else {
+		extensionsDir = path.resolve(import.meta.dirname, '..', 'extensions');
+	}
+
+	try {
+		if (!fs.existsSync(extensionsDir)) {
+			return undefined;
+		}
+		const entries = fs.readdirSync(extensionsDir);
+		for (const entry of entries) {
+			const packageJsonPath = path.join(extensionsDir, entry, 'package.json');
+			if (!fs.existsSync(packageJsonPath)) {
+				continue;
+			}
+			try {
+				const content = fs.readFileSync(packageJsonPath, 'utf8');
+				const pkg = JSON.parse(content);
+				const localizations = pkg?.contributes?.localizations;
+				if (!localizations || !Array.isArray(localizations)) {
+					continue;
+				}
+				for (const loc of localizations) {
+					if (loc.languageId === 'zh-cn' && Array.isArray(loc.translations)) {
+						const extensionPath = path.join(extensionsDir, entry);
+						const translations: Record<string, string> = {};
+						for (const t of loc.translations) {
+							if (t.id && t.path) {
+								translations[t.id] = path.resolve(extensionPath, t.path);
+							}
+						}
+						return {
+							version: pkg.version || '0.0.0',
+							extensionId: `${pkg.publisher || ''}.${pkg.name || entry}`,
+							translations
+						};
+					}
+				}
+			} catch (e) {
+				// skip invalid extension
+			}
+		}
+	} catch (e) {
+		console.error('[Default Locale] Failed to scan extensions for language pack:', e);
+	}
+	return undefined;
+}
+
+/**
+ * Pre-generates languagepacks.json for the Chinese language pack so that
+ * resolveNLSConfiguration can find translations on first launch.
+ */
+function generateLanguagePacksJson(userDataPath: string, langPack: { version: string; extensionId: string; translations: Record<string, string> }): void {
+	try {
+		const md5 = createHash('md5');
+		md5.update(langPack.extensionId).update(langPack.version);
+		const hash = md5.digest('hex');
+
+		const languagePacks: Record<string, unknown> = {
+			'zh-cn': {
+				hash,
+				// allow-any-unicode-next-line
+				label: '中文(简体)',
+				extensions: [
+					{
+						extensionIdentifier: {
+							id: langPack.extensionId
+						},
+						version: langPack.version
+					}
+				],
+				translations: langPack.translations
+			}
+		};
+
+		const languagePacksPath = path.join(userDataPath, 'languagepacks.json');
+		const dir = path.dirname(languagePacksPath);
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir, { recursive: true });
+		}
+		fs.writeFileSync(languagePacksPath, JSON.stringify(languagePacks, null, '\t'), 'utf8');
+		console.log(`[Default Locale] Generated languagepacks.json for zh-cn`);
+	} catch (error) {
+		console.error('[Default Locale] Failed to generate languagepacks.json:', error);
+	}
+}
+
+/**
  * Checks if this is the first launch by detecting if locale is not set in argv.json
  * @param argvConfig The argv configuration object
  * @returns true if locale is undefined or empty string, false otherwise
@@ -488,7 +582,10 @@ function writeLocaleSyncToArgv(argvConfigPath: string, locale: string): void {
 }
 
 /**
- * Checks and sets the default locale to Chinese (Simplified) on first launch
+ * Checks and sets the default locale to Chinese (Simplified) on first launch.
+ * Also pre-generates languagepacks.json so resolveNLSConfiguration can find
+ * Chinese translations on the very first launch (without requiring a restart).
+ *
  * This function is called during main process startup, before app('ready')
  * @param argvConfig The argv configuration object (will be modified if first launch)
  * @param argvConfigPath Path to the argv.json file
@@ -521,6 +618,16 @@ function checkAndSetDefaultLocale(argvConfig: IArgvConfig, argvConfigPath: strin
 	} catch (error) {
 		console.error(`[Default Locale] Failed to set default locale: ${error}`);
 		// Don't crash the application, just log the error
+	}
+
+	// Step 6: Pre-generate languagepacks.json for the Chinese language pack
+	// so that resolveNLSConfiguration can find translations on first launch
+	const langPack = findChineseLanguagePack();
+	if (langPack) {
+		const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+		generateLanguagePacksJson(userDataPath, langPack);
+	} else {
+		console.warn('[Default Locale] No Chinese language pack extension found in built-in extensions');
 	}
 }
 // test-workbench_change end
