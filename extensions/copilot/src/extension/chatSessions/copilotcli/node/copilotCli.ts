@@ -91,9 +91,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		super();
 		this._fetchAndCacheModels();
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			// Auth changed which means models could've changed. Clear caches and re-fetch.
-			this._availableModels = undefined;
-			this._resolvedModelInfos = undefined;
+			// Auth changed which means models could've changed.
 			this._onDidChange.fire();
 			this._fetchAndCacheModels();
 		}));
@@ -189,10 +187,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				if (!this._authenticationService.hasCopilotTokenSource || !this._resolvedModelInfos) {
-					return autoModelEnabled ? [buildAutoModel()] : [];
-				}
 				return this._resolvedModelInfos;
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
