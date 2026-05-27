@@ -88,6 +88,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	#currentVersion?: PreviewDocumentVersion;
 	#isScrolling = false;
 	#scrollingTimer?: NodeJS.Timeout;
+	#needsRefresh = false;
 
 	#imageInfo: readonly ImageInfo[] = [];
 	readonly #fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
@@ -204,6 +205,13 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
+		this._register(this.#webviewPanel.onDidChangeViewState(() => {
+			if (this.#webviewPanel.visible && this.#needsRefresh) {
+				this.#needsRefresh = false;
+				this.refresh(true);
+			}
+		}));
+
 		this.refresh();
 	}
 
@@ -296,6 +304,13 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
+		if (!this.#webviewPanel.visible) {
+			// Defer the refresh until the webview becomes visible again
+			// to avoid resetting the webview state (e.g. scroll position)
+			this.#needsRefresh = true;
+			return;
+		}
+
 		let document: vscode.TextDocument;
 		try {
 			document = await vscode.workspace.openTextDocument(this.#resource);
@@ -318,7 +333,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
-		const shouldReloadPage = forceUpdate || !this.#currentVersion || this.#currentVersion.resource.toString() !== pendingVersion.resource.toString() || !this.#webviewPanel.visible;
+		const shouldReloadPage = forceUpdate || !this.#currentVersion || this.#currentVersion.resource.toString() !== pendingVersion.resource.toString();
 		this.#currentVersion = pendingVersion;
 
 		let selectedLine: number | undefined = undefined;
