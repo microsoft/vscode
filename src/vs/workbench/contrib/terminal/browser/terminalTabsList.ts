@@ -182,6 +182,15 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				return;
 			}
 
+			if (!e.element) {
+				// Clicking on empty space in the tab list should focus the active terminal
+				const activeInstance = this._terminalGroupService.activeInstance;
+				if (activeInstance) {
+					await activeInstance.focusWhenReady();
+				}
+				return;
+			}
+
 			if (e.browserEvent.altKey && e.element) {
 				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
 			} else if (this._getFocusMode() === 'singleClick') {
