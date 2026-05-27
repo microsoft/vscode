@@ -44,6 +44,22 @@ import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/mo
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 
 
+// Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
+// Inlined as a string because `vs/workbench` must not import from `vs/sessions`.
+const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
+
+/**
+ * Resolves the effective thinking display mode. On phone layout we always force
+ * {@link ThinkingDisplayMode.CollapsedPreview} so streaming reasoning takes less
+ * room and auto-collapses on completion regardless of the user's setting.
+ */
+export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): ThinkingDisplayMode {
+	if (contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
+		return ThinkingDisplayMode.CollapsedPreview;
+	}
+	return configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
+}
+
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
 	return raw.trim();
@@ -369,11 +385,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.allThinkingParts.push(content);
 		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
 			&& (this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || accessibilityService.isMotionReduced());
-		// In phone layout, always use CollapsedPreview regardless of the user's configured thinking style.
-		const isPhoneLayout = contextKeyService.getContextKeyValue<boolean>('sessionsIsPhoneLayout') === true;
-		const configuredMode = isPhoneLayout
-			? ThinkingDisplayMode.CollapsedPreview
-			: (this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed);
+		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
