@@ -13,7 +13,8 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import type { CustomizationRef, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -48,7 +49,7 @@ export interface IAgentHostActiveClientService {
 	/** Returns a {@link SessionActiveClient} for `sessionType` using the caller-supplied `clientId`. Customizations are empty when `sessionType` has not been registered. */
 	getActiveClient(sessionType: string, clientId: string): SessionActiveClient;
 
-	getCustomizations(sessionType: string): IObservable<readonly CustomizationRef[]>;
+	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]>;
 
 	readonly clientTools: IObservable<readonly ToolDefinition[]>;
 }
@@ -56,7 +57,7 @@ export interface IAgentHostActiveClientService {
 export class AgentHostActiveClientService extends Disposable implements IAgentHostActiveClientService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _customizationsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly CustomizationRef[]>>>;
+	private readonly _customizationsByType: ISettableObservable<ReadonlyMap<string, IObservable<readonly ClientPluginCustomization[]>>>;
 	readonly clientTools: IObservable<readonly ToolDefinition[]>;
 
 	constructor(
@@ -85,7 +86,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const store = new DisposableStore();
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
-		const customizations = observableValue<readonly CustomizationRef[]>('agentCustomizations', []);
+		const customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
 		let updateSeq = 0;
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
@@ -117,7 +118,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		};
 	}
 
-	private _setCustomizations(sessionType: string, customizations: IObservable<readonly CustomizationRef[]>): IDisposable {
+	private _setCustomizations(sessionType: string, customizations: IObservable<readonly ClientPluginCustomization[]>): IDisposable {
 		const next = new Map(this._customizationsByType.get());
 		next.set(sessionType, customizations);
 		this._customizationsByType.set(next, undefined);
@@ -140,11 +141,11 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		};
 	}
 
-	getCustomizations(sessionType: string): IObservable<readonly CustomizationRef[]> {
+	getCustomizations(sessionType: string): IObservable<readonly ClientPluginCustomization[]> {
 		return derived(reader => this._customizationsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOMIZATIONS);
 	}
 }
 
-const EMPTY_CUSTOMIZATIONS: readonly CustomizationRef[] = Object.freeze([]);
+const EMPTY_CUSTOMIZATIONS: readonly ClientPluginCustomization[] = Object.freeze([]);
 
 registerSingleton(IAgentHostActiveClientService, AgentHostActiveClientService, InstantiationType.Delayed);

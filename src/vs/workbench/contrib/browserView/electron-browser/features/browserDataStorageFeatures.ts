@@ -31,11 +31,11 @@ class BrowserEditorStorageScopeContribution extends BrowserEditorContribution {
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, _store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, _store: DisposableStore): void {
 		this._storageScopeContext.set(model.storageScope);
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._storageScopeContext.reset();
 	}
 }

@@ -21,6 +21,7 @@ import { BrowserViewCDPService } from './browserViewCDPService.js';
 
 // Register actions and browser features
 import './browserViewActions.js';
+import './features/webContentsViewRendererFeature.js';
 import './features/browserDataStorageFeatures.js';
 import './features/browserDevToolsFeature.js';
 import './features/browserEditorChatFeatures.js';

@@ -28,7 +28,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import type { CustomizationAgentRef } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AgentCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatInputPickerOptions, ChatInputPickerActionViewItem } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -108,13 +108,13 @@ export function agentHostAgentPickerStorageKey(resourceScheme: string): string {
  *
  * Takes the agent URI directly (rather than an `ISessionAgentRef`) because
  * `ISession.mode` only carries the URI — the display name is recovered from
- * the resolved {@link CustomizationAgentRef}.
+ * the resolved {@link AgentCustomization}.
  */
 export function resolveAgentHostAgent(
-	agents: readonly CustomizationAgentRef[],
+	agents: readonly AgentCustomization[],
 	selectedAgentUri: string | undefined,
 	storedAgentUri: string | undefined,
-): CustomizationAgentRef | undefined {
+): AgentCustomization | undefined {
 	if (selectedAgentUri) {
 		const match = agents.find(a => a.uri === selectedAgentUri);
 		if (match) {
@@ -125,9 +125,9 @@ export function resolveAgentHostAgent(
 }
 
 interface IAgentPickerDelegate {
-	readonly currentAgent: IObservable<CustomizationAgentRef | undefined>;
-	readonly currentAgents: () => readonly CustomizationAgentRef[];
-	readonly setAgent: (agent: CustomizationAgentRef | undefined) => void;
+	readonly currentAgent: IObservable<AgentCustomization | undefined>;
+	readonly currentAgents: () => readonly AgentCustomization[];
+	readonly setAgent: (agent: AgentCustomization | undefined) => void;
 	readonly sessionResource: () => URI | undefined;
 }
 
@@ -165,7 +165,7 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 			},
 		});
 
-		const makeAgentAction = (agent: CustomizationAgentRef): IActionWidgetDropdownAction => {
+		const makeAgentAction = (agent: AgentCustomization): IActionWidgetDropdownAction => {
 			const current = this.delegate.currentAgent.get();
 			const agentUri = URI.parse(agent.uri);
 			const toolbarActions: IAction[] = [{
@@ -189,7 +189,7 @@ class AgentHostAgentPickerActionItem extends ChatInputPickerActionViewItem {
 				category: customCategory,
 				toolbarActions,
 				run: async () => {
-					this.delegate.setAgent({ uri: agent.uri, name: agent.name, ...(agent.description ? { description: agent.description } : {}) });
+					this.delegate.setAgent(agent);
 					if (this.element) {
 						this.renderLabel(this.element);
 					}
@@ -280,7 +280,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		super();
 
 		const factory = (_action: import('../../../../../base/common/actions.js').IAction, _options: import('../../../../../base/browser/ui/actionbar/actionViewItems.js').IActionViewItemOptions, scopedInstantiationService: import('../../../../../platform/instantiation/common/instantiation.js').IInstantiationService) => {
-			const currentAgent = observableValue<CustomizationAgentRef | undefined>('currentAgent', undefined);
+			const currentAgent = observableValue<AgentCustomization | undefined>('currentAgent', undefined);
 			let settingAgentInternally = false;
 
 			const getProvider = (session: ISession | undefined): IAgentHostSessionsProvider | undefined => {
@@ -298,7 +298,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 					const provider = getProvider(session);
 					return session && provider ? provider.getCustomAgents(session.sessionId) : [];
 				},
-				setAgent: (agent: CustomizationAgentRef | undefined) => {
+				setAgent: (agent: AgentCustomization | undefined) => {
 					const previous = currentAgent.get();
 					currentAgent.set(agent, undefined);
 					const session = sessionsManagementService.activeSession.get();
