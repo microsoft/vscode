@@ -96,6 +96,8 @@ Analysis dimensions to explore:
 
 If the session store has little data, acknowledge that and suggest features to try based on what configuration you found in the workspace.
 
+When recommending custom skills, agents, or instructions as a tip, consult the **agent-customization** skill for proper file creation patterns — don't give vague "create a custom skill" advice without actionable file structure guidance.
+
 ### Cost Tips
 
 When the user asks for cost tips, ways to reduce token usage, or how to lower Copilot spend (e.g. `/chronicle:cost-tips`):
@@ -169,6 +171,38 @@ Give the user 3-5 specific, actionable tips. Each tip should:
 - **Match the agent type** — if a finding is specific to one `agent_name`, say so. Don't propose CLI-only fixes for findings from Coding Agent sessions, and vice versa.
 
 If the session store has little data (e.g., cloud store is empty, or only a handful of local sessions), say so plainly and offer 2-3 non-obvious cost-saving habits anchored in available features rather than fabricating findings. If the user is on local-only storage, end by noting that enabling `chat.sessionSync.enabled` unlocks per-event token analysis for sharper future tips.
+
+### Improve
+
+When the user asks to improve their agent instructions based on session history (e.g. `/chronicle:improve`):
+
+**Step 1: Read the current instructions file**
+
+Read `.github/copilot-instructions.md` (or `AGENTS.md` in workspace root) to understand what instructions already exist.
+
+If the file does **not** exist, you will create it. In that case, also analyze the codebase first — consult the **init** skill and follow its codebase exploration approach. Combine that analysis with the session history findings from Step 2 to produce a comprehensive instructions file.
+
+**Step 2: Investigate session history**
+
+Use `copilot_sessionStoreSql` to explore. Scope all queries to sessions from the current repository or working directory.
+
+Start by getting an overview of recent sessions for this repo, then dig deeper. You're looking for **friction** — signals that the agent misunderstood something or the user had to course-correct:
+
+- **User messages that correct or redirect** — read the actual conversation turns of suspicious sessions. Look for areas where the user got frustrated.
+- **Dev loop struggles** — did the agent have trouble with tests, linting, building, or type checking? Look for repeated failed commands, test retries, or build errors that required multiple attempts.
+- **Patterns across sessions** — does the same kind of mistake recur?
+
+Use your judgment on what queries to run. Drill into specific sessions when something looks interesting — read the actual turn-by-turn conversation to understand what went wrong.
+
+**Step 3: Present recommendations**
+
+Before presenting, consult the **agent-customization** skill for proper file conventions, content principles (link don't embed, minimal, concise), and anti-patterns — this frames how recommendations should be written.
+
+Based on what you find, succinctly present 3-5 recommendations. Explain both the issue you found and what custom instructions can address it.
+
+Focus on project-specific patterns, not generic advice. Only suggest instructions that address real problems found in the data that happened more than once.
+
+After presenting all recommendations, ask the user which ones they'd like to apply. Then make only the approved edits to `.github/copilot-instructions.md` (or `AGENTS.md`, or create the file if it doesn't exist).
 
 ### Search
 
