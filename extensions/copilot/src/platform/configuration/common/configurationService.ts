@@ -680,11 +680,6 @@ export namespace ConfigKey {
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 
-		/** Use the prism trajectory-compaction model for conversation-history compaction (foreground and background calls). */
-		export const ConversationUsePrismCompaction = defineSetting<boolean>('chat.conversationCompaction.usePrismCompaction', ConfigType.ExperimentBased, false);
-		/** Model to use for conversation-history compaction. When usePrismCompaction is true, this overrides the default 'trajectory-compaction' model name. When false, an empty value preserves the main agent model. */
-		export const ConversationCompactionModel = defineSetting<string>('chat.conversationCompaction.model', ConfigType.ExperimentBased, '');
-
 		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-utility-small model maintains the todo list instead. */
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);
 
@@ -925,6 +920,21 @@ export namespace ConfigKey {
 
 		/** Safety-net interval (ms) for buffered cloud session sync events that did not trigger a terminal flush. */
 		export const SessionSyncSafetyIntervalMs = defineTeamInternalSetting<number>('chat.advanced.sessionSync.safetyIntervalMs', ConfigType.ExperimentBased, 60_000);
+
+		/**
+		 * Use the prism `trajectory-compaction` model (resolved via the standard CAPI endpoint provider) for
+		 * conversation-history compaction — both foreground `/compact` and background auto-compaction.
+		 *
+		 * Lives under `chat.advanced.*` so the setting is unlisted in package.json (team-internal), but the
+		 * experiment lookup keys preserve the pre-rename names so existing flights continue to resolve.
+		 */
+		export const ConversationUsePrismCompaction = defineTeamInternalSetting<boolean>('chat.advanced.conversationCompaction.usePrismCompaction', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.config.chat.conversationCompaction.usePrismCompaction' });
+		/**
+		 * Override model name used for conversation-history compaction. When `ConversationUsePrismCompaction`
+		 * is enabled, this overrides the default `trajectory-compaction` model name. When disabled, an empty
+		 * value preserves the main agent model.
+		 */
+		export const ConversationCompactionModel = defineTeamInternalSetting<string>('chat.advanced.conversationCompaction.model', ConfigType.ExperimentBased, '', undefined, undefined, { experimentName: 'copilotchat.config.chat.conversationCompaction.model' });
 	}
 
 	/**

@@ -52,8 +52,8 @@ export async function resolveCompactionEndpoint(
 	endpointProvider: IEndpointProvider,
 	logService: ILogService,
 ): Promise<IChatEndpoint> {
-	const modelName = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ConversationCompactionModel, experimentationService);
-	const usePrismCompaction = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ConversationUsePrismCompaction, experimentationService);
+	const modelName = configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ConversationCompactionModel, experimentationService);
+	const usePrismCompaction = configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ConversationUsePrismCompaction, experimentationService);
 
 	const resolvedModelName = usePrismCompaction
 		? (modelName || DEFAULT_COMPACTION_MODEL)

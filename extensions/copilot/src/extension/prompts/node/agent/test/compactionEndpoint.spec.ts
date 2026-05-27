@@ -9,8 +9,8 @@ import { IChatEndpoint } from '../../../../../platform/networking/common/network
 import { DEFAULT_COMPACTION_MODEL, resolveCompactionEndpoint } from '../compactionEndpoint';
 
 type ConfigValues = {
-	[ConfigKey.Advanced.ConversationCompactionModel.id]?: string;
-	[ConfigKey.Advanced.ConversationUsePrismCompaction.id]?: boolean;
+	[ConfigKey.TeamInternal.ConversationCompactionModel.id]?: string;
+	[ConfigKey.TeamInternal.ConversationUsePrismCompaction.id]?: boolean;
 };
 
 function setup(configValues: ConfigValues = {}) {
@@ -50,7 +50,7 @@ suite('resolveCompactionEndpoint', () => {
 
 	test('routes through endpointProvider (CAPI) with the default model when usePrismCompaction is set', async () => {
 		const { configurationService, experimentationService, logService } = setup({
-			[ConfigKey.Advanced.ConversationUsePrismCompaction.id]: true,
+			[ConfigKey.TeamInternal.ConversationUsePrismCompaction.id]: true,
 		});
 		const main = makeMainEndpoint();
 		const capiEndpoint = makeMainEndpoint('trajectory-compaction');
@@ -77,7 +77,7 @@ suite('resolveCompactionEndpoint', () => {
 	test('falls back to main endpoint when endpointProvider.getChatEndpoint rejects', async () => {
 		const warnings: string[] = [];
 		const { configurationService, experimentationService } = setup({
-			[ConfigKey.Advanced.ConversationUsePrismCompaction.id]: true,
+			[ConfigKey.TeamInternal.ConversationUsePrismCompaction.id]: true,
 		});
 		const main = makeMainEndpoint();
 		const endpointProvider = {
