@@ -12,6 +12,7 @@ import { AnnotatedDocuments, UriVisibilityProvider } from '../../browser/helpers
 import { StringEditWithReason } from '../../browser/helpers/observableWorkspace.js';
 import { AiContributionFeature } from '../../browser/aiContributionFeature.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
+import { ProviderId } from '../../../../../editor/common/languages.js';
 import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -42,10 +43,18 @@ suite('AiContributionFeature', () => {
 
 	const userEdit = EditSources.cursor({ kind: 'type' });
 
-	const inlineCompletionEdit = EditSources.inlineCompletionAccept({
+	const builtinInlineCompletionEdit = EditSources.inlineCompletionAccept({
 		nes: false,
 		requestUuid: 'test-uuid',
 		languageId: 'plaintext',
+		correlationId: undefined,
+	});
+
+	const aiInlineCompletionEdit = EditSources.inlineCompletionAccept({
+		nes: false,
+		requestUuid: 'test-uuid',
+		languageId: 'plaintext',
+		providerId: ProviderId.fromExtensionId('github.copilot'),
 		correlationId: undefined,
 	});
 
@@ -95,15 +104,28 @@ suite('AiContributionFeature', () => {
 		disposables.dispose();
 	}));
 
-	test('detects inline completion AI edits at all level only', () => runWithFakedTimers({}, async () => {
+	test('detects extension-backed inline completion AI edits at all level only', () => runWithFakedTimers({}, async () => {
 		setup();
 		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
 		await timeout(1500);
 
-		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', inlineCompletionEdit));
+		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', aiInlineCompletionEdit));
 		await timeout(1500);
 
 		assert.strictEqual(hasAiContributions([d.uri], 'all'), true);
+		assert.strictEqual(hasAiContributions([d.uri], 'chatAndAgent'), false);
+		disposables.dispose();
+	}));
+
+	test('does not detect built-in inline completions (no extensionId) as AI', () => runWithFakedTimers({}, async () => {
+		setup();
+		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
+		await timeout(1500);
+
+		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', builtinInlineCompletionEdit));
+		await timeout(1500);
+
+		assert.strictEqual(hasAiContributions([d.uri], 'all'), false);
 		assert.strictEqual(hasAiContributions([d.uri], 'chatAndAgent'), false);
 		disposables.dispose();
 	}));
