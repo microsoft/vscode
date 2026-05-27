@@ -986,7 +986,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				for (const submodule of liveRepository.repository.submodules) {
 					const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
 
-					if (isDescendant(submoduleRoot, resourcePath)) {
+					if (!pathEquals(resourcePath, submoduleRoot) && isDescendant(submoduleRoot, resourcePath)) {
 						continue outer;
 					}
 				}
