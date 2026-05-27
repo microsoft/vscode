@@ -246,6 +246,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 	/**
+	 * In-flight {@link _resumeSession} promises, keyed by sessionId. Used to
+	 * deduplicate concurrent resume requests for the same session so that
+	 * we never construct two {@link CopilotAgentSession} entries for the
+	 * same id — `_sessions` is a {@link DisposableMap} whose `set()` would
+	 * dispose the in-flight first entry mid-{@link CopilotAgentSession.initializeSession},
+	 * leaving the second caller with a half-initialised, eventless session.
+	 */
+	private readonly _resumingSessions = new Map<string, Promise<CopilotAgentSession>>();
+	/**
 	 * Sessions created by a client but not yet materialized into a Copilot
 	 * SDK session + worktree + on-disk metadata. Materialization is deferred
 	 * until the first {@link sendMessage}, at which point the entry moves
@@ -918,14 +927,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return new CopilotSessionWrapper(raw);
 		};
 
-		let agentSession: CopilotAgentSession;
+		let agentSession: CopilotAgentSession | undefined;
 		try {
 			agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
 			await agentSession.initializeSession();
 		} catch (error) {
+			agentSession?.dispose();
 			await this._removeCreatedWorktree(sessionId);
 			throw error;
 		}
+		this._sessions.set(sessionId, agentSession);
 
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
 
@@ -1433,9 +1444,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Creates a {@link CopilotAgentSession}, registers it in the sessions map,
-	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
-	 * to wire up the SDK session.
+	 * Instantiates a {@link CopilotAgentSession} for the given session id.
+	 * The caller is responsible for awaiting {@link CopilotAgentSession.initializeSession}
+	 * and, on success, registering the entry in {@link _sessions}. The
+	 * session is intentionally **not** registered here so a concurrent
+	 * {@link _resumeSession} for the same id cannot dispose this entry mid-init
+	 * via {@link DisposableMap.set}.
 	 */
 	private _createAgentSession(wrapperFactory: SessionWrapperFactory, sessionId: string, shellManager: ShellManager, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, snapshot?: IActiveClientSnapshot): CopilotAgentSession {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -1454,7 +1468,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 		);
 
-		this._sessions.set(sessionId, agentSession);
 		return agentSession;
 	}
 
@@ -1517,7 +1530,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+		const existing = this._resumingSessions.get(sessionId);
+		if (existing) {
+			return existing;
+		}
+		const promise = this._doResumeSession(sessionId);
+		this._resumingSessions.set(sessionId, promise);
+		const cleanup = () => {
+			if (this._resumingSessions.get(sessionId) === promise) {
+				this._resumingSessions.delete(sessionId);
+			}
+		};
+		promise.then(cleanup, cleanup);
+		return promise;
+	}
+
+	private async _doResumeSession(sessionId: string): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
@@ -1581,7 +1610,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 
 		const agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
-		await agentSession.initializeSession();
+		try {
+			await agentSession.initializeSession();
+		} catch (err) {
+			agentSession.dispose();
+			throw err;
+		}
+		this._sessions.set(sessionId, agentSession);
 
 		return agentSession;
 	}
