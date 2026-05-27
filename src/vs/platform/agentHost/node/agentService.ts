@@ -204,7 +204,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The coordinator owns all AgentService-side orchestration of the
 		// changeset feature: lifecycle hooks, listSessions overlay,
 		// subscription URI routing, and the deferred-refresh state machine.
-		this._changesetCoordinator = this._register(new ChangesetSessionCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, this._gitService, this._logService));
+		this._changesetCoordinator = this._register(instantiationService.createInstance(ChangesetSessionCoordinator, this._stateManager));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
