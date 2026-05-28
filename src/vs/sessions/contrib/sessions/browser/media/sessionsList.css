@@ -108,6 +108,8 @@
 		display: flex;
 		align-items: flex-start;
 		line-height: 17px;
+		/* Anchor for outgoing icons during a cross-fade swap (see swapIconWithCrossfade). */
+		position: relative;
 
 		> .codicon {
 			flex-shrink: 0;
