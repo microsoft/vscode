@@ -17,7 +17,7 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
-import { getModelCapabilitiesDescription } from '../../conversation/common/languageModelAccess';
+import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../conversation/common/languageModelAccess';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -997,9 +997,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 			if (models.status === 'fulfilled' && models.value.length > 0) {
 				const isUBB = !!this._authenticationService.copilotToken?.isUsageBasedBilling;
+
 				const modelItems: vscode.ChatSessionProviderOptionItem[] = models.value.map(model => {
 					const limits = model.capabilities?.limits;
 					const multiplier = model.billing?.multiplier;
+					const pricing = normalizeTokenPrices(model.billing?.token_prices);
+
 					return {
 						id: model.id,
 						name: model.name,
@@ -1016,6 +1019,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							pricing: !isUBB && multiplier !== undefined ? `${multiplier}x` : undefined,
 							maxInputTokens: limits?.max_prompt_tokens ?? 0,
 							maxOutputTokens: limits?.max_output_tokens ?? 0,
+							inputCost: pricing?.default.inputPrice,
+							outputCost: pricing?.default.outputPrice,
+							cacheCost: pricing?.default.cachePrice,
+							longContextInputCost: pricing?.longContext?.inputPrice,
+							longContextOutputCost: pricing?.longContext?.outputPrice,
+							longContextCacheCost: pricing?.longContext?.cachePrice,
+							priceCategory: model.model_picker_price_category,
 							capabilities: {
 								vision: model.capabilities?.supports?.vision ?? false,
 								toolCalling: model.capabilities?.supports?.tool_calls ?? true,
