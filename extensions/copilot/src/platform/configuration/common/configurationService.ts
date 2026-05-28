@@ -683,6 +683,7 @@ export namespace ConfigKey {
 		/** When enabled, the main agent's manage_todo_list tool is disabled and a background copilot-utility-small model maintains the todo list instead. */
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);
 
+
 		export const InlineEditsTriggerOnEditorChangeAfterSeconds = defineAndMigrateExpSetting<number | undefined>('chat.advanced.inlineEdits.triggerOnEditorChangeAfterSeconds', 'chat.inlineEdits.triggerOnEditorChangeAfterSeconds', 10);
 		export const InlineEditsNextCursorPredictionDisplayLine = defineAndMigrateExpSetting<boolean>('chat.advanced.inlineEdits.nextCursorPrediction.displayLine', 'chat.inlineEdits.nextCursorPrediction.displayLine', true);
 		export const InlineEditsNextCursorPredictionCurrentFileMaxTokens = defineAndMigrateExpSetting<number>('chat.advanced.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 'chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 3000);
@@ -920,21 +921,6 @@ export namespace ConfigKey {
 
 		/** Safety-net interval (ms) for buffered cloud session sync events that did not trigger a terminal flush. */
 		export const SessionSyncSafetyIntervalMs = defineTeamInternalSetting<number>('chat.advanced.sessionSync.safetyIntervalMs', ConfigType.ExperimentBased, 60_000);
-
-		/**
-		 * Use the prism `trajectory-compaction` model (resolved via the standard CAPI endpoint provider) for
-		 * conversation-history compaction — both foreground `/compact` and background auto-compaction.
-		 *
-		 * Lives under `chat.advanced.*` so the setting is unlisted in package.json (team-internal), but the
-		 * experiment lookup keys preserve the pre-rename names so existing flights continue to resolve.
-		 */
-		export const ConversationUsePrismCompaction = defineTeamInternalSetting<boolean>('chat.advanced.conversationCompaction.usePrismCompaction', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.config.chat.conversationCompaction.usePrismCompaction' });
-		/**
-		 * Override model name used for conversation-history compaction. When `ConversationUsePrismCompaction`
-		 * is enabled, this overrides the default `trajectory-compaction` model name. When disabled, an empty
-		 * value preserves the main agent model.
-		 */
-		export const ConversationCompactionModel = defineTeamInternalSetting<string>('chat.advanced.conversationCompaction.model', ConfigType.ExperimentBased, '', undefined, undefined, { experimentName: 'copilotchat.config.chat.conversationCompaction.model' });
 	}
 
 	/**
@@ -958,6 +944,22 @@ export namespace ConfigKey {
 	export const selectedCompletionsModel = defineSetting<string>('selectedCompletionModel', ConfigType.Simple, '');
 
 	export const RateLimitAutoSwitchToAuto = defineSetting<boolean>('chat.rateLimitAutoSwitchToAuto', ConfigType.Simple, false, vBoolean());
+
+	/**
+	 * Route conversation-history compaction (both foreground `/compact` and background auto-compaction)
+	 * through the dedicated `trajectory-compaction` model resolved via the standard CAPI endpoint
+	 * provider, instead of the main agent model.
+	 *
+	 * Registered in package.json so users can opt out explicitly; an explicit user `false` wins over
+	 * the experiment.
+	 */
+	export const ConversationUsePrismCompaction = defineSetting<boolean>('chat.conversationCompaction.usePrismCompaction', ConfigType.ExperimentBased, false);
+	/**
+	 * Override model name used for conversation-history compaction. When `ConversationUsePrismCompaction`
+	 * is enabled, this overrides the default `trajectory-compaction` model name. When disabled, an empty
+	 * value preserves the main agent model.
+	 */
+	export const ConversationCompactionModel = defineSetting<string>('chat.conversationCompaction.model', ConfigType.ExperimentBased, '');
 
 	/** Use the Messages API instead of Chat Completions when supported */
 	export const UseAnthropicMessagesApi = defineSetting<boolean | undefined>('chat.anthropic.useMessagesApi', ConfigType.ExperimentBased, true);

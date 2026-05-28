@@ -4227,6 +4227,24 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.conversationCompaction.usePrismCompaction": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.conversationCompaction.usePrismCompaction%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.conversationCompaction.model": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "%github.copilot.config.conversationCompaction.model%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },

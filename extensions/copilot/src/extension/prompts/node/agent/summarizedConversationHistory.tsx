@@ -36,12 +36,13 @@ import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
 import { IResultMetadata } from '../../../prompt/common/conversation';
 import { IBuildPromptContext, IToolCallRound } from '../../../prompt/common/intents';
 import { ToolName } from '../../../tools/common/toolNames';
+import { normalizeToolSchema } from '../../../tools/common/toolSchemaNormalizer';
 import { NotebookSummary } from '../../../tools/node/notebookSummaryTool';
 import { renderPromptElement } from '../base/promptRenderer';
 import { Tag } from '../base/tag';
 import { ChatToolCalls } from '../panel/toolCalling';
 import { AgentUserMessage, AgentUserMessageCustomizations, getUserMessagePropsFromAgentProps, getUserMessagePropsFromTurn } from './agentPrompt';
-import { resolveCompactionEndpoint, buildCompactionToolOpts } from './compactionEndpoint';
+import { CompactionToolOpts, buildCompactionToolOpts, resolveCompactionEndpoint } from './compactionEndpoint';
 import { DefaultOpenAIKeepGoingReminder } from './openai/defaultOpenAIPrompt';
 import { SimpleSummarizedHistory } from './simpleSummarizedHistoryPrompt';
 
@@ -661,11 +662,71 @@ class ConversationHistorySummarizer {
 	}
 
 	private async getSummary(mode: SummaryMode, propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
+		// Branch on the experiment flag so the off-path is the unmodified pre-PR
+		// code (uses `this.props.endpoint` directly with inline tool normalization).
+		// The on-path resolves a separate compaction endpoint via the standard CAPI
+		// endpoint provider.
+		const usePrismCompaction = this.configurationService.getExperimentBasedConfig(ConfigKey.ConversationUsePrismCompaction, this.experimentationService);
+		return usePrismCompaction
+			? this._getSummaryPrism(mode, propsInfo)
+			: this._getSummary(mode, propsInfo);
+	}
+
+	/**
+	 * Off-flag path. Behaviour identical to the pre-PR `getSummary`:
+	 * uses the main agent endpoint, normalises tools inline, and forwards the
+	 * shared message-processing/request work to `_executeSummarizationRequest`.
+	 */
+	private async _getSummary(mode: SummaryMode, propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
 		const stopwatch = new StopWatch(false);
 
-		// Allow a custom trajectory-compaction model to override the main agent
-		// endpoint via experiment-based config. When neither flag is set this
-		// returns `this.props.endpoint` unchanged.
+		// In Full mode, tools are sent alongside the summarization prompt with
+		// tool_choice: 'none'. Reserve budget for them so the rendered messages
+		// plus tools don't exceed the model's context window.
+		const tools = this.props.tools;
+		const toolTokens = mode === SummaryMode.Full && tools?.length
+			? await this.props.endpoint.acquireTokenizer().countToolTokens(tools)
+			: 0;
+		const endpoint = toolTokens > 0
+			? this.props.endpoint.cloneWithTokenOverride(
+				Math.max(1, Math.floor((this.props.endpoint.modelMaxPromptTokens - toolTokens) * 0.9)))
+			: this.props.endpoint;
+
+		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
+		const summarizationPrompt = await this._renderSummarizationPrompt(endpoint, mode, propsInfo, stopwatch);
+
+		return this._executeSummarizationRequest(endpoint, mode, summarizationPrompt, () => {
+			const normalizedTools = mode === SummaryMode.Full ? normalizeToolSchema(
+				endpoint.family,
+				this.props.tools?.map(tool => ({
+					function:
+					{
+						name: tool.name,
+						description: tool.description,
+						parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
+					}, type: 'function'
+				})),
+				(tool, rule) => {
+					this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
+				},
+			) : undefined;
+			return normalizedTools?.length ? {
+				tool_choice: 'none' as const,
+				tools: normalizedTools,
+			} : undefined;
+		}, associatedRequestId, stopwatch);
+	}
+
+	/**
+	 * Prism (on-flag) path. Resolves a separate compaction endpoint via the
+	 * standard CAPI endpoint provider and routes the summarisation request
+	 * through it. Uses the shared `buildCompactionToolOpts` helper for tool
+	 * options so the tool schema is normalised against the resolved endpoint's
+	 * family (which may differ from the main agent endpoint's family).
+	 */
+	private async _getSummaryPrism(mode: SummaryMode, propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
+		const stopwatch = new StopWatch(false);
+
 		const compactionEndpoint = await resolveCompactionEndpoint(
 			this.props.endpoint,
 			this.configurationService,
@@ -674,9 +735,6 @@ class ConversationHistorySummarizer {
 			this.logService,
 		);
 
-		// In Full mode, tools are sent alongside the summarization prompt with
-		// tool_choice: 'none'. Reserve budget for them so the rendered messages
-		// plus tools don't exceed the model's context window.
 		const tools = this.props.tools;
 		const toolTokens = mode === SummaryMode.Full && tools?.length
 			? await compactionEndpoint.acquireTokenizer().countToolTokens(tools)
@@ -686,11 +744,28 @@ class ConversationHistorySummarizer {
 				Math.max(1, Math.floor((compactionEndpoint.modelMaxPromptTokens - toolTokens) * 0.9)))
 			: compactionEndpoint;
 
-		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
+		const summarizationPrompt = await this._renderSummarizationPrompt(endpoint, mode, propsInfo, stopwatch);
+
+		return this._executeSummarizationRequest(endpoint, mode, summarizationPrompt, () => mode === SummaryMode.Full ? buildCompactionToolOpts(
+			this.props.tools,
+			endpoint.family,
+			(tool, rule) => {
+				this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
+			},
+		) : undefined, associatedRequestId, stopwatch);
+	}
+
+	/**
+	 * Render the conversation-history summarization prompt against `endpoint`.
+	 * Emits the `renderError` / `budget_exceeded` telemetry and re-throws on
+	 * failure so the caller (off-flag / prism) can bail out uniformly.
+	 */
+	private async _renderSummarizationPrompt(endpoint: IChatEndpoint, mode: SummaryMode, propsInfo: ISummarizedConversationHistoryInfo, stopwatch: StopWatch): Promise<ChatMessage[]> {
 		try {
-			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
+			const summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
 			this.logInfo(`summarization prompt rendered in ${stopwatch.elapsed()}ms.`, mode);
+			return summarizationPrompt;
 		} catch (e) {
 			const budgetExceeded = e instanceof BudgetExceededError;
 			const outcome = budgetExceeded ? 'budget_exceeded' : 'renderError';
@@ -698,17 +773,20 @@ class ConversationHistorySummarizer {
 			this.sendSummarizationTelemetry(outcome, '', endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
+	}
 
+	/**
+	 * Shared message-processing + request + telemetry path used by both
+	 * off-flag and prism callers. Strips cache breakpoints / image content /
+	 * tool ids, applies provider-specific message fixups (Anthropic
+	 * tool-search, Gemini orphaned-tool-call), issues the chat request, and
+	 * returns the `SummarizationResult`.
+	 */
+	private async _executeSummarizationRequest(endpoint: IChatEndpoint, mode: SummaryMode, summarizationPrompt: ChatMessage[], buildToolOpts: () => CompactionToolOpts | undefined, associatedRequestId: string | undefined, stopwatch: StopWatch): Promise<SummarizationResult> {
 		let summaryResponse: ChatResponse;
 		let promptTypes: string | undefined;
 		try {
-			const toolOpts = mode === SummaryMode.Full ? buildCompactionToolOpts(
-				this.props.tools,
-				endpoint.family,
-				(tool, rule) => {
-					this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
-				},
-			) : undefined;
+			const toolOpts = buildToolOpts();
 
 			stripCacheBreakpoints(summarizationPrompt);
 			replaceImageContentWithPlaceholders(summarizationPrompt);

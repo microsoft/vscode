@@ -21,29 +21,21 @@ import { normalizeToolSchema } from '../../../tools/common/toolSchemaNormalizer'
 import { renderPromptElement } from '../base/promptRenderer';
 import { ConversationHistorySummarizationPrompt, replaceImageContentWithPlaceholders, stripCacheBreakpoints, stripToolSearchMessages, SummarizedConversationHistoryPropsBuilder } from './summarizedConversationHistory';
 
-/** Default CAPI model family used for prism trajectory-compaction when `ConversationUsePrismCompaction` is enabled without an explicit `ConversationCompactionModel`. The model is served via the standard Copilot CAPI chat-completions endpoint. */
+/** Default CAPI model family used for trajectory-compaction when `ConversationUsePrismCompaction` is enabled without an explicit `ConversationCompactionModel`. */
 export const DEFAULT_COMPACTION_MODEL = 'trajectory-compaction';
 
 /**
- * Resolve the endpoint to use for trajectory (conversation-history) compaction
- * requests:
+ * Resolve the endpoint to use for trajectory (conversation-history) compaction:
  *
- *   - When `ConversationUsePrismCompaction` is enabled, the configured
- *     model (or `DEFAULT_COMPACTION_MODEL`) is resolved through the standard
- *     CAPI endpoint provider — i.e. the same path as any other Copilot chat
- *     model. The resulting endpoint routes requests via
- *     `RequestType.ChatCompletions`.
+ *   - When `ConversationUsePrismCompaction` is enabled, the configured model
+ *     (or `DEFAULT_COMPACTION_MODEL`) is resolved through the standard CAPI
+ *     endpoint provider — i.e. the same path as any other Copilot chat model.
  *   - When only `ConversationCompactionModel` is set, the endpoint provider is
  *     asked for that model directly.
- *   - With neither configured, `mainEndpoint` is returned unchanged — i.e. the
- *     pre-existing behaviour of using the main agent model for compaction.
+ *   - With neither configured, `mainEndpoint` is returned unchanged.
  *
  * Any failure to resolve the requested model falls back to `mainEndpoint` so a
  * misconfigured experiment never aborts the agent loop.
- *
- * The caller decides whether to apply provider-specific message/tool
- * adjustments (e.g. re-normalising tool schemas against the returned
- * endpoint's family).
  */
 export async function resolveCompactionEndpoint(
 	mainEndpoint: IChatEndpoint,
@@ -52,8 +44,8 @@ export async function resolveCompactionEndpoint(
 	endpointProvider: IEndpointProvider,
 	logService: ILogService,
 ): Promise<IChatEndpoint> {
-	const modelName = configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ConversationCompactionModel, experimentationService);
-	const usePrismCompaction = configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ConversationUsePrismCompaction, experimentationService);
+	const modelName = configurationService.getExperimentBasedConfig(ConfigKey.ConversationCompactionModel, experimentationService);
+	const usePrismCompaction = configurationService.getExperimentBasedConfig(ConfigKey.ConversationUsePrismCompaction, experimentationService);
 
 	const resolvedModelName = usePrismCompaction
 		? (modelName || DEFAULT_COMPACTION_MODEL)
@@ -93,8 +85,8 @@ export function formatCompactionFailureError(response: { readonly type: string;[
  * surrounding agent loop, which preserves cache hits on the main endpoint.
  *
  * The hard guarantee that the model never tries to call a tool lives in
- * `tool_choice: 'none'`. Text-summarization-only proxy models such as
- * `trajectory-compaction-v1` empirically return empty/invalid completions
+ * `tool_choice: 'none'`. Text-summarization-only models such as
+ * `trajectory-compaction` empirically return empty completions
  * (`RESPONSE_CONTAINED_NO_CHOICES`) when offered tools with the default
  * `tool_choice: 'auto'`. Foreground (`/compact`) has always set it; the
  * background auto-compaction path was missing it and is now aligned via this
@@ -107,7 +99,7 @@ export type CompactionToolOpts = { readonly tool_choice: 'none'; readonly tools:
  * the agent loop's available tools, normalised against the target endpoint's
  * model family. Returns `undefined` when there are no tools to forward (in
  * which case `tool_choice` MUST also be omitted — sending `tool_choice` with
- * no tools is rejected by CAPI/proxy as a 400).
+ * no tools is rejected by CAPI as a 400).
  */
 export function buildCompactionToolOpts(
 	availableTools: ReadonlyArray<LanguageModelToolInformation> | undefined,
