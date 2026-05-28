@@ -105,7 +105,7 @@
     "@vscode/codicons": "^0.0.46-13",
     "@vscode/copilot-api": "^0.4.1",
     "@vscode/deviceid": "^0.1.1",
-    "@vscode/diff": "^0.0.2-0",
+    "@vscode/diff": "0.0.2-7",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/policy-watcher": "^1.3.2",
