@@ -7,6 +7,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
+import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
 import type { ReasoningSummaryPartAddedNotification } from './protocol/generated/v2/ReasoningSummaryPartAddedNotification.js';
@@ -43,6 +44,7 @@ export interface ICodexToolCallEntry {
 	readonly toolCallId: string;
 	readonly turnId: string;
 	readonly toolName: string;
+	output: string;
 }
 
 export function createCodexSessionMapState(): ICodexSessionMapState {
@@ -206,6 +208,7 @@ export function mapItemStarted(
 			toolCallId,
 			turnId: params.turnId,
 			toolName: 'shell',
+			output: '',
 		});
 		const command = params.item.command ?? '';
 		return [
@@ -215,6 +218,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'shell',
 				displayName: 'Run shell command',
+				_meta: { toolKind: 'terminal' },
 			},
 			{
 				type: ActionType.SessionToolCallDelta,
@@ -222,9 +226,35 @@ export function mapItemStarted(
 				toolCallId,
 				content: command,
 			},
+			{
+				type: ActionType.SessionToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: command,
+				toolInput: command,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { toolKind: 'terminal' },
+			},
 		];
 	}
 	return [];
+}
+
+export function mapCommandExecutionOutputDelta(
+	state: ICodexSessionMapState,
+	params: CommandExecutionOutputDeltaNotification,
+): SessionAction[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output += params.delta;
+	return [{
+		type: ActionType.SessionToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+	}];
 }
 
 export function mapAgentMessageDelta(
@@ -279,7 +309,7 @@ export function mapItemCompleted(
 		}
 		state.itemToToolCall.delete(params.item.id);
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
-		const output = params.item.aggregatedOutput ?? '';
+		const output = params.item.aggregatedOutput ?? entry.output;
 		const command = params.item.command ?? '';
 		const exit = params.item.exitCode;
 		const pastTense = success
@@ -288,14 +318,6 @@ export function mapItemCompleted(
 				? `Ran \`${command}\` (exit ${exit})`
 				: `Ran \`${command}\` (failed)`;
 		return [
-			{
-				type: ActionType.SessionToolCallReady,
-				turnId: entry.turnId,
-				toolCallId: entry.toolCallId,
-				invocationMessage: command,
-				toolInput: command,
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			},
 			{
 				type: ActionType.SessionToolCallComplete,
 				turnId: entry.turnId,
