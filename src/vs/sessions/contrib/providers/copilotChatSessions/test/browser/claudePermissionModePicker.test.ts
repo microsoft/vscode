@@ -36,6 +36,7 @@ function createPicker(
 	opts?: {
 		setOptionSpy?: (optionId: string, value: { id: string; name: string }) => void;
 		hasActiveSession?: boolean;
+		configValues?: Record<string, unknown>;
 	},
 ): { picker: ClaudePermissionModePicker; actionWidgetItems: IActionListItem<IPermissionModeItem>[]; onSelect: (item: IPermissionModeItem) => void } {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -76,7 +77,11 @@ function createPicker(
 		getProvider: () => provider,
 	} as unknown as ISessionsProvidersService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	const configService = new TestConfigurationService();
+	for (const [key, value] of Object.entries(opts?.configValues ?? {})) {
+		configService.setUserConfiguration(key, value);
+	}
+	instantiationService.stub(IConfigurationService, configService);
 
 	const picker = disposables.add(instantiationService.createInstance(ClaudePermissionModePicker));
 
@@ -160,5 +165,42 @@ suite('ClaudePermissionModePicker', () => {
 		assert.ok(trigger);
 		// Default mode is 'acceptEdits' → "Edit Automatically"
 		assert.ok(trigger.ariaLabel?.includes('Edit Automatically'));
+	});
+
+	test('shows bypass permissions option when setting is enabled', () => {
+		const { picker, actionWidgetItems } = createPicker(disposables, {
+			configValues: { 'github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions': true },
+		});
+		const container = document.createElement('div');
+		picker.render(container);
+		showPicker(container);
+
+		assert.deepStrictEqual(
+			actionWidgetItems.map(item => ({ id: item.item?.id, label: item.label })),
+			[
+				{ id: 'default', label: 'Ask Before Edits' },
+				{ id: 'acceptEdits', label: 'Edit Automatically' },
+				{ id: 'plan', label: 'Plan Mode' },
+				{ id: 'bypassPermissions', label: 'Bypass Permissions' },
+			],
+		);
+	});
+
+	test('selecting bypass permissions writes expected permissionMode option', () => {
+		const calls: { optionId: string; value: { id: string; name: string } }[] = [];
+		const result = createPicker(disposables, {
+			configValues: { 'github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions': true },
+			setOptionSpy: (optionId, value) => calls.push({ optionId, value }),
+		});
+		const container = document.createElement('div');
+		result.picker.render(container);
+		showPicker(container);
+
+		result.onSelect({ id: 'bypassPermissions', label: 'Bypass Permissions' } as IPermissionModeItem);
+
+		assert.deepStrictEqual(calls, [{
+			optionId: 'permissionMode',
+			value: { id: 'bypassPermissions', name: 'Bypass Permissions' },
+		}]);
 	});
 });
