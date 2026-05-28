@@ -786,7 +786,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			this._notificationService,
 			this._customizationWorkspaceService,
 		));
-		const itemProvider = agentStore.add(createRemoteAgentCustomizationItemProvider(agent, loggedConnection, sanitized, pluginController, this._fileService, this._logService));
+		const agentHostCustomAgentsService = this._instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomAgentsService));
+		const itemProvider = agentStore.add(createRemoteAgentCustomizationItemProvider(agent, loggedConnection, sanitized, pluginController, this._fileService, this._logService, agentHostCustomAgentsService));
 
 		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
@@ -970,3 +971,4 @@ import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostModelPicker.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
+import { IAgentHostCustomAgentsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';

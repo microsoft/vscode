@@ -8,7 +8,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationLoadStatus, CustomizationType, StateComponents, type AgentInfo, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, StateComponents, type SessionState, type AgentInfo, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -19,6 +19,7 @@ import { getAgentHostConfiguredCustomizations } from '../../../../../../platform
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
+import { IAgentHostCustomAgentsService } from './agentHostCustomAgentsService.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
@@ -44,13 +45,17 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		private readonly _connectionAuthority: string,
 		private readonly _fileService: IFileService,
 		private readonly _logService: ILogService,
-		private readonly _getItemActions?: (customization: Customization, clientId: string | undefined) => ICustomizationItemAction[] | undefined,
+		private readonly _getItemActions: ((customization: Customization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		@IAgentHostCustomAgentsService private readonly _customAgentsService: IAgentHostCustomAgentsService,
 	) {
 		super();
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 		const rootStateSubscription = this._connection.rootState;
 		this._agentCustomizations = this._readRootCustomizations(rootStateSubscription.value) ?? this._agentInfo.customizations ?? [];
 
+		this._register(this._customAgentsService.onDidChangeCustomAgents(() => {
+			this._onDidChange.fire();
+		}));
 		this._register(rootStateSubscription.onDidChange(rootState => {
 			const next = this._readRootCustomizations(rootState) ?? this._readAgentCustomizations(rootState) ?? this._agentCustomizations;
 			if (next !== this._agentCustomizations) {
@@ -135,15 +140,18 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return AgentSession.uri(this._agentInfo.provider, rawId);
 	}
 
-	private getSessionCustomizations(sessionResource: URI): readonly Customization[] {
+	private getSessionState(sessionResource: URI): SessionState | undefined {
 		const sessionUri = this._resolveSessionUri(sessionResource);
 		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
-		return sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
+		return sessionState && !(sessionState instanceof Error) ? sessionState : undefined;
+	}
+
+	private getSessionCustomizations(sessionResource: URI): readonly Customization[] {
+		return this.getSessionState(sessionResource)?.customizations ?? [];
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomizationAgentRef[]> {
-		const sessionCustomizations = this.getSessionCustomizations(sessionResource);
-		const agents = sessionCustomizations.flatMap(c => c.children?.filter(child => child.type === CustomizationType.Agent) ?? []);
+		const agents = this._customAgentsService.getCustomAgents(sessionResource);
 		return agents.map(agent => ({
 			uri: this.toRemoteUri(agent.uri),
 			name: agent.name,
