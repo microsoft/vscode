@@ -249,7 +249,10 @@
                 }
             },
             "type": "array",
-            "default": [],
+            "default": [
+                "github/copilot-plugins",
+                "github/awesome-copilot#marketplace"
+            ],
             "included": true
         },
         {

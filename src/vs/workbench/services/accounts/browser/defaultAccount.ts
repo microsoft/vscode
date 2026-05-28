@@ -888,6 +888,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
 		if (!options?.forceRefresh && accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
+			// Seed status so Policy Diagnostics reflects "applied" rather than
+			// "not yet fetched" after a process restart that warm-starts from
+			// the cached policy payload.
+			this._managedSettingsFetchStatus = 'ok';
 			return {
 				data: {
 					enabledPlugins: accountPolicyData.policyData.enabledPlugins,

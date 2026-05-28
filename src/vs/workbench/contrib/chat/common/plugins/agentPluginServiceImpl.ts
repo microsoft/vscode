@@ -541,47 +541,58 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		const sources: IPluginSource[] = [];
 		const userHome = await this._getUserHome();
 
-		// Two configuration shapes feed the same discovery pipeline:
-		// - User-configured filesystem paths in `chat.pluginLocations` — removable
-		//   by re-writing the user setting.
-		// - Enterprise-managed plugin IDs in `chat.plugins.enabledPlugins` (delivered
-		//   via the `ChatEnabledPlugins` policy) — not removable from the UI.
-		const groups: ReadonlyArray<{ entries: Record<string, boolean>; removable: boolean; label: string }> = [
-			{ entries: this._pluginLocationsConfig.get(), removable: true, label: 'plugin path' },
-			{ entries: this._enterpriseEnabledPluginsConfig.get(), removable: false, label: 'enterprise plugin path' },
-		];
-
-		for (const { entries, removable, label } of groups) {
-			for (const [key, enabled] of Object.entries(entries)) {
-				const trimmed = key.trim();
-				if (!trimmed || enabled === false) {
-					continue;
-				}
-
-				for (const resource of this._resolvePluginPath(trimmed, userHome)) {
-					let stat;
-					try {
-						stat = await this._fileService.resolve(resource);
-					} catch {
-						this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve ${label}: ${resource.toString()}`);
-						continue;
-					}
-
-					if (!stat.isDirectory) {
-						this._logService.debug(`[ConfiguredAgentPluginDiscovery] ${label} is not a directory: ${resource.toString()}`);
-						continue;
-					}
-
-					sources.push({
-						uri: stat.resource,
-						fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
-						remove: removable ? () => this._removePluginPath(key) : undefined,
-					});
-				}
+		// User-configured filesystem paths in `chat.pluginLocations` — removable
+		// by re-writing the user setting. Filesystem-only; an entry that happens
+		// to look like `name@marketplace` is treated as a relative path, not an ID.
+		for (const [key, enabled] of Object.entries(this._pluginLocationsConfig.get())) {
+			const trimmed = key.trim();
+			if (!trimmed || enabled === false) {
+				continue;
+			}
+			for (const resource of this._resolvePluginPath(trimmed, userHome)) {
+				await this._addPluginSource(sources, resource, 'plugin path', () => this._removePluginPath(key));
 			}
 		}
 
+		// Enterprise-managed plugin IDs in `chat.plugins.enabledPlugins` (delivered
+		// via the `ChatEnabledPlugins` policy) — IDs of the form
+		// `<plugin>@<marketplace>`, resolved to the Copilot CLI install convention.
+		// Non-removable from the UI (enterprise-managed).
+		for (const [key, enabled] of Object.entries(this._enterpriseEnabledPluginsConfig.get())) {
+			const trimmed = key.trim();
+			if (!trimmed || enabled === false) {
+				continue;
+			}
+			const resource = this._resolveEnterprisePluginId(trimmed, userHome);
+			if (!resource) {
+				this._logService.debug(`[ConfiguredAgentPluginDiscovery] Skipping enterprise plugin entry that is not in <plugin>@<marketplace> form: ${trimmed}`);
+				continue;
+			}
+			await this._addPluginSource(sources, resource, 'enterprise plugin path');
+		}
+
 		return sources;
+	}
+
+	private async _addPluginSource(sources: IPluginSource[], resource: URI, label: string, remove?: () => void): Promise<void> {
+		let stat;
+		try {
+			stat = await this._fileService.resolve(resource);
+		} catch {
+			this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve ${label}: ${resource.toString()}`);
+			return;
+		}
+
+		if (!stat.isDirectory) {
+			this._logService.debug(`[ConfiguredAgentPluginDiscovery] ${label} is not a directory: ${resource.toString()}`);
+			return;
+		}
+
+		sources.push({
+			uri: stat.resource,
+			fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
+			remove,
+		});
 	}
 
 	private async _getUserHome(): Promise<string> {
@@ -590,25 +601,15 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	}
 
 	/**
-	 * Resolves a plugin path or plugin ID to one or more resource URIs. Supports:
-	 * - Absolute paths (used directly)
-	 * - Tilde paths (expanded to user home directory)
-	 * - Relative paths (resolved against each workspace folder)
-	 * - Plugin-ID form (`<plugin>@<marketplace>`) from the `ChatEnabledPlugins` enterprise policy,
-	 *   resolved to the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
+	 * Resolves a user-configured plugin path to one or more resource URIs.
+	 * Supports absolute paths, tilde paths (expanded to user home), and
+	 * workspace-relative paths.
 	 */
 	private _resolvePluginPath(path: string, userHome: string): URI[] {
-		const idMatch = path.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
-		if (idMatch) {
-			const [, plugin, marketplace] = idMatch;
-			return [URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`)];
-		}
-
 		if (path.startsWith('~')) {
 			path = untildify(path, userHome);
 		}
 
-		// Handle absolute paths
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
 			return [URI.file(path)];
 		}
@@ -616,6 +617,20 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		return this._workspaceContextService.getWorkspace().folders.map(
 			folder => joinPath(folder.uri, path)
 		);
+	}
+
+	/**
+	 * Resolves an enterprise plugin ID of the form `<plugin>@<marketplace>` to
+	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
+	 * Returns `undefined` for anything that doesn't match the ID shape.
+	 */
+	private _resolveEnterprisePluginId(id: string, userHome: string): URI | undefined {
+		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
+		if (!idMatch) {
+			return undefined;
+		}
+		const [, plugin, marketplace] = idMatch;
+		return URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`);
 	}
 
 	/**
