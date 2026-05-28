@@ -91,6 +91,14 @@ function getMessagesRetainedAfterResponsesApiCompaction(messages: readonly Raw.C
 	return undefined;
 }
 
+type ResponsesApiCompactionTriggerTelemetry = {
+	readonly contextLengthBefore: number;
+	readonly contextRatio: number;
+	readonly tokenBudget: number;
+	readonly promptTokenLength: number;
+	readonly toolTokenCount: number;
+};
+
 /**
  * Returns true when the user explicitly referenced the todo tool (e.g. typed
  * `#todo` in their message) or a custom agent configuration includes it as a
@@ -865,9 +873,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// warmed) before checking the background summarization threshold.
 		if ((summarizationEnabled || responsesApiCompactionTriggerEnabled) && !didSummarizeThisIteration) {
 			const retainedAfterResponsesApiCompaction = responsesApiCompactionTriggerEnabled ? getMessagesRetainedAfterResponsesApiCompaction(result.messages) : undefined;
-			const localPostRender = retainedAfterResponsesApiCompaction
-				? await this.endpoint.acquireTokenizer().countMessagesTokens(retainedAfterResponsesApiCompaction) + toolTokens
-				: result.tokenCount + toolTokens;
+			const localPostRenderMessageTokens = retainedAfterResponsesApiCompaction
+				? await this.endpoint.acquireTokenizer().countMessagesTokens(retainedAfterResponsesApiCompaction)
+				: result.tokenCount;
+			const localPostRender = localPostRenderMessageTokens + toolTokens;
 			// Once an opaque compaction boundary is replayed, serialization discards
 			// history before that boundary. Older usage therefore cannot be a floor
 			// for deciding when to start the next background compaction.
@@ -902,7 +911,13 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
 					};
 					if (responsesApiCompactionTriggerEnabled) {
-						this._startBackgroundResponsesApiCompaction(backgroundSummarizer, result.messages, promptContext, token, postRenderRatio);
+						this._startBackgroundResponsesApiCompaction(backgroundSummarizer, result.messages, promptContext, token, {
+							contextLengthBefore: effectivePostRender,
+							contextRatio: postRenderRatio,
+							tokenBudget: baseBudget,
+							promptTokenLength: localPostRenderMessageTokens,
+							toolTokenCount: toolTokens,
+						});
 					} else {
 						this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
 					}
@@ -983,8 +998,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		mainRenderMessages: Raw.ChatMessage[],
 		promptContext: IBuildPromptContext,
 		token: vscode.CancellationToken,
-		contextRatio: number,
+		telemetry: ResponsesApiCompactionTriggerTelemetry,
 	): void {
+		const { contextRatio } = telemetry;
 		this.logService.debug(`[ResponsesApiCompactionTrigger] context at ${(contextRatio * 100).toFixed(0)}% — starting background server compaction`);
 
 		// The opaque compaction item represents only rounds present in this
@@ -1016,6 +1032,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		backgroundSummarizer.start(async bgToken => {
 			let compaction: OpenAIContextManagementResponse | undefined;
+			this._sendResponsesApiCompactionRequestTelemetry(promptContext, telemetry);
 			const response = await this.endpoint.makeChatRequest2({
 				debugName: 'responsesApiCompactConversationHistory',
 				messages: ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages),
@@ -1043,6 +1060,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			if (!compaction) {
 				throw new Error('Background Responses API compaction request returned no compaction item');
 			}
+			this._sendResponsesApiCompactionResponseTelemetry(promptContext, {
+				promptTokens: response.usage?.prompt_tokens,
+				completionTokens: response.usage?.completion_tokens,
+				totalTokens: response.usage?.total_tokens,
+			});
 			this.logService.debug(`[ResponsesApiCompactionTrigger] background server compaction completed`);
 			return {
 				kind: 'responsesApiCompaction',
@@ -1055,6 +1077,74 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				model: this.endpoint.model,
 			};
 		}, token);
+	}
+
+	private _sendResponsesApiCompactionRequestTelemetry(
+		promptContext: IBuildPromptContext,
+		options: ResponsesApiCompactionTriggerTelemetry,
+	): void {
+		/* __GDPR__
+			"responsesApiCompactionRequest" : {
+				"owner": "dileepy",
+				"comment": "Tracks Responses API request state only when a compaction trigger input item is sent.",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that caused the background compaction trigger request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
+				"triggerRequested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Always 1; this event is emitted only for requests that include a Responses API compaction trigger input item." },
+				"contextLengthBefore": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Context length observed when the compaction trigger decision was made." },
+				"contextRatio": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Context window usage ratio when the compaction trigger decision was made." },
+				"tokenBudget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Token budget used for the compaction trigger decision." },
+				"promptTokenLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Locally counted prompt token length for the trigger request." },
+				"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Locally counted tool token length for the trigger request." }
+			}
+		*/
+		this.telemetryService.sendMSFTTelemetryEvent('responsesApiCompactionRequest', {
+			conversationId: promptContext.conversation?.sessionId,
+			chatRequestId: promptContext.conversation?.getLatestTurn()?.id,
+			model: this.endpoint.model,
+		}, {
+			triggerRequested: 1,
+			contextLengthBefore: options.contextLengthBefore,
+			contextRatio: options.contextRatio,
+			tokenBudget: options.tokenBudget,
+			promptTokenLength: options.promptTokenLength,
+			toolTokenCount: options.toolTokenCount,
+		});
+	}
+
+	private _sendResponsesApiCompactionResponseTelemetry(
+		promptContext: IBuildPromptContext,
+		options: {
+			readonly promptTokens: number | undefined;
+			readonly completionTokens: number | undefined;
+			readonly totalTokens: number | undefined;
+		},
+	): void {
+		/* __GDPR__
+			"responsesApiCompactionResponse" : {
+				"owner": "dileepy",
+				"comment": "Tracks Responses API response state only for requests that sent a compaction trigger input item.",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that caused the background compaction trigger request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
+				"triggerRequested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Always 1; this event is emitted only for requests that included a Responses API compaction trigger input item." },
+				"compactionReturned": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the response returned a compaction item that can be replayed on a later request." },
+				"promptTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Prompt token count reported by the response." },
+				"completionTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Completion token count reported by the response." },
+				"totalTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total token count reported by the response." }
+			}
+		*/
+		this.telemetryService.sendMSFTTelemetryEvent('responsesApiCompactionResponse', {
+			conversationId: promptContext.conversation?.sessionId,
+			chatRequestId: promptContext.conversation?.getLatestTurn()?.id,
+			model: this.endpoint.model,
+		}, {
+			triggerRequested: 1,
+			compactionReturned: 1,
+			promptTokens: options.promptTokens,
+			completionTokens: options.completionTokens,
+			totalTokens: options.totalTokens,
+		});
 	}
 
 	private _startBackgroundSummarization(

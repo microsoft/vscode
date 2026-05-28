@@ -36,6 +36,37 @@ describe('AgentIntentInvocation background Responses API compaction boundary', (
 		return { result, invalidateRouterCache };
 	}
 
+	function sendRequestTelemetry() {
+		const events: { eventName: string; properties: Record<string, string | undefined>; measurements: Record<string, number> }[] = [];
+		const method = (AgentIntentInvocation.prototype as unknown as {
+			_sendResponsesApiCompactionRequestTelemetry: (
+				this: unknown,
+				promptContext: IBuildPromptContext,
+				options: { contextLengthBefore: number; contextRatio: number; tokenBudget: number; promptTokenLength: number; toolTokenCount: number }
+			) => void;
+		})._sendResponsesApiCompactionRequestTelemetry;
+		method.call({
+			telemetryService: {
+				sendMSFTTelemetryEvent: (eventName: string, properties: Record<string, string | undefined>, measurements: Record<string, number>) => {
+					events.push({ eventName, properties, measurements });
+				},
+			},
+			endpoint: { model: 'gpt-5.4' },
+		}, {
+			conversation: {
+				sessionId: 'conversation-1',
+				getLatestTurn: () => ({ id: 'turn-1' }),
+			},
+		} as unknown as IBuildPromptContext, {
+			contextLengthBefore: 900,
+			contextRatio: 0.9,
+			tokenBudget: 1000,
+			promptTokenLength: 800,
+			toolTokenCount: 100,
+		});
+		return events;
+	}
+
 	test('places a completed compaction on the first round after its request snapshot', () => {
 		const snapshotted = round('snapshot');
 		const firstFollowing = round('following');
@@ -58,5 +89,27 @@ describe('AgentIntentInvocation background Responses API compaction boundary', (
 		expect(result).toBe(false);
 		expect(snapshotted.compaction).toBeUndefined();
 		expect(invalidateRouterCache).not.toHaveBeenCalled();
+	});
+
+	test('emits request telemetry only for actual compaction trigger requests', () => {
+		const events = sendRequestTelemetry();
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toEqual({
+			eventName: 'responsesApiCompactionRequest',
+			properties: {
+				conversationId: 'conversation-1',
+				chatRequestId: 'turn-1',
+				model: 'gpt-5.4',
+			},
+			measurements: {
+				triggerRequested: 1,
+				contextLengthBefore: 900,
+				contextRatio: 0.9,
+				tokenBudget: 1000,
+				promptTokenLength: 800,
+				toolTokenCount: 100,
+			},
+		});
 	});
 });
