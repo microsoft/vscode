@@ -8,6 +8,7 @@ import { IExtensionGalleryService, IExtensionManagementService, EXTENSION_INSTAL
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 
 export class ExtensionsAutoInstallContribution implements IWorkbenchContribution {
@@ -16,13 +17,14 @@ export class ExtensionsAutoInstallContribution implements IWorkbenchContribution
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@ILogService private readonly logService: ILogService,
+		@IRequestService private readonly requestService: IRequestService,
 	) {
 		this.autoInstallExtensions();
 	}
 
 	private async autoInstallExtensions(): Promise<void> {
-		const extensionsToAutoInstall = this.productService.extensionsAutoInstall;
-		if (!extensionsToAutoInstall?.length) {
+		const extensionsToAutoInstall = await this.resolveExtensionsToInstall();
+		if (!extensionsToAutoInstall.length) {
 			return;
 		}
 
@@ -35,7 +37,7 @@ export class ExtensionsAutoInstallContribution implements IWorkbenchContribution
 			return;
 		}
 
-		this.logService.info(`Auto installing ${toInstall.length} extension(s) from product.json: ${toInstall.join(', ')}`);
+		this.logService.info(`Auto installing ${toInstall.length} extension(s): ${toInstall.join(', ')}`);
 
 		const galleryExtensions = await this.extensionGalleryService.getExtensions(
 			toInstall.map(id => ({ id })),
@@ -53,5 +55,32 @@ export class ExtensionsAutoInstallContribution implements IWorkbenchContribution
 				this.logService.error(`Failed to auto-install extension '${gallery.identifier.id}': ${error}`);
 			}
 		}));
+	}
+
+	private async resolveExtensionsToInstall(): Promise<string[]> {
+		const localList = this.productService.extensionsAutoInstall ?? [];
+
+		const remoteUrl = this.productService.extensionsAutoInstallUrl;
+		let remoteList: string[] = [];
+		if (remoteUrl) {
+			try {
+				const context = await this.requestService.request({ url: remoteUrl, callSite: 'extensionsAutoInstall' }, CancellationToken.None);
+				const result = await asJson<unknown[]>(context);
+				if (Array.isArray(result)) {
+					remoteList = result.filter(item => typeof item === 'string');
+					this.logService.info(`Fetched ${remoteList.length} extension(s) from extensionsAutoInstallUrl`);
+				} else {
+					this.logService.warn(`extensionsAutoInstallUrl response is not an array`);
+				}
+			} catch (error) {
+				this.logService.warn(`Failed to fetch extensionsAutoInstallUrl: ${error}`);
+			}
+		}
+
+		const merged = [...new Set([...localList, ...remoteList])];
+		if (merged.length) {
+			this.logService.info(`Merged extension auto-install list (local: ${localList.length}, remote: ${remoteList.length}, total: ${merged.length})`);
+		}
+		return merged;
 	}
 }
