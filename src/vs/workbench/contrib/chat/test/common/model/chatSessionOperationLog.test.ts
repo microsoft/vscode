@@ -673,4 +673,47 @@ suite('ChatSessionOperationLog', () => {
 			assert.strictEqual(result.count, 2);
 		});
 	});
+
+	suite('Corruption resilience', () => {
+		function makeEntry(entry: unknown): string {
+			return JSON.stringify(entry) + '\n';
+		}
+
+		test('read() skips Set/Push/Delete entries that appear before the Initial entry', () => {
+			const schema = createTestSchema();
+
+			// Simulate a corrupted log: orphaned mutations come before the Initial snapshot.
+			// These pre-initial entries must be silently skipped; only the Initial entry and
+			// any subsequent mutations that follow it should be applied.
+			const orphanedSet = makeEntry({ kind: 1 /* Set */, k: ['count'], v: 99 });
+			const orphanedPush = makeEntry({ kind: 2 /* Push */, k: ['items'], v: [{ id: 'x', value: 0 }] });
+			const initial = makeEntry({ kind: 0 /* Initial */, v: { name: 'recovered', count: 1, items: [] } });
+			const postInitialSet = makeEntry({ kind: 1 /* Set */, k: ['count'], v: 2 });
+
+			const content = VSBuffer.fromString(orphanedSet + orphanedPush + initial + postInitialSet);
+			const reader = new Adapt.ObjectMutationLog(schema);
+
+			// Must not throw even though Set/Push appear before Initial
+			const result = reader.read(content);
+
+			// State is anchored by the Initial entry; pre-initial mutations are discarded
+			assert.strictEqual(result.name, 'recovered');
+			assert.strictEqual(result.count, 2);  // post-initial Set applied
+			assert.strictEqual(result.items.length, 0); // orphaned Push discarded
+		});
+
+		test('read() throws when no Initial entry is present at all', () => {
+			const schema = createTestSchema();
+
+			// A log file that contains only mutation entries and no Initial snapshot
+			// is unrecoverable — read() must still throw so callers can handle it.
+			const onlyMutations = VSBuffer.fromString(
+				makeEntry({ kind: 1 /* Set */, k: ['count'], v: 1 }) +
+				makeEntry({ kind: 1 /* Set */, k: ['name'], v: 'x' })
+			);
+
+			const reader = new Adapt.ObjectMutationLog(schema);
+			assert.throws(() => reader.read(onlyMutations), /missing an initial entry/);
+		});
+	});
 });

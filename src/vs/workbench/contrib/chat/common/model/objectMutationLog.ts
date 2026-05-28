@@ -283,22 +283,19 @@ export class ObjectMutationLog<TFrom, TTo> {
 							state = entry.v;
 							break;
 						case EntryKind.Set:
-							if (state === undefined) {
-								throw new Error('Log file is missing an initial entry');
+							if (state !== undefined) {
+								this._applySet(state, entry.k, entry.v);
 							}
-							this._applySet(state, entry.k, entry.v);
 							break;
 						case EntryKind.Push:
-							if (state === undefined) {
-								throw new Error('Log file is missing an initial entry');
+							if (state !== undefined) {
+								this._applyPush(state, entry.k, entry.v, entry.i);
 							}
-							this._applyPush(state, entry.k, entry.v, entry.i);
 							break;
 						case EntryKind.Delete:
-							if (state === undefined) {
-								throw new Error('Log file is missing an initial entry');
+							if (state !== undefined) {
+								this._applySet(state, entry.k, undefined);
 							}
-							this._applySet(state, entry.k, undefined);
 							break;
 						default:
 							assertNever(entry);
@@ -310,6 +307,10 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 		if (lineCount === 0) {
 			throw new Error('Empty log file');
+		}
+
+		if (state === undefined) {
+			throw new Error('Log file is missing an initial entry');
 		}
 
 		this._previous = state as TTo;

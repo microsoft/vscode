@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -64,6 +66,7 @@ suite('ChatSessionStore', () => {
 
 	let instantiationService: TestInstantiationService;
 	let mockWorkspaceEditingService: MockWorkspaceEditingService;
+	let fileService: InMemoryTestFileService;
 
 	function createChatSessionStore(isEmptyWindow: boolean = false): ChatSessionStore {
 		const workspace = isEmptyWindow ? new Workspace('empty-window-id', []) : TestWorkspace;
@@ -76,7 +79,8 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IFileService, testDisposables.add(new InMemoryTestFileService()));
+		fileService = testDisposables.add(new InMemoryTestFileService());
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
@@ -460,6 +464,43 @@ suite('ChatSessionStore', () => {
 
 			const newStorageRoot = store.getChatStorageFolder();
 			assert.ok(newStorageRoot.path.includes('new-workspace-id'), 'Storage root should be updated to new workspace location');
+		});
+	});
+
+	suite('Session recovery', () => {
+		test('readSession falls back to flat JSON when log file is malformed (missing Initial entry)', async () => {
+			const store = createChatSessionStore();
+			const sessionId = 'session-recovery-test';
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession(sessionId)));
+
+			// Store session normally — this writes both the flat .json and the .jsonl log
+			await store.storeSessions([model]);
+
+			// Verify the session is readable under normal conditions
+			const normalRead = await store.readSession(sessionId);
+			assert.ok(normalRead, 'Session should be readable when both files are valid');
+
+			// Overwrite the .jsonl log with malformed content that has no Initial entry.
+			// This simulates a write that was interrupted before the Initial snapshot was flushed.
+			const storageFolder = store.getChatStorageFolder();
+			const logUri = joinPath(storageFolder, `${sessionId}.jsonl`);
+			const malformedLog = VSBuffer.fromString(
+				JSON.stringify({ kind: 1 /* Set */, k: ['sessionId'], v: 'orphaned' }) + '\n' +
+				JSON.stringify({ kind: 1 /* Set */, k: ['requests'], v: [] }) + '\n'
+			);
+			await fileService.writeFile(logUri, malformedLog);
+
+			// readSession must recover from the flat .json file instead of returning undefined
+			const recovered = await store.readSession(sessionId);
+			assert.ok(recovered, 'Session should be recovered from flat JSON when log is malformed');
+			assert.strictEqual((recovered.value as ISerializableChatData3).sessionId, sessionId);
+		});
+
+		test('readSession returns undefined when both log and flat files are missing', async () => {
+			const store = createChatSessionStore();
+
+			const result = await store.readSession('completely-missing-session');
+			assert.strictEqual(result, undefined);
 		});
 	});
 });
