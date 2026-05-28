@@ -8,6 +8,8 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -941,6 +943,133 @@ suite('CopilotAgent', () => {
 				// No stub installed — the call should be silently ignored.
 				agent.onClientToolCallComplete(sessionUri, 'tc-x', { success: true, pastTenseMessage: 'noop' });
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('_resumeSession dedup', () => {
+		// Regression: two concurrent paths (e.g. an outdated-config refresh in
+		// `sendMessage` and a `getSessionMessages` subscribe) each calling
+		// `_resumeSession(id)` used to construct two `CopilotAgentSession`
+		// entries for the same id; the second `_sessions.set(id, …)` on the
+		// underlying `DisposableMap` disposed the first one mid
+		// `initializeSession()`, producing 'Trying to add a disposable to a
+		// DisposableStore that has already been disposed' warnings and a
+		// half-initialised session with no event subscriptions.
+
+		type AgentInternals = {
+			_resumeSession: (id: string) => Promise<CopilotAgentSession>;
+			_doResumeSession: (id: string) => Promise<CopilotAgentSession>;
+		};
+		const makeFakeSession = () => ({ dispose: () => { } } as unknown as CopilotAgentSession);
+
+		test('dedupes concurrent calls for the same sessionId', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			const deferred = new DeferredPromise<CopilotAgentSession>();
+			let doResumeCalls = 0;
+			internals._doResumeSession = () => {
+				doResumeCalls++;
+				return deferred.p;
+			};
+			try {
+				const p1 = internals._resumeSession('s1');
+				const p2 = internals._resumeSession('s1');
+				assert.strictEqual(p1, p2);
+				assert.strictEqual(doResumeCalls, 1);
+
+				const session = makeFakeSession();
+				deferred.complete(session);
+				assert.strictEqual(await p1, session);
+				assert.strictEqual(await p2, session);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('clears inflight entry after resolution so the next call re-invokes _doResumeSession', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			let doResumeCalls = 0;
+			internals._doResumeSession = async () => {
+				doResumeCalls++;
+				return makeFakeSession();
+			};
+			try {
+				await internals._resumeSession('s1');
+				await internals._resumeSession('s1');
+				assert.strictEqual(doResumeCalls, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('clears inflight entry on rejection so the next call retries', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			let attempt = 0;
+			internals._doResumeSession = async () => {
+				attempt++;
+				if (attempt === 1) {
+					throw new Error('first failed');
+				}
+				return makeFakeSession();
+			};
+			try {
+				await assert.rejects(() => internals._resumeSession('s1'), /first failed/);
+				await internals._resumeSession('s1');
+				assert.strictEqual(attempt, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not dedupe across different sessionIds', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			const ids: string[] = [];
+			internals._doResumeSession = async (id: string) => {
+				ids.push(id);
+				return makeFakeSession();
+			};
+			try {
+				await Promise.all([
+					internals._resumeSession('s1'),
+					internals._resumeSession('s2'),
+				]);
+				assert.deepStrictEqual([...ids].sort(), ['s1', 's2']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('post-init shutdown race: disposes the session and throws CancellationError instead of registering on a disposed _sessions map', async () => {
+			// Without this guard an in-flight `_resumeSession` /
+			// `_materializeProvisional` whose `initializeSession()`
+			// resolves AFTER `dispose()` -> `shutdown()` -> `super.dispose()`
+			// has run would call `_sessions.set(...)` on a disposed
+			// DisposableMap, leaking the session and reproducing the
+			// 'Trying to add a disposable to a DisposableStore that has
+			// already been disposed' warning this PR exists to eliminate.
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as {
+				_registerInitializedSession: (id: string, s: CopilotAgentSession) => void;
+				_shutdownPromise: Promise<void> | undefined;
+			};
+			let disposed = 0;
+			const fakeSession = { dispose: () => { disposed++; } } as unknown as CopilotAgentSession;
+			internals._shutdownPromise = Promise.resolve();
+			try {
+				assert.throws(
+					() => internals._registerInitializedSession('s1', fakeSession),
+					(err: unknown) => isCancellationError(err),
+				);
+				assert.strictEqual(disposed, 1, 'session should be disposed by the guard');
+			} finally {
+				// Clear the fake shutdown promise so disposeAgent doesn't
+				// short-circuit and leave real state behind.
+				internals._shutdownPromise = undefined;
 				await disposeAgent(agent);
 			}
 		});
