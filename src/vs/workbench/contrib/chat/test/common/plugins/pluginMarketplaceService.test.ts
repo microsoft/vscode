@@ -160,6 +160,20 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parseMarketplaceReference('git@example.com:org/repo'), undefined);
 	});
 
+	test('accepts host-only HTTPS marketplace endpoints (per ADR-002 git.url is any string)', () => {
+		const parsed = parseMarketplaceReference('https://plugins.internal.example.com');
+		assert.ok(parsed);
+		assert.strictEqual(parsed?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(parsed?.cloneUrl, 'https://plugins.internal.example.com');
+		assert.strictEqual(parsed?.canonicalId, 'git:plugins.internal.example.com/');
+		assert.deepStrictEqual(parsed?.cacheSegments, ['plugins.internal.example.com']);
+		assert.strictEqual(parsed?.githubRepo, undefined);
+
+		// Trailing slash collapses to the host-only form.
+		const withSlash = parseMarketplaceReference('https://plugins.internal.example.com/');
+		assert.strictEqual(withSlash?.canonicalId, 'git:plugins.internal.example.com/');
+	});
+
 	test('parses Azure DevOps HTTPS clone URLs without .git suffix', () => {
 		const parsed = parseMarketplaceReference('https://dev.azure.com/org/project/_git/repo');
 		assert.ok(parsed);

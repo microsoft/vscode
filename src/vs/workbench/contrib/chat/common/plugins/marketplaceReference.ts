@@ -213,20 +213,32 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 
-	const normalizedPath = normalizeGitRepoPath(uri.path);
-	if (!normalizedPath) {
-		return undefined;
-	}
 	const ref = uri.fragment || undefined;
 	const cloneUri = uri.fragment ? uri.with({ fragment: '' }) : uri;
+	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
+	const trimmedPath = uri.path.replace(/\/+/g, '/').replace(/\/+$/g, '').replace(/^\/+/, '');
+
+	// Host-only marketplace endpoint (e.g. `https://plugins.internal.example.com`).
+	// The ADR allows any string for `git.url`, so a URL without a repo path is
+	// treated as a marketplace registry endpoint identified by host alone.
+	if (!trimmedPath) {
+		return {
+			rawValue,
+			displayLabel: rawValue,
+			cloneUrl: cloneUri.toString(),
+			canonicalId: appendRefSuffix(`git:${uri.authority.toLowerCase()}/`, ref),
+			cacheSegments: [sanitizedAuthority, ...getRefCacheSegments(ref)],
+			kind: MarketplaceReferenceKind.GitUri,
+			ref,
+		};
+	}
 
 	const gitSuffix = '.git';
-	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
-	const pathHasGitSuffix = normalizedPath.toLowerCase().endsWith(gitSuffix);
-	const pathWithoutGit = pathHasGitSuffix ? normalizedPath.slice(1, normalizedPath.length - gitSuffix.length) : normalizedPath.slice(1);
+	const pathHasGitSuffix = trimmedPath.toLowerCase().endsWith(gitSuffix);
+	const pathWithoutGit = pathHasGitSuffix ? trimmedPath.slice(0, trimmedPath.length - gitSuffix.length) : trimmedPath;
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
-	const canonicalPath = pathHasGitSuffix ? normalizedPath.slice(1).toLowerCase() : `${normalizedPath.slice(1).toLowerCase()}${gitSuffix}`;
+	const canonicalPath = pathHasGitSuffix ? trimmedPath.toLowerCase() : `${trimmedPath.toLowerCase()}${gitSuffix}`;
 
 	// Extract githubRepo for GitHub URLs so the editor can render a clickable link
 	const githubRepo = extractGitHubRepo(uri.authority, pathWithoutGit);
@@ -271,28 +283,6 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 		ref,
 		githubRepo,
 	};
-}
-
-/**
- * Normalizes a Git repository path and validates that it has at least two segments
- * (i.e., at least one owner/repo pair below the root). Accepts paths with or without
- * a `.git` suffix — the suffix is preserved in the returned value so callers can decide
- * how to treat it.
- */
-function normalizeGitRepoPath(path: string): string | undefined {
-	const gitSuffix = '.git';
-	const trimmed = path.replace(/\/+/g, '/').replace(/\/+$/g, '');
-
-	const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-	// Strip .git suffix (if present) only for the purposes of validating path depth.
-	const pathWithoutGit = withLeadingSlash.toLowerCase().endsWith(gitSuffix)
-		? withLeadingSlash.slice(1, withLeadingSlash.length - gitSuffix.length)
-		: withLeadingSlash.slice(1);
-	if (!pathWithoutGit || !pathWithoutGit.includes('/')) {
-		return undefined;
-	}
-
-	return withLeadingSlash;
 }
 
 function extractGitHubRepo(authority: string, pathWithoutGit: string): string | undefined {
