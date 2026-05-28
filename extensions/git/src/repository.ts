@@ -355,6 +355,7 @@ interface GitResourceGroups {
 	mergeGroup?: Resource[];
 	untrackedGroup?: Resource[];
 	workingTreeGroup?: Resource[];
+	localOnlyGroup?: Resource[];
 }
 
 class ProgressManager {
@@ -862,6 +863,7 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
+		this.localOnlyGroup.resourceStates = [];
 		this._sourceControl.count = 0;
 	}
 
@@ -1010,6 +1012,7 @@ export class Repository implements Disposable {
 		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true });
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true });
 		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'), { multiDiffEditorEnableViewChanges: true });
+		this._localOnlyGroup = this._sourceControl.createResourceGroup('localOnly', l10n.t('Local Only'), { multiDiffEditorEnableViewChanges: true });
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1046,11 +1049,13 @@ export class Repository implements Disposable {
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
+		this.localOnlyGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
+		this.disposables.push(this.localOnlyGroup);
 
 		// Don't allow auto-fetch in untrusted workspaces
 		if (workspace.isTrusted) {
@@ -2938,6 +2943,7 @@ export class Repository implements Disposable {
 		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
 		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
 		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+		if (resourcesGroups.localOnlyGroup) { this.localOnlyGroup.resourceStates = resourcesGroups.localOnlyGroup; }
 
 		// clear worktree migrating flag once all conflicts are resolved
 		if (this._isWorktreeMigrating && resourcesGroups.mergeGroup && resourcesGroups.mergeGroup.length === 0) {
@@ -3041,7 +3047,8 @@ export class Repository implements Disposable {
 		const indexGroup: Resource[] = [],
 			mergeGroup: Resource[] = [],
 			untrackedGroup: Resource[] = [],
-			workingTreeGroup: Resource[] = [];
+			workingTreeGroup: Resource[] = [],
+			localOnlyGroup: Resource[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
@@ -3088,7 +3095,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
+		return { indexGroup, mergeGroup, localOnlyGroup, untrackedGroup, workingTreeGroup };
 	}
 
 	private setCountBadge(): void {
