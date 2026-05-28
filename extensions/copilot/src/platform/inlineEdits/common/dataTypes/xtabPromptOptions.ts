@@ -511,14 +511,15 @@ export function applyStrategyConfig(config: ModelConfiguration): ModelConfigurat
 	if (!overrides) {
 		return config;
 	}
+	const hasCurrentFile = config.currentFile !== undefined || overrides.currentFile !== undefined;
+	const hasRecentlyViewed = config.recentlyViewedDocuments !== undefined || overrides.recentlyViewedDocuments !== undefined;
+	const hasLintOptions = config.lintOptions !== undefined || overrides.lintOptions !== undefined;
 	return {
 		...config,
 		...overrides,
-		currentFile: { ...config.currentFile, ...overrides.currentFile },
-		recentlyViewedDocuments: { ...config.recentlyViewedDocuments, ...overrides.recentlyViewedDocuments },
-		lintOptions: config.lintOptions || overrides.lintOptions
-			? { ...config.lintOptions, ...overrides.lintOptions }
-			: undefined,
+		currentFile: hasCurrentFile ? { ...config.currentFile, ...overrides.currentFile } : undefined,
+		recentlyViewedDocuments: hasRecentlyViewed ? { ...config.recentlyViewedDocuments, ...overrides.recentlyViewedDocuments } : undefined,
+		lintOptions: hasLintOptions ? { ...config.lintOptions, ...overrides.lintOptions } : undefined,
 	};
 }
 
