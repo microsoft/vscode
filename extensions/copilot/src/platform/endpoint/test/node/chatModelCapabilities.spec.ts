@@ -70,7 +70,6 @@ describe('modelSupportsToolSearch', () => {
 	test('supports OpenAI gpt-5.4 and gpt-5.5 models', () => {
 		expect(modelSupportsToolSearch('gpt-5.4')).toBe(true);
 		expect(modelSupportsToolSearch('gpt-5.5')).toBe(true);
-		expect(modelSupportsToolSearch('iris-alpha')).toBe(true);
 	});
 
 	test('rejects suffixed gpt-5.4/5.5 variants (exact match only)', () => {

@@ -21,7 +21,7 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { AnthropicMessagesTool, ContextManagement } from './anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
-import { ChatCompletion, OpenAIContextManagement, openAIContextManagementCompactionTriggerType, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
+import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
 
 /**
  * Encapsulates all the functionality related to making GET/POST requests using
@@ -480,7 +480,6 @@ function networkRequest(
 	if (endpoint.interceptBody) {
 		endpoint.interceptBody(body);
 	}
-	sanitizeCompactionTriggerRequestBody(body);
 
 	const endpointFetchOptions = endpoint.getEndpointFetchOptions?.();
 	const request: FetchOptions = {
@@ -524,17 +523,6 @@ function networkRequest(
 		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
 	}
 }
-
-function sanitizeCompactionTriggerRequestBody(body: IEndpointBody | undefined): void {
-	if (!body?.input?.some(item => (item as { type?: string }).type === openAIContextManagementCompactionTriggerType)) {
-		return;
-	}
-
-	delete body.previous_response_id;
-	delete body.top_logprobs;
-	delete body.truncation;
-}
-
 export function canRetryOnceNetworkError(reason: any) {
 	return [
 		'ECONNRESET',
