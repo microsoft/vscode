@@ -120,6 +120,7 @@ async function copyCopilotCliPrebuildFiles() {
 					}
 					return src.endsWith('computer.node')
 						|| src.endsWith('runtime.node')
+						|| src.endsWith('cli-native.node')
 						// node-pty natives: pty.node (+ spawn-helper) on Unix,
 						// conpty.node and its companions on Windows. `endsWith('pty.node')`
 						// also matches `conpty.node`. The conpty native additionally needs
