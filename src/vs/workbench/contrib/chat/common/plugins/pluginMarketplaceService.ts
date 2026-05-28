@@ -609,13 +609,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
-		// In strict mode (enterprise policy `ChatStrictMarketplaces` or user-set
-		// `chat.plugins.strictMarketplaces`), trust is derived from the configured
-		// marketplace list rather than from user-stored trust. Only marketplaces
-		// present in the effective set (user `chat.plugins.marketplaces` unioned
-		// with policy-only `chat.plugins.extraMarketplaces`) are considered trusted.
+		// In strict mode (`chat.plugins.strictMarketplaces`, typically enabled via the
+		// `ChatStrictMarketplaces` enterprise policy), trust is restricted to
+		// marketplaces in `chat.plugins.extraMarketplaces` — the policy-only slot.
+		// User-configured entries in `chat.plugins.marketplaces` do NOT grant trust
+		// under strict mode; that's the whole point of "strict" — the enterprise
+		// fully controls the allowed marketplaces.
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.StrictMarketplaces)) {
-			const refs = parseMarketplaceReferences(readConfiguredMarketplaces(this._configurationService).effectiveValues);
+			const refs = parseMarketplaceReferences(readConfiguredMarketplaces(this._configurationService).extraValues);
 			return refs.some(r => r.canonicalId === ref.canonicalId);
 		}
 		return this._trustedMarketplacesStore.get().includes(ref.canonicalId);

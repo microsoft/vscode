@@ -966,7 +966,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.StrictMarketplaces]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "When enabled, only marketplaces listed in {0} are trusted. Plugins from any other marketplace will not load.", `\`#${ChatConfiguration.PluginMarketplaces}#\``),
+			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "When enabled, only marketplaces supplied via enterprise policy are trusted. Plugins from any other marketplace will not load."),
 			default: false,
 			restricted: true,
 			scope: ConfigurationScope.APPLICATION,
@@ -979,7 +979,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.strictMarketplaces.policy',
-						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Only trust marketplaces listed in `chat.plugins.marketplaces`; plugins from any other marketplace will not load."),
+						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."),
 					}
 				},
 			},

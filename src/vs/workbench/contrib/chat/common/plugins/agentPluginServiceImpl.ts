@@ -97,6 +97,8 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IPluginMarketplaceService pluginMarketplaceService: IPluginMarketplaceService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 
@@ -112,12 +114,65 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			discovery.start(this.enablementModel);
 		}
 
+		// Policy-driven enforcement filter, applied after discovery so that
+		// enterprise policy is honored regardless of which discovery source
+		// surfaces a plugin (local paths, marketplace, CLI install dir).
+		const enabledPluginsPolicy = observableFromEvent(this,
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
+			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
+		);
+		const strictMarketplaces = observableConfigValue<boolean>(ChatConfiguration.StrictMarketplaces, false, configurationService);
 
 		this.plugins = derived(read => {
 			if (!pluginsEnabled.read(read)) {
 				return [];
 			}
-			return this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
+			const all = this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
+			const enforced = this._applyPolicyEnforcement(all, enabledPluginsPolicy.read(read), strictMarketplaces.read(read), pluginMarketplaceService, logService);
+			return enforced;
+		});
+	}
+
+	/**
+	 * Filters out plugins that are blocked by enterprise policy:
+	 * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
+	 *   is set, only plugins whose ID appears with value `true` survive.
+	 * - If `chat.plugins.strictMarketplaces` is on, only plugins from a
+	 *   marketplace listed in `chat.plugins.extraMarketplaces` survive.
+	 *
+	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
+	 * paths from `chat.pluginLocations`) are unaffected by these filters — they
+	 * are user-side concerns outside the enterprise enforcement boundary.
+	 */
+	private _applyPolicyEnforcement(
+		plugins: readonly IAgentPlugin[],
+		enabledPluginsPolicy: Record<string, boolean> | undefined,
+		strictMarketplaces: boolean,
+		pluginMarketplaceService: IPluginMarketplaceService,
+		logService: ILogService,
+	): readonly IAgentPlugin[] {
+		if (!enabledPluginsPolicy && !strictMarketplaces) {
+			return plugins;
+		}
+		const enabledPluginsPolicySet = enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0;
+		return plugins.filter(plugin => {
+			const m = plugin.fromMarketplace;
+			// Plugins not from a marketplace (filesystem entries) are not gated.
+			if (!m) {
+				return true;
+			}
+			if (enabledPluginsPolicySet) {
+				const pluginId = `${m.name}@${m.marketplace}`;
+				if (enabledPluginsPolicy![pluginId] !== true) {
+					logService.debug(`[AgentPluginService] Filtering out plugin '${pluginId}' — not enabled by ChatEnabledPlugins policy`);
+					return false;
+				}
+			}
+			if (strictMarketplaces && !pluginMarketplaceService.isMarketplaceTrusted(m.marketplaceReference)) {
+				logService.debug(`[AgentPluginService] Filtering out plugin '${m.name}@${m.marketplace}' — marketplace not trusted under strict mode`);
+				return false;
+			}
+			return true;
 		});
 	}
 
