@@ -918,7 +918,10 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		this.runSudoNoErrors('rpm', '-i', packagePath);
+		// Use `-U --replacepkgs` (install-or-upgrade, allow same-version reinstall)
+		// instead of `-i` so the step is idempotent if a previous run left the
+		// package installed on a non-ephemeral agent.
+		this.runSudoNoErrors('rpm', '-U', '--replacepkgs', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
