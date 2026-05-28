@@ -319,6 +319,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | ITerminalLaunchError | undefined>();
 	readonly onExit = this._onExit.event;
+	private readonly _onWillDispose = this._register(new Emitter<ITerminalInstance>());
+	readonly onWillDispose = this._onWillDispose.event;
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
@@ -654,7 +656,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					contribution.xtermReady?.(xterm);
 				}
 			});
-			this._register(this.onDisposed(() => {
+			this._register(this.onWillDispose(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
 			}));
@@ -1324,12 +1326,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// hasn't happened yet
 		this._onProcessExit(undefined);
 
-		// Fire onDisposed before disposing xterm so that contributions can clean
+		// Fire onWillDispose before disposing xterm so that contributions can clean
 		// up their xterm addons while the raw terminal is still alive. Disposing
 		// xterm first would cause AddonManager to remove addons from its list,
 		// and subsequent contribution disposal would fail with "Could not dispose
 		// an addon that has not been loaded".
-		this._onDisposed.fire(this);
+		this._onWillDispose.fire(this);
 
 		try {
 			this.xterm?.dispose();
@@ -1346,6 +1348,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalHasTextContextKey.reset();
 			this._onDidBlur.fire(this);
 		}
+
+		// Fire onDisposed only after xterm and any side-effects of its teardown
+		// (e.g. Firefox blur fallback) have run, so subscribers observe a fully
+		// disposed instance.
+		this._onDisposed.fire(this);
 
 		super.dispose();
 	}
