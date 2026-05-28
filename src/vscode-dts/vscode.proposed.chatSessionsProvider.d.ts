@@ -684,6 +684,42 @@ declare module 'vscode' {
 		 * hovers over this item in the picker. Supports markdown formatting.
 		 */
 		readonly tooltip?: string;
+
+		/**
+		 * Optional model metadata for this option item. When present, the picker
+		 * renders a rich hover with model name, pricing, context size, and capabilities
+		 * instead of a plain text tooltip.
+		 */
+		readonly modelMetadata?: ChatSessionProviderOptionModelMetadata;
+	}
+
+	/**
+	 * Metadata describing a language model, used to render rich hover content
+	 * in option group pickers. Fields mirror {@link LanguageModelChatInformation}
+	 * so the core can reuse its standard model hover rendering.
+	 */
+	export interface ChatSessionProviderOptionModelMetadata {
+		readonly name: string;
+		readonly id: string;
+		readonly vendor?: string;
+		readonly version?: string;
+		readonly family?: string;
+		readonly tooltip?: string;
+		readonly pricing?: string;
+		readonly multiplierNumeric?: number;
+		readonly inputCost?: number;
+		readonly outputCost?: number;
+		readonly cacheCost?: number;
+		readonly longContextInputCost?: number;
+		readonly longContextOutputCost?: number;
+		readonly longContextCacheCost?: number;
+		readonly priceCategory?: string;
+		readonly maxInputTokens?: number;
+		readonly maxOutputTokens?: number;
+		readonly capabilities?: {
+			readonly vision?: boolean;
+			readonly toolCalling?: boolean;
+		};
 	}
 
 	/**

@@ -31,6 +31,30 @@ export interface IChatSessionCommandContribution {
 	readonly when?: string;
 }
 
+export interface IChatSessionProviderOptionModelMetadata {
+	readonly name: string;
+	readonly id: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tooltip?: string;
+	readonly pricing?: string;
+	readonly multiplierNumeric?: number;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly priceCategory?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+	};
+}
+
 export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
@@ -41,6 +65,7 @@ export interface IChatSessionProviderOptionItem {
 	readonly default?: boolean;
 	readonly slashCommand?: string;
 	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 	// [key: string]: any;
 }
 
