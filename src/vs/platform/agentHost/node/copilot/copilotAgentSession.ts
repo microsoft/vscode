@@ -7,6 +7,7 @@ import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, Tool
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
@@ -351,7 +352,20 @@ export class CopilotAgentSession extends Disposable {
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
-	private readonly _consumedSteeringMessages = new Set<string>();
+	/**
+	 * Steering messages that have been accepted by the SDK but not yet
+	 * surfaced to the chat UI as a separate user message. When the SDK
+	 * echoes a steering through a `user.message` event whose `content`
+	 * matches one of these entries, we finalize the in-flight turn and
+	 * dispatch a new {@link ActionType.SessionTurnStarted} whose
+	 * `userMessage` is the steering content. The reducer also removes
+	 * the pending steering via the action's `queuedMessageId`.
+	 *
+	 * Entries left here at abort/dispose time are flushed as
+	 * `steering_consumed` signals so the chat UI's pending state still
+	 * clears in cleanup paths where we never observe the echo.
+	 */
+	private readonly _pendingSteeringFlips = new Map<string, PendingMessage>();
 
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
@@ -415,6 +429,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
 		this._register(toDisposable(() => this._cancelPendingElicitations()));
 		this._register(toDisposable(() => this._cancelPendingPlanReviews()));
+		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
 
 		// When a shell tool associates a terminal with a tool call, fire a
 		// tool_content_changed event so the UI can connect to the terminal
@@ -453,19 +468,59 @@ export class CopilotAgentSession extends Disposable {
 			action,
 			parentToolCallId,
 		});
-		if (action.type === ActionType.SessionToolCallStart && !parentToolCallId) {
-			this._flushConsumedSteeringMessages();
-		} else if (action.type === ActionType.SessionTurnComplete) {
-			this._flushConsumedSteeringMessages();
-		}
 	}
 
-	private _flushConsumedSteeringMessages(): void {
-		if (this._consumedSteeringMessages.size === 0) {
+	/**
+	 * Promotes a pending steering message into its own protocol turn:
+	 * closes the in-flight turn (so its responseParts settle into history)
+	 * and dispatches {@link ActionType.SessionTurnStarted} for a fresh
+	 * turn whose user message is the steering content. The action's
+	 * `queuedMessageId` atomically clears the corresponding pending
+	 * steering message from the session state.
+	 *
+	 * All subsequent SDK events (message deltas, tool calls, …) emitted
+	 * by the agent now reference the new `_turnId`, so the steering
+	 * response lands in the new turn rather than being folded into the
+	 * original.
+	 *
+	 * Returns the new turn id so callers (notably the `user.message`
+	 * handler) can associate the SDK event id with the steering turn for
+	 * history.truncate / sessions.fork mapping.
+	 */
+	private _beginSteeringTurn(steering: PendingMessage): string {
+		const previousTurnId = this._turnId;
+		if (previousTurnId) {
+			this._emitAction({
+				type: ActionType.SessionTurnComplete,
+				turnId: previousTurnId,
+			});
+		}
+		const newTurnId = generateUuid();
+		this._emitAction({
+			type: ActionType.SessionTurnStarted,
+			turnId: newTurnId,
+			userMessage: steering.userMessage,
+			queuedMessageId: steering.id,
+		});
+		// Mirror `resetTurnState` so per-turn counters/mappings (usage
+		// total, streaming part ids, subagent agentId map) don't bleed
+		// from the preempted turn into the new steering turn.
+		this.resetTurnState(newTurnId);
+		return newTurnId;
+	}
+
+	/**
+	 * Drains any steering messages we acknowledged to the SDK but never
+	 * promoted to their own turn (e.g. on abort or session dispose). Fires
+	 * `steering_consumed` so the chat UI removes the lingering pending
+	 * steering bubble even when no fresh `user.message` arrives.
+	 */
+	private _drainPendingSteeringFlips(): void {
+		if (this._pendingSteeringFlips.size === 0) {
 			return;
 		}
-		const ids = [...this._consumedSteeringMessages];
-		this._consumedSteeringMessages.clear();
+		const ids = [...this._pendingSteeringFlips.keys()];
+		this._pendingSteeringFlips.clear();
 		for (const id of ids) {
 			this._onDidSessionProgress.fire({
 				kind: 'steering_consumed',
@@ -473,6 +528,28 @@ export class CopilotAgentSession extends Disposable {
 				id,
 			});
 		}
+	}
+
+	/**
+	 * Pops the buffered steering message whose text matches the SDK
+	 * `user.message` content we just observed. Matching by content (rather
+	 * than just popping FIFO) keeps us robust against the SDK reordering
+	 * or coalescing entries — concurrent steering messages with different
+	 * texts are still matched to the correct one. Returns `undefined` if
+	 * no buffered entry matches; the caller treats the `user.message` as
+	 * an ordinary echo and skips the turn flip.
+	 */
+	private _takeMatchingPendingSteering(content: string): PendingMessage | undefined {
+		if (this._pendingSteeringFlips.size === 0) {
+			return undefined;
+		}
+		for (const [id, msg] of this._pendingSteeringFlips) {
+			if (msg.userMessage.text === content) {
+				this._pendingSteeringFlips.delete(id);
+				return msg;
+			}
+		}
+		return undefined;
 	}
 
 	private _parentToolCallIdForSubagentEvent(e: { readonly agentId?: string }): string | undefined {
@@ -681,7 +758,7 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		this._wrapper = this._register(await this._wrapperFactory({
+		const wrapper = await this._wrapperFactory({
 			onPermissionRequest: request => this.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => this.handleElicitationRequest(context),
@@ -691,7 +768,15 @@ export class CopilotAgentSession extends Disposable {
 				onPreToolUse: input => this._handlePreToolUse(input),
 				onPostToolUse: input => this._handlePostToolUse(input),
 			},
-		}));
+		});
+		// The session may have been disposed while we were awaiting the
+		// wrapper factory. If so, dispose the freshly-created wrapper and
+		// skip subscribing — registering on a disposed store would leak.
+		if (this._store.isDisposed) {
+			wrapper.dispose();
+			throw new CancellationError();
+		}
+		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 	}
@@ -824,7 +909,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
-		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._consumedSteeringMessages.has(steeringMessage.id)) {
+		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
 			return;
 		}
 		this._steeringMessagesInFlight.add(steeringMessage.id);
@@ -834,7 +919,7 @@ export class CopilotAgentSession extends Disposable {
 				prompt: steeringMessage.userMessage.text,
 				mode: 'immediate',
 			});
-			this._consumedSteeringMessages.add(steeringMessage.id);
+			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
 		} finally {
@@ -869,7 +954,7 @@ export class CopilotAgentSession extends Disposable {
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		this._denyPendingPermissions();
-		this._flushConsumedSteeringMessages();
+		this._drainPendingSteeringFlips();
 		await this._wrapper.session.abort();
 	}
 
@@ -1500,10 +1585,33 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		// Capture SDK event IDs for each user.message event so we can map
-		// protocol turn indices to the event IDs needed by the SDK's
-		// history.truncate and sessions.fork RPCs.
+		// Handle `user.message` events with three responsibilities:
+		//
+		// 1. Skip SDK-injected (`source !== 'user'`) messages outright —
+		//    they are skill content / harness injections that must not
+		//    surface to the user and must not be associated with a turn
+		//    boundary (the SDK's truncate/fork mapping keys off the
+		//    user-visible message's event id).
+		//
+		// 2. If the content matches a steering message we acknowledged
+		//    via {@link sendSteering}, promote it to its own protocol
+		//    turn (closing the in-flight turn) BEFORE step 3 so the
+		//    event id is recorded against the new steering turn rather
+		//    than the preempted one.
+		//
+		// 3. Record the SDK event id against the current turn so the
+		//    `history.truncate` / `sessions.fork` RPCs can target the
+		//    right boundary. The DB only sets `event_id` when it's NULL,
+		//    so doing this for synthetic injections would permanently
+		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
+			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+				return;
+			}
+			const steering = this._takeMatchingPendingSteering(e.data.content);
+			if (steering) {
+				this._beginSteeringTurn(steering);
+			}
 			if (this._turnId) {
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 			}

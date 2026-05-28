@@ -186,18 +186,20 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		// Determine whether any session type label is duplicated across
-		// providers. When all labels are unique the provider header is
-		// redundant — skip it for a cleaner dropdown.
+		// Determine which providers contain at least one duplicated label.
+		// Only those providers need a group title for disambiguation.
 		const labelCounts = new Map<string, number>();
 		for (const { sessionType } of folderTypes) {
 			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
 		}
-		const hasDuplicateLabels = Array.from(labelCounts.values()).some(c => c > 1);
+		const providersWithDuplicates = new Set<string>();
+		for (const { providerId, sessionType } of folderTypes) {
+			if ((labelCounts.get(sessionType.label) ?? 0) > 1) {
+				providersWithDuplicates.add(providerId);
+			}
+		}
+		const hasDuplicateLabels = providersWithDuplicates.size > 0;
 
-		// Group items by provider so the dropdown shows a provider header
-		// followed by that provider's types. Insert a separator between
-		// adjacent providers' types so the grouping is visually clear.
 		const providersService = this.sessionsProvidersService;
 		const groupedItems: IActionListItem<ISessionTypePickerItem>[] = [];
 		let lastProviderId: string | undefined;
@@ -205,9 +207,6 @@ export class SessionTypePicker extends Disposable {
 			const provider = providersService.getProvider(providerId);
 			const groupTitle = provider?.label ?? providerId;
 			const isFirstInGroup = providerId !== lastProviderId;
-			if (hasDuplicateLabels && isFirstInGroup && lastProviderId !== undefined) {
-				groupedItems.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
 			lastProviderId = providerId;
 			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
 			const item: ISessionTypePickerItem = isCurrent
@@ -216,7 +215,7 @@ export class SessionTypePicker extends Disposable {
 			groupedItems.push({
 				kind: ActionListItemKind.Action,
 				label: sessionType.label,
-				group: hasDuplicateLabels ? {
+				group: providersWithDuplicates.has(providerId) ? {
 					title: isFirstInGroup ? groupTitle : '',
 					icon: sessionType.icon,
 				} : {

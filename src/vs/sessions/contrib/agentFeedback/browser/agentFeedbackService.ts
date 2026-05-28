@@ -37,6 +37,12 @@ export interface IAgentFeedback {
 	readonly diffHunks?: string;
 	/** When this feedback was converted from a PR review comment, the original thread ID. */
 	readonly sourcePRReviewCommentId?: string;
+	/**
+	 * Additional comment messages that belong to the same thread as this feedback,
+	 * talking about the same code region. The first {@link text} is the initial
+	 * comment; replies are subsequent messages added to it.
+	 */
+	readonly replies?: readonly string[];
 }
 
 export interface INavigableSessionComment {
@@ -77,6 +83,12 @@ export interface IAgentFeedbackService {
 	 * Update the text of an existing feedback item.
 	 */
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
+
+	/**
+	 * Append a reply to an existing feedback item, making it part of the same
+	 * comment thread.
+	 */
+	addReply(sessionResource: URI, feedbackId: string, replyText: string): void;
 
 	/**
 	 * Get all feedback items for a session.
@@ -255,6 +267,28 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		}
+	}
+
+	addReply(sessionResource: URI, feedbackId: string, replyText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx < 0) {
+			return;
+		}
+
+		const existing = feedbackItems[idx];
+		const existingReplies = existing.replies ?? [];
+		feedbackItems[idx] = {
+			...existing,
+			replies: [...existingReplies, replyText],
+		};
+		this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
+		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 	}
 
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {

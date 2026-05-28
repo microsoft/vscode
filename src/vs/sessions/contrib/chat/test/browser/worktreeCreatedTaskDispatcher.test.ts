@@ -10,12 +10,15 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry } from '../../browser/sessionsTasksService.js';
-import { WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
+import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, WorktreeCreatedTaskDispatcher } from '../../browser/worktreeCreatedTaskDispatcher.js';
 
 interface ITestSession {
 	readonly session: ISession;
@@ -43,7 +46,7 @@ function makeWorkspace(hasWorktree: boolean): ISessionWorkspace {
 	};
 }
 
-function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; loading?: boolean; status?: SessionStatus; hasWorktree?: boolean } = {}): ITestSession {
+function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreatedTasks?: boolean; loading?: boolean; status?: SessionStatus; hasWorktree?: boolean } = {}): ITestSession {
 	const loading = observableValue('loading', opts.loading ?? false);
 	const status = observableValue('status', opts.status ?? SessionStatus.InProgress);
 	const workspace = observableValue<ISessionWorkspace | undefined>('workspace', makeWorkspace(opts.hasWorktree ?? true));
@@ -51,7 +54,7 @@ function makeSession(opts: { id?: string; runsWorktreeCreatedTasks?: boolean; lo
 	const session: ISession = {
 		sessionId: opts.id ?? 'test:session',
 		resource: chat.resource,
-		providerId: 'test',
+		providerId: opts.providerId ?? 'test',
 		sessionType: 'background',
 		icon: Codicon.copilot,
 		createdAt: new Date(),
@@ -120,11 +123,13 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	const store = new DisposableStore();
 	let tasks: FakeSessionsTasksService;
 	let mgmt: FakeSessionsManagementService;
+	let configurationService: TestConfigurationService;
 
 	function createDispatcher(): WorktreeCreatedTaskDispatcher {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsTasksService, tasks as unknown as ISessionsTasksService);
 		instantiationService.stub(ISessionsManagementService, mgmt as unknown as ISessionsManagementService);
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		return store.add(instantiationService.createInstance(WorktreeCreatedTaskDispatcher));
 	}
@@ -132,6 +137,7 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	setup(() => {
 		tasks = new FakeSessionsTasksService();
 		mgmt = new FakeSessionsManagementService();
+		configurationService = new TestConfigurationService();
 	});
 
 	teardown(() => {
@@ -380,5 +386,40 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('skips agent host sessions when the agent host setting is disabled (default)', async () => {
+		createDispatcher();
+		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, []);
+	});
+
+	test('runs agent host sessions when the agent host setting is enabled', async () => {
+		await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
+		createDispatcher();
+		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('does not gate non-agent-host sessions on the agent host setting', async () => {
+		// Setting is `false` by default; non-agent-host sessions should still run.
+		createDispatcher();
+		const { session, workspace } = makeSession({ id: 'a', providerId: 'non-agent-host', hasWorktree: false });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
 	});
 });

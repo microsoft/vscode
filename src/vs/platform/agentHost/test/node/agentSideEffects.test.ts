@@ -21,9 +21,9 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { CustomizationStatus } from '../../common/state/protocol/state.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -52,7 +52,10 @@ class FakeChangesetService implements IAgentHostChangesetService {
 
 	registerStaticChangesets(): void { /* no-op for routing tests */ }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly unknown[]): void { /* no-op */ }
+	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	applyPersistedStaticChangesets(): void { /* no-op */ }
 	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshUncommittedChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
 	setTurnSubscriberProbe(): void { /* no-op */ }
@@ -209,7 +212,7 @@ suite('AgentSideEffects', () => {
 				activeClient: {
 					clientId: 'test-client',
 					tools: [{ name: 'testTool', inputSchema: { type: 'object' } }],
-					customizations: [{ uri: 'file:///customizations/SKILL.md', displayName: 'Test Skill' }]
+					customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///customizations/SKILL.md'), uri: 'file:///customizations/SKILL.md', name: 'Test Skill', enabled: true }]
 				},
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), activeClientAction, { clientId: 'test', clientSeq: 1 });
@@ -873,18 +876,11 @@ suite('AgentSideEffects', () => {
 
 		test('calls setClientCustomizations and dispatches customizationsChanged once', async () => {
 			setupSession();
-			agent.getSessionCustomizations = async () => [
-				{
-					customization: { uri: 'file:///plugin-a', displayName: 'Plugin A' },
-					enabled: true,
-					status: CustomizationStatus.Loaded,
-				},
-				{
-					customization: { uri: 'file:///plugin-b', displayName: 'Plugin B' },
-					enabled: true,
-					status: CustomizationStatus.Loaded,
-				},
-			];
+			const pluginA: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
+			const pluginB: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
+			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginA.id, uri: pluginA.uri, name: pluginA.name, enabled: true };
+			const pluginBClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginB.id, uri: pluginB.uri, name: pluginB.name, enabled: true };
+			agent.getSessionCustomizations = async () => [pluginA, pluginB];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -894,10 +890,7 @@ suite('AgentSideEffects', () => {
 				activeClient: {
 					clientId: 'test-client',
 					tools: [],
-					customizations: [
-						{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
-						{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
-					]
+					customizations: [pluginAClient, pluginBClient]
 				},
 			};
 			sideEffects.handleAction(sessionUri.toString(), action);
@@ -907,10 +900,7 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [{
 				clientId: 'test-client',
-				customizations: [
-					{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
-					{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
-				],
+				customizations: [pluginAClient, pluginBClient],
 			}]);
 
 			const customizationActions = envelopes
@@ -925,16 +915,13 @@ suite('AgentSideEffects', () => {
 
 		test('dispatches customizationUpdated for sync progress after initial replacement', async () => {
 			setupSession();
-			const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
-			let currentCustomizations: readonly SessionCustomization[] = [];
+			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true };
+			let currentCustomizations: readonly Customization[] = [];
 			agent.getSessionCustomizations = async () => currentCustomizations;
 			agent.setClientCustomizations = async (session, clientId, customizations) => {
 				agent.setClientCustomizationsCalls.push({ clientId, customizations });
-				currentCustomizations = [{
-					customization,
-					enabled: true,
-					status: CustomizationStatus.Loading,
-				}];
+				const loading: Customization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loading } };
+				currentCustomizations = [loading];
 				agent.fireProgress({
 					kind: 'action',
 					session,
@@ -944,19 +931,14 @@ suite('AgentSideEffects', () => {
 					},
 				});
 				await new Promise(resolve => setTimeout(resolve, 0));
-				currentCustomizations = [{
-					customization,
-					enabled: true,
-					status: CustomizationStatus.Loaded,
-				}];
+				const loaded: Customization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loaded } };
+				currentCustomizations = [loaded];
 				agent.fireProgress({
 					kind: 'action',
 					session,
 					action: {
 						type: ActionType.SessionCustomizationUpdated,
-						customization,
-						enabled: true,
-						status: CustomizationStatus.Loaded,
+						customization: loaded,
 					},
 				});
 				return currentCustomizations.map(customization => ({ customization }));
@@ -970,7 +952,7 @@ suite('AgentSideEffects', () => {
 				activeClient: {
 					clientId: 'test-client',
 					tools: [],
-					customizations: [customization],
+					customizations: [pluginAClient],
 				},
 			});
 			await new Promise(resolve => setTimeout(resolve, 50));
@@ -980,17 +962,14 @@ suite('AgentSideEffects', () => {
 			const firstCustomizationsChanged = customizationsChanged[0].action;
 			assert.strictEqual(firstCustomizationsChanged.type, ActionType.SessionCustomizationsChanged);
 			assert.deepStrictEqual(firstCustomizationsChanged.customizations, [{
-				customization,
-				enabled: true,
-				status: CustomizationStatus.Loading,
+				...pluginAClient,
+				load: { kind: CustomizationLoadStatus.Loading },
 			}]);
 
 			const customizationUpdated = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationUpdated);
 			assert.deepStrictEqual(customizationUpdated.map(e => e.action), [{
 				type: ActionType.SessionCustomizationUpdated,
-				customization,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
+				customization: { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loaded } },
 			}]);
 		});
 
@@ -1044,13 +1023,9 @@ suite('AgentSideEffects', () => {
 
 		test('republishes agent and session customizations for existing sessions', async () => {
 			setupSession('file:///workspace');
-			const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
 			agent.customizations = [customization];
-			agent.getSessionCustomizations = async () => [{
-				customization,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
-			}];
+			agent.getSessionCustomizations = async () => [customization];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -1070,11 +1045,7 @@ suite('AgentSideEffects', () => {
 
 			const sessionCustomizationAction = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationsChanged).at(-1);
 			assert.ok(sessionCustomizationAction && hasKey(sessionCustomizationAction.action, { customizations: true }));
-			assert.deepStrictEqual(sessionCustomizationAction.action.customizations, [{
-				customization,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
-			}]);
+			assert.deepStrictEqual(sessionCustomizationAction.action.customizations, [customization]);
 		});
 
 		test('updates telemetry level from root config', () => {
@@ -1103,13 +1074,9 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 			setupSession('file:///workspace');
 
-			const customization = { uri: 'file:///plugin-b', displayName: 'Plugin B' };
+			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
 			agent.customizations = [customization];
-			agent.getSessionCustomizations = async () => [{
-				customization,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
-			}];
+			agent.getSessionCustomizations = async () => [customization];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -1123,18 +1090,14 @@ suite('AgentSideEffects', () => {
 
 			const sessionCustomizationAction = envelopes.find(e => e.action.type === ActionType.SessionCustomizationsChanged);
 			assert.ok(sessionCustomizationAction && hasKey(sessionCustomizationAction.action, { customizations: true }));
-			assert.deepStrictEqual(sessionCustomizationAction.action.customizations, [{
-				customization,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
-			}]);
+			assert.deepStrictEqual(sessionCustomizationAction.action.customizations, [customization]);
 		});
 
 		test('does not republish when registerProgressListener is disposed', async () => {
 			const listener = sideEffects.registerProgressListener(agent);
 			setupSession('file:///workspace');
 
-			agent.customizations = [{ uri: 'file:///plugin-c', displayName: 'Plugin C' }];
+			agent.customizations = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-c'), uri: 'file:///plugin-c', name: 'Plugin C', enabled: true }];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -1160,13 +1123,13 @@ suite('AgentSideEffects', () => {
 
 			const action: SessionAction = {
 				type: ActionType.SessionCustomizationToggled,
-				uri: 'file:///plugin-a',
+				id: 'file:///plugin-a',
 				enabled: false,
 			};
 			sideEffects.handleAction(sessionUri.toString(), action);
 
 			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [
-				{ uri: 'file:///plugin-a', enabled: false },
+				{ id: 'file:///plugin-a', enabled: false },
 			]);
 		});
 	});

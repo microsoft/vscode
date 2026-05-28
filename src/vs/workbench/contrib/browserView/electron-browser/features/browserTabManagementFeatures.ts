@@ -37,7 +37,7 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../browserEditor.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -671,11 +671,11 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}));
 	}
 
-	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._pill, order: 100 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PostUrl, element: this._pill, order: 100 }];
 	}
 
-	protected override subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
+	protected override onModelAttached(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
 		if (IsSessionsWindowContext.getValue(this.contextKeyService)) {
 			this._setVisible(false);
 			return;
@@ -693,7 +693,7 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._attentionTimeout.clear();
 		this._setVisible(false);
 	}

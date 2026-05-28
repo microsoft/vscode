@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -51,6 +51,13 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _noopRootState: IAgentSubscription<RootState> = {
+		value: undefined,
+		verifiedValue: undefined,
+		onDidChange: Event.None,
+		onWillApplyAction: Event.None,
+		onDidApplyAction: Event.None,
+	};
 	private _connectStarted = false;
 
 	constructor(
@@ -61,12 +68,12 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	) {
 		super();
 
-		const enabled = configurationService.getValue<boolean>(AgentHostEnabledSettingId);
+		const enabled = isAgentHostEnabled(configurationService);
 		const connection = remoteAgentService.getConnection();
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
-			this._logService.info(`${LOG_PREFIX} Disabled via "${AgentHostEnabledSettingId}". Not connecting.`);
+			this._logService.info(`${LOG_PREFIX} Disabled via "${AgentHostEnabledSettingId}" or web runtime. Not connecting.`);
 			this.setAuthenticationPending(false);
 			return;
 		}
@@ -145,7 +152,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
-		return this._requireClient().rootState;
+		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
 
 	get onDidNotification(): Event<INotification> {

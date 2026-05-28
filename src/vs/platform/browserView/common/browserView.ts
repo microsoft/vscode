@@ -32,6 +32,7 @@ export enum BrowserViewCommandId {
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
 
 	// Dev Tools
 	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
@@ -86,8 +87,6 @@ export interface IBrowserViewBounds {
 	zoomFactor: number;
 	cornerRadius: number;
 	emulation?: {
-		viewportWidth: number;
-		viewportHeight: number;
 		scale: number;
 	};
 }
@@ -262,24 +261,14 @@ export function browserZoomAccessibilityLabel(zoomFactor: number): string {
 }
 
 /**
- * The "device" half of browser emulation: characteristics the page sees as
- * intrinsic to the device (touch / mobile media features, DPR, UA string).
+ * The active device emulation profile. `undefined` fields mean "use the host default" for that property.
  */
 export interface IBrowserDeviceProfile {
+	readonly width?: number;
+	readonly height?: number;
 	readonly mobile?: boolean;
 	readonly userAgent?: string;
 	readonly deviceScaleFactor?: number;
-}
-
-/**
- * The "screen" half of browser emulation: the desired viewport size and zoom.
- *
- * `undefined` values mean the view should be sized to fit the container.
- */
-export interface IBrowserScreenProfile {
-	readonly width?: number;
-	readonly height?: number;
-	readonly scale?: number;
 }
 
 /**

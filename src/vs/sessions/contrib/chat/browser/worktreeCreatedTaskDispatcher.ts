@@ -5,13 +5,22 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
+
+/**
+ * Setting that controls whether `runOptions.runOn === 'worktreeCreated'`
+ * tasks are auto-dispatched for agent host sessions when a new worktree is
+ * created. Defaults to `false`. Manual `Run Task` invocations are unaffected.
+ */
+export const AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING = 'chat.agentHost.runWorktreeCreatedTasks';
 
 /**
  * Workbench contribution that runs all tasks tagged with
@@ -37,6 +46,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -113,6 +123,11 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	}
 
 	private async _dispatchWorktreeCreatedTasks(session: ISession): Promise<void> {
+		if (isAgentHostProviderId(session.providerId) && !this._configurationService.getValue<boolean>(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING)) {
+			this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated tasks for agent host session '${session.sessionId}' — '${AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING}' is disabled.`);
+			return;
+		}
+
 		let tasks;
 		try {
 			tasks = await this._sessionsTasksService.getSessionTasksOnce(session);
