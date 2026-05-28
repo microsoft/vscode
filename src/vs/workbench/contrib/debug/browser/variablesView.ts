@@ -90,7 +90,7 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// Use scheduler to prevent unnecessary flashing
-		this.updateTreeScheduler = new RunOnceScheduler(async () => {
+		this.updateTreeScheduler = this._register(new RunOnceScheduler(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 
 			this.needsRefresh = false;
@@ -116,7 +116,7 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
-		}, 400);
+		}, 400));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -238,12 +238,30 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
-		const variable = e.element;
-		if (!(variable instanceof Variable) || !variable.value) {
+		const element = e.element;
+
+		// Handle scope context menu
+		if (element instanceof Scope) {
+			return this.openContextMenuForScope(e, element);
+		}
+
+		// Handle variable context menu
+		if (!(element instanceof Variable) || !element.value) {
 			return;
 		}
 
 		return openContextMenuForVariableTreeElement(this.contextKeyService, this.menuService, this.contextMenuService, MenuId.DebugVariablesContext, e);
+	}
+
+	private openContextMenuForScope(e: ITreeContextMenuEvent<IExpression | IScope>, scope: Scope): void {
+		const context = { scope: { name: scope.name } };
+		const menu = this.menuService.getMenuActions(MenuId.DebugScopesContext, this.contextKeyService, { arg: context, shouldForwardArgs: false });
+		const { secondary } = getContextMenuActions(menu, 'inline');
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => secondary
+		});
 	}
 }
 

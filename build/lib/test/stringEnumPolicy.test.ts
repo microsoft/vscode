@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { StringEnumPolicy } from '../policies/stringEnumPolicy.ts';
 import { PolicyType, type LanguageTranslations } from '../policies/types.ts';
 import type { CategoryDto, PolicyDto } from '../policies/policyDto.ts';
@@ -55,9 +56,9 @@ suite('StringEnumPolicy', () => {
 			'\t<supportedOn ref="Supported_1_0" />',
 			'\t<elements>',
 			'<enum id="TestStringEnumPolicy" valueName="TestStringEnumPolicy">',
-			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.one)"><value><string>auto</string></value></item>',
-			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.two)"><value><string>manual</string></value></item>',
-			'\t<item displayName="$(string.TestStringEnumPolicy_test.option.three)"><value><string>disabled</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test_option_one)"><value><string>auto</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test_option_two)"><value><string>manual</string></value></item>',
+			'\t<item displayName="$(string.TestStringEnumPolicy_test_option_three)"><value><string>disabled</string></value></item>',
 			'</enum>',
 			'\t</elements>',
 			'</policy>'

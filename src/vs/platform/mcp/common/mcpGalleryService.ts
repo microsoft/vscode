@@ -16,7 +16,7 @@ import { asJson, asText, IRequestService } from '../../request/common/request.js
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { isObject, isString } from '../../../base/common/types.js';
 
 interface IMcpRegistryInfo {
@@ -446,7 +446,6 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 namespace McpServerSchemaVersion_v0_1 {
 
 	export const VERSION = 'v0.1';
-	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json`;
 
 	interface RawGalleryMcpServerInput {
 		readonly choices?: readonly string[];
@@ -596,10 +595,6 @@ namespace McpServerSchemaVersion_v0_1 {
 				|| (!from.server.description || !isString(from.server.description))
 				|| (!from.server.version || !isString(from.server.version))
 			) {
-				return undefined;
-			}
-
-			if (from.server.$schema && from.server.$schema !== McpServerSchemaVersion_v0_1.SCHEMA) {
 				return undefined;
 			}
 
@@ -821,6 +816,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: readmeUrl,
+			callSite: 'mcpGalleryService.getReadme'
 		}, token);
 
 		const result = await asText(context);
@@ -944,7 +940,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
-		let url = `${mcpGalleryUrl}?limit=${query.pageSize}`;
+		let url = `${mcpGalleryUrl}?limit=${query.pageSize}&version=latest`;
 		if (query.cursor) {
 			url += `&cursor=${query.cursor}`;
 		}
@@ -953,10 +949,20 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url += `&search=${text}`;
 		}
 
-		const context = await this.requestService.request({
-			type: 'GET',
-			url,
-		}, token);
+		let context;
+		try {
+			context = await this.requestService.request({
+				type: 'GET',
+				url,
+				callSite: 'mcpGalleryService.queryMcpServers'
+			}, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this.logService.error(`Failed to query MCP gallery: ${error}`);
+			return { servers: [], metadata: { count: 0 } };
+		}
 
 		const data = await asJson(context);
 
@@ -977,6 +983,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: mcpServerUrl,
+			callSite: 'mcpGalleryService.getMcpServer'
 		}, CancellationToken.None);
 
 		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {

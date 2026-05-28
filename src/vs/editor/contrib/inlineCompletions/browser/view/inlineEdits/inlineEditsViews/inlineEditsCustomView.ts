@@ -2,13 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow, n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { n } from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableValue } from '../../../../../../../base/common/observable.js';
-import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -20,8 +17,9 @@ import { InlineCompletionHintStyle } from '../../../../../../common/languages.js
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineSuggestHint } from '../../../model/inlineSuggestionItem.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground } from '../theme.js';
 import { getContentRenderWidth, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
 
 const MIN_END_OF_LINE_PADDING = 14;
@@ -33,7 +31,7 @@ const VERTICAL_OFFSET_WHEN_ABOVE_BELOW = 2;
 
 export class InlineEditsCustomView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _isHovered = observableValue(this, false);
@@ -48,6 +46,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		private readonly _editor: ICodeEditor,
 		displayLocation: IObservable<InlineSuggestHint | undefined>,
 		tabAction: IObservable<InlineEditTabAction>,
+		editorType: IObservable<InlineCompletionEditorType>,
 		@IThemeService themeService: IThemeService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -60,11 +59,11 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			switch (v) {
 				case InlineEditTabAction.Inactive: border = inlineEditIndicatorSecondaryBackground; break;
 				case InlineEditTabAction.Jump: border = inlineEditIndicatorPrimaryBackground; break;
-				case InlineEditTabAction.Accept: border = inlineEditIndicatorsuccessfulBackground; break;
+				case InlineEditTabAction.Accept: border = inlineEditIndicatorSuccessfulBackground; break;
 			}
 			return {
 				border: getEditorBlendedColor(border, themeService).read(reader).toString(),
-				background: asCssVariable(editorBackground)
+				background: getEditorBackgroundColor(editorType.read(reader))
 			};
 		});
 
@@ -249,7 +248,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				boxSizing: 'border-box',
 				cursor: 'pointer',
 				border: styles.map(s => `1px solid ${s.border}`),
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				backgroundColor: styles.map(s => s.background),
 
 				display: 'flex',
@@ -260,7 +259,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			onmousedown: e => {
 				e.preventDefault(); // This prevents that the editor loses focus
 			},
-			onclick: (e) => { this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)); }
+			onclick: (e) => { this._onDidClick.fire(InlineEditClickEvent.create(e)); }
 		}, [
 			line
 		]);

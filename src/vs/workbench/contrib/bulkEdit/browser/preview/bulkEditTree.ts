@@ -668,7 +668,9 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 		template.set(element);
 	}
 
-	disposeTemplate(_template: TextEditElementTemplate): void { }
+	disposeTemplate(template: TextEditElementTemplate): void {
+		template.dispose();
+	}
 }
 
 export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {

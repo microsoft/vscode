@@ -16,18 +16,15 @@
 .codicon-sync.codicon-modifier-spin,
 .codicon-loading.codicon-modifier-spin,
 .codicon-gear.codicon-modifier-spin,
-.codicon-notebook-state-executing.codicon-modifier-spin {
+.codicon-notebook-state-executing.codicon-modifier-spin,
+.codicon-loading,
+.codicon-tree-item-loading::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.5s steps(30) infinite;
+	/* Ensure rotation happens around exact center to prevent wobble */
+	transform-origin: center center;
 }
 
 .codicon-modifier-disabled {
 	opacity: 0.4;
-}
-
-/* custom speed & easing for loading icon */
-.codicon-loading,
-.codicon-tree-item-loading::before {
-	animation-duration: 1s !important;
-	animation-timing-function: cubic-bezier(0.53, 0.21, 0.29, 0.67) !important;
 }

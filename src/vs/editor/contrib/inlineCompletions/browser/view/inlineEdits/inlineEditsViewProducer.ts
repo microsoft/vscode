@@ -10,9 +10,7 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Range } from '../../../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../../../common/core/edits/textEdit.js';
-import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { ModelPerInlineEdit } from './inlineEditsModel.js';
 import { InlineEditsView } from './inlineEditsView.js';
@@ -25,26 +23,39 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 	private readonly _inlineEdit = derived<InlineEditWithChanges | undefined>(this, (reader) => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
-		const inlineEdit = this._edit.read(reader);
-		if (!inlineEdit) { return undefined; }
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.read(undefined)?.inlineSuggestion.updatedEdit;
-		if (!editOffset) { return undefined; }
+		const state = model.inlineEditState.read(reader);
+		if (!state) { return undefined; }
+		const action = state.inlineSuggestion.action;
 
-		const edits = editOffset.replacements.map(e => {
-			const innerEditRange = Range.fromPositions(
-				textModel.getPositionAt(e.replaceRange.start),
-				textModel.getPositionAt(e.replaceRange.endExclusive)
-			);
-			return new TextReplacement(innerEditRange, e.newText);
-		});
+		let diffEdits: TextEdit | undefined;
 
-		const diffEdits = new TextEdit(edits);
-		const text = new TextModelText(textModel);
+		if (action?.kind === 'edit') {
+			const editOffset = action.stringEdit;
+			const t = state.inlineSuggestion.originalTextRef.getTransformer();
+			const edits = editOffset.replacements.map(e => {
+				const innerEditRange = Range.fromPositions(
+					t.getPosition(e.replaceRange.start),
+					t.getPosition(e.replaceRange.endExclusive)
+				);
+				return new TextReplacement(innerEditRange, e.newText);
+			});
+			diffEdits = new TextEdit(edits);
+		} else {
+			diffEdits = undefined;
+		}
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), model.allPositions.read(undefined), inlineEdit.commands, inlineEdit.inlineSuggestion);
+		return new InlineEditWithChanges(
+			state.inlineSuggestion.originalTextRef,
+			action,
+			diffEdits,
+			model.primaryPosition.read(undefined),
+			model.allPositions.read(undefined),
+			state.inlineSuggestion.source.inlineSuggestions.commands ?? [],
+			state.inlineSuggestion
+		);
 	});
 
 	public readonly _inlineEditModel = derived<ModelPerInlineEdit | undefined>(this, reader => {
@@ -69,7 +80,6 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _edit: IObservable<InlineEdit | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		private readonly _showCollapsed: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,

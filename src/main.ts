@@ -342,7 +342,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
-	const jsFlags = getJSFlags(cliArgs);
+	const jsFlags = getJSFlags(cliArgs, argvConfig);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
@@ -351,6 +351,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// to address https://github.com/microsoft/vscode/issues/213780
 	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
 	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
+
+	// Increase the maximum number of active WebGL contexts as each terminal may
+	// use up to 2
+	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
 	return argvConfig;
 }
@@ -370,6 +374,7 @@ interface IArgvConfig {
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
+	readonly 'js-flags'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
@@ -533,7 +538,7 @@ function configureCrashReporter(): void {
 	});
 }
 
-function getJSFlags(cliArgs: NativeParsedArgs): string | null {
+function getJSFlags(cliArgs: NativeParsedArgs, argvConfig: IArgvConfig): string | null {
 	const jsFlags: string[] = [];
 
 	// Add any existing JS flags we already got from the command line
@@ -541,16 +546,9 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	if (process.platform === 'linux') {
-		// Fix cppgc crash on Linux with 16KB page size.
-		// Refs https://issues.chromium.org/issues/378017037
-		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
-		// only affects non-renderer process.
-		// The following will ensure that the flag will be
-		// applied to the renderer process as well.
-		// TODO(deepak1556): Remove this once we update to
-		// Chromium >= 134.
-		jsFlags.push('--nodecommit_pooled_pages');
+	// Add JS flags from runtime arguments (argv.json)
+	if (typeof argvConfig['js-flags'] === 'string' && argvConfig['js-flags']) {
+		jsFlags.push(argvConfig['js-flags']);
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;

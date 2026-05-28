@@ -15,7 +15,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtUri } from '../../../../base/common/resources.js';
-import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 
 /**
@@ -27,7 +27,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 	private readonly groupListener = this._register(new MutableDisposable());
 
-	private editorViewStateDisposables: Map<EditorInput, IDisposable> | undefined;
+	private editorViewStateDisposables: DisposableMap<EditorInput, IDisposable> | undefined;
 
 	constructor(
 		id: string,
@@ -95,13 +95,13 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		// is disposed.
 		if (!this.tracksDisposedEditorViewState()) {
 			if (!this.editorViewStateDisposables) {
-				this.editorViewStateDisposables = new Map<EditorInput, IDisposable>();
+				this.editorViewStateDisposables = this._register(new DisposableMap<EditorInput, IDisposable>());
 			}
 
 			if (!this.editorViewStateDisposables.has(input)) {
 				this.editorViewStateDisposables.set(input, Event.once(input.onWillDispose)(() => {
 					this.clearEditorViewState(resource, this.group);
-					this.editorViewStateDisposables?.delete(input);
+					this.editorViewStateDisposables?.deleteAndDispose(input);
 				}));
 			}
 		}
@@ -114,6 +114,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 			(!this.shouldRestoreEditorViewState(input) && !this.group.contains(input))
 		) {
 			this.clearEditorViewState(resource, this.group);
+			this.editorViewStateDisposables?.deleteAndDispose(input);
 		}
 
 		// Otherwise we save the view state
@@ -183,18 +184,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 	protected clearEditorViewState(resource: URI, group?: IEditorGroup): void {
 		this.viewState.clearEditorState(resource, group);
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (this.editorViewStateDisposables) {
-			for (const [, disposables] of this.editorViewStateDisposables) {
-				disposables.dispose();
-			}
-
-			this.editorViewStateDisposables = undefined;
-		}
 	}
 
 	//#region Subclasses should/could override based on needs

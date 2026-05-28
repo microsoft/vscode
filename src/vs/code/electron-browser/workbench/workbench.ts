@@ -24,7 +24,11 @@
 
 	function showSplash(configuration: INativeWindowConfiguration) {
 		performance.mark('code/willShowPartsSplash');
+		showDefaultSplash(configuration);
+		performance.mark('code/didShowPartsSplash');
+	}
 
+	function showDefaultSplash(configuration: INativeWindowConfiguration) {
 		let data = configuration.partsSplash;
 		if (data) {
 			if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
@@ -265,8 +269,6 @@
 
 			window.document.body.appendChild(splash);
 		}
-
-		performance.mark('code/didShowPartsSplash');
 	}
 
 	//#endregion

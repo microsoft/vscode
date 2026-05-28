@@ -12,24 +12,40 @@ import * as PConst from '../../tsServer/protocol/protocol.const';
 import { ExecutionTarget } from '../../tsServer/server';
 import * as typeConverters from '../../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../util/dependentRegistration';
+import { ResourceUnifiedConfigValue } from '../../utils/configuration';
+import { conditionalRegistration, requireHasModifiedUnifiedConfig, requireSomeCapability } from '../util/dependentRegistration';
 import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
 
+const Config = Object.freeze({
+	enabled: 'referencesCodeLens.enabled',
+	showOnAllFunctions: 'referencesCodeLens.showOnAllFunctions',
+});
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+
+	private readonly _enabled: ResourceUnifiedConfigValue<boolean>;
+	private readonly _showOnAllFunctions: ResourceUnifiedConfigValue<boolean>;
+
 	public constructor(
 		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
-		private readonly language: LanguageDescription
 	) {
 		super(client, _cachedResponse);
-		this._register(
-			vscode.workspace.onDidChangeConfiguration(evt => {
-				if (evt.affectsConfiguration(`${language.id}.referencesCodeLens.showOnAllFunctions`)) {
-					this.changeEmitter.fire();
-				}
-			})
-		);
+
+		this._enabled = this._register(new ResourceUnifiedConfigValue<boolean>(Config.enabled, false));
+		this._register(this._enabled.onDidChange(() => this.changeEmitter.fire()));
+
+		this._showOnAllFunctions = this._register(new ResourceUnifiedConfigValue<boolean>(Config.showOnAllFunctions, false));
+		this._register(this._showOnAllFunctions.onDidChange(() => this.changeEmitter.fire()));
+	}
+
+	override async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {
+		const enabled = this._enabled.getValue(document);
+		if (!enabled) {
+			return [];
+		}
+
+		return super.provideCodeLenses(document, token);
 	}
 
 	public async resolveCodeLens(codeLens: ReferencesCodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
@@ -76,7 +92,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 
 		switch (item.kind) {
 			case PConst.Kind.function: {
-				const showOnAllFunctions = vscode.workspace.getConfiguration(this.language.id).get<boolean>('referencesCodeLens.showOnAllFunctions');
+				const showOnAllFunctions = this._showOnAllFunctions.getValue(document);
 				if (showOnAllFunctions && item.nameSpan) {
 					return getSymbolRange(document, item);
 				}
@@ -137,10 +153,10 @@ export function register(
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireGlobalConfiguration(language.id, 'referencesCodeLens.enabled'),
+		requireHasModifiedUnifiedConfig(Config.enabled, language.id),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, language));
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
 	});
 }

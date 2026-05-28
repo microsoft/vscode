@@ -19,6 +19,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_CHECKS
+    type: boolean
+    default: false
 
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}
@@ -26,9 +29,17 @@ jobs:
     timeoutInMinutes: 90
     variables:
       DISPLAY: ":10"
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
+      sdl:
+        binskim:
+          ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+            analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node'
+          ${{ else }}:
+            analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
+          preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
         - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
@@ -44,7 +55,7 @@ jobs:
             artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: Publish Node Modules
             sbomEnabled: false
-            isProduction: false
+            isProduction: true
             condition: failed()
           - output: pipelineArtifact
             targetPath: $(Build.SourcesDirectory)/.build/logs
@@ -60,20 +71,21 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-          artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-          artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-          displayName: Publish web server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+            artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+            displayName: Publish server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+            artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            displayName: Publish web server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
+            sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
@@ -106,3 +118,4 @@ jobs:
           VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+          VSCODE_RUN_CHECKS: ${{ parameters.VSCODE_RUN_CHECKS }}

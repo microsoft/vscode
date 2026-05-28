@@ -196,6 +196,40 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
+	test('rcut', () => {
+		assert.strictEqual(strings.rcut('foo bar', 0), '');
+		assert.strictEqual(strings.rcut('foo bar', 1), '');
+		assert.strictEqual(strings.rcut('foo bar', 3), 'foo');
+		assert.strictEqual(strings.rcut('foo bar', 4), 'foo'); // Trailing whitespace trimmed
+		assert.strictEqual(strings.rcut('foo bar', 5), 'foo');
+		assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
+		assert.strictEqual(strings.rcut('foo bar', 10), 'foo bar');
+		assert.strictEqual(strings.rcut('test string 0.1.2.3', 6), 'test');
+
+		assert.strictEqual(strings.rcut('foo bar', 0, '…'), '…');
+		assert.strictEqual(strings.rcut('foo bar', 1, '…'), '…');
+		assert.strictEqual(strings.rcut('foo bar', 3, '…'), 'foo…');
+		assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…'); // Trailing whitespace trimmed
+		assert.strictEqual(strings.rcut('foo bar', 5, '…'), 'foo…');
+		assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
+		assert.strictEqual(strings.rcut('foo bar', 10, '…'), 'foo bar');
+		assert.strictEqual(strings.rcut('test string 0.1.2.3', 6, '…'), 'test…');
+
+		assert.strictEqual(strings.rcut('', 10), '');
+		assert.strictEqual(strings.rcut('a', 10), 'a');
+		assert.strictEqual(strings.rcut('a ', 10), 'a');
+		assert.strictEqual(strings.rcut('a            ', 10), 'a');
+		assert.strictEqual(strings.rcut('a       bbbb ', 10), 'a       bbbb');
+		assert.strictEqual(strings.rcut('a............', 10), 'a............');
+
+		assert.strictEqual(strings.rcut('', 10, '…'), '');
+		assert.strictEqual(strings.rcut('a', 10, '…'), 'a');
+		assert.strictEqual(strings.rcut('a ', 10, '…'), 'a');
+		assert.strictEqual(strings.rcut('a            ', 10, '…'), 'a');
+		assert.strictEqual(strings.rcut('a       bbbb ', 10, '…'), 'a       bbbb');
+		assert.strictEqual(strings.rcut('a............', 10, '…'), 'a............');
+	});
+
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');
@@ -283,6 +317,24 @@ suite('Strings', () => {
 	test('issue #115221: isEmojiImprecise misses ⭐', () => {
 		const codePoint = strings.getNextCodePoint('⭐', '⭐'.length, 0);
 		assert.strictEqual(strings.isEmojiImprecise(codePoint), true);
+	});
+
+	test('isFullWidthCharacter', () => {
+		// Fullwidth ASCII (FF01-FF5E)
+		assert.strictEqual(strings.isFullWidthCharacter('Ａ'.charCodeAt(0)), true, 'Ａ U+FF21 fullwidth A');
+		assert.strictEqual(strings.isFullWidthCharacter('？'.charCodeAt(0)), true, '？ U+FF1F fullwidth question mark');
+		assert.strictEqual(strings.isFullWidthCharacter('＃'.charCodeAt(0)), true, '＃ U+FF03 fullwidth number sign');
+		assert.strictEqual(strings.isFullWidthCharacter('＝'.charCodeAt(0)), true, '＝ U+FF1D fullwidth equals sign');
+
+		// Hiragana (3040-309F)
+		assert.strictEqual(strings.isFullWidthCharacter('あ'.charCodeAt(0)), true, 'あ U+3042 hiragana');
+
+		// Fullwidth symbols (FFE0-FFE6)
+		assert.strictEqual(strings.isFullWidthCharacter('￥'.charCodeAt(0)), true, '￥ U+FFE5 fullwidth yen sign');
+
+		// Regular ASCII should not be full width
+		assert.strictEqual(strings.isFullWidthCharacter('A'.charCodeAt(0)), false, 'A regular ASCII');
+		assert.strictEqual(strings.isFullWidthCharacter('?'.charCodeAt(0)), false, '? regular ASCII');
 	});
 
 	test('isBasicASCII', () => {

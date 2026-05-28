@@ -301,9 +301,11 @@ export class GitHubServer implements IGitHubServer {
 						? 'faculty'
 						: 'none';
 			} else {
+				this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
 				edu = 'unknown';
 			}
 		} catch (e) {
+			this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
 			edu = 'unknown';
 		}
 

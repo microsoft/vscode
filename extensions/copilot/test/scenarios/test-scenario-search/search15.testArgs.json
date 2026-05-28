@@ -1,0 +1,10 @@
+{
+	"question": "python function",
+	"isRegex": true,
+	"exampleIncludeGlobs": [ "*.py" ],
+	"queryShouldFind": [
+		[ "test.py", [
+				"def printFibb"
+			] ]
+	]
+}

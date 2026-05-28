@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h, reset } from '../../../../../base/browser/dom.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget } from '../../codeEditor/codeEditorWidget.js';
 import { LineRange } from '../../../../common/core/ranges/lineRange.js';
@@ -37,7 +37,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		this.editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
 		this.editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
 		this.domNodeSizeChanged = observableSignal('domNodeSizeChanged');
-		this.views = new Map<string, ManagedGutterItemView>();
+		this.views = this._register(new DisposableMap<string, ManagedGutterItemView>());
 		this._domNode.className = 'gutter monaco-editor';
 		const scrollDecoration = this._domNode.appendChild(
 			h('div.scroll-decoration', { role: 'presentation', ariaHidden: 'true', style: { width: '100%' } })
@@ -143,20 +143,22 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		}
 
 		for (const id of unusedIds) {
-			const view = this.views.get(id)!;
-			view.gutterItemView.dispose();
-			view.domNode.remove();
-			this.views.delete(id);
+			this.views.deleteAndDispose(id);
 		}
 	}
 }
 
-class ManagedGutterItemView {
+class ManagedGutterItemView implements IDisposable {
 	constructor(
 		public readonly item: ISettableObservable<IGutterItemInfo>,
 		public readonly gutterItemView: IGutterItemView,
 		public readonly domNode: HTMLDivElement,
 	) { }
+
+	dispose(): void {
+		this.gutterItemView.dispose();
+		this.domNode.remove();
+	}
 }
 
 export interface IGutterItemProvider<TItem extends IGutterItemInfo> {

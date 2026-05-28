@@ -52,9 +52,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { IQuickChatService } from '../../chat/browser/chat.js';
+import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 
@@ -136,9 +137,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILogService private readonly logService: ILogService,
-		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -210,10 +213,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
 			openSideBySideDirection: editorConfig?.openSideBySideDirection,
-			includeSymbols: searchConfig?.quickOpen.includeSymbols,
-			includeHistory: searchConfig?.quickOpen.includeHistory,
-			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			preserveInput: quickAccessConfig.preserveInput
+			includeSymbols: searchConfig?.quickOpen?.includeSymbols,
+			includeHistory: searchConfig?.quickOpen?.includeHistory ?? true,
+			historyFilterSortOrder: searchConfig?.quickOpen?.history?.filterSortOrder,
+			preserveInput: quickAccessConfig?.preserveInput
 		};
 	}
 
@@ -425,7 +428,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, this.configuration.includeSymbols, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, Boolean(this.configuration?.includeSymbols), token);
 				if (options.filter) {
 					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
 				}
@@ -827,7 +830,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		type IHelpAnythingQuickPickItem = IAnythingQuickPickItem & { commandCenterOrder: number };
-		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders()
+		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders(this.contextKeyService)
 			.filter(p => p.helpEntries.some(h => h.commandCenterOrder !== undefined))
 			.flatMap(provider => provider.helpEntries
 				.filter(h => h.commandCenterOrder !== undefined)
@@ -1060,6 +1063,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
+			iconPath: URI.isUri(icon) ? { dark: icon } : undefined,
 			get iconClasses() { return iconClassesValue.value; },
 			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
@@ -1082,7 +1086,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				return TriggerAction.NO_ACTION;
 			},
-			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground })
+			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
+			attach: (keyMods, event) => {
+				// Only support adding context to chat when shift is pressed
+				if (keyMods.shift) {
+					const widget = this.chatWidgetService.lastFocusedWidget;
+					if (widget && resource) {
+						widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));
+					}
+					return;
+				}
+
+				// Fallback to accept behavior.
+				this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground });
+			}
 		};
 	}
 

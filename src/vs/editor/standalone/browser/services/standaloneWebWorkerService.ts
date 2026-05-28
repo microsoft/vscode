@@ -22,6 +22,12 @@ export class StandaloneWebWorkerService extends WebWorkerService {
 		return super._createWorker(descriptor);
 	}
 
+	protected override _getWorkerLoadingFailedErrorMessage(descriptor: WebWorkerDescriptor): string | undefined {
+		const examplePath = '\'...?esm\''; // Broken up to avoid detection by bundler plugin
+		return `Failed to load worker script for label: ${descriptor.label}.
+Ensure your bundler properly bundles modules referenced by "new URL(${examplePath}, import.meta.url)".`;
+	}
+
 	override getWorkerUrl(descriptor: WebWorkerDescriptor): string {
 		const monacoEnvironment = getMonacoEnvironment();
 		if (monacoEnvironment) {

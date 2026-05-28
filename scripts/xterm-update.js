@@ -23,8 +23,8 @@ const backendOnlyModuleNames = [
 ];
 
 const vscodeDir = process.argv.length >= 3 ? process.argv[2] : process.cwd();
-if (path.basename(vscodeDir) !== 'vscode') {
-	console.error('The cwd is not named "vscode"');
+if (!path.basename(vscodeDir).match(/.*vscode.*/)) {
+	console.error('The cwd is not "vscode" root');
 	return;
 }
 

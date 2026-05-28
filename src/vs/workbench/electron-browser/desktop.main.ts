@@ -61,8 +61,9 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-bro
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
-import { DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
-import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
+import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
+import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
 
 export class DesktopMain extends Disposable {
@@ -153,12 +154,8 @@ export class DesktopMain extends Disposable {
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh) {
-			if (isTahoeOrNewer(this.configuration.os.release)) {
-				return ['macos-rounded-tahoe'];
-			} else {
-				return ['macos-rounded-default'];
-			}
+		if (isMacintosh && isTahoeOrNewer(this.configuration.os.release)) {
+			return ['macos-tahoe'];
 		}
 
 		return [];
@@ -213,19 +210,20 @@ export class DesktopMain extends Disposable {
 		}
 
 		// Default Account
-		const defaultAccountService = this._register(new DefaultAccountService());
+		const defaultAccountService = this._register(new DefaultAccountService(productService));
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
 		let policyService: IPolicyService;
-		const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
-		if (this.configuration.policiesData) {
-			const policyChannel = new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'));
-			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
+		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
+		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel));
+		if (policyChannel) {
+			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {
 			policyService = accountPolicy;
 		}
 		serviceCollection.set(IPolicyService, policyService);
+		serviceCollection.set(IAccountPolicyGateService, accountPolicy);
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);

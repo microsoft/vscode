@@ -679,7 +679,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				cellIndex = edit.index;
 			} else if (hasKey(edit, { handle: true })) {
 				cellIndex = this._getCellIndexByHandle(edit.handle);
-				this._assertIndex(cellIndex);
+				this._assertIndex(cellIndex, `editType: ${edit.editType}, key: handle`);
 			} else if (hasKey(edit, { outputId: true })) {
 				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
 				if (this._indexIsInvalid(cellIndex)) {
@@ -714,7 +714,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				}
 
 				if (b.end === undefined) {
-					return -1;
+					return 1;
 				}
 
 				return b.end - a.end || b.originalIndex - a.originalIndex;
@@ -1298,9 +1298,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return true;
 	}
 
-	private _assertIndex(index: number) {
+	private _assertIndex(index: number, context?: string) {
 		if (this._indexIsInvalid(index)) {
-			throw new Error(`model index out of range ${index}`);
+			throw new Error(`model index out of range ${index} (cellCount: ${this._cells.length}${context ? `, ${context}` : ''})`);
 		}
 	}
 

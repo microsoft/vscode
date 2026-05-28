@@ -7,7 +7,7 @@ import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRequestOptions } from '../../../base/parts/request/common/request.js';
-import { IRequestService } from '../../request/common/request.js';
+import { IRequestService, NO_FETCH_TELEMETRY } from '../../request/common/request.js';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
 type OnCompleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
@@ -81,7 +81,8 @@ async function sendPostAsync(requestService: IRequestService | undefined, payloa
 			'Content-Length': Buffer.byteLength(payload.data).toString()
 		},
 		url: payload.urlString,
-		data: telemetryRequestData
+		data: telemetryRequestData,
+		callSite: NO_FETCH_TELEMETRY
 	};
 
 	try {

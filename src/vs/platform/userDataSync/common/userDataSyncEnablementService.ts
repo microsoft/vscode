@@ -16,10 +16,10 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 
 	_serviceBrand: undefined;
 
-	private _onDidChangeEnablement = new Emitter<boolean>();
+	private _onDidChangeEnablement = this._register(new Emitter<boolean>());
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
 
-	private _onDidChangeResourceEnablement = new Emitter<[SyncResource, boolean]>();
+	private _onDidChangeResourceEnablement = this._register(new Emitter<[SyncResource, boolean]>());
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]> = this._onDidChangeResourceEnablement.event;
 
 	constructor(

@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -33,12 +33,12 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ExtensionType } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../../platform/environment/common/environment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
@@ -58,6 +58,7 @@ import { UserDataProfileService } from '../../../../services/userDataProfile/com
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -82,7 +83,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(IProductService, {});
+		instantiationService.stub(IProductService, TestProductService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, NativeURLService);
@@ -137,6 +138,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [],
+			canAddExtension(extension: any) { return false; },
+			canRemoveExtension(extension: any) { return false; },
 			async whenInstalledExtensionsRegistered() { return true; }
 		});
 
@@ -147,6 +150,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
+		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
 	});
 
 	test('test gallery extension', async () => {
@@ -907,6 +911,74 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => assert.fail('An extension with dependent should not be disabled'), () => null);
 			});
+	});
+
+	test('test reload prompt when disabling running extension', async () => {
+		const localExtension = aLocalExtension('my_extension', {}, { identifier: { id: 'my_publisher.my_extension' } });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
+
+		// Mock a running extension (not under development)
+		const runningExtension = {
+			identifier: new ExtensionIdentifier('my_publisher.my_extension'),
+			name: 'my_extension',
+			publisher: 'my_publisher',
+			version: '1.0.0',
+			engines: { vscode: '*' },
+			extensionLocation: localExtension.location,
+			isBuiltin: false,
+			isUserBuiltin: false,
+			isUnderDevelopment: false,
+			targetPlatform: getTargetPlatform(platform, arch),
+			preRelease: false
+		};
+		instantiationService.stub(IExtensionService, {
+			onDidChangeExtensions: Event.None,
+			extensions: [runningExtension],
+			canAddExtension() { return false; },
+			canRemoveExtension() { return false; },
+			async whenInstalledExtensionsRegistered() { return true; }
+		});
+
+		testObject = await aWorkbenchService();
+		const extension = testObject.local[0];
+
+		// Extension should require reload action when disabling
+		await testObject.setEnablement(extension, EnablementState.DisabledGlobally);
+		assert.strictEqual(extension.runtimeState?.action, ExtensionRuntimeActionType.RestartExtensions);
+	});
+
+	test('test no reload prompt when disabling extension under development', async () => {
+		const localExtension = aLocalExtension('my_extension', {}, { identifier: { id: 'my_publisher.my_extension' } });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
+
+		// Mock a running extension under development
+		const runningExtension = {
+			identifier: new ExtensionIdentifier('my_publisher.my_extension'),
+			name: 'my_extension',
+			publisher: 'my_publisher',
+			version: '1.0.0',
+			engines: { vscode: '*' },
+			extensionLocation: localExtension.location,
+			isBuiltin: false,
+			isUserBuiltin: false,
+			isUnderDevelopment: true,
+			targetPlatform: getTargetPlatform(platform, arch),
+			preRelease: false
+		};
+		instantiationService.stub(IExtensionService, {
+			onDidChangeExtensions: Event.None,
+			extensions: [runningExtension],
+			canAddExtension() { return false; },
+			canRemoveExtension() { return false; },
+			async whenInstalledExtensionsRegistered() { return true; }
+		});
+
+		testObject = await aWorkbenchService();
+		const extension = testObject.local[0];
+
+		// Extension should have no reload action required when disabling
+		await testObject.setEnablement(extension, EnablementState.DisabledGlobally);
+		assert.strictEqual(extension.runtimeState, undefined);
 	});
 
 	test('test enable extension with dependencies enable all', async () => {

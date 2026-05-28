@@ -20,7 +20,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IOverlayWebview, IWebviewService, WebviewInitInfo } from '../../webview/browser/webview.js';
 import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from './webviewEditor.js';
-import { WebviewIcons, WebviewInput, WebviewInputInitInfo } from './webviewEditorInput.js';
+import { WebviewIconPath, WebviewInput, WebviewInputInitInfo } from './webviewEditorInput.js';
 
 export interface IWebViewShowOptions {
 	readonly group?: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
@@ -49,7 +49,7 @@ export interface IWebviewWorkbenchService {
 		webviewInitInfo: WebviewInitInfo,
 		viewType: string,
 		title: string,
-		iconPath: WebviewIcons | undefined,
+		iconPath: WebviewIconPath | undefined,
 		showOptions: IWebViewShowOptions,
 	): WebviewInput;
 
@@ -60,7 +60,7 @@ export interface IWebviewWorkbenchService {
 		webviewInitInfo: WebviewInitInfo;
 		viewType: string;
 		title: string;
-		iconPath: WebviewIcons | undefined;
+		iconPath: WebviewIconPath | undefined;
 		state: any;
 		group: number | undefined;
 	}): WebviewInput;
@@ -275,7 +275,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		webviewInitInfo: WebviewInitInfo,
 		viewType: string,
 		title: string,
-		iconPath: WebviewIcons | undefined,
+		iconPath: WebviewIconPath | undefined,
 		showOptions: IWebViewShowOptions,
 	): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(webviewInitInfo);
@@ -323,7 +323,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		webviewInitInfo: WebviewInitInfo;
 		viewType: string;
 		title: string;
-		iconPath: WebviewIcons | undefined;
+		iconPath: WebviewIconPath | undefined;
 		state: any;
 		group: number | undefined;
 	}): WebviewInput {

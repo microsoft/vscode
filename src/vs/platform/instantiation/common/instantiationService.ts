@@ -101,15 +101,8 @@ export class InstantiationService implements IInstantiationService {
 
 					const result = this._getOrCreateServiceInstance(id, _trace);
 					if (!result) {
-						throw new Error(`[invokeFunction] unknown service '${id}'`);
+						this._throwIfStrict(`[invokeFunction] unknown service '${id}'`, false);
 					}
-					return result;
-				},
-				getIfExists: <T>(id: ServiceIdentifier<T>) => {
-					if (_done) {
-						throw illegalState('service accessor is only valid during the invocation of its target method');
-					}
-					const result = this._getOrCreateServiceInstance(id, _trace);
 					return result;
 				}
 			};

@@ -18,7 +18,7 @@ import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from '../common/terminalProcess.js';
-import { getWindowsBuildNumber } from './terminalEnvironment.js';
+import { sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { TerminalProcess } from './terminalProcess.js';
 import { localize } from '../../../nls.js';
 import { ignoreProcessNames } from './childProcessMonitor.js';
@@ -33,9 +33,28 @@ import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
 import { hasKey, isFunction, isNumber, isString } from '../../../base/common/types.js';
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
+
+/**
+ * Sanitizes arguments for logging, specifically handling env objects in createProcess calls.
+ */
+function sanitizeArgsForLogging(fnName: string, args: unknown[]): unknown[] {
+	// createProcess signature: shellLaunchConfig, cwd, cols, rows, unicodeVersion, env (index 5), executableEnv (index 6), ...
+	if (fnName === 'createProcess' && args.length > 5) {
+		const sanitizedArgs = [...args];
+		if (args[5] && typeof args[5] === 'object') {
+			sanitizedArgs[5] = sanitizeEnvForLogging(args[5] as IProcessEnvironment);
+		}
+		if (args[6] && typeof args[6] === 'object') {
+			sanitizedArgs[6] = sanitizeEnvForLogging(args[6] as IProcessEnvironment);
+		}
+		return sanitizedArgs;
+	}
+	return args;
+}
 
 interface ITraceRpcArgs {
 	logService: ILogService;
@@ -50,7 +69,8 @@ export function traceRpc(_target: Object, key: string, descriptor: PropertyDescr
 	const fn = descriptor.value;
 	descriptor[fnKey] = async function <TThis extends { traceRpcArgs: ITraceRpcArgs }>(this: TThis, ...args: unknown[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+			const sanitizedArgs = sanitizeArgsForLogging(fn.name, args);
+			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${sanitizedArgs.map(e => JSON.stringify(e)).join(', ')})`);
 		}
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
@@ -151,7 +171,7 @@ export class PtyService extends Disposable implements IPtyService {
 		}));
 
 		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
-		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
+		this._register(this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach));
 
 		this._autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
 
@@ -436,13 +456,13 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).writeBinary(data);
 	}
 	@traceRpc
-	async resize(id: number, cols: number, rows: number): Promise<void> {
+	async resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void> {
 		const pty = this._throwIfNoPty(id);
 		if (pty) {
 			for (const contrib of this._contributions) {
-				contrib.handleProcessResize(id, cols, rows);
+				contrib.handleProcessResize(id, cols, rows, pixelWidth, pixelHeight);
 			}
-			pty.resize(cols, rows);
+			pty.resize(cols, rows, pixelWidth, pixelHeight);
 		}
 	}
 	@traceRpc
@@ -491,10 +511,10 @@ export class PtyService extends Disposable implements IPtyService {
 			if (!isWindows) {
 				return original;
 			}
-			if (getWindowsBuildNumber() < 17063) {
+			if (await getWindowsBuildNumberAsync() < 17063) {
 				return original.replace(/\\/g, '/');
 			}
-			const wslExecutable = this._getWSLExecutablePath();
+			const wslExecutable = await this._getWSLExecutablePath();
 			if (!wslExecutable) {
 				return original;
 			}
@@ -509,10 +529,10 @@ export class PtyService extends Disposable implements IPtyService {
 			// The backend is Windows, for example a local Windows workspace with a wsl session in
 			// the terminal.
 			if (isWindows) {
-				if (getWindowsBuildNumber() < 17063) {
+				if (await getWindowsBuildNumberAsync() < 17063) {
 					return original;
 				}
-				const wslExecutable = this._getWSLExecutablePath();
+				const wslExecutable = await this._getWSLExecutablePath();
 				if (!wslExecutable) {
 					return original;
 				}
@@ -528,8 +548,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return original;
 	}
 
-	private _getWSLExecutablePath(): string | undefined {
-		const useWSLexe = getWindowsBuildNumber() >= 16299;
+	private async _getWSLExecutablePath(): Promise<string | undefined> {
+		const useWSLexe = await getWindowsBuildNumberAsync() >= 16299;
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		const systemRoot = process.env['SystemRoot'];
 		if (systemRoot) {
@@ -883,7 +903,7 @@ class PersistentTerminalProcess extends Disposable {
 	writeBinary(data: string): Promise<void> {
 		return this._terminalProcess.processBinary(data);
 	}
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._inReplay) {
 			return;
 		}
@@ -892,7 +912,7 @@ class PersistentTerminalProcess extends Disposable {
 		// Buffered events should flush when a resize occurs
 		this._bufferer.flushBuffer(this._persistentProcessId);
 
-		return this._terminalProcess.resize(cols, rows);
+		return this._terminalProcess.resize(cols, rows, pixelWidth, pixelHeight);
 	}
 	async clearBuffer(): Promise<void> {
 		this._serializer.clearBuffer();

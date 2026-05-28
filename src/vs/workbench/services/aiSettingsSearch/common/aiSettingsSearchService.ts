@@ -38,7 +38,7 @@ export class AiSettingsSearchService extends Disposable implements IAiSettingsSe
 		};
 	}
 
-	startSearch(query: string, embeddingsOnly: boolean, token: CancellationToken): void {
+	startSearch(query: string, token: CancellationToken): void {
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
 		}
@@ -46,7 +46,7 @@ export class AiSettingsSearchService extends Disposable implements IAiSettingsSe
 		this._embeddingsResultsPromises.delete(query);
 		this._llmRankedResultsPromises.delete(query);
 
-		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS, embeddingsOnly }, token));
+		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS, embeddingsOnly: false }, token));
 	}
 
 	async getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null> {

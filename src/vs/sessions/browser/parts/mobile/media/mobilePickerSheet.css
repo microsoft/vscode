@@ -1,0 +1,405 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Mobile bottom-sheet picker for the agents workbench.
+ *
+ * Replaces desktop action-widget popups (workspace picker, session-type
+ * picker, etc.) with a phone-native bottom sheet: docked at the
+ * viewport's bottom edge, drag handle, header with title + Done button,
+ * optional caption, and a scrollable list of rows where each row carries
+ * an icon, primary label, optional description, and a trailing
+ * checkmark for the currently-selected entry. */
+
+.mobile-picker-sheet-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 2000;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	pointer-events: none;
+}
+
+.mobile-picker-sheet-overlay > * {
+	pointer-events: auto;
+}
+
+.mobile-picker-sheet-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.4);
+	animation: mobile-picker-sheet-fade-in 180ms ease-out;
+}
+
+.mobile-picker-sheet-backdrop.closing {
+	animation: mobile-picker-sheet-fade-out 180ms ease-in forwards;
+}
+
+.mobile-picker-sheet {
+	position: relative;
+	width: 100%;
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-menu-background, var(--vscode-editor-background));
+	color: var(--vscode-menu-foreground, var(--vscode-foreground));
+	border-top-left-radius: 16px;
+	border-top-right-radius: 16px;
+	padding-bottom: env(safe-area-inset-bottom);
+	box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+	animation: mobile-picker-sheet-slide-up 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+	overflow: hidden;
+}
+
+.mobile-picker-sheet.closing {
+	animation: mobile-picker-sheet-slide-down 180ms ease-in forwards;
+}
+
+/* iOS-style drag handle ("grabber") at the top of the sheet. iOS HIG
+ * specifies 36 × 5 pt at ~30% opacity, centered with ~6 pt of top
+ * inset. Decorative only — actual drag-to-dismiss is not wired up. */
+.mobile-picker-sheet-handle {
+	width: 36px;
+	height: 5px;
+	margin: 6px auto 2px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
+	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-title-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 10px 12px 6px;
+	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-title {
+	flex: 1;
+	min-width: 0;
+	padding: 0 4px;
+	font-size: 17px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* iOS "Done" button: plain text, no background pill, system tint, 17pt
+ * semibold. The expanded padding gives us the 44pt minimum hit target
+ * the HIG calls for without painting a visible chip behind the label. */
+.mobile-picker-sheet-done {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
+	min-height: 44px;
+	padding: 0 8px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	font-family: inherit;
+	font-size: 17px;
+	font-weight: 600;
+	cursor: pointer;
+	flex-shrink: 0;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.mobile-picker-sheet-done:active {
+	opacity: 0.4;
+}
+
+/* Icon-only header actions rendered between the title and Done. Used
+ * for sheet-level shortcuts that don't fit naturally as picker rows.
+ * Circular 44pt hit target per iOS HIG; the visible glass tile is 32pt
+ * so the row reads at the same density as the title. */
+.mobile-picker-sheet-header-action {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	cursor: pointer;
+	flex-shrink: 0;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.mobile-picker-sheet-header-action::before {
+	content: '';
+	position: absolute;
+	inset: 6px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	pointer-events: none;
+}
+
+.mobile-picker-sheet-header-action:active::before {
+	background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+}
+
+.mobile-picker-sheet-header-action-icon {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mobile-picker-sheet-header-action-icon-glyph {
+	font-size: 17px;
+	line-height: 1;
+}
+
+.mobile-picker-sheet-caption {
+	padding: 0 16px 12px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+/* iOS-style search field. Pill shape (border-radius = height/2), 36pt
+ * tall, ~12% systemFill background. The leading magnifying-glass uses
+ * SF Pro Footnote weight (~13pt) to feel like UISearchBar. */
+.mobile-picker-sheet-search {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 4px 16px 10px;
+	padding: 0 10px;
+	height: 36px;
+	border-radius: 18px;
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-search-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-search-icon-glyph {
+	font-size: 13px;
+	line-height: 1;
+}
+
+.mobile-picker-sheet-search-input {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	font-size: 17px;
+	padding: 0;
+}
+
+.mobile-picker-sheet-search-input::placeholder {
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-picker-sheet-search-input::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.mobile-picker-sheet-search-results {
+	display: contents;
+}
+
+.mobile-picker-sheet-search-status,
+.mobile-picker-sheet-search-empty {
+	padding: 12px 12px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-picker-sheet-list {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	padding: 4px 8px 12px;
+}
+
+/* iOS grouped-list section header. The HIG uses a regular-case
+ * footnote-sized label in secondary color — not the uppercased small
+ * caps that older Settings rows used. */
+.mobile-picker-sheet-section-title {
+	padding: 14px 12px 6px;
+	font-size: 13px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-picker-sheet-divider {
+	height: 1px;
+	margin: 8px 8px;
+	background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}
+
+.mobile-picker-sheet-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 56px;
+	padding: 8px 12px;
+	margin: 2px 0;
+	border: none;
+	border-radius: 12px;
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+	/* `pan-y` instead of `manipulation` so vertical scrolling bubbles
+	 * up to the `.mobile-picker-sheet-list` scroll container even
+	 * though monaco's `Gesture.addTarget` (registered on each row)
+	 * calls `preventDefault` on `touchmove`. Without this, the user
+	 * can only scroll the list by dragging in the gaps between rows. */
+	touch-action: pan-y;
+}
+
+.mobile-picker-sheet-item:focus {
+	outline: none;
+}
+
+.mobile-picker-sheet-item:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.mobile-picker-sheet-item:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-picker-sheet-item.checked {
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-toolbar-hoverBackground));
+	color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.mobile-picker-sheet-item.disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Square icon tile so rows align consistently regardless of whether the
+ * item carries an icon. The tile draws a subtle background fill that
+ * matches the inspiration design's app-icon look. The codicon glyph
+ * lives on a child span (`.mobile-picker-sheet-icon-glyph`) so this
+ * tile's flex layout actually centers it; otherwise codicon's own
+ * `display: inline-block` would beat us on specificity. */
+.mobile-picker-sheet-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-picker-sheet-icon-glyph {
+	font-size: 18px;
+	line-height: 1;
+}
+
+.mobile-picker-sheet-item.checked .mobile-picker-sheet-icon {
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, var(--vscode-button-background)) 18%, transparent);
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+
+.mobile-picker-sheet-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.mobile-picker-sheet-label {
+	font-size: 16px;
+	font-weight: 500;
+	line-height: 1.2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-picker-sheet-description {
+	font-size: 12px;
+	line-height: 1.2;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-picker-sheet-check {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-check-glyph {
+	font-size: 14px;
+	line-height: 1;
+}
+
+@keyframes mobile-picker-sheet-slide-up {
+	from {
+		transform: translateY(100%);
+	}
+	to {
+		transform: translateY(0);
+	}
+}
+
+@keyframes mobile-picker-sheet-slide-down {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(100%);
+	}
+}
+
+@keyframes mobile-picker-sheet-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes mobile-picker-sheet-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}

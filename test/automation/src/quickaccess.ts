@@ -98,6 +98,13 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
+
+			// Back off between retries so that slow file search
+			// indexing (e.g. browser/remote on CI) has a chance to
+			// catch up before we hammer it again.
+			if (retries < 9) {
+				await this.code.wait(250 * retries);
+			}
 		}
 
 		if (!success) {
@@ -127,8 +134,7 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0);
 
 		// wait for editor being focused
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.selectTab(fileName);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {

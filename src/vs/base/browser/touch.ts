@@ -122,11 +122,22 @@ export class Gesture extends Disposable {
 		return toDisposable(remove);
 	}
 
+	/**
+	 * Whether the device is able to represent touch events.
+	 */
 	@memoize
 	static isTouchDevice(): boolean {
 		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
 		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
 		return 'ontouchstart' in mainWindow || navigator.maxTouchPoints > 0;
+	}
+
+	/**
+	 * Whether the device's primary input is able to hover.
+	 */
+	@memoize
+	static isHoverDevice(): boolean {
+		return mainWindow.matchMedia('(hover: hover)').matches;
 	}
 
 	public override dispose(): void {

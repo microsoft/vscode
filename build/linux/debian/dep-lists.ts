@@ -17,7 +17,9 @@ export const additionalDeps = [
 // Dependencies that we can only recommend
 // for now since some of the older distros don't support them.
 export const recommendedDeps = [
-	'libvulkan1' // Move to additionalDeps once support for Trusty and Jessie are dropped.
+	'libvulkan1', // Move to additionalDeps once support for Trusty and Jessie are dropped.
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
@@ -33,6 +35,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.2.5)',
 		'libc6 (>= 2.25)',
 		'libc6 (>= 2.28)',
+		'libc6 (>= 2.4)',
 		'libcairo2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.9.14)',
