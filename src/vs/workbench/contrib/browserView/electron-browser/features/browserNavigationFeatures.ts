@@ -222,11 +222,11 @@ class BrowserNavigationBar extends Disposable {
 		}
 		this._editor.group.pinEditor(this._editor.input); // pin editor on navigation
 
-		// Special-case localhost (e.g. "localhost:3000") to skip the http:// prefix.
+		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
 		if (/^localhost(:|\/|$)/i.test(url)) {
 			url = 'http://' + url;
 		} else if (!URL.parse(url)?.protocol) {
-			// Sites generally upgrade http:// to https://.
+			// No scheme — default to http://; sites typically upgrade to https://.
 			url = 'http://' + url;
 		}
 

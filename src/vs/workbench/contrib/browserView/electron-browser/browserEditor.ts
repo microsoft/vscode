@@ -392,6 +392,8 @@ export class BrowserEditor extends EditorPane {
 				return;
 			}
 		}
+		// Fallback when no contribution claimed focus (e.g. tests).
+		this.ensureBrowserFocus();
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

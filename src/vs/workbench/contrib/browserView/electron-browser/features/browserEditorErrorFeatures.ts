@@ -30,12 +30,12 @@ import {
  * inside the browser container, plus drives the navbar's cert indicator and
  * the cert-aware URL display rendering.
  *
- * Subscribes to model loading-state and navigation events; rebuilds the DOM
- * and updates the `browserHasError` context key on each transition. When the
- * underlying load error carries certificate info, an additional details table
- * and trust/back action buttons are rendered inline. The site-info widget
- * ("Not Secure" indicator) is contributed as a pre-URL widget and the cert
- * URL renderer marks the `https:` prefix when a cert error is active.
+ * Subscribes to model loading-state and navigation events and rebuilds the
+ * DOM on each transition. When the underlying load error carries certificate
+ * info, an additional details table and trust/back action buttons are
+ * rendered inline. The site-info widget ("Not Secure" indicator) is
+ * contributed as a pre-URL widget and the cert URL renderer marks the
+ * `https:` prefix when a cert error is active.
  */
 class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 
