@@ -214,13 +214,16 @@ suite('AgentHostCommitOperationHandler', () => {
 		const changesets = new TestChangesetService();
 		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
 
-		const err = await assert.rejects(
-			() => handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None),
-		) as ProtocolError;
+		let err: ProtocolError | undefined;
+		try {
+			await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		} catch (error) {
+			err = error as ProtocolError;
+		}
 
 		assert.deepStrictEqual({
-			code: err.code,
-			data: err.data,
+			code: err?.code,
+			data: err?.data,
 			gitCalls: gitService.calls,
 			completionCalls: copilotApiService.calls.length,
 			changesetCalls: changesets.calls,
