@@ -304,7 +304,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		const emptyWorkspaceEligible = preconditionMet
 			&& isEmptyWorkspace
 			&& (!sessionResource || isUntitledChatSession(sessionResource))
-			&& (!!widgetSessionType && AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(widgetSessionType))
+			&& widgetSessionType === SessionType.AgentHostCopilot
 			&& !this._dismissedSessions.has(AgentsHandoffInputTipContribution.EMPTY_WORKSPACE_KEY);
 
 		if (!eligible && !emptyWorkspaceEligible) {
@@ -358,7 +358,9 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			],
 			dismissible: true,
 			autoDismissOnMessage: false,
-			sessionTypes: Array.from(AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES),
+			sessionTypes: useEmptyWorkspaceCopy
+				? [SessionType.AgentHostCopilot]
+				: Array.from(AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES),
 		});
 	}
 

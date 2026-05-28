@@ -203,8 +203,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
-		const notificationWidget = this._register(this.instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		const notificationWidget = this._register(this.instantiationService.createInstance(
+			ChatInputNotificationWidget,
+			() => this.sessionTypePicker.selectedPick?.sessionTypeId,
+		));
 		notificationContainer.appendChild(notificationWidget.domNode);
+		this._register(this.sessionTypePicker.onDidSelectSessionType(() => notificationWidget.rerender()));
 
 		// Input area inside the input slot
 		const inputArea = dom.append(chatInputContainer, dom.$('.new-chat-input-area'));

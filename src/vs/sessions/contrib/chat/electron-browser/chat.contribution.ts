@@ -145,14 +145,25 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private async waitForSessionAvailable(sessionResource: URI, timeoutMs = 15_000): Promise<boolean> {
-		const start = Date.now();
-		while (Date.now() - start < timeoutMs) {
-			if (this.sessionsManagementService.getSession(sessionResource)) {
-				return true;
-			}
-			await timeout(200);
+		if (this.sessionsManagementService.getSession(sessionResource)) {
+			return true;
 		}
-		return !!this.sessionsManagementService.getSession(sessionResource);
+
+		// wait for session to become available
+		return new Promise<boolean>(resolve => {
+			const store = new DisposableStore();
+			const done = (result: boolean) => {
+				store.dispose();
+				resolve(result);
+			};
+			const timer = setTimeout(() => done(!!this.sessionsManagementService.getSession(sessionResource)), timeoutMs);
+			store.add({ dispose: () => clearTimeout(timer) });
+			store.add(this.sessionsManagementService.onDidChangeSessions(() => {
+				if (this.sessionsManagementService.getSession(sessionResource)) {
+					done(true);
+				}
+			}));
+		});
 	}
 
 	private async submitInitialQuery(query: string): Promise<void> {
@@ -246,13 +257,19 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			return;
 		}
 
-		// Provider not registered yet — wait for it, but give up at Eventually phase
-		const disposable = this.sessionsProvidersService.onDidChangeProviders(() => {
-			if (this.tryResolveAndSelect(folderUri)) {
-				disposable.dispose();
-			}
+		// Provider not registered yet — wait for it. Block the caller so any
+		// follow-up step (e.g. opening an existing session in this folder)
+		// doesn't race the provider becoming available.
+		await new Promise<void>(resolve => {
+			const store = new DisposableStore();
+			const done = () => { store.dispose(); resolve(); };
+			store.add(this.sessionsProvidersService.onDidChangeProviders(() => {
+				if (this.tryResolveAndSelect(folderUri)) {
+					done();
+				}
+			}));
+			this.lifecycleService.when(LifecyclePhase.Eventually).then(done);
 		});
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => disposable.dispose());
 	}
 
 	private tryResolveAndSelect(folderUri: URI): boolean {
