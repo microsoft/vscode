@@ -643,7 +643,7 @@ class ConversationHistorySummarizer {
 		try {
 			const results = await this.chatHookService.executeHook('PreCompact', hooks, {
 				trigger: 'auto',
-			} satisfies PreCompactHookInput, this.props.promptContext.conversation?.sessionId, this.token ?? CancellationToken.None);
+			} satisfies PreCompactHookInput, this.props.promptContext.conversation?.sessionId, this.token ?? CancellationToken.None, this.props.promptContext.request?.model?.id);
 
 			for (const result of results) {
 				if (result.resultKind === 'error') {
