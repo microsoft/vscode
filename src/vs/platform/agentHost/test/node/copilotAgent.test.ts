@@ -233,8 +233,8 @@ class MockCopilotSession {
 	async send(): Promise<string> { return ''; }
 	async abort(): Promise<void> { }
 	async setModel(): Promise<void> { }
-	async getMessages(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
-	async destroy(): Promise<void> { }
+	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
+	async disconnect(): Promise<void> { }
 }
 
 class MockAgentHostOTelService implements IAgentHostOTelService {
@@ -382,7 +382,7 @@ function sdkSession(sessionId: string, cwd?: string): Awaited<ReturnType<ITestCo
 		modifiedTime: new Date(2000),
 		summary: `SDK ${sessionId}`,
 		isRemote: false,
-		...(cwd ? { context: { cwd } } : {}),
+		...(cwd ? { context: { workingDirectory: cwd } } : {}),
 	};
 }
 

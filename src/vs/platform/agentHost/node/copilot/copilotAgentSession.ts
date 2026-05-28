@@ -345,8 +345,6 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
-	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
-	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
@@ -572,7 +570,6 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
-		this._turnCopilotUsageTotalNanoAiu = 0;
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -734,7 +731,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
-			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
+			.map(c => ({ data: c.data, mimeType: c.contentType, type: (/^image(\/|$)/.test(c.contentType) ? 'image' : 'resource') as 'image' | 'resource' }));
 
 		if (result.success) {
 			deferred.complete({
@@ -786,7 +783,6 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
-			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -928,7 +924,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getMessages(): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getMessages();
+		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -940,7 +936,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getMessages();
+		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -965,7 +961,7 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
-		await this._wrapper.session.destroy();
+		await this._wrapper.session.disconnect();
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
@@ -1892,14 +1888,7 @@ export class CopilotAgentSession extends Disposable {
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}
-			if (typeof e.data.copilotUsage?.totalNanoAiu === 'number') {
-				this._turnCopilotUsageTotalNanoAiu += e.data.copilotUsage.totalNanoAiu;
-				metadata.copilotUsage = {
-					...e.data.copilotUsage,
-					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
-				};
-			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${this._turnCopilotUsageTotalNanoAiu || '?'}`);
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}`);
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
@@ -2094,7 +2083,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionShutdown(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, premiumRequests=${e.data.totalPremiumRequests}, apiDuration=${e.data.totalApiDurationMs}ms`);
+			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, apiDuration=${e.data.totalApiDurationMs}ms`);
 		}));
 
 		this._register(wrapper.onSessionUsageInfo(e => {
