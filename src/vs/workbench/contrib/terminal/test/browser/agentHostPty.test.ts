@@ -78,6 +78,10 @@ class MockAgentConnection implements IAgentConnection {
 	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
 	async resourceDelete(_params: ResourceDeleteParams): Promise<ResourceDeleteResult> { return {}; }
 	async resourceMove(_params: ResourceMoveParams): Promise<ResourceMoveResult> { return {}; }
+	async resourceResolve(_params: any): Promise<any> { throw new Error('Not implemented'); }
+	async resourceMkdir(_params: any): Promise<any> { return {}; }
+	async createResourceWatch(_params: any): Promise<any> { throw new Error('Not implemented'); }
+	async watchResource(_params: any): Promise<any> { throw new Error('Not implemented'); }
 
 	// ---- IAgentConnection new API (stubs for tests) -----
 	readonly rootState: IAgentSubscription<RootState> = {

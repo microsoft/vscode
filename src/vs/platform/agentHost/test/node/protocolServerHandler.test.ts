@@ -148,6 +148,23 @@ class MockAgentService implements IAgentService {
 	async resourceCopy(): Promise<{}> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async resourceResolve(): Promise<any> { throw new Error('Not implemented'); }
+	async resourceMkdir(): Promise<{}> { return {}; }
+	readonly watchSubscribeCalls: string[] = [];
+	readonly watchUnsubscribeCalls: string[] = [];
+	/** Channels for which `onResourceWatchSubscribed` should return a descriptor. */
+	readonly liveWatchDescriptors = new Map<string, import('../../common/state/sessionProtocol.js').ResourceWatchState>();
+	async createResourceWatch(_params: import('../../common/state/sessionProtocol.js').CreateResourceWatchParams): Promise<import('../../common/state/sessionProtocol.js').CreateResourceWatchResult> {
+		throw new Error('Not implemented');
+	}
+	onResourceWatchSubscribed(channel: string): import('../../common/state/sessionProtocol.js').ResourceWatchState | undefined {
+		this.watchSubscribeCalls.push(channel);
+		return this.liveWatchDescriptors.get(channel);
+	}
+	onResourceWatchUnsubscribed(channel: string): boolean {
+		this.watchUnsubscribeCalls.push(channel);
+		return this.liveWatchDescriptors.has(channel);
+	}
 	async createTerminal(): Promise<void> { }
 	async disposeTerminal(): Promise<void> { }
 
@@ -1412,6 +1429,69 @@ suite('ProtocolServerHandler', () => {
 			otlpEmitter.emit({ timeUnixNano: '2', severityNumber: 9, severityText: 'info', body: 'after-unsub' });
 
 			assert.strictEqual(findOtlpLogs(transport.sent).length, 1, 'no further notifications after unsubscribe');
+		});
+	});
+
+	suite('resource watches', () => {
+
+		test('subscribe to a resource-watch channel returns the descriptor + bumps refcount; envelopes are routed', async () => {
+			// Pre-populate the mock so `onResourceWatchSubscribed` returns
+			// a descriptor — this is the role the production `AgentService`
+			// plays after it parses the channel URI.
+			const watchChannel = 'ahp-resource-watch:/mock-watch';
+			const descriptor = { root: 'file:///workspace', recursive: false };
+			agentService.liveWatchDescriptors.set(watchChannel, descriptor);
+
+			const transport = connectClient('client-watch');
+			transport.sent.length = 0;
+
+			const subPromise = waitForResponse(transport, 101);
+			transport.simulateMessage(request(101, 'subscribe', { channel: watchChannel }));
+			const resp = await subPromise;
+			const result = (resp as { result: { snapshot: IStateSnapshot } }).result;
+			assert.strictEqual(result.snapshot.resource, watchChannel);
+			assert.deepStrictEqual(result.snapshot.state, descriptor);
+			assert.deepStrictEqual(agentService.watchSubscribeCalls, [watchChannel]);
+
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(watchChannel, {
+				type: ActionType.ResourceWatchChanged,
+				changes: { items: [{ uri: 'file:///workspace/a.txt', type: 'updated' as never }] },
+			} as unknown as Parameters<typeof stateManager.dispatchServerAction>[1]);
+
+			const actionMsgs = findNotifications(transport.sent, 'action');
+			assert.strictEqual(actionMsgs.length, 1, 'subscriber should receive the change envelope');
+			const env = actionMsgs[0].params as unknown as { channel: string; action: { type: string } };
+			assert.strictEqual(env.channel, watchChannel);
+			assert.strictEqual(env.action.type, ActionType.ResourceWatchChanged);
+
+			// Explicit unsubscribe drops the refcount through the agent service.
+			transport.simulateMessage(notification('unsubscribe', { channel: watchChannel }));
+			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
+		});
+
+		test('subscribe to an unknown resource-watch channel surfaces a JSON-RPC error', async () => {
+			const transport = connectClient('client-watch-bad');
+			transport.sent.length = 0;
+			const respPromise = waitForResponse(transport, 102);
+			transport.simulateMessage(request(102, 'subscribe', { channel: 'ahp-resource-watch:/bogus' }));
+			const resp = await respPromise;
+			const error = (resp as unknown as { error?: { code: number } }).error;
+			assert.ok(error, `expected an error response, got ${JSON.stringify(resp)}`);
+		});
+
+		test('client disconnect releases the watch refcount', async () => {
+			const watchChannel = 'ahp-resource-watch:/mock-watch-disconnect';
+			agentService.liveWatchDescriptors.set(watchChannel, { root: 'file:///root', recursive: false });
+
+			const transport = connectClient('client-watch-2');
+			const subPromise = waitForResponse(transport, 200);
+			transport.simulateMessage(request(200, 'subscribe', { channel: watchChannel }));
+			await subPromise;
+			assert.deepStrictEqual(agentService.watchSubscribeCalls, [watchChannel]);
+
+			transport.simulateClose();
+			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
 		});
 	});
 });
