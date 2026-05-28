@@ -11,6 +11,10 @@ export interface ThinkingDataInMessage {
 	// Copilot API fields for Completions
 	reasoning_opaque?: string;
 	reasoning_text?: string;
+
+	//OpenRouter compatible fields.
+	reasoning_content?: string;
+	reasoning?: string;
 }
 
 export interface RawThinkingDelta {
@@ -21,6 +25,10 @@ export interface RawThinkingDelta {
 	// Copilot API fields
 	reasoning_opaque?: string;
 	reasoning_text?: string;
+
+	//OpenRouter compatible fields.
+	reasoning_content?: string;
+	reasoning?: string;
 
 	// Anthropic fields
 	thinking?: string;
