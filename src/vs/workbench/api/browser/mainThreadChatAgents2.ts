@@ -783,7 +783,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			},
 		};
 
-		// Convert supportedTypes whitelist to hiddenSections blacklist.
+		// Convert supportedTypes allowlist to hiddenSections blocklist.
 		// Sections not in the supported list are hidden. When supportedTypes
 		// is omitted, all sections are shown.
 		const typeToSection: Record<string, string> = {
