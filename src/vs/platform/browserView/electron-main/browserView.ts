@@ -476,6 +476,7 @@ export class BrowserView extends Disposable {
 			storageScope: this.session.storageScope,
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device
 		};
 	}
@@ -612,6 +613,11 @@ export class BrowserView extends Disposable {
 		}
 
 		const quality = options?.quality ?? 80;
+
+		if (options?.fullPage && !options.screenRect && !options.pageRect) {
+			return this._captureFullPageScreenshot(quality);
+		}
+
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
@@ -633,6 +639,44 @@ export class BrowserView extends Disposable {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
+	}
+
+	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
+	private async _captureFullPageScreenshot(quality: number): Promise<VSBuffer> {
+		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as { cssContentSize?: { width: number; height: number } };
+		// Size in CSS pixels
+		const size = metrics.cssContentSize;
+		if (!size) {
+			throw new Error('Page.getLayoutMetrics did not return a cssContentSize');
+		}
+		const zoomFactor = this._view.webContents.getZoomFactor();
+		try {
+			const result = await this.debugger.sendCommand('Page.captureScreenshot', {
+				format: 'jpeg',
+				quality,
+				captureBeyondViewport: true,
+				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
+				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
+				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
+				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
+				// visual content from the top at the bottom, instead of showing the bottom of the page.
+				// - Sidenote: Setting the scale here to be zoomFactor or 1/zoomFactor has strange effects and doesn't solve the issue.
+				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
+				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
+				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream
+				//   in Chromium).
+				clip: { x: 0, y: 0, width: size.width * zoomFactor, height: size.height * zoomFactor, scale: 1 }
+			}) as { data: string };
+			return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
+		} finally {
+			// `Page.captureScreenshot` with `captureBeyondViewport` resets and
+			// disables pinch-to-zoom until the next navigation. Re-enable it so
+			// the user can still pinch-to-zoom even immediately after
+			// capturing a full-page screenshot.
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to restore visual zoom level limits after full-page screenshot.', error);
+			});
+		}
 	}
 
 	/**

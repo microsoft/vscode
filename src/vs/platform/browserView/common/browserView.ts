@@ -33,6 +33,8 @@ export enum BrowserViewCommandId {
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
+	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
+	AddFullPageScreenshotToChat = `${commandPrefix}.addFullPageScreenshotToChat`,
 
 	// Dev Tools
 	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
@@ -67,6 +69,13 @@ export interface IElementData {
 	readonly innerText?: string;
 }
 
+export interface IBrowserViewRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
 export interface IBrowserViewTheme {
 	readonly focusBorder?: string;
 	readonly buttonBackground?: string;
@@ -93,8 +102,13 @@ export interface IBrowserViewBounds {
 
 export interface IBrowserViewCaptureScreenshotOptions {
 	quality?: number;
-	screenRect?: { x: number; y: number; width: number; height: number };
-	pageRect?: { x: number; y: number; width: number; height: number };
+	screenRect?: IBrowserViewRect;
+	pageRect?: IBrowserViewRect;
+	/**
+	 * When true, capture the full scrollable document, not just the visible viewport.
+	 * Ignored when `screenRect` or `pageRect` is set.
+	 */
+	fullPage?: boolean;
 }
 
 /**
@@ -160,6 +174,7 @@ export interface IBrowserViewState {
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 }
 
@@ -235,7 +250,7 @@ export interface IBrowserViewFindInPageOptions {
 export interface IBrowserViewFindInPageResult {
 	activeMatchOrdinal: number;
 	matches: number;
-	selectionArea?: { x: number; y: number; width: number; height: number };
+	selectionArea?: IBrowserViewRect;
 	finalUpdate: boolean;
 }
 
@@ -297,6 +312,8 @@ export interface IBrowserViewService {
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	onDynamicDidSelectArea(id: string): Event<IBrowserViewRect>;
+	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 
 	/**
@@ -486,6 +503,17 @@ export interface IBrowserViewService {
 	 * @param enabled Whether to enable or disable. Omit to toggle.
 	 */
 	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+
+	/**
+	 * Toggle drag-to-select area picking on the top frame of a browser view.
+	 * Area selections are delivered via {@link onDynamicDidSelectArea} with the
+	 * literal user-drawn rectangle in viewport coordinates.
+	 * State changes are delivered via {@link onDynamicDidChangeAreaSelectionActive}.
+	 *
+	 * @param id The browser view identifier
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	toggleAreaSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
 	 * Update the theme used by injected UI across all browser views.
