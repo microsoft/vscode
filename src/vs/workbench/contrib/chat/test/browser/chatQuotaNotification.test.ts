@@ -290,6 +290,30 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification()!.actions.length, 0);
 		});
 
+		test('managed plan user with hasQuota=false gets budget exceeded message', () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Business,
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) },
+			});
+
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Usage Blocked');
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.');
+			assert.strictEqual(notificationMock.getNotification()!.actions.length, 0);
+		});
+
+		test('managed plan user with hasQuota=false and overages enabled still gets budget exceeded message', () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Enterprise,
+				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }), additionalUsageEnabled: true },
+			});
+
+			assert.ok(notificationMock.getNotification());
+			assert.strictEqual(notificationMock.getNotification()!.message, 'Usage Blocked');
+			assert.strictEqual(notificationMock.getNotification()!.description, 'Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.');
+			assert.strictEqual(notificationMock.getNotification()!.actions.length, 0);
+		});
+
 		test('paid user with overage gets increase budget action', () => {
 			const { notificationMock } = createContribution({
 				entitlement: ChatEntitlement.Pro,
