@@ -57,6 +57,8 @@ class MockAgentConnection implements IAgentConnection {
 		this.disposedTerminals.push(terminal);
 	}
 
+	async invokeChangesetOperation(): Promise<{}> { return {}; }
+
 	/** Simulate the server sending an action to the client */
 	fireAction(channel: URI, action: StateAction, serverSeq = 1): void {
 		this._onDidAction.fire({ channel: channel.toString(), action, serverSeq, origin: { clientId: 'server', clientSeq: 0 } });
