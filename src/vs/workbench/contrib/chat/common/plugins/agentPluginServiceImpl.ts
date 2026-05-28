@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { Event } from '../../../../../base/common/event.js';
 import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
 	posix,
@@ -250,7 +250,7 @@ interface IPolicyIdentity {
 	readonly marketplaceReference?: IMarketplaceReference;
 }
 
-/** Path fragment that identifies a Copilot-CLI-installed plugin (see `COPILOT_CLI_INSTALLED_PLUGINS_DIR` below). */
+/** Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by `_resolveEnterprisePluginId`. */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
 function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {

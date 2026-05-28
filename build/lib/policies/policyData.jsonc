@@ -245,7 +245,7 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.extraMarketplaces.policy",
-                    "value": "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                    "value": "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or `{ name, source: { source: 'github'|'git', repo|url, ref? } }` objects."
                 }
             },
             "type": "array",
