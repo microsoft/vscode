@@ -97,6 +97,56 @@
 	}
 }
 
+/* Ring variant: same 2×3 grid layout as the cascading variant, but the
+ * highlight travels clockwise around the perimeter of the 6 dots:
+ *   [1][2]      1 → 2
+ *   [3][4]      ↑   ↓
+ *   [5][6]      3   4
+ *               ↑   ↓
+ *               5 ← 6
+ */
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot {
+	animation: monaco-pixel-spinner-ring-pulse 1200ms linear infinite;
+	opacity: 0.25;
+	transform: none;
+}
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(1) {
+	animation-delay: 0ms;
+}
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(2) {
+	animation-delay: 200ms;
+}
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(3) {
+	animation-delay: 1000ms;
+}
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(4) {
+	animation-delay: 400ms;
+}
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(5) {
+	animation-delay: 800ms;
+}
+
+.monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(6) {
+	animation-delay: 600ms;
+}
+
+@keyframes monaco-pixel-spinner-ring-pulse {
+	0%, 100% {
+		opacity: 0.25;
+		transform: none;
+	}
+	16.67% {
+		opacity: 1;
+		transform: none;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.monaco-pixel-spinner .monaco-pixel-spinner-dot {
 		animation: none;

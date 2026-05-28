@@ -146,8 +146,6 @@ function installHeaders() {
 	// the downloaded Electron headers. This is used to work around upstream issues:
 	//   - v8-source-location.h: remove dependency on std::source_location (GCC 11+ requirement)
 	//     Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
-	//   - cppgc/heap.h: replace GCC/Clang-only __builtin_frame_address(0) with the
-	//     MSVC equivalent _AddressOfReturnAddress() so native modules build with MSVC.
 	if (local !== undefined) {
 		const localHeaderPath = getLocalHeaderPath(local.target);
 		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
