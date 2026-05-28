@@ -1004,7 +1004,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
+			const repositoryStatusGroups =
+				hint === repository.mergeGroup
+				|| hint === repository.indexGroup
+				|| hint === repository.workingTreeGroup
+				|| hint === repository.untrackedGroup
+				|| hint === repository.localOnlyGroup;
+
+			if (repositoryStatusGroups) {
 				return liveRepository;
 			}
 		}
