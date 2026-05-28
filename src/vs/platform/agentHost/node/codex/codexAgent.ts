@@ -71,7 +71,7 @@ const codexSessionConfigSchema = createSchema({
 			localize('codex.sessionConfig.approvalPolicy.untrusted', "Untrusted Only"),
 		],
 		enumDescriptions: [
-			localize('codex.sessionConfig.approvalPolicy.neverDescription', "Auto-approve every tool call."),
+			localize('codex.sessionConfig.approvalPolicy.neverDescription', "Do not ask before tool calls."),
 			localize('codex.sessionConfig.approvalPolicy.onRequestDescription', "Let Codex decide when to ask for approval."),
 			localize('codex.sessionConfig.approvalPolicy.onFailureDescription', "Only ask for approval after a tool call fails."),
 			localize('codex.sessionConfig.approvalPolicy.untrustedDescription', "Ask only when Codex invokes an untrusted command."),
