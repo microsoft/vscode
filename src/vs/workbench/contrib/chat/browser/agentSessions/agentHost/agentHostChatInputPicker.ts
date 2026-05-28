@@ -16,6 +16,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { formatSessionConfigChipLabel, shouldShowSessionConfigChipTitle } from '../../../../../../platform/agentHost/common/sessionConfigLabel.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -319,7 +320,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		// adjust creation-time-only properties (e.g. isolation, branch).
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const isStartedSession = !!sessionResource && !isUntitledChatSession(sessionResource);
-		if (!ctx || (isStartedSession && ctx.schema.sessionMutable === false)) {
+		if (!ctx || !this._isPickable(ctx.schema) || this._isHiddenByDependency() || (isStartedSession && ctx.schema.sessionMutable === false)) {
 			this._container.style.display = 'none';
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
@@ -357,7 +358,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			trigger.classList.toggle('warning', value === 'autopilot');
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
-		const label = this._labelFor(schema, value);
+		const label = formatSessionConfigChipLabel(shouldShowSessionConfigChipTitle(schema), schema.title, this._labelFor(schema, value));
 		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
 		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
@@ -365,7 +366,58 @@ export class AgentHostChatInputPicker extends Disposable {
 			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
 	}
 
+	private _isPickable(schema: SessionConfigPropertySchema): boolean {
+		if (schema.type === 'boolean') {
+			return true;
+		}
+		if (schema.type === 'array') {
+			return !!schema.enumDynamic && schema.items?.type === 'string';
+		}
+		if (schema.type !== 'string') {
+			return false;
+		}
+		return !!schema.enumDynamic || (Array.isArray(schema.enum) && schema.enum.length > 0);
+	}
+
+	private _isHiddenByDependency(): boolean {
+		if (this._property !== 'codex.additionalDirectories' && this._property !== 'codex.networkAccessEnabled') {
+			return false;
+		}
+		const sandbox = this._readSiblingValue('codex.sandboxMode');
+		return sandbox !== undefined && sandbox !== 'workspace-write';
+	}
+
+	private _readSiblingValue(property: string): unknown {
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		if (this._subRef.value) {
+			const state = this._subRef.value.sub.value;
+			if (state && !(state instanceof Error)) {
+				const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
+				const schema = (overlay?.schema ?? state.config?.schema)?.properties[property];
+				return overlay?.values?.[property]
+					?? state.config?.values?.[property]
+					?? schema?.default;
+			}
+		}
+		if (this._initialResolved && sessionResource && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
+			const schema = this._initialResolved.result.schema.properties[property];
+			return this._initialResolved.result.values?.[property] ?? schema?.default;
+		}
+		return undefined;
+	}
+
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (schema.type === 'boolean') {
+			return value === true
+				? localize('agentHostChatInputPicker.boolean.onLabel', "On")
+				: localize('agentHostChatInputPicker.boolean.offLabel', "Off");
+		}
+		if (schema.type === 'array') {
+			const count = Array.isArray(value) ? value.length : 0;
+			return count === 0
+				? localize('agentHostChatInputPicker.array.none', "None")
+				: localize('agentHostChatInputPicker.array.count', "{0} Selected", count);
+		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
@@ -481,6 +533,12 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private async _getItems(schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		if (schema.type === 'boolean') {
+			return [
+				{ value: 'true', label: localize('agentHostChatInputPicker.boolean.true', "On") },
+				{ value: 'false', label: localize('agentHostChatInputPicker.boolean.false', "Off") },
+			];
+		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const backendSession = this._subRef.value?.backendSession
 			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
@@ -534,7 +592,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		const partial = { [this._property]: value };
+		const ctx = this._readContext();
+		const nextValue: unknown = ctx?.schema.type === 'boolean'
+			? value === 'true'
+			: ctx?.schema.type === 'array'
+				? [...(Array.isArray(ctx.value) ? ctx.value.filter((entry): entry is string => typeof entry === 'string') : []), value]
+				: value;
+		const partial = { [this._property]: nextValue };
 
 		if (isUntitledChatSession(sessionResource)) {
 			// Route through the provisional service so the workbench-owned
