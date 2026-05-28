@@ -838,7 +838,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionCustomizationToggled: {
 				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
+				agent?.setCustomizationEnabled?.(action.id, action.enabled);
 				break;
 			}
 			case ActionType.SessionIsReadChanged: {

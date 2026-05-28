@@ -10,8 +10,8 @@ import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
-import type { CustomizationRef } from '../../common/state/sessionState.js';
-import type { URI as ProtocolURI } from '../../common/state/protocol/state.js';
+import { customizationId, type ClientPluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationType, type URI as ProtocolURI } from '../../common/state/protocol/state.js';
 import { DiscoveredType, type IDiscoveredFile } from '../copilot/sessionCustomizationDiscovery.js';
 
 const DISPLAY_NAME = 'VS Code Synced Data';
@@ -35,7 +35,7 @@ function pluginDirForType(type: DiscoveredType): string {
 }
 
 interface IBundleResult {
-	readonly ref: CustomizationRef;
+	readonly ref: ClientPluginCustomization;
 }
 
 /**
@@ -80,8 +80,8 @@ export class SessionPluginBundler extends Disposable {
 	 * Bundles the given files into the on-disk plugin directory.
 	 *
 	 * Overwrites any previous bundle for this working directory. Returns a
-	 * {@link CustomizationRef} pointing at the on-disk plugin root with a
-	 * content-based nonce, or `undefined` when there are no files.
+	 * {@link ClientPluginCustomization} pointing at the on-disk plugin root
+	 * with a content-based nonce, or `undefined` when there are no files.
 	 */
 	async bundle(files: readonly IDiscoveredFile[]): Promise<IBundleResult | undefined> {
 		if (files.length === 0) {
@@ -125,11 +125,14 @@ export class SessionPluginBundler extends Disposable {
 		const nonce = String(hash(hashParts.join('\n')));
 		this._lastNonce = nonce;
 
+		const rootUriString = this._rootUri.toString() as ProtocolURI;
 		return {
 			ref: {
-				uri: this._rootUri.toString() as ProtocolURI,
-				displayName: DISPLAY_NAME,
-				description: `${files.length} customization(s) discovered for this session`,
+				type: CustomizationType.Plugin,
+				id: customizationId(rootUriString),
+				uri: rootUriString,
+				name: DISPLAY_NAME,
+				enabled: true,
 				nonce,
 			},
 		};

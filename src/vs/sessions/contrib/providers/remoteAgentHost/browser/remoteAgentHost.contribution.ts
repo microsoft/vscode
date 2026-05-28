@@ -290,16 +290,18 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Update connection status on all providers (including those
 		// that are reconnecting and don't have an active connection).
 		for (const [address, provider] of this._providerInstances) {
-			// Preserve incompatible state — set by the SSH catch and the
-			// generic WebSocket connect failure path. Otherwise this loop
-			// would overwrite it back to `disconnected` on the next event.
-			if (RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
-				continue;
-			}
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (connectionInfo) {
+				// Service has an entry for this address — its status is
+				// authoritative (including the `incompatible` set by the
+				// WebSocket connect failure path, and the `connecting`
+				// status of a fresh reconnect attempt after an upgrade).
 				provider.setConnectionStatus(connectionInfo.status);
-			} else {
+			} else if (!RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+				// No service entry. Preserve incompatible state set by
+				// the SSH reconnect catch (where the failure happens
+				// before the service ever sees an entry); otherwise fall
+				// back to disconnected.
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 			}
 		}
@@ -784,7 +786,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			this._notificationService,
 			this._customizationWorkspaceService,
 		));
-		const itemProvider = agentStore.add(createRemoteAgentCustomizationItemProvider(agent, loggedConnection, sanitized, pluginController, this._fileService, this._logService));
+		const agentHostCustomAgentsService = this._instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomAgentsService));
+		const itemProvider = agentStore.add(createRemoteAgentCustomizationItemProvider(agent, loggedConnection, sanitized, pluginController, this._fileService, this._logService, agentHostCustomAgentsService));
 
 		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
@@ -968,3 +971,4 @@ import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostModelPicker.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
+import { IAgentHostCustomAgentsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';

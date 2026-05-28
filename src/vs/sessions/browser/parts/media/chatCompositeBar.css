@@ -6,11 +6,13 @@
 .chat-composite-bar {
 	display: flex;
 	align-items: center;
-	background-color: var(--chat-bar-background);
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
 	padding: 0 4px;
 	height: 35px;
 	flex-shrink: 0;
 	overflow: hidden;
+	container-type: inline-size;
 }
 
 /* The ScrollableElement wrapper holding the tabs is the shrinkable flex item */
@@ -49,7 +51,6 @@
 	position: relative;
 	padding: 0 8px;
 	cursor: pointer;
-	white-space: nowrap;
 	color: var(--chat-tab-inactive-foreground);
 	font-weight: 500;
 	font-size: 12px;
@@ -58,6 +59,14 @@
 	border-radius: 4px;
 	user-select: none;
 	flex-shrink: 0;
+	max-width: min(200px, 40cqi);
+}
+
+.chat-composite-bar-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .chat-composite-bar-tab:hover {

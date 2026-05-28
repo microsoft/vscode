@@ -30,14 +30,14 @@ class BrowserEditorDevToolsContribution extends BrowserEditorContribution {
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._devToolsOpenContext.set(model.isDevToolsOpen);
 		store.add(model.onDidChangeDevToolsState(e => {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._devToolsOpenContext.reset();
 	}
 }
@@ -52,7 +52,7 @@ class ToggleDevToolsAction extends Action2 {
 			id: ToggleDevToolsAction.ID,
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
 			category: BrowserActionCategory,
-			icon: Codicon.terminal,
+			icon: Codicon.developerTools,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),

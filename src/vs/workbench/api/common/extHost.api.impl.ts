@@ -41,6 +41,7 @@ import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
+import { ExtHostChatQuota } from './extHostChatQuota.js';
 import { ExtHostChatInputNotification } from './extHostChatInputNotification.js';
 import { ExtHostClipboard } from './extHostClipboard.js';
 import { ExtHostEditorInsets } from './extHostCodeInsets.js';
@@ -251,6 +252,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
 	const extHostBrowsers = rpcProtocol.set(ExtHostContext.ExtHostBrowsers, new ExtHostBrowsers(rpcProtocol));
+	const extHostChatQuota = rpcProtocol.set(ExtHostContext.ExtHostChatQuota, new ExtHostChatQuota(rpcProtocol));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
@@ -1708,6 +1710,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidDisposeChatSession: (listeners, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
+			},
+			updateQuotas: (quotas: vscode.ChatQuotaSnapshots) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				extHostChatQuota.updateQuotas(quotas);
 			},
 			registerChatSessionItemProvider: (chatSessionType: string, provider: vscode.ChatSessionItemProvider) => {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
