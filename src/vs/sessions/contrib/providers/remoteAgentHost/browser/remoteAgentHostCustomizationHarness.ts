@@ -24,6 +24,7 @@ import { AICustomizationManagementSection, AICustomizationSources, IAICustomizat
 import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItem, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { NullAgentHostCustomAgentsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 function customizationKey(customization: Customization): string {
@@ -169,6 +170,7 @@ export function createRemoteAgentCustomizationItemProvider(
 				run: () => controller.removeConfiguredPlugin(customization),
 			}];
 		},
+		new NullAgentHostCustomAgentsService(),
 	);
 }
 

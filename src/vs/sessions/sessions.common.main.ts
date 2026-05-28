@@ -142,6 +142,7 @@ import '../workbench/services/inlineCompletions/common/inlineCompletionsUnificat
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostPermissionService.js';
+import './services/agentHost/browser/agentHostCustomAgentsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
