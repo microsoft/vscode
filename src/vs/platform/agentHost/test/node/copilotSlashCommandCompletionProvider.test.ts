@@ -12,12 +12,18 @@ import { CopilotSlashCommandCompletionProvider, parseLeadingSlashCommand } from 
 
 suite('CopilotSlashCommandCompletionProvider', () => {
 
+	let _savedRubberDuckEnv: string | undefined;
 	suiteSetup(() => {
+		_savedRubberDuckEnv = process.env['RUBBER_DUCK_AGENT'];
 		process.env['RUBBER_DUCK_AGENT'] = 'true';
 	});
 
 	suiteTeardown(() => {
-		delete process.env['RUBBER_DUCK_AGENT'];
+		if (_savedRubberDuckEnv === undefined) {
+			delete process.env['RUBBER_DUCK_AGENT'];
+		} else {
+			process.env['RUBBER_DUCK_AGENT'] = _savedRubberDuckEnv;
+		}
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
