@@ -1016,7 +1016,7 @@ export class ModelPickerWidget extends Disposable {
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
-		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : (isPro ? manifest.paid : manifest.free);
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
