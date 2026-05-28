@@ -121,7 +121,11 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to commit changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
-		await this._onCommitted(sessionUri);
+		try {
+			await this._onCommitted(sessionUri);
+		} catch (err) {
+			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for session ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
+		}
 		this._changesets.refreshUncommittedChangeset(sessionUri);
 		this._changesets.refreshSessionChangeset(sessionUri);
 

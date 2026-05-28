@@ -114,7 +114,7 @@ function createAgentService(token: string | undefined): IAgentService {
 	} as Partial<IAgentService> as IAgentService;
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const committedSessions: string[] = [];
@@ -132,7 +132,13 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		uncommittedChanges: 1,
 	}));
 	return {
-		handler: new AgentHostCommitOperationHandler(sessionKey => stateManager.getSessionState(sessionKey), async sessionKey => { committedSessions.push(sessionKey); changesets.calls.push(`onCommitted:${sessionKey}`); }, createAgentService('gh-repo-token'), gitService, copilotApiService, changesets, new NullLogService()),
+		handler: new AgentHostCommitOperationHandler(sessionKey => stateManager.getSessionState(sessionKey), async sessionKey => {
+			committedSessions.push(sessionKey);
+			changesets.calls.push(`onCommitted:${sessionKey}`);
+			if (options?.onCommittedError) {
+				throw options.onCommittedError;
+			}
+		}, createAgentService('gh-repo-token'), gitService, copilotApiService, changesets, new NullLogService()),
 		session,
 		committedSessions,
 	};
@@ -180,6 +186,27 @@ suite('AgentHostCommitOperationHandler', () => {
 			gitCalls: ['hasUncommittedChanges'],
 			completionCalls: 0,
 			changesetCalls: [],
+		});
+	});
+
+	test('returns success when post-commit refresh fails', async () => {
+		const gitService = new TestGitService();
+		const copilotApiService = new TestCopilotApiService();
+		const changesets = new TestChangesetService();
+		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets, { onCommittedError: new Error('refresh failed') });
+
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			gitCalls: gitService.calls,
+			changesetCalls: changesets.calls,
+			committedSessions,
+		}, {
+			message: { markdown: 'Committed changes with message: `Update session changes`' },
+			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
+			changesetCalls: ['onCommitted:agent:/session', 'refreshUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			committedSessions: ['agent:/session'],
 		});
 	});
 
