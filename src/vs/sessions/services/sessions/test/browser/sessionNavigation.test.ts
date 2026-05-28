@@ -168,7 +168,7 @@ class MockSessionStore implements ISessionsManagementService {
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
 	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
-	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right'): void { throw new Error('not implemented'); }
+	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right', _activate?: boolean): void { throw new Error('not implemented'); }
 	closeSession(_session: ISession): void { throw new Error('not implemented'); }
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }

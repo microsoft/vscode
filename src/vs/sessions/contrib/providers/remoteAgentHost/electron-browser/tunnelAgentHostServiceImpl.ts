@@ -272,7 +272,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			authProvider,
 		});
 		this.clearAutoConnectSuppression(tunnel.tunnelId);
-		this._storeCachedTunnels(filtered.slice(0, 20));
+		this._storeCachedTunnels(filtered);
 		this._onDidChangeTunnels.fire();
 	}
 

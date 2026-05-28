@@ -166,7 +166,16 @@ suite('TerminalSandboxService - network domains', () => {
 			readonlyPaths: ['c:\\tools\\node'],
 			readwritePaths: [],
 		};
-		environment = ['PATH=c:\\tools\\node;c:\\windows\\system32', 'PSHOME=c:\\program files\\powershell\\7'];
+		environment = [
+			'SystemRoot=c:\\windows',
+			'PATH=c:\\tools\\node;c:\\windows\\system32',
+			'ComSpec=c:\\windows\\system32\\cmd.exe',
+			'PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1',
+			'PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules',
+			'USERPROFILE=c:\\users\\test',
+			'APPDATA=c:\\users\\test\\appdata\\roaming',
+			'PSHOME=c:\\program files\\powershell\\7'
+		];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
@@ -1221,7 +1230,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
 		const configPath = await sandboxService.getSandboxConfigPath();
-		const wrapped = await sandboxService.wrapCommand('echo test', false, 'pwsh.exe', URI.file('/c:/workspace-one'));
+		const wrapped = await sandboxService.wrapCommand('echo test', false, 'c:\\program files\\powershell\\7\\pwsh.exe', URI.file('/c:/workspace-one'));
 
 		ok(configPath, 'Config path should be defined for remote Windows');
 		const configContent = createdFiles.get(configPath);
@@ -1232,15 +1241,22 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
-		strictEqual(config.containment, 'process');
-		strictEqual(config.process.commandLine, 'echo test');
+		strictEqual(config.containment, 'processcontainer');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
+		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
+		ok(config.process.env.includes('ComSpec=c:\\windows\\system32\\cmd.exe'), 'ComSpec should be injected into the MXC process env');
+		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.process.env.includes('PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules'), 'PSModulePath should be injected into the MXC process env');
+		ok(config.process.env.includes('USERPROFILE=c:\\users\\test'), 'USERPROFILE should be injected into the MXC process env');
+		ok(config.process.env.includes('APPDATA=c:\\users\\test\\appdata\\roaming'), 'APPDATA should be injected into the MXC process env');
 		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
 		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
+		ok(config.filesystem.readonlyPaths.includes('c:\\program files\\powershell\\7'), 'Resolved PowerShell executable directory should be readable in the MXC config');
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 
