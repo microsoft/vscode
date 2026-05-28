@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -226,8 +226,10 @@ export class VisibleSessions extends Disposable {
 		}
 
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
-		this._activeSession.set(visibleSession, undefined);
-		this._refresh();
+		transaction((tsx) => {
+			this._activeSession.set(visibleSession, tsx);
+			this._refresh(tsx);
+		});
 		return visibleSession;
 	}
 
@@ -286,12 +288,13 @@ export class VisibleSessions extends Disposable {
 			this._mostRecentNonStickySlot = id;
 		}
 
-		if (activate) {
-			const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
-			this._activeSession.set(wrapper, undefined);
-		}
-
-		this._refresh();
+		transaction((tsx) => {
+			if (activate) {
+				const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
+				this._activeSession.set(wrapper, tsx);
+			}
+			this._refresh(tsx);
+		});
 	}
 
 	/**
@@ -315,7 +318,7 @@ export class VisibleSessions extends Disposable {
 				this._mostRecentNonStickySlot = this._findLastNonSticky();
 			}
 		}
-		this._refresh();
+		this._refresh(undefined);
 	}
 
 	/**
@@ -324,23 +327,25 @@ export class VisibleSessions extends Disposable {
 	 * the removed ids. Observables are refreshed once if anything changed.
 	 */
 	removeMany(sessionIds: Iterable<string>): void {
-		let changed = false;
-		const activeId = this._activeSession.get()?.sessionId;
-		let activeRemoved = false;
-		for (const id of sessionIds) {
-			if (this._removeFromModel(id)) {
-				changed = true;
-				if (id === activeId) {
-					activeRemoved = true;
+		transaction((tsx) => {
+			let changed = false;
+			const activeId = this._activeSession.get()?.sessionId;
+			let activeRemoved = false;
+			for (const id of sessionIds) {
+				if (this._removeFromModel(id)) {
+					changed = true;
+					if (id === activeId) {
+						activeRemoved = true;
+					}
 				}
 			}
-		}
-		if (activeRemoved) {
-			this._activeSession.set(undefined, undefined);
-		}
-		if (changed) {
-			this._refresh();
-		}
+			if (activeRemoved) {
+				this._activeSession.set(undefined, tsx);
+			}
+			if (changed) {
+				this._refresh(tsx);
+			}
+		});
 	}
 
 	/**
@@ -371,11 +376,13 @@ export class VisibleSessions extends Disposable {
 			this._wrappers.deleteAndDispose(fromId);
 		}
 
-		const visibleSession = this._getOrCreateVisibleSession(updatedSession);
-		if (wasActive) {
-			this._activeSession.set(visibleSession, undefined);
-		}
-		this._refresh();
+		transaction((tsx) => {
+			const visibleSession = this._getOrCreateVisibleSession(updatedSession);
+			if (wasActive) {
+				this._activeSession.set(visibleSession, tsx);
+			}
+			this._refresh(tsx);
+		});
 	}
 
 	/**
@@ -422,7 +429,7 @@ export class VisibleSessions extends Disposable {
 
 	/** Re-publish the visible sessions and sticky ids observables. */
 	refresh(): void {
-		this._refresh();
+		this._refresh(undefined);
 	}
 
 	private _findLastNonSticky(): string | undefined | typeof NO_RECENT {
@@ -473,7 +480,7 @@ export class VisibleSessions extends Disposable {
 		return changed;
 	}
 
-	private _refresh(): void {
+	private _refresh(tsx: ITransaction | undefined): void {
 		const wrappers: (IActiveSession | undefined)[] = [];
 		for (const id of this._visibleList) {
 			if (id === undefined) {
@@ -486,7 +493,7 @@ export class VisibleSessions extends Disposable {
 				wrappers.push(visibleSession);
 			}
 		}
-		this._visibleSessions.set(wrappers, undefined);
+		this._visibleSessions.set(wrappers, tsx);
 	}
 
 	private _getOrCreateVisibleSession(session: ISession): VisibleSession {

@@ -20,7 +20,7 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentSelection, CustomizationAgentRef, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentSelection, AgentCustomization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChangesetState, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -1689,7 +1689,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	getCustomAgents(sessionId: string): readonly CustomizationAgentRef[] {
+	getCustomAgents(sessionId: string): readonly AgentCustomization[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return getEffectiveAgents(sessionState?.customizations);
 	}
@@ -2299,47 +2299,49 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (!cached) {
-			return;
-		}
+		transaction((tx) => {
+			const rawId = AgentSession.id(session);
+			const cached = this._sessionCache.get(rawId);
+			if (!cached) {
+				return;
+			}
 
-		let didChange = false;
+			let didChange = false;
 
-		if (changes.status !== undefined) {
-			const uiStatus = mapProtocolStatus(changes.status);
-			if (uiStatus !== cached.status.get()) {
-				cached.status.set(uiStatus, undefined);
+			if (changes.status !== undefined) {
+				const uiStatus = mapProtocolStatus(changes.status);
+				if (uiStatus !== cached.status.get()) {
+					cached.status.set(uiStatus, tx);
+					didChange = true;
+				}
+
+				const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
+				if (isArchived !== cached.isArchived.get()) {
+					cached.isArchived.set(isArchived, tx);
+					didChange = true;
+				}
+			}
+
+			if (changes.title !== undefined && changes.title !== cached.title.get()) {
+				cached.title.set(changes.title, tx);
 				didChange = true;
 			}
 
-			const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
-			if (isArchived !== cached.isArchived.get()) {
-				cached.isArchived.set(isArchived, undefined);
+			// `changes.changesets` carries the catalogue (counts + URI
+			// templates). The chip aggregate is recomputed from those counts
+			// here; per-file detail is not part of this notification path.
+			if (changes.changesets !== undefined && cached.applyCatalogueCounts(changes.changesets)) {
 				didChange = true;
 			}
-		}
 
-		if (changes.title !== undefined && changes.title !== cached.title.get()) {
-			cached.title.set(changes.title, undefined);
-			didChange = true;
-		}
+			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
+				didChange = true;
+			}
 
-		// `changes.changesets` carries the catalogue (counts + URI
-		// templates). The chip aggregate is recomputed from those counts
-		// here; per-file detail is not part of this notification path.
-		if (changes.changesets !== undefined && cached.applyCatalogueCounts(changes.changesets)) {
-			didChange = true;
-		}
-
-		if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
-			didChange = true;
-		}
-
-		if (didChange) {
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
+			if (didChange) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			}
+		});
 	}
 
 	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {

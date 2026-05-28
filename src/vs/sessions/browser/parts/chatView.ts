@@ -64,6 +64,16 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
+	 * Notifies the view whether it is the currently active session in the
+	 * sessions grid. Subclasses may use this to adjust their visual styling
+	 * (e.g. the chat list's background color). The default implementation
+	 * is a no-op.
+	 */
+	setActive(_active: boolean): void {
+		// no-op by default
+	}
+
+	/**
 	 * Called by the workbench grid to size this leaf. Sizes {@link element}
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.

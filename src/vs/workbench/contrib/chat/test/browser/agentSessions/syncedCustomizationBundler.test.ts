@@ -75,7 +75,7 @@ suite('SyncedCustomizationBundler', () => {
 		const result = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 		assert.ok(result, 'should return a result');
 		assert.ok(result.ref.uri, 'should have a URI');
-		assert.strictEqual(result.ref.displayName, 'VS Code Synced Data');
+		assert.strictEqual(result.ref.name, 'VS Code Synced Data');
 		assert.ok(result.ref.nonce, 'should have a nonce');
 
 		// Verify the file was written to the in-memory FS
@@ -310,6 +310,6 @@ suite('SyncedCustomizationBundler', () => {
 			{ uri: uriC, type: PromptsType.prompt },
 		]);
 		assert.ok(result);
-		assert.ok(result.ref.description?.includes('3'), 'description should mention file count');
+		assert.ok(result.ref.nonce, 'should produce a nonce reflecting the bundled files');
 	});
 });
