@@ -22,6 +22,7 @@ import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 import { ClaudeLanguageModelServer } from '../claudeLanguageModelServer';
 import { parseClaudeModelId } from '../claudeModelId';
 import { IClaudeSessionStateService } from '../../common/claudeSessionStateService';
+import { IChatDelegationSummaryService } from '../../../copilotcli/common/delegationSummaryService';
 
 const TEST_MODEL_ID_STRING = 'claude-3-sonnet';
 const TEST_MODEL_ID = parseClaudeModelId(TEST_MODEL_ID_STRING);
@@ -85,6 +86,17 @@ function createOTelService() {
 	const spans: ICompletedSpanData[] = [];
 	otelService.onDidCompleteSpan(span => spans.push(span));
 	return { otelService, spans };
+}
+
+function createMockChatDelegationSummaryService(): IChatDelegationSummaryService {
+	return {
+		_serviceBrand: undefined,
+		scheme: 'test-summary',
+		summarize: vi.fn().mockResolvedValue(undefined),
+		trackSummaryUsage: vi.fn().mockResolvedValue(undefined),
+		extractPrompt: vi.fn().mockReturnValue(undefined),
+		provideTextDocumentContent: vi.fn().mockReturnValue(undefined),
+	};
 }
 
 /** Creates a typed assistant message with tool_use content blocks */
@@ -174,6 +186,7 @@ describe('Claude Session OTel Tool Spans', () => {
 		spans = localSpans;
 		services.define(IOTelService, otelService);
 		services.define(IClaudeCodeSdkService, sdkService);
+		services.define(IChatDelegationSummaryService, createMockChatDelegationSummaryService());
 		const accessor = services.createTestingAccessor();
 		const localInstantiationService = accessor.get(IInstantiationService);
 		const localSessionStateService = accessor.get(IClaudeSessionStateService);
@@ -217,6 +230,7 @@ describe('Claude Session OTel Tool Spans', () => {
 		spans = localSpans;
 		services.define(IOTelService, otelService);
 		services.define(IClaudeCodeSdkService, sdkService);
+		services.define(IChatDelegationSummaryService, createMockChatDelegationSummaryService());
 		const accessor = services.createTestingAccessor();
 		const localInstantiationService = accessor.get(IInstantiationService);
 		const localSessionStateService = accessor.get(IClaudeSessionStateService);
@@ -259,6 +273,7 @@ describe('Claude Session OTel Tool Spans', () => {
 		spans = localSpans;
 		services.define(IOTelService, otelService);
 		services.define(IClaudeCodeSdkService, sdkService);
+		services.define(IChatDelegationSummaryService, createMockChatDelegationSummaryService());
 		const accessor = services.createTestingAccessor();
 		const localInstantiationService = accessor.get(IInstantiationService);
 		const localSessionStateService = accessor.get(IClaudeSessionStateService);
@@ -295,6 +310,7 @@ describe('Claude Session OTel Tool Spans', () => {
 		spans = localSpans;
 		services.define(IOTelService, otelService);
 		services.define(IClaudeCodeSdkService, sdkService);
+		services.define(IChatDelegationSummaryService, createMockChatDelegationSummaryService());
 		const accessor = services.createTestingAccessor();
 		const localInstantiationService = accessor.get(IInstantiationService);
 		const localSessionStateService = accessor.get(IClaudeSessionStateService);
@@ -331,6 +347,7 @@ describe('Claude Session OTel Tool Spans', () => {
 		spans = localSpans;
 		services.define(IOTelService, otelService);
 		services.define(IClaudeCodeSdkService, sdkService);
+		services.define(IChatDelegationSummaryService, createMockChatDelegationSummaryService());
 		const accessor = services.createTestingAccessor();
 		const localInstantiationService = accessor.get(IInstantiationService);
 		const localSessionStateService = accessor.get(IClaudeSessionStateService);

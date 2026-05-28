@@ -27,6 +27,7 @@ import { getErrorDetailsFromChatFetchError } from '../../../../platform/chat/com
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
+import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
 import { dispatchMessage, ClaudeProxyError, KnownClaudeError } from '../common/claudeMessageDispatch';
@@ -238,6 +239,7 @@ export class ClaudeCodeSession extends Disposable {
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
+		@IChatDelegationSummaryService private readonly chatDelegationSummaryService: IChatDelegationSummaryService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 		@IGitService private readonly _gitService: IGitService,
@@ -585,7 +587,9 @@ export class ClaudeCodeSession extends Disposable {
 			this.langModelServer.incrementUserInitiatedMessageCount(request.modelId.toEndpointModelId());
 
 			// Resolve the prompt content blocks now that this request is being handled
-			const prompt = await resolvePromptToContentBlocks(request.request);
+			const prompt = await resolvePromptToContentBlocks(request.request, {
+				resolveReferenceText: uri => this.chatDelegationSummaryService.provideTextDocumentContent(uri)
+			});
 
 			// Create a capturing token for this request to group tool calls under the request
 			// we use the last text block in the prompt as the label for the token, since that is most representative of the user's intent

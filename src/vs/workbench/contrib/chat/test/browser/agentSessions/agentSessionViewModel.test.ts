@@ -2295,6 +2295,11 @@ suite('AgentSessions', () => {
 			assert.strictEqual(result, true);
 		});
 
+		test('should return true for Claude provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Claude);
+			assert.strictEqual(result, true);
+		});
+
 		test('should return false for Growth provider', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
 			assert.strictEqual(result, false);

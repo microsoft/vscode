@@ -128,8 +128,8 @@ export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
-			return true;
 		case AgentSessionProviders.Claude:
+			return true;
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
 		case AgentSessionProviders.AgentHostCopilot:

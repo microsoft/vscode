@@ -50,9 +50,10 @@ import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IChatModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -597,7 +598,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+				async run(accessor: ServicesAccessor, chatOptions?: NewChatSessionSendOptions): Promise<void> {
 					const { type, displayName } = contribution;
 					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
 				}
@@ -619,7 +620,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+				async run(accessor: ServicesAccessor, chatOptions?: NewChatSessionSendOptions): Promise<void> {
 					const { type, displayName } = contribution;
 					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
 				}
@@ -1334,6 +1335,7 @@ type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+	readonly userSelectedModelId?: string;
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1347,6 +1349,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
+	const languageModelsService = accessor.get(ILanguageModelsService);
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
@@ -1355,6 +1358,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
+	const initialModelInputState = await getModelInputStateForInitialModel(chatSendOptions?.userSelectedModelId, languageModelsService);
 
 	// Open chat session
 	try {
@@ -1364,7 +1368,10 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.widget.clear();
 				} else {
-					await view.loadSession(sessionResource);
+					const model = await view.loadSession(sessionResource);
+					if (model && initialModelInputState) {
+						model.inputModel.setState(initialModelInputState);
+					}
 				}
 				view.focus();
 				break;
@@ -1373,6 +1380,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					...(initialModelInputState ? { modelInputState: initialModelInputState } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
 					}
@@ -1410,11 +1418,34 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			if (promptFile) {
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
-			await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext, userSelectedModelId: chatSendOptions.userSelectedModelId });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+}
+
+async function getModelInputStateForInitialModel(userSelectedModelId: string | undefined, languageModelsService: ILanguageModelsService): Promise<Partial<IChatModelInputState> | undefined> {
+	if (!userSelectedModelId) {
+		return undefined;
+	}
+	let metadata = languageModelsService.lookupLanguageModel(userSelectedModelId);
+	if (!metadata) {
+		const vendor = getVendorFromModelIdentifier(userSelectedModelId);
+		if (vendor) {
+			await languageModelsService.selectLanguageModels({ vendor });
+			metadata = languageModelsService.lookupLanguageModel(userSelectedModelId);
+		}
+	}
+	if (!metadata) {
+		return undefined;
+	}
+	return { selectedModel: { identifier: userSelectedModelId, metadata } };
+}
+
+function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
+	const firstSlash = modelIdentifier.indexOf('/');
+	return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
 }
 
 /**

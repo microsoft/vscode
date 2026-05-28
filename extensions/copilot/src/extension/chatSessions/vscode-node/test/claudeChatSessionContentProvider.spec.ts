@@ -16,7 +16,7 @@ import { ITestingServicesAccessor } from '../../../../platform/test/node/service
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
@@ -34,6 +34,7 @@ import { IClaudeSessionStateService } from '../../claude/common/claudeSessionSta
 import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claudeCodeSessionService';
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
+import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
 import { IClaudeWorkspaceFolderService } from '../../common/claudeWorkspaceFolderService';
 import { builtinSlashCommands } from '../../common/builtinSlashCommands';
@@ -266,6 +267,14 @@ function createProviderWithServices(
 		_serviceBrand: undefined,
 		getWorkspaceChanges: vi.fn().mockResolvedValue([]),
 	});
+	serviceCollection.define(IChatDelegationSummaryService, {
+		_serviceBrand: undefined,
+		scheme: 'test-summary',
+		summarize: vi.fn().mockResolvedValue(undefined),
+		trackSummaryUsage: vi.fn().mockResolvedValue(undefined),
+		extractPrompt: vi.fn().mockReturnValue(undefined),
+		provideTextDocumentContent: vi.fn().mockReturnValue(undefined),
+	});
 
 	const accessor = serviceCollection.createTestingAccessor();
 	const instaService = accessor.get(IInstantiationService);
@@ -376,6 +385,130 @@ describe('ChatSessionContentProvider', () => {
 
 			expect(result.history).toEqual([]);
 			expect(mockSessionService.getSession).toHaveBeenCalledWith(sessionUri, CancellationToken.None);
+		});
+	});
+
+	describe('createHandler delegation', () => {
+		function createDelegationContext(options?: { readonly history?: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] }): vscode.ChatContext {
+			return {
+				history: options?.history ?? [],
+				yieldRequested: false,
+				chatSessionContext: {
+					isUntitled: false,
+					chatSessionItem: {
+						resource: URI.parse('local:/source-session') as any,
+						label: 'Local Session',
+					},
+					inputState: { groups: [], sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
+				},
+			} as vscode.ChatContext;
+		}
+
+		it('opens a new Claude session when invoked from a non-Claude chat session', async () => {
+			const request = createTestRequest('Start implementation');
+			request.sessionResource = URI.parse('local:/source-session') as any;
+			const context = createDelegationContext();
+
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			await handler(request, context, stream, CancellationToken.None);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openNewSessionEditor.claude-code',
+				{ prompt: 'Start implementation', attachedContext: [], userSelectedModelId: 'claude-code/claude-3-5-sonnet-20241022' }
+			);
+		});
+
+		it('does not pass a source model hint when the delegated request model is not Claude', async () => {
+			const request = createTestRequest('Start implementation');
+			request.sessionResource = URI.parse('local:/source-session') as any;
+			(request as any).model = { id: 'gpt-5', name: 'GPT-5', family: 'gpt-5', vendor: 'copilot' };
+			const context = createDelegationContext();
+
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			await handler(request, context, stream, CancellationToken.None);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openNewSessionEditor.claude-code',
+				{ prompt: 'Start implementation', attachedContext: [] }
+			);
+		});
+
+		it('opens the new Claude session with a summary attachment instead of source references', async () => {
+			const summaryUri = URI.parse('copilot-delegated-chat-summary:/summary?request-id') as any;
+			const delegationSummaryService = accessor.get(IChatDelegationSummaryService);
+			vi.mocked(delegationSummaryService.summarize).mockResolvedValue('The previous chat produced a complete implementation plan for the task.');
+			vi.mocked(delegationSummaryService.trackSummaryUsage).mockResolvedValue({
+				id: summaryUri.toString(),
+				name: 'Delegation Summary',
+				modelDescription: 'Summary of previous chat history for delegated request',
+				value: summaryUri,
+			});
+			const responseTurn = Object.create(vscodeShim.ChatResponseTurn.prototype) as vscode.ChatResponseTurn;
+			(responseTurn as any).response = ['response'];
+			const reference = {
+				id: 'file-ref',
+				name: 'AGENTS.md',
+				value: URI.file('/workspace/AGENTS.md') as any,
+			} as vscode.ChatPromptReference;
+			const request = createTestRequest('Start implementation');
+			request.references = [reference];
+			request.sessionResource = URI.parse('local:/source-session') as any;
+
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			await handler(request, createDelegationContext({ history: [responseTurn] }), stream, CancellationToken.None);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openNewSessionEditor.claude-code',
+				{
+					prompt: `Start implementation\nComplete the task as described in the [summary](${summaryUri.toString()})`,
+					attachedContext: [expect.objectContaining({ id: summaryUri.toString(), name: 'Delegation Summary' })],
+					userSelectedModelId: 'claude-code/claude-3-5-sonnet-20241022',
+				}
+			);
+		});
+
+		it('does not forward non-summary request references to the new Claude session', async () => {
+			const reference = {
+				id: 'file-ref',
+				name: 'AGENTS.md',
+				value: URI.file('/workspace/AGENTS.md') as any,
+			} as vscode.ChatPromptReference;
+			const request = createTestRequest('Start implementation');
+			request.references = [reference];
+			request.sessionResource = URI.parse('local:/source-session') as any;
+			const context = createDelegationContext();
+
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			await handler(request, context, stream, CancellationToken.None);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openNewSessionEditor.claude-code',
+				{ prompt: 'Start implementation', attachedContext: [], userSelectedModelId: 'claude-code/claude-3-5-sonnet-20241022' }
+			);
+		});
+
+		it('does not open a new Claude session when delegation is cancelled', async () => {
+			const request = createTestRequest('Start implementation');
+			request.sessionResource = URI.parse('local:/source-session') as any;
+			const context = createDelegationContext();
+			const cts = new CancellationTokenSource();
+			cts.cancel();
+
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			await handler(request, context, stream, cts.token);
+
+			expect(vscodeShim.commands.executeCommand).not.toHaveBeenCalled();
+			cts.dispose();
 		});
 	});
 

@@ -27,12 +27,14 @@ import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
 import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
-import { parseClaudeModelId } from '../claude/node/claudeModelId';
+import { parseClaudeModelId, tryParseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
 import { formatModelDetails, formatModelDetailsWithMultiplier } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
+import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
@@ -88,6 +90,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@IChatDelegationSummaryService private readonly _chatDelegationSummaryService: IChatDelegationSummaryService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -108,12 +111,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	createHandler(): ChatExtendedRequestHandler {
 		return async (request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> => {
 			const { chatSessionContext } = context;
-			if (!chatSessionContext) {
-				/* Via @claude */
-				// TODO: Think about how this should work
-				stream.markdown(vscode.l10n.t("Start a new Claude Agent session"));
-				stream.button({ command: `workbench.action.chat.openNewSessionEditor.${ClaudeSessionUri.scheme}`, title: vscode.l10n.t("Start Session") });
-				return {};
+			if (!chatSessionContext || chatSessionContext.chatSessionItem.resource.scheme !== ClaudeSessionUri.scheme) {
+				return this.handleDelegationFromAnotherChat(request, context, stream, token);
 			}
 
 			// Try to handle as a slash command first
@@ -189,6 +188,69 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
 			};
 		};
+	}
+
+	private async handleDelegationFromAnotherChat(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult> {
+		let prompt = request.prompt;
+		let summary: string | undefined;
+		if (this.hasHistoryToSummarize(context.history)) {
+			stream.progress(vscode.l10n.t('Analyzing chat history'));
+			summary = await this._chatDelegationSummaryService.summarize(context, token);
+			if (summary) {
+				summary = `**Summary**\n${summary}`;
+			}
+		}
+
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
+		const attachedContext = [];
+		if (summary) {
+			const summaryRef = await this._chatDelegationSummaryService.trackSummaryUsage(request.id, summary);
+			if (summaryRef) {
+				prompt = `${prompt}\n${vscode.l10n.t('Complete the task as described in the {0}', `[summary](${summaryRef.id})`)}`;
+				attachedContext.push(convertReferenceToVariable(summaryRef, []));
+			} else {
+				prompt = `${prompt}\n${summary}`;
+			}
+		}
+
+		const chatOptions: { prompt: string; attachedContext: typeof attachedContext; userSelectedModelId?: string } = {
+			prompt,
+			attachedContext,
+		};
+		const userSelectedModelId = this.getClaudeRequestModelIdentifier(request);
+		if (userSelectedModelId) {
+			chatOptions.userSelectedModelId = userSelectedModelId;
+		}
+
+		await vscode.commands.executeCommand(`workbench.action.chat.openNewSessionEditor.${ClaudeSessionUri.scheme}`, chatOptions);
+
+		stream.markdown(vscode.l10n.t('A Claude Agent session has begun working on your request. Follow its progress in the sessions list.'));
+		return {};
+	}
+
+	private getClaudeRequestModelIdentifier(request: vscode.ChatRequest): string | undefined {
+		const model = request.model;
+		if (!model) {
+			return undefined;
+		}
+		const isClaudeModel = Boolean(tryParseClaudeModelId(model.id)) || (model.vendor === 'copilot' && model.family?.toLowerCase().startsWith('claude'));
+		return isClaudeModel ? `${ClaudeSessionUri.scheme}/${model.id}` : undefined;
+	}
+
+	private hasHistoryToSummarize(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]): boolean {
+		if (!history || history.length === 0) {
+			return false;
+		}
+		const allResponsesEmpty = history.every(turn => {
+			if (turn instanceof vscode.ChatResponseTurn) {
+				return turn.response.length === 0;
+			}
+			return true;
+		});
+		return !allResponsesEmpty;
 	}
 
 	// #endregion
