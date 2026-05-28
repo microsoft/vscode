@@ -390,7 +390,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		viewContext: IChatWidgetViewContext | undefined,
 		private readonly viewOptions: IChatWidgetViewOptions,
-		private readonly styles: IChatWidgetStyles,
+		private styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -2029,6 +2029,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
+	}
+
+	/**
+	 * Updates the widget's color styles after construction. Propagates the new
+	 * `listForeground`/`listBackground` to the list widget, pushes the new color
+	 * tokens into `editorOptions` so subscribers (code blocks, result/input editor
+	 * backgrounds, container CSS variables) pick them up via `onDidChange`, and
+	 * refreshes the CSS variables the chat container exposes for stylesheet rules.
+	 */
+	setStyles(styles: IChatWidgetStyles): void {
+		this.styles = styles;
+		this.listWidget?.setStyles({
+			listForeground: styles.listForeground,
+			listBackground: styles.listBackground,
+		});
+		if (this.container) {
+			// Updating editorOptions fires onDidChange which triggers onDidStyleChange
+			// and also propagates the new colors to subscribers like CodeBlockPart.
+			this.editorOptions.setColors(styles.listForeground, styles.inputEditorBackground, styles.resultEditorBackground);
+		}
 	}
 
 

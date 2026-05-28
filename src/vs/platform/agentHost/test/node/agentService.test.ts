@@ -23,7 +23,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1148,7 +1148,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 

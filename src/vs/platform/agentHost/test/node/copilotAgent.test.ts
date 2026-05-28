@@ -8,6 +8,8 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -29,7 +31,8 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, CustomizationStatus, ResponsePartKind, SessionCustomization, ToolCallConfirmationReason, ToolCallStatus, TurnState, type CustomizationRef, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, CustomizationLoadStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type Customization, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -51,7 +54,7 @@ class TestAgentPluginManager implements IAgentPluginManager {
 
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
 
-	async syncCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (status: SessionCustomization) => void): Promise<ISyncedCustomization[]> {
+	async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[], _progress?: (status: Customization) => void): Promise<ISyncedCustomization[]> {
 		return [];
 	}
 }
@@ -608,9 +611,9 @@ suite('CopilotAgent', () => {
 	suite('createSession activeClient eager-claim', () => {
 
 		class SpyingPluginManager extends TestAgentPluginManager {
-			public readonly calls: { clientId: string; customizations: CustomizationRef[] }[] = [];
+			public readonly calls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 
-			override async syncCustomizations(clientId: string, customizations: CustomizationRef[], _progress?: (status: SessionCustomization) => void): Promise<ISyncedCustomization[]> {
+			override async syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], _progress?: (status: Customization) => void): Promise<ISyncedCustomization[]> {
 				this.calls.push({ clientId, customizations: [...customizations] });
 				return [];
 			}
@@ -629,7 +632,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				const customizations: CustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
+				const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true }];
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'test-session'),
 					workingDirectory: URI.file('/workspace'),
@@ -681,9 +684,9 @@ suite('CopilotAgent', () => {
 			);
 
 			class PluginDirSpyManager extends TestAgentPluginManager {
-				override async syncCustomizations(_clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 					return customizations.map(c => ({
-						customization: { customization: c, enabled: true, status: CustomizationStatus.Loaded },
+						customization: { ...c, load: { kind: CustomizationLoadStatus.Loaded } },
 						pluginDir,
 					}));
 				}
@@ -705,18 +708,21 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
-				await agent.setClientCustomizations(session, 'client-1', [{ uri: pluginDir.toString(), displayName: 'Plugin A' }]);
+				await agent.setClientCustomizations(session, 'client-1', [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }]);
 
 				// Wait for the deferred resolution chain in PluginController.sync.
 				await new Promise(r => setTimeout(r, 50));
 
-				const updatesWithAgents = actions
+				const updatesWithChildren = actions
 					.filter(a => a.type === ActionType.SessionCustomizationUpdated)
 					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => true)
-					.filter(a => a.agents !== undefined);
+					.filter(a => a.customization.children !== undefined);
 
-				assert.strictEqual(updatesWithAgents.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed agents');
-				assert.deepStrictEqual(updatesWithAgents.at(-1)!.agents, [{
+				assert.strictEqual(updatesWithChildren.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed children');
+				const agentChildren = updatesWithChildren.at(-1)!.customization.children!.filter(c => c.type === CustomizationType.Agent);
+				assert.deepStrictEqual(agentChildren, [{
+					type: CustomizationType.Agent,
+					id: customizationId(URI.joinPath(pluginDir, 'agents', 'helper.md').toString()),
 					uri: URI.joinPath(pluginDir, 'agents', 'helper.md').toString(),
 					name: 'helper-agent',
 					description: 'helps out',
@@ -937,6 +943,133 @@ suite('CopilotAgent', () => {
 				// No stub installed — the call should be silently ignored.
 				agent.onClientToolCallComplete(sessionUri, 'tc-x', { success: true, pastTenseMessage: 'noop' });
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('_resumeSession dedup', () => {
+		// Regression: two concurrent paths (e.g. an outdated-config refresh in
+		// `sendMessage` and a `getSessionMessages` subscribe) each calling
+		// `_resumeSession(id)` used to construct two `CopilotAgentSession`
+		// entries for the same id; the second `_sessions.set(id, …)` on the
+		// underlying `DisposableMap` disposed the first one mid
+		// `initializeSession()`, producing 'Trying to add a disposable to a
+		// DisposableStore that has already been disposed' warnings and a
+		// half-initialised session with no event subscriptions.
+
+		type AgentInternals = {
+			_resumeSession: (id: string) => Promise<CopilotAgentSession>;
+			_doResumeSession: (id: string) => Promise<CopilotAgentSession>;
+		};
+		const makeFakeSession = () => ({ dispose: () => { } } as unknown as CopilotAgentSession);
+
+		test('dedupes concurrent calls for the same sessionId', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			const deferred = new DeferredPromise<CopilotAgentSession>();
+			let doResumeCalls = 0;
+			internals._doResumeSession = () => {
+				doResumeCalls++;
+				return deferred.p;
+			};
+			try {
+				const p1 = internals._resumeSession('s1');
+				const p2 = internals._resumeSession('s1');
+				assert.strictEqual(p1, p2);
+				assert.strictEqual(doResumeCalls, 1);
+
+				const session = makeFakeSession();
+				deferred.complete(session);
+				assert.strictEqual(await p1, session);
+				assert.strictEqual(await p2, session);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('clears inflight entry after resolution so the next call re-invokes _doResumeSession', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			let doResumeCalls = 0;
+			internals._doResumeSession = async () => {
+				doResumeCalls++;
+				return makeFakeSession();
+			};
+			try {
+				await internals._resumeSession('s1');
+				await internals._resumeSession('s1');
+				assert.strictEqual(doResumeCalls, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('clears inflight entry on rejection so the next call retries', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			let attempt = 0;
+			internals._doResumeSession = async () => {
+				attempt++;
+				if (attempt === 1) {
+					throw new Error('first failed');
+				}
+				return makeFakeSession();
+			};
+			try {
+				await assert.rejects(() => internals._resumeSession('s1'), /first failed/);
+				await internals._resumeSession('s1');
+				assert.strictEqual(attempt, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not dedupe across different sessionIds', async () => {
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as AgentInternals;
+			const ids: string[] = [];
+			internals._doResumeSession = async (id: string) => {
+				ids.push(id);
+				return makeFakeSession();
+			};
+			try {
+				await Promise.all([
+					internals._resumeSession('s1'),
+					internals._resumeSession('s2'),
+				]);
+				assert.deepStrictEqual([...ids].sort(), ['s1', 's2']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('post-init shutdown race: disposes the session and throws CancellationError instead of registering on a disposed _sessions map', async () => {
+			// Without this guard an in-flight `_resumeSession` /
+			// `_materializeProvisional` whose `initializeSession()`
+			// resolves AFTER `dispose()` -> `shutdown()` -> `super.dispose()`
+			// has run would call `_sessions.set(...)` on a disposed
+			// DisposableMap, leaking the session and reproducing the
+			// 'Trying to add a disposable to a DisposableStore that has
+			// already been disposed' warning this PR exists to eliminate.
+			const agent = createTestAgent(disposables);
+			const internals = agent as unknown as {
+				_registerInitializedSession: (id: string, s: CopilotAgentSession) => void;
+				_shutdownPromise: Promise<void> | undefined;
+			};
+			let disposed = 0;
+			const fakeSession = { dispose: () => { disposed++; } } as unknown as CopilotAgentSession;
+			internals._shutdownPromise = Promise.resolve();
+			try {
+				assert.throws(
+					() => internals._registerInitializedSession('s1', fakeSession),
+					(err: unknown) => isCancellationError(err),
+				);
+				assert.strictEqual(disposed, 1, 'session should be disposed by the guard');
+			} finally {
+				// Clear the fake shutdown promise so disposeAgent doesn't
+				// short-circuit and leave real state behind.
+				internals._shutdownPromise = undefined;
 				await disposeAgent(agent);
 			}
 		});

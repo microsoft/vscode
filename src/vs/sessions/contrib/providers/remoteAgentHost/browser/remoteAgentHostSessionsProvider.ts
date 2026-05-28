@@ -198,7 +198,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		config: IRemoteAgentHostSessionsProviderConfig,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -212,7 +212,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;

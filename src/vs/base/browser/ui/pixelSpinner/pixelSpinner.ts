@@ -15,13 +15,19 @@ export interface IPixelSpinnerOptions {
 	 * conveys the busy state.
 	 */
 	readonly ariaLabel?: string;
+
+	/**
+	 * Visual variant of the spinner.
+	 *  - `'grid'` (default): six dots in a 2×3 grid that cascade vertically.
+	 *  - `'ring'`: six dots arranged in a circle with a highlight that orbits the ring.
+	 */
+	readonly variant?: 'grid' | 'ring';
 }
 
 /**
- * Creates a small pixel-art style spinner consisting of six animated dots
- * arranged in a 2×3 grid. Color is driven by `currentColor`, so consumers
- * can control the visual color via the parent element's `color` style or
- * by setting `style.color` directly on the returned element.
+ * Creates a small pixel-art style spinner. Color is driven by `currentColor`,
+ * so consumers can control the visual color via the parent element's `color`
+ * style or by setting `style.color` directly on the returned element.
  *
  * Respects `prefers-reduced-motion` by disabling the animation.
  *
@@ -30,7 +36,9 @@ export interface IPixelSpinnerOptions {
  * @returns The spinner root element.
  */
 export function createPixelSpinner(parent?: HTMLElement, options?: IPixelSpinnerOptions): HTMLElement {
-	const root = h('span.monaco-pixel-spinner').root;
+	const variant = options?.variant ?? 'grid';
+	const rootClass = variant === 'ring' ? 'span.monaco-pixel-spinner.monaco-pixel-spinner-ring' : 'span.monaco-pixel-spinner';
+	const root = h(rootClass).root;
 	if (options?.ariaLabel) {
 		root.setAttribute('role', 'status');
 		root.setAttribute('aria-label', options.ariaLabel);
