@@ -943,17 +943,19 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExtraMarketplaces]: {
 			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
 			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
-			// Hidden from the Settings UI via `included: false` — users edit
-			// `chat.plugins.marketplaces`, the enterprise edits this.
 			//
-			// Items are either:
-			//  - a string (GitHub shorthand `owner/repo[#ref]` or Git URI `<url>[#ref]`), or
-			//  - a `{ name, source: { source: 'github'|'git', repo|url, ref? } }` object that
-			//    preserves the marketplace name from the managed_settings payload so
-			//    `enabledPlugins["plugin@<name>"]` keys resolve correctly.
-			type: 'array',
-			items: { type: ['string', 'object'] },
-			default: [],
+			// Stored as a `{ [name]: url-or-shorthand }` object so that:
+			//   - The Settings Editor (ComplexObject renderer) can display entries inline when
+			//     managed by policy, rather than only showing "Edit in settings.json".
+			//   - Marketplace names are preserved for `enabledPlugins["plugin@<name>"]` resolution.
+			//
+			// `additionalProperties: { type: ['string'] }` uses the single-element array form of
+			// JSON Schema's `type` keyword (equivalent to `type: 'string'`) to trigger VS Code's
+			// ComplexObject renderer, which shows key-value rows inline and hides the
+			// "Edit in settings.json" link when the value is managed by policy.
+			type: 'object',
+			additionalProperties: { type: ['string'] as ['string'] },
+			default: {},
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 			tags: ['experimental'],
@@ -962,11 +964,27 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => policyData.extraKnownMarketplaces ? JSON.stringify(policyData.extraKnownMarketplaces) : undefined,
+				value: (policyData) => {
+					if (!policyData.extraKnownMarketplaces?.length) {
+						return undefined;
+					}
+					const obj: Record<string, string> = {};
+					for (const entry of policyData.extraKnownMarketplaces) {
+						if (typeof entry === 'string') {
+							// Plain string entries have no name — use the value as both key and value.
+							obj[entry] = entry;
+						} else {
+							const s = entry.source;
+							const base = s.source === 'github' ? s.repo : s.url;
+							obj[entry.name] = s.ref ? `${base}#${s.ref}` : base;
+						}
+					}
+					return JSON.stringify(obj);
+				},
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or `{ name, source: { source: 'github'|'git', repo|url, ref? } }` objects."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
 					}
 				},
 			},

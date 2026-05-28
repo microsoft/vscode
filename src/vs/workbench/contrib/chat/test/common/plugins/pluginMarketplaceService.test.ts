@@ -22,7 +22,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
@@ -164,7 +164,7 @@ suite('PluginMarketplaceService', () => {
 		const parsed = parseMarketplaceReference('https://plugins.internal.example.com');
 		assert.ok(parsed);
 		assert.strictEqual(parsed?.kind, MarketplaceReferenceKind.GitUri);
-		assert.strictEqual(parsed?.cloneUrl, 'https://plugins.internal.example.com');
+		assert.strictEqual(parsed?.cloneUrl, 'https://plugins.internal.example.com/');
 		assert.strictEqual(parsed?.canonicalId, 'git:plugins.internal.example.com/');
 		assert.deepStrictEqual(parsed?.cacheSegments, ['plugins.internal.example.com']);
 		assert.strictEqual(parsed?.githubRepo, undefined);
@@ -172,6 +172,24 @@ suite('PluginMarketplaceService', () => {
 		// Trailing slash collapses to the host-only form.
 		const withSlash = parseMarketplaceReference('https://plugins.internal.example.com/');
 		assert.strictEqual(withSlash?.canonicalId, 'git:plugins.internal.example.com/');
+	});
+
+	test('readConfiguredMarketplaces converts policy dict to named marketplace entries', () => {
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.ExtraMarketplaces]: {
+				'acme-internal': 'https://plugins.internal.acme.com',
+				'acme-public': 'https://copilot-plugins.acme.io',
+				'vscode-team-kit': 'microsoft/vscode-team-kit',
+			},
+		});
+		const { extraValues, effectiveValues } = readConfiguredMarketplaces(configService as unknown as IConfigurationService);
+		const refs = parseMarketplaceReferences(extraValues);
+		assert.strictEqual(refs.length, 3);
+		assert.deepStrictEqual(refs.map(r => r.displayLabel), ['acme-internal', 'acme-public', 'vscode-team-kit']);
+		assert.strictEqual(refs[0].kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(refs[2].kind, MarketplaceReferenceKind.GitHubShorthand);
+		// Effective values union user + extra
+		assert.strictEqual(effectiveValues.length, extraValues.length);
 	});
 
 	test('parses Azure DevOps HTTPS clone URLs without .git suffix', () => {
