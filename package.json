@@ -149,7 +149,7 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
     "ws": "^8.19.0",
-    "yauzl": "^3.0.0",
+    "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
     "zod": "^3.25.76"
   },
@@ -264,7 +264,8 @@
     "serialize-javascript": "^7.0.3",
     "ssh2": {
       "cpu-features": "0.0.0"
-    }
+    },
+    "yauzl": "^3.3.1"
   },
   "repository": {
     "type": "git",
