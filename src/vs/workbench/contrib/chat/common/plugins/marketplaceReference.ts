@@ -55,21 +55,76 @@ export function parseMarketplaceReferences(values: readonly unknown[]): IMarketp
 	const byCanonicalId = new Map<string, IMarketplaceReference>();
 
 	for (const value of values) {
-		if (typeof value !== 'string') {
-			continue;
+		let parsed: IMarketplaceReference | undefined;
+		if (typeof value === 'string') {
+			parsed = parseMarketplaceReference(value);
+		} else if (value && typeof value === 'object') {
+			parsed = parseMarketplaceObjectEntry(value as IExtraMarketplaceObjectEntry);
 		}
-
-		const parsed = parseMarketplaceReference(value);
-		if (!parsed) {
-			continue;
-		}
-
-		if (!byCanonicalId.has(parsed.canonicalId)) {
+		if (parsed && !byCanonicalId.has(parsed.canonicalId)) {
 			byCanonicalId.set(parsed.canonicalId, parsed);
 		}
 	}
 
 	return [...byCanonicalId.values()];
+}
+
+/**
+ * Object-form marketplace entry shape, as delivered via the enterprise
+ * `managed_settings` policy or `.github/copilot/settings.json` workspace
+ * file. `name` (when present) is used as the marketplace's `displayLabel`
+ * so that `enabledPlugins["plugin@name"]` keys match consistently.
+ *
+ * Both the nested form (`source: { source, repo|url }`) and the flat form
+ * (`source: 'github', repo: ...`) are accepted.
+ */
+export interface IExtraMarketplaceObjectEntry {
+	readonly name?: string;
+	readonly source?: string | { readonly source?: string; readonly repo?: string; readonly url?: string; readonly ref?: string };
+	readonly repo?: string;
+	readonly url?: string;
+	readonly ref?: string;
+}
+
+export function parseMarketplaceObjectEntry(entry: IExtraMarketplaceObjectEntry): IMarketplaceReference | undefined {
+	let sourceType: string | undefined;
+	let repo: string | undefined;
+	let url: string | undefined;
+	let ref: string | undefined;
+
+	if (entry.source && typeof entry.source === 'object') {
+		const nested = entry.source;
+		sourceType = nested.source;
+		repo = nested.repo;
+		url = nested.url;
+		ref = nested.ref;
+	} else {
+		sourceType = entry.source;
+		repo = entry.repo;
+		url = entry.url;
+		ref = entry.ref;
+	}
+
+	let parsed: IMarketplaceReference | undefined;
+	if (sourceType === 'github' && typeof repo === 'string') {
+		parsed = parseMarketplaceReference(appendMarketplaceRef(repo, ref));
+	} else if (sourceType === 'git' && typeof url === 'string') {
+		parsed = parseMarketplaceReference(appendMarketplaceRef(url, ref));
+	}
+
+	if (parsed && typeof entry.name === 'string' && entry.name.length > 0) {
+		parsed = { ...parsed, displayLabel: entry.name };
+	}
+	return parsed;
+}
+
+function appendMarketplaceRef(value: string, ref: string | undefined): string {
+	if (!ref) {
+		return value;
+	}
+	const fragmentIndex = value.indexOf('#');
+	const base = fragmentIndex === -1 ? value : value.slice(0, fragmentIndex);
+	return `${base}#${ref}`;
 }
 
 /**

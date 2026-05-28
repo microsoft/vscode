@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { IExtraKnownMarketplaceEntry, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 
 /**
@@ -31,10 +31,11 @@ export interface IManagedSettingsResponse {
 
 /**
  * Adapt the `managed_settings` API response into the slice of {@link IPolicyData}
- * that the policy framework consumes. `extraKnownMarketplaces` is flattened from
- * the API's `Record<id, { source }>` shape to the existing
- * `chat.plugins.extraMarketplaces` string-array shape (`<owner>/<repo>[#<ref>]`
- * for GitHub sources, `<url>[#<ref>]` for Git sources), deduplicated.
+ * that the policy framework consumes. `extraKnownMarketplaces` is converted from
+ * the API's `Record<id, { source }>` map shape to a flat array of
+ * {@link IExtraKnownMarketplaceEntry} objects, preserving the marketplace `name`
+ * (used downstream as `displayLabel` so that `enabledPlugins["plugin@<name>"]`
+ * keys resolve correctly), the source discriminator, and any `ref`.
  *
  * Each field is validated independently at runtime — malformed or off-spec
  * shapes are dropped (with an optional warning via {@link onWarn}) rather than
@@ -44,28 +45,32 @@ export interface IManagedSettingsResponse {
  * Exported for unit-testing the shape transformation independently of network I/O.
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
-	let extraKnownMarketplaces: readonly string[] | undefined;
+	let extraKnownMarketplaces: readonly IExtraKnownMarketplaceEntry[] | undefined;
 	if (isObject(response.extraKnownMarketplaces)) {
-		// Set preserves insertion order and dedups for free.
-		const flattened = new Set<string>();
-		for (const [id, entry] of Object.entries(response.extraKnownMarketplaces)) {
+		const seen = new Set<string>();
+		const entries: IExtraKnownMarketplaceEntry[] = [];
+		for (const [name, entry] of Object.entries(response.extraKnownMarketplaces)) {
 			if (!isObject(entry) || !isObject(entry.source)) {
-				onWarn?.(`[DefaultAccount] Skipping malformed extraKnownMarketplaces entry "${id}": expected { source: { source, repo|url } }`);
+				onWarn?.(`[DefaultAccount] Skipping malformed extraKnownMarketplaces entry "${name}": expected { source: { source, repo|url } }`);
 				continue;
 			}
 			const src = entry.source as { source?: string; repo?: string; url?: string; ref?: string };
-			const suffix = src.ref ? `#${src.ref}` : '';
+			let normalized: IExtraKnownMarketplaceEntry | undefined;
 			if (src.source === 'github' && isString(src.repo)) {
-				flattened.add(`${src.repo}${suffix}`);
+				normalized = { name, source: { source: 'github', repo: src.repo, ...(src.ref ? { ref: src.ref } : {}) } };
 			} else if (src.source === 'git' && isString(src.url)) {
-				flattened.add(`${src.url}${suffix}`);
+				normalized = { name, source: { source: 'git', url: src.url, ...(src.ref ? { ref: src.ref } : {}) } };
 			} else if (src.source === 'github' || src.source === 'git') {
-				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${id}": source "${src.source}" requires ${src.source === 'github' ? '"repo"' : '"url"'}`);
+				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${name}": source "${src.source}" requires ${src.source === 'github' ? '"repo"' : '"url"'}`);
 			} else {
-				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${id}": unknown source type "${src.source}"`);
+				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${name}": unknown source type "${src.source}"`);
+			}
+			if (normalized && !seen.has(name)) {
+				seen.add(name);
+				entries.push(normalized);
 			}
 		}
-		extraKnownMarketplaces = [...flattened];
+		extraKnownMarketplaces = entries;
 	}
 
 	return {

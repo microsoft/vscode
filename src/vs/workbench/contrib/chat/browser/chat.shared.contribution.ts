@@ -945,8 +945,14 @@ configurationRegistry.registerConfiguration({
 			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
 			// Hidden from the Settings UI via `included: false` — users edit
 			// `chat.plugins.marketplaces`, the enterprise edits this.
+			//
+			// Items are either:
+			//  - a string (GitHub shorthand `owner/repo[#ref]` or Git URI `<url>[#ref]`), or
+			//  - a `{ name, source: { source: 'github'|'git', repo|url, ref? } }` object that
+			//    preserves the marketplace name from the managed_settings payload so
+			//    `enabledPlugins["plugin@<name>"]` keys resolve correctly.
 			type: 'array',
-			items: { type: 'string' },
+			items: { type: ['string', 'object'] },
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
@@ -959,7 +965,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or `{ name, source }` objects."),
 					}
 				},
 			},

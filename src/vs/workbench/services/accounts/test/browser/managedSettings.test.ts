@@ -37,7 +37,7 @@ suite('adaptManagedSettings', () => {
 		assert.strictEqual(adaptManagedSettings({ strictKnownMarketplaces: false }).strictKnownMarketplaces, false);
 	});
 
-	test('flattens github-source marketplaces to <owner>/<repo>', () => {
+	test('preserves marketplace name + github source shape', () => {
 		const result = adaptManagedSettings({
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'github/agent-skills' } },
@@ -45,12 +45,12 @@ suite('adaptManagedSettings', () => {
 			},
 		});
 		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			'github/agent-skills',
-			'acme/things#main',
+			{ name: 'a', source: { source: 'github', repo: 'github/agent-skills' } },
+			{ name: 'b', source: { source: 'github', repo: 'acme/things', ref: 'main' } },
 		]);
 	});
 
-	test('flattens git-source marketplaces to <url>', () => {
+	test('preserves marketplace name + git source shape', () => {
 		const result = adaptManagedSettings({
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'git', url: 'https://example.com/repo.git' } },
@@ -58,22 +58,21 @@ suite('adaptManagedSettings', () => {
 			},
 		});
 		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			'https://example.com/repo.git',
-			'ssh://git@host/path.git#v1',
+			{ name: 'a', source: { source: 'git', url: 'https://example.com/repo.git' } },
+			{ name: 'b', source: { source: 'git', url: 'ssh://git@host/path.git', ref: 'v1' } },
 		]);
 	});
 
-	test('handles mixed github + git sources with dedup', () => {
+	test('handles mixed github + git sources, dedups by marketplace name', () => {
 		const result = adaptManagedSettings({
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'a/b' } },
 				'b': { source: { source: 'git', url: 'https://example.com/r.git' } },
-				'c': { source: { source: 'github', repo: 'a/b' } }, // dup
 			},
 		});
 		assert.deepStrictEqual(result.extraKnownMarketplaces, [
-			'a/b',
-			'https://example.com/r.git',
+			{ name: 'a', source: { source: 'github', repo: 'a/b' } },
+			{ name: 'b', source: { source: 'git', url: 'https://example.com/r.git' } },
 		]);
 	});
 
@@ -87,7 +86,9 @@ suite('adaptManagedSettings', () => {
 		});
 		assert.deepStrictEqual(result, {
 			enabledPlugins: { 'p@m': true },
-			extraKnownMarketplaces: ['a/b#r'],
+			extraKnownMarketplaces: [
+				{ name: 'a', source: { source: 'github', repo: 'a/b', ref: 'r' } },
+			],
 			strictKnownMarketplaces: true,
 		});
 	});
@@ -114,7 +115,9 @@ suite('adaptManagedSettings', () => {
 				'bad-unknown-type': { source: { source: 'ftp', url: 'ftp://x' } } as IManagedSettingsResponse['extraKnownMarketplaces'] extends Record<string, infer V> ? V : never,
 			},
 		} as IManagedSettingsResponse, msg => warnings.push(msg));
-		assert.deepStrictEqual(result.extraKnownMarketplaces, ['a/b']);
+		assert.deepStrictEqual(result.extraKnownMarketplaces, [
+			{ name: 'good', source: { source: 'github', repo: 'a/b' } },
+		]);
 		assert.strictEqual(warnings.length, 2);
 	});
 

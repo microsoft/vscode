@@ -202,10 +202,22 @@ suite('PluginMarketplaceService', () => {
 		]);
 	});
 
-	test('parseMarketplaceReferences ignores non-string entries', () => {
+	test('parseMarketplaceReferences ignores invalid entries (null, numbers, malformed objects)', () => {
 		const parsed = parseMarketplaceReferences([null, 42, {}, 'microsoft/vscode']);
 		assert.strictEqual(parsed.length, 1);
 		assert.strictEqual(parsed[0].canonicalId, 'github:microsoft/vscode');
+	});
+
+	test('parseMarketplaceReferences accepts policy-shape objects and uses name as displayLabel', () => {
+		const parsed = parseMarketplaceReferences([
+			{ name: 'vscode-team-kit', source: { source: 'github', repo: 'microsoft/vscode-team-kit' } },
+			{ name: 'acme-public', source: { source: 'git', url: 'https://copilot-plugins.acme.io', ref: 'main' } },
+		]);
+		assert.strictEqual(parsed.length, 2);
+		assert.strictEqual(parsed[0].displayLabel, 'vscode-team-kit');
+		assert.strictEqual(parsed[0].canonicalId, 'github:microsoft/vscode-team-kit');
+		assert.strictEqual(parsed[1].displayLabel, 'acme-public');
+		assert.strictEqual(parsed[1].ref, 'main');
 	});
 
 	test('treats different marketplace refs as distinct references', () => {

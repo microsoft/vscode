@@ -66,12 +66,12 @@ export interface IPolicyData {
 
 	/**
 	 * Enterprise-managed marketplace references, delivered via the Copilot
-	 * `managed_settings` API. Adapted from the API's `Record<id, { source }>`
-	 * shape to the existing `chat.plugins.marketplaces` string-array shape
-	 * (`<owner>/<repo>[#<ref>]` for GitHub sources, `<url>[#<ref>]` for Git
-	 * sources) inside `DefaultAccountService`.
+	 * `managed_settings` API. Each entry preserves the marketplace `name`
+	 * (used as `displayLabel` so that `enabledPlugins["plugin@<name>"]` keys
+	 * resolve) plus the original `source` discriminator. Legacy string entries
+	 * are still accepted for forward/backward compatibility.
 	 */
-	readonly extraKnownMarketplaces?: readonly string[];
+	readonly extraKnownMarketplaces?: readonly (string | IExtraKnownMarketplaceEntry)[];
 
 	/**
 	 * Enterprise-managed strict-marketplace flag. When true, only marketplaces
@@ -79,6 +79,14 @@ export interface IPolicyData {
 	 */
 	readonly strictKnownMarketplaces?: boolean;
 }
+
+/**
+ * A single enterprise-managed marketplace entry, preserving the marketplace
+ * name (used as `displayLabel`) and the original `source` discriminator.
+ */
+export type IExtraKnownMarketplaceEntry =
+	| { readonly name: string; readonly source: { readonly source: 'github'; readonly repo: string; readonly ref?: string } }
+	| { readonly name: string; readonly source: { readonly source: 'git'; readonly url: string; readonly ref?: string } };
 
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
