@@ -232,7 +232,7 @@ suite('Common Editor Config', () => {
 		const config = new TestConfiguration({ quickSuggestions: null! });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
 		assert.deepStrictEqual(actual, {
-			other: 'offWhenInlineCompletions',
+			other: 'on',
 			comments: 'off',
 			strings: 'off'
 		});
@@ -244,9 +244,20 @@ suite('Common Editor Config', () => {
 		config.updateOptions({ quickSuggestions: { strings: true } });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
 		assert.deepStrictEqual(actual, {
-			other: 'offWhenInlineCompletions',
+			other: 'on',
 			comments: 'off',
 			strings: 'on'
+		});
+		config.dispose();
+	});
+
+	test('issue #318549: quickSuggestions.other defaults to "on" so snippet completions are not suppressed by inline completions', () => {
+		const config = new TestConfiguration({});
+		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
+		assert.deepStrictEqual(actual, {
+			other: 'on',
+			comments: 'off',
+			strings: 'off'
 		});
 		config.dispose();
 	});
