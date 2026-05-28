@@ -553,6 +553,7 @@ export class QuickInputController extends Disposable {
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
 			input.anchor = options.anchor;
+			input.anchorPosition = options.anchorPosition;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -685,6 +686,14 @@ export class QuickInputController extends Disposable {
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
+
+		// Anchored controllers always render in the window that owns their anchor element.
+		if (dom.isHTMLElement(controller.anchor)) {
+			const anchorWindow = dom.getWindow(controller.anchor);
+			if (dom.getWindow(this._container) !== anchorWindow) {
+				this.reparentUI(this.layoutService.getContainer(anchorWindow));
+			}
+		}
 
 		this.setEnabled(true);
 		ui.leftActionBar.setActions([]);
@@ -893,34 +902,62 @@ export class QuickInputController extends Disposable {
 
 			// Position
 			if (this.controller?.anchor) {
-				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
-				const anchor = getAnchorRect(this.controller.anchor as HTMLElement | IAnchor);
-				width = 380;
+				const target = this.controller.anchor as HTMLElement | IAnchor;
+				let position: AnchorPosition | 'overlay';
+				switch (this.controller.anchorPosition) {
+					case 'below': position = AnchorPosition.BELOW; break;
+					case 'overlay': position = 'overlay'; break;
+					default: position = AnchorPosition.ABOVE; break;
+				}
+
+				const isElement = dom.isHTMLElement(target);
+				const anchorWindow = isElement ? dom.getWindow(target) : dom.getActiveWindow();
+				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
+				const anchor = getAnchorRect(target);
+
+				// `overlay` always sizes to the anchor (the picker visually replaces it).
+				if (position === 'overlay' || isElement) {
+					width = anchor.width ?? 380;
+				} else {
+					width = 380;
+				}
 				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
 
-				// Beware:
-				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
-				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
-
-				if (anchorAlignment === AnchorAlignment.RIGHT) {
-					style.right = `${right}px`;
-					style.left = 'initial';
-				} else {
-					style.left = `${left}px`;
+				if (position === 'overlay') {
+					const WIDGET_BORDER = 1;
+					const HEADER_PADDING = 6;
+					const OFFSET = HEADER_PADDING + WIDGET_BORDER;
+					style.left = `${anchor.left - container.left - OFFSET}px`;
+					style.top = `${anchor.top - container.top - OFFSET}px`;
 					style.right = 'initial';
-				}
-
-				if (anchorPosition === AnchorPosition.ABOVE) {
-					style.bottom = `${bottom}px`;
-					style.top = 'initial';
-				} else {
-					style.top = `${top}px`;
 					style.bottom = 'initial';
-				}
+					style.width = `${width + 2 * HEADER_PADDING}px`;
+					style.height = '';
+				} else {
+					// Beware:
+					// We need to add some extra pixels to the height to account for the input and padding.
+					const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+					const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: position });
 
-				style.width = `${width}px`;
-				style.height = '';
+					if (anchorAlignment === AnchorAlignment.RIGHT) {
+						style.right = `${right}px`;
+						style.left = 'initial';
+					} else {
+						style.left = `${left}px`;
+						style.right = 'initial';
+					}
+
+					if (anchorPosition === AnchorPosition.ABOVE) {
+						style.bottom = `${bottom}px`;
+						style.top = 'initial';
+					} else {
+						style.top = `${top}px`;
+						style.bottom = 'initial';
+					}
+
+					style.width = `${width}px`;
+					style.height = '';
+				}
 			} else {
 				style.top = `${this.viewState?.top !== undefined ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
 				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
