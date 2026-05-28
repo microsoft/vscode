@@ -142,6 +142,20 @@ suite('CopilotShellTools', () => {
 			checkSandboxDependencies: async () => undefined,
 			getWindowsMxcFilesystemPolicy: async () => ({ readonlyPaths: [], readwritePaths: [] }),
 			getWindowsMxcEnvironment: async () => [],
+			buildWindowsMxcSandboxPayload: async (commandLine, policy, workingDirectory, containerName = 'vscode-terminal-sandbox', containment = 'process') => ({
+				version: policy.version,
+				containerId: containerName,
+				containment,
+				lifecycle: { destroyOnExit: true, preservePolicy: false },
+				process: { commandLine, cwd: workingDirectory, timeout: policy.timeoutMs ?? 0 },
+				filesystem: {
+					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
+					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
+					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
+				},
+				network: { defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block' },
+				ui: { disable: !(policy.ui?.allowWindows ?? false), clipboard: policy.ui?.clipboard ?? 'none', injection: policy.ui?.allowInputInjection ?? false },
+			}),
 		} satisfies ISandboxHelperService;
 	}
 
