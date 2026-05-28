@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 
@@ -328,6 +328,38 @@ suite('codexMapAppServerEvents', () => {
 			delta: { type: ActionType.SessionToolCallDelta, turnId: 'turn_a', toolCallId, content: 'vscode tests' },
 			ready: { type: ActionType.SessionToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'vscode tests', toolInput: 'vscode tests', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'search' } },
 			complete: [{ type: ActionType.SessionToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Searched vscode tests' } }],
+			remainingToolCalls: 0,
+		});
+	});
+
+	test('fileChange item maps to file edit tool call lifecycle', () => {
+		const state = createCodexSessionMapState();
+		const changes = [{ path: 'src/a.ts', kind: { type: 'update', move_path: null }, diff: '@@ -1 +1 @@\n-old\n+new' }] as const;
+		const startActions = mapItemStarted(state, {
+			item: { type: 'fileChange', id: 'file_1', changes, status: 'inProgress' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('file_1')!.toolCallId;
+		const patchActions = mapFileChangePatchUpdated(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'file_1', changes: [{ path: 'src/b.ts', kind: { type: 'add' }, diff: '+hello' }] });
+		const completeActions = mapItemCompleted(state, {
+			item: { type: 'fileChange', id: 'file_1', changes, status: 'completed' } as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			startTypes: startActions.map(action => action.type),
+			delta: startActions[1],
+			ready: startActions[2],
+			initialContent: startActions[3],
+			patchActions,
+			completeActions,
+			remainingToolCalls: state.itemToToolCall.size,
+		}, {
+			startTypes: [ActionType.SessionToolCallStart, ActionType.SessionToolCallDelta, ActionType.SessionToolCallReady, ActionType.SessionToolCallContentChanged],
+			delta: { type: ActionType.SessionToolCallDelta, turnId: 'turn_a', toolCallId, content: 'update: src/a.ts' },
+			ready: { type: ActionType.SessionToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'update: src/a.ts', toolInput: 'update: src/a.ts', confirmed: ToolCallConfirmationReason.NotNeeded },
+			initialContent: { type: ActionType.SessionToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] },
+			patchActions: [{ type: ActionType.SessionToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'add: src/b.ts\n+hello' }] }],
+			completeActions: [{ type: ActionType.SessionToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Applied file changes', content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] } }],
 			remainingToolCalls: 0,
 		});
 	});

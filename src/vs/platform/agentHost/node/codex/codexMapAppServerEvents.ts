@@ -8,6 +8,9 @@ import { ActionType, type SessionAction } from '../../common/state/sessionAction
 import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
+import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
+import type { FileChangePatchUpdatedNotification } from './protocol/generated/v2/FileChangePatchUpdatedNotification.js';
+import type { FileUpdateChange } from './protocol/generated/v2/FileUpdateChange.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
 import type { ReasoningSummaryPartAddedNotification } from './protocol/generated/v2/ReasoningSummaryPartAddedNotification.js';
@@ -89,6 +92,19 @@ function describeWebSearch(query: string, action: WebSearchAction | null): strin
 		return [action.pattern, action.url].filter(Boolean).join(' in ') || query;
 	}
 	return query;
+}
+
+function describeFileChange(changes: readonly FileUpdateChange[]): string {
+	return changes.map(change => {
+		const kind = change.kind.type === 'update' && change.kind.move_path
+			? `rename from ${change.kind.move_path}`
+			: change.kind.type;
+		return `${kind}: ${change.path}`;
+	}).join('\n');
+}
+
+function fileChangeOutput(changes: readonly FileUpdateChange[]): string {
+	return changes.map(change => `${describeFileChange([change])}\n${change.diff}`.trim()).join('\n\n');
 }
 
 /**
@@ -286,12 +302,86 @@ export function mapItemStarted(
 			},
 		];
 	}
+	if (params.item.type === 'fileChange') {
+		const toolCallId = generateUuid();
+		const output = fileChangeOutput(params.item.changes);
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'file_edit',
+			output,
+		});
+		const summary = describeFileChange(params.item.changes) || 'Apply file changes';
+		return [
+			{
+				type: ActionType.SessionToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'file_edit',
+				displayName: 'Apply file changes',
+			},
+			{
+				type: ActionType.SessionToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: summary,
+			},
+			{
+				type: ActionType.SessionToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: summary,
+				toolInput: summary,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+			...(output ? [{
+				type: ActionType.SessionToolCallContentChanged,
+				turnId: params.turnId,
+				toolCallId,
+				content: [{ type: ToolResultContentType.Text, text: output }],
+			} satisfies SessionAction] : []),
+		];
+	}
 	return [];
 }
 
 export function mapCommandExecutionOutputDelta(
 	state: ICodexSessionMapState,
 	params: CommandExecutionOutputDeltaNotification,
+): SessionAction[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output += params.delta;
+	return [{
+		type: ActionType.SessionToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+	}];
+}
+
+export function mapFileChangePatchUpdated(
+	state: ICodexSessionMapState,
+	params: FileChangePatchUpdatedNotification,
+): SessionAction[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output = fileChangeOutput(params.changes);
+	return [{
+		type: ActionType.SessionToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: entry.output ? [{ type: ToolResultContentType.Text, text: entry.output }] : [],
+	}];
+}
+
+export function mapFileChangeOutputDelta(
+	state: ICodexSessionMapState,
+	params: FileChangeOutputDeltaNotification,
 ): SessionAction[] {
 	const entry = state.itemToToolCall.get(params.itemId);
 	if (!entry) {
@@ -399,6 +489,28 @@ export function mapItemCompleted(
 				success: true,
 				pastTenseMessage: `Searched ${query}`,
 			},
+		}];
+	}
+	if (params.item.type === 'fileChange') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const output = fileChangeOutput(params.item.changes) || entry.output;
+		const success = params.item.status === 'completed';
+		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		const result = {
+			success,
+			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
+			content,
+			...(success ? {} : { error: { message: `Patch ${params.item.status}` } }),
+		};
+		return [{
+			type: ActionType.SessionToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result,
 		}];
 	}
 	return [];
