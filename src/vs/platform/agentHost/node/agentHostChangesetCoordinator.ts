@@ -265,8 +265,8 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * parent session is not already live. Non-changeset URIs are ignored.
 	 *
 	 * This is intentionally narrower than {@link tryHandleSubscribe}: it does
-	 * becomes known). Drains any refresh that was deferred because the working
-	 * directory was not yet known.
+	 * not compute per-turn / compare changesets and does not register static
+	 * changesets. It exists for the AgentService subscribe path where
 	 * `addSubscriber` may have already created a placeholder changeset snapshot
 	 * before the parent session restore had a chance to apply persisted diffs.
 	 */
