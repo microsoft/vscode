@@ -42,6 +42,17 @@ const baseNodeBuildOptions = {
 		'sqlite3',
 		'node-pty', // Required by @github/copilot
 		'@github/copilot',
+		// Subset of the shared production deps declared in `extensions/package.json`
+		// that copilot actually imports. Resolved from `extensions/node_modules/`
+		// at runtime in the product.
+		'@vscode/extension-telemetry',
+		'@microsoft/1ds-core-js',
+		'@microsoft/1ds-post-js',
+		'dompurify',
+		'jsonc-parser',
+		'markdown-it',
+		'minimatch',
+		'vscode-tas-client',
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',

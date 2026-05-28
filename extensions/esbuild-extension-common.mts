@@ -30,6 +30,27 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 
 	if (config.platform === 'node') {
 		options.mainFields = ['module', 'main'];
+		// Resolved at runtime from the shared `extensions/node_modules/` (see
+		// `extensions/package.json` + the `getProductionDependencies('extensions/')`
+		// copy in `build/lib/extensions.ts`). Web builds inline these — the web
+		// packaging path doesn't ship `extensions/node_modules/`.
+		options.external = [...options.external!,
+			'@octokit/rest',
+			'@microsoft/1ds-core-js',
+			'@microsoft/1ds-post-js',
+			'@vscode/extension-telemetry',
+			'dompurify',
+			'jsonc-parser',
+			'markdown-it',
+			'minimatch',
+			'picomatch',
+			'request-light',
+			'tunnel',
+			'vscode-languageserver-textdocument',
+			'vscode-tas-client',
+			'vscode-uri',
+			'which',
+		];
 	} else if (config.platform === 'browser') {
 		options.mainFields = ['browser', 'module', 'main'];
 		options.alias = {
