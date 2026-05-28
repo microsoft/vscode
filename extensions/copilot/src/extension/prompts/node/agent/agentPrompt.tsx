@@ -597,7 +597,8 @@ class CurrentDatePrompt extends PromptElement<BasePromptElementProps> {
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		// Use ISO 8601 format so the prompt is not affected by the user's system language (issue #309008)
+		const dateStr = new Date().toISOString().slice(0, 10);
 		// Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day
 		return (
 			!this.envService.isSimulation() && <>The current date is {dateStr}.</>

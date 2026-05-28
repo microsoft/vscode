@@ -49,8 +49,8 @@ export class PanelChatBasePrompt extends PromptElement<PanelChatBasePromptProps>
 					<SafetyRules />
 					<Capabilities location={ChatLocation.Panel} />
 					<WorkspaceFoldersHint flexGrow={1} priority={800} />
-					{/* Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day */}
-					{!this.envService.isSimulation() && <><br />The current date is {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.</>}
+					{/* Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day. Use ISO 8601 format so the prompt is not affected by the user's system language (issue #309008) */}
+					{!this.envService.isSimulation() && <><br />The current date is {new Date().toISOString().slice(0, 10)}.</>}
 				</SystemMessage>
 				<HistoryWithInstructions flexGrow={1} historyPriority={700} passPriority history={history} currentTurnVars={chatVariables}>
 					<InstructionMessage priority={1000}>
