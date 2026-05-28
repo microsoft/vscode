@@ -99,7 +99,9 @@ export async function _getDocumentableNodeIfOnIdentifier(
 		if (smallestNodeContainingRange.type.match(/identifier/) &&
 			(smallestNodeContainingRange.parent === null || isDocumentableNode(smallestNodeContainingRange.parent, language))
 		) {
-			const parent = smallestNodeContainingRange.parent;
+			const parent = smallestNodeContainingRange.parent === null
+				? null
+				: unwrapPythonDecoratedDefinition(smallestNodeContainingRange.parent, language);
 
 			const parentNodeRange = parent === null
 				? undefined
