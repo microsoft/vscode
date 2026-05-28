@@ -106,4 +106,3 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		enabled: true,
 	};
 }
-
