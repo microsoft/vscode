@@ -10,7 +10,8 @@ import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import {
 	posix,
 	win32
@@ -162,8 +163,8 @@ interface IPluginSource {
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
-	/** Called when remove is invoked on the plugin */
-	remove(): void;
+	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
+	remove?(): void;
 }
 
 /**
@@ -218,7 +219,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!seenPluginUris.has(key)) {
 				seenPluginUris.add(key);
 				const format = await detectPluginFormat(source.uri, this._fileService);
-				plugins.push(await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, () => source.remove()));
+				plugins.push(await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove ? () => source.remove!() : undefined));
 			}
 		}
 
@@ -237,7 +238,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: () => void): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => void) | undefined): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -493,6 +494,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
 	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
+	private readonly _enterpriseEnabledPluginsConfig: IObservable<Record<string, boolean>>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -503,7 +505,25 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@ILogService logService: ILogService,
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
-		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
+		// Filesystem path entries (user-configured). `getValue()` alone would surface
+		// only the policy value when a policy is set; use `inspect()` so that user
+		// entries survive. `defaultValue` is folded in for symmetry.
+		this._pluginLocationsConfig = observableFromEvent(this,
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.PluginLocations)),
+			() => {
+				const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginLocations);
+				return { ...inspected.defaultValue, ...inspected.userValue };
+			},
+		);
+		// Enterprise-managed plugin-ID entries (delivered via `ChatEnabledPlugins` policy).
+		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
+		this._enterpriseEnabledPluginsConfig = observableFromEvent(this,
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
+			() => {
+				const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins);
+				return { ...inspected.defaultValue, ...inspected.userValue, ...inspected.policyValue };
+			},
+		);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -511,6 +531,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
 			this._pluginLocationsConfig.read(reader);
+			this._enterpriseEnabledPluginsConfig.read(reader);
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
@@ -518,36 +539,45 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
-		const config = this._pluginLocationsConfig.get();
 		const userHome = await this._getUserHome();
 
-		for (const [path, enabled] of Object.entries(config)) {
-			if (!path.trim() || enabled === false) {
-				continue;
-			}
+		// Two configuration shapes feed the same discovery pipeline:
+		// - User-configured filesystem paths in `chat.pluginLocations` — removable
+		//   by re-writing the user setting.
+		// - Enterprise-managed plugin IDs in `chat.plugins.enabledPlugins` (delivered
+		//   via the `ChatEnabledPlugins` policy) — not removable from the UI.
+		const groups: ReadonlyArray<{ entries: Record<string, boolean>; removable: boolean; label: string }> = [
+			{ entries: this._pluginLocationsConfig.get(), removable: true, label: 'plugin path' },
+			{ entries: this._enterpriseEnabledPluginsConfig.get(), removable: false, label: 'enterprise plugin path' },
+		];
 
-			const resources = this._resolvePluginPath(path.trim(), userHome);
-			for (const resource of resources) {
-				let stat;
-				try {
-					stat = await this._fileService.resolve(resource);
-				} catch {
-					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve plugin path: ${resource.toString()}`);
+		for (const { entries, removable, label } of groups) {
+			for (const [key, enabled] of Object.entries(entries)) {
+				const trimmed = key.trim();
+				if (!trimmed || enabled === false) {
 					continue;
 				}
 
-				if (!stat.isDirectory) {
-					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Plugin path is not a directory: ${resource.toString()}`);
-					continue;
-				}
+				for (const resource of this._resolvePluginPath(trimmed, userHome)) {
+					let stat;
+					try {
+						stat = await this._fileService.resolve(resource);
+					} catch {
+						this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve ${label}: ${resource.toString()}`);
+						continue;
+					}
 
-				const fromMarketplace = this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
-				const configKey = path;
-				sources.push({
-					uri: stat.resource,
-					fromMarketplace,
-					remove: () => this._removePluginPath(configKey),
-				});
+					if (!stat.isDirectory) {
+						this._logService.debug(`[ConfiguredAgentPluginDiscovery] ${label} is not a directory: ${resource.toString()}`);
+						continue;
+					}
+
+					sources.push({
+						uri: stat.resource,
+						fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
+						remove: removable ? () => this._removePluginPath(key) : undefined,
+					});
+				}
 			}
 		}
 
@@ -560,12 +590,20 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	}
 
 	/**
-	 * Resolves a plugin path to one or more resource URIs. Supports:
+	 * Resolves a plugin path or plugin ID to one or more resource URIs. Supports:
 	 * - Absolute paths (used directly)
 	 * - Tilde paths (expanded to user home directory)
 	 * - Relative paths (resolved against each workspace folder)
+	 * - Plugin-ID form (`<plugin>@<marketplace>`) from the `ChatEnabledPlugins` enterprise policy,
+	 *   resolved to the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
 	 */
 	private _resolvePluginPath(path: string, userHome: string): URI[] {
+		const idMatch = path.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
+		if (idMatch) {
+			const [, plugin, marketplace] = idMatch;
+			return [URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`)];
+		}
+
 		if (path.startsWith('~')) {
 			path = untildify(path, userHome);
 		}

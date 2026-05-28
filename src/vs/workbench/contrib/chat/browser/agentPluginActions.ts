@@ -46,7 +46,7 @@ export class InstallPluginAction extends Action {
 export class UninstallPluginAction extends Action {
 	constructor(plugin: IAgentPlugin) {
 		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true,
-			() => { plugin.remove(); return Promise.resolve(); });
+			() => { plugin.remove?.(); return Promise.resolve(); });
 	}
 }
 

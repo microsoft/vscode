@@ -911,15 +911,66 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.EnabledPlugins]: {
+			type: 'object',
+			additionalProperties: { type: 'boolean' },
+			markdownDescription: nls.localize('chat.plugins.enabledPlugins', "Enterprise-managed plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable (`true`) or disable (`false`) the plugin. Merged with entries from {0}.", `\`#${ChatConfiguration.PluginLocations}#\``),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			policy: {
+				name: 'ChatEnabledPlugins',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.enabledPlugins ? JSON.stringify(policyData.enabledPlugins) : undefined,
+				localization: {
+					description: {
+						key: 'chat.plugins.enabledPlugins.policy',
+						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."),
+					}
+				},
+			},
+		},
 		[ChatConfiguration.PluginMarketplaces]: {
 			type: 'array',
 			items: {
 				type: 'string',
 			},
 			markdownDescription: nls.localize('chat.plugins.marketplaces', "Plugin marketplaces to query. Entries may be GitHub shorthand (`owner/repo` or `owner/repo#ref`), direct Git repository URIs (`https://...git`, `ssh://...git`, or `git@host:path.git`, each optionally suffixed with `#ref`), or local repository URIs (`file:///...`). Equivalent GitHub shorthand and URI entries are deduplicated."),
-			default: ['github/copilot-plugins', 'github/awesome-copilot#marketplace'],
+			default: [],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			policy: {
+				name: 'ChatPluginMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.extraKnownMarketplaces ? JSON.stringify(policyData.extraKnownMarketplaces) : undefined,
+				localization: {
+					description: {
+						key: 'chat.plugins.marketplaces.policy',
+						value: nls.localize('chat.plugins.marketplaces.policy', "Plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+					}
+				},
+			},
+		},
+		[ChatConfiguration.StrictMarketplaces]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "When enabled, only marketplaces listed in {0} are trusted. Plugins from any other marketplace will not load.", `\`#${ChatConfiguration.PluginMarketplaces}#\``),
+			default: false,
+			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			policy: {
+				name: 'ChatStrictMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.strictKnownMarketplaces,
+				localization: {
+					description: {
+						key: 'chat.plugins.strictMarketplaces.policy',
+						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Only trust marketplaces listed in `chat.plugins.marketplaces`; plugins from any other marketplace will not load."),
+					}
+				},
+			},
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',

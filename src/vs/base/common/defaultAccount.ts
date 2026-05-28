@@ -54,6 +54,30 @@ export interface IPolicyData {
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
+
+	/**
+	 * Enterprise-managed plugin enablement, delivered via the Copilot
+	 * `managed_settings` API. Keys are plugin IDs in `<plugin>@<marketplace>`
+	 * form; values are explicit enable/disable. Consumers that read
+	 * `chat.pluginLocations` should merge these with user-supplied path-keyed
+	 * entries via `IConfigurationService.inspect()`.
+	 */
+	readonly enabledPlugins?: Readonly<Record<string, boolean>>;
+
+	/**
+	 * Enterprise-managed marketplace references, delivered via the Copilot
+	 * `managed_settings` API. Adapted from the API's `Record<id, { source }>`
+	 * shape to the existing `chat.plugins.marketplaces` string-array shape
+	 * (`<owner>/<repo>[#<ref>]` for GitHub sources, `<url>[#<ref>]` for Git
+	 * sources) inside `DefaultAccountService`.
+	 */
+	readonly extraKnownMarketplaces?: readonly string[];
+
+	/**
+	 * Enterprise-managed strict-marketplace flag. When true, only marketplaces
+	 * listed in `extraKnownMarketplaces` (plus the user's own) are trusted.
+	 */
+	readonly strictKnownMarketplaces?: boolean;
 }
 
 export interface ICopilotTokenInfo {

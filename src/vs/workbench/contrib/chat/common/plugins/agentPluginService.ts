@@ -35,8 +35,8 @@ export interface IAgentPlugin {
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
 	readonly enablement: IObservable<ContributionEnablementState>;
-	/** Removes this plugin from its discovery source (config or installed storage). */
-	remove(): void;
+	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
+	remove?(): void;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;

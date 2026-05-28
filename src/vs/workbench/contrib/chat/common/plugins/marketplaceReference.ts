@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../constants.js';
 
 export const enum MarketplaceReferenceKind {
 	GitHubShorthand = 'githubShorthand',
@@ -21,6 +23,37 @@ export interface IMarketplaceReference {
 	readonly ref?: string;
 	readonly githubRepo?: string;
 	readonly localRepositoryUri?: URI;
+}
+
+/**
+ * Reads {@link ChatConfiguration.PluginMarketplaces} broken into its three
+ * configuration layers so callers can:
+ * - apply default + user + policy when computing the effective set (read paths,
+ *   trust checks);
+ * - apply default + user when writing back (so we don't persist policy entries
+ *   into user settings); and
+ * - recognise which canonical IDs are policy-supplied (so they can be marked
+ *   read-only in management UI).
+ *
+ * Entries may be strings (`<owner>/<repo>` or git URIs) or objects (policy
+ * payloads); both shapes flow through {@link parseMarketplaceReferences}.
+ */
+export interface IConfiguredMarketplaces {
+	readonly effectiveValues: readonly unknown[];
+	readonly editableValues: readonly unknown[];
+	readonly policyCanonicalIds: ReadonlySet<string>;
+}
+
+export function readConfiguredMarketplaces(configurationService: IConfigurationService): IConfiguredMarketplaces {
+	const inspected = configurationService.inspect<(string | object)[]>(ChatConfiguration.PluginMarketplaces);
+	const defaultValues = inspected.defaultValue ?? [];
+	const userValues = inspected.userValue ?? [];
+	const policyValues = inspected.policyValue ?? [];
+	return {
+		effectiveValues: [...defaultValues, ...userValues, ...policyValues],
+		editableValues: [...defaultValues, ...userValues],
+		policyCanonicalIds: new Set(parseMarketplaceReferences(policyValues).map(r => r.canonicalId)),
+	};
 }
 
 export function parseMarketplaceReferences(values: readonly unknown[]): IMarketplaceReference[] {
