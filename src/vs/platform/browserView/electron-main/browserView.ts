@@ -628,6 +628,9 @@ export class BrowserView extends Disposable {
 				height: options.pageRect.height * visualViewportScale * zoomFactor
 			};
 		}
+		if (options?.awaitNextPaint) {
+			await this._waitForNextPaint();
+		}
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
@@ -675,6 +678,19 @@ export class BrowserView extends Disposable {
 			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
 				this.logService.error('Failed to restore visual zoom level limits after full-page screenshot.', error);
 			});
+		}
+	}
+
+	private async _waitForNextPaint(): Promise<void> {
+		const WAIT_TIMEOUT_MS = 100;
+		try {
+			await Promise.race([
+				this._view.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))'),
+				new Promise<void>(resolve => setTimeout(resolve, WAIT_TIMEOUT_MS))
+			]);
+		} catch {
+			// `executeJavaScript` can throw if the page navigates while we're waiting;
+			// just proceed in that case.
 		}
 	}
 

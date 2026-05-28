@@ -957,25 +957,11 @@ class AreaPicker {
 		const offsetTop = vv?.offsetTop ?? 0;
 		const rect = { x: left - offsetLeft, y: top - offsetTop, width, height };
 
-		// Wait for the compositor to actually present a frame WITHOUT the overlay
-		// before we tell main to capture. The teardown above only mutated the DOM;
-		// the GPU surface that `webContents.capturePage()` reads from is not
-		// updated until the next compositor commit.
-		//
-		// Per the HTML event-loop spec:
-		//   - `requestAnimationFrame` callbacks run during the "update the
-		//     rendering" step, BEFORE the paint phase of that same frame.
-		//   - Tasks queued from inside an rAF callback run AFTER the rendering
-		//     pipeline for that frame, i.e. after paint/commit.
-		// We use `MessageChannel.postMessage` to queue the post-paint task
-		// because `setTimeout(0)` is throttled to ~4ms and is therefore less
-		// reliable than a plain postTask.
-		const afterPaint = () => requestAnimationFrame(() => {
-			const ch = new MessageChannel();
-			ch.port1.onmessage = () => this._onPicked(rect);
-			ch.port2.postMessage(null);
-		});
-		afterPaint();
+		// The synchronous DOM teardown above is the prerequisite — the next compositor
+		// frame won't contain the overlay. Waiting for that frame to actually land
+		// before reading the GPU surface is the consumer's responsibility (see
+		// `awaitNextPaint` in `BrowserView.captureScreenshot`).
+		this._onPicked(rect);
 	};
 
 	private _onClick = (e: Event): void => {

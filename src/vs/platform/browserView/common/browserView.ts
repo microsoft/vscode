@@ -109,6 +109,16 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	 * Ignored when `screenRect` or `pageRect` is set.
 	 */
 	fullPage?: boolean;
+	/**
+	 * When true, wait for the next compositor frame to be presented before capturing.
+	 * Use this when the caller has just torn down an in-page overlay (e.g. the area
+	 * picker's dashed selection rectangle) that would otherwise still be present in
+	 * the GPU surface that `capturePage` reads.
+	 *
+	 * Adds ~1 frame of latency (bounded by a short timeout fallback), so leave off
+	 * for captures that don't follow a DOM teardown.
+	 */
+	awaitNextPaint?: boolean;
 }
 
 /**

@@ -519,7 +519,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		try {
-			const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect });
+			// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
+			// into the captured screenshot.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
 
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
 				return;
