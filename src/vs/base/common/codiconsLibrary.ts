@@ -714,4 +714,5 @@ export const codiconsLibrary = {
 	vmPending: register('vm-pending', 0xecbc),
 	worktreeCompact: register('worktree-compact', 0xecbd),
 	developerTools: register('developer-tools', 0xecbe),
+	cloudCompact: register('cloud-compact', 0xecbf),
 } as const;
