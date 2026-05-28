@@ -12,6 +12,7 @@ import type { ItemStartedNotification } from './protocol/generated/v2/ItemStarte
 import type { ReasoningSummaryPartAddedNotification } from './protocol/generated/v2/ReasoningSummaryPartAddedNotification.js';
 import type { ReasoningSummaryTextDeltaNotification } from './protocol/generated/v2/ReasoningSummaryTextDeltaNotification.js';
 import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/ReasoningTextDeltaNotification.js';
+import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 
@@ -150,6 +151,23 @@ export function clearReasoningForItem(state: ICodexSessionMapState, itemId: stri
 			state.itemToReasoningPartId.delete(key);
 		}
 	}
+}
+
+export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): SessionAction[] {
+	const last = params.tokenUsage.last;
+	return [{
+		type: ActionType.SessionUsage,
+		turnId: params.turnId,
+		usage: {
+			inputTokens: last.inputTokens,
+			outputTokens: last.outputTokens,
+			cacheReadTokens: last.cachedInputTokens,
+			_meta: {
+				reasoningOutputTokens: last.reasoningOutputTokens,
+				modelContextWindow: params.tokenUsage.modelContextWindow,
+			},
+		},
+	}];
 }
 
 /**

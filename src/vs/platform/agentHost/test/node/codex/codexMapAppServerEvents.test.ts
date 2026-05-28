@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTurnCompleted, mapTurnStarted } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 import { turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
@@ -153,6 +153,28 @@ suite('codexMapAppServerEvents', () => {
 			partKind: ResponsePartKind.Reasoning,
 			delta: { type: ActionType.SessionReasoning, turnId: 'turn_a', partId, content: 'raw thought' },
 		});
+	});
+
+	test('thread/tokenUsage/updated emits SessionUsage for the turn', () => {
+		const actions = mapTokenUsageUpdated({
+			threadId: 'thr_1',
+			turnId: 'turn_a',
+			tokenUsage: {
+				last: { inputTokens: 10, cachedInputTokens: 4, outputTokens: 6, reasoningOutputTokens: 2, totalTokens: 16 },
+				total: { inputTokens: 100, cachedInputTokens: 40, outputTokens: 60, reasoningOutputTokens: 20, totalTokens: 160 },
+				modelContextWindow: 200000,
+			},
+		});
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.SessionUsage,
+			turnId: 'turn_a',
+			usage: {
+				inputTokens: 10,
+				outputTokens: 6,
+				cacheReadTokens: 4,
+				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
+			},
+		}]);
 	});
 
 	test('item/completed for agentMessage clears the mapping', () => {
