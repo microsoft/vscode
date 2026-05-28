@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { formatSessionConfigChipLabel, getSessionConfigChipLabel } from '../../common/sessionConfigLabel.js';
+import { formatSessionConfigChipLabel, shouldShowSessionConfigChipTitle } from '../../common/sessionConfigLabel.js';
 import type { SessionConfigPropertySchema } from '../../common/state/protocol/commands.js';
 
 suite('sessionConfigLabel', () => {
-	test('returns value-only label when chipLabel is absent', () => {
-		assert.strictEqual(formatSessionConfigChipLabel(undefined, 'Medium'), 'Medium');
+	test('returns value-only label when showChipTitle is false', () => {
+		assert.strictEqual(formatSessionConfigChipLabel(false, 'Reasoning Effort', 'Medium'), 'Medium');
 	});
 
-	test('returns title-prefixed label when chipLabel is provided', () => {
-		assert.strictEqual(formatSessionConfigChipLabel('Approvals', 'On Request'), 'Approvals: On Request');
+	test('returns title-prefixed label when showChipTitle is true', () => {
+		assert.strictEqual(formatSessionConfigChipLabel(true, 'Approvals', 'On Request'), 'Approvals: On Request');
 	});
 
-	test('reads chipLabel extension from schema object', () => {
+	test('reads showChipTitle extension from schema object', () => {
 		const schema = {
 			type: 'string',
 			title: 'Approvals',
 			enum: ['on-request'],
-			chipLabel: 'Approvals',
+			showChipTitle: true,
 		} as unknown as SessionConfigPropertySchema;
 
-		assert.strictEqual(getSessionConfigChipLabel(schema), 'Approvals');
+		assert.strictEqual(shouldShowSessionConfigChipTitle(schema), true);
 	});
 });

@@ -41,11 +41,16 @@ export interface ISchemaProperty<T> {
 	assertValid(value: unknown, path?: string): asserts value is T;
 }
 
+interface ISessionConfigPropertyDisplayExtensions {
+	/** When true, render the property's title before the resolved value label in compact chips. */
+	readonly showChipTitle?: boolean;
+}
+
 /**
  * Defines a strongly-typed schema property whose runtime validator is
  * derived from the supplied JSON-schema descriptor.
  */
-export function schemaProperty<T>(protocol: SessionConfigPropertySchema & Record<string, unknown>): ISchemaProperty<T> {
+export function schemaProperty<T>(protocol: SessionConfigPropertySchema & ISessionConfigPropertyDisplayExtensions): ISchemaProperty<T> {
 	const assertFn = buildAssert(protocol);
 	const assertValid = (value: unknown, path: string = ''): asserts value is T => assertFn(value, path);
 	const validate = (value: unknown): value is T => {

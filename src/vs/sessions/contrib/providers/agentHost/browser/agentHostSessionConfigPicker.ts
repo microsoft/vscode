@@ -26,7 +26,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { formatSessionConfigChipLabel, getSessionConfigChipLabel } from '../../../../../platform/agentHost/common/sessionConfigLabel.js';
+import { formatSessionConfigChipLabel, shouldShowSessionConfigChipTitle } from '../../../../../platform/agentHost/common/sessionConfigLabel.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -432,7 +432,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			dom.append(trigger, renderIcon(icon));
 		}
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		const label = formatSessionConfigChipLabel(getSessionConfigChipLabel(schema), this._getLabel(schema, value));
+		const label = formatSessionConfigChipLabel(shouldShowSessionConfigChipTitle(schema), schema.title, this._getLabel(schema, value));
 		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)

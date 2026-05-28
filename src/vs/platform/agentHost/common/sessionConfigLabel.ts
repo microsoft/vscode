@@ -6,20 +6,20 @@
 import type { SessionConfigPropertySchema } from './state/protocol/commands.js';
 
 /**
- * Compose a session-config chip label from an optional title and a resolved value label.
+ * Compose a session-config chip label from a schema title and a resolved value label.
  */
-export function formatSessionConfigChipLabel(chipLabel: string | undefined, valueLabel: string): string {
-	if (!chipLabel) {
+export function formatSessionConfigChipLabel(showChipTitle: boolean | undefined, title: string, valueLabel: string): string {
+	if (!showChipTitle) {
 		return valueLabel;
 	}
 
-	return `${chipLabel}: ${valueLabel}`;
+	return `${title}: ${valueLabel}`;
 }
 
 /**
- * Read an optional `chipLabel` display extension from a session config schema.
+ * Read whether a session config schema should render its title in compact chips.
  */
-export function getSessionConfigChipLabel(schema: SessionConfigPropertySchema): string | undefined {
-	const value = (schema as unknown as { chipLabel?: unknown }).chipLabel;
-	return typeof value === 'string' ? value : undefined;
+export function shouldShowSessionConfigChipTitle(schema: SessionConfigPropertySchema): boolean {
+	const value = (schema as unknown as { showChipTitle?: unknown }).showChipTitle;
+	return value === true;
 }

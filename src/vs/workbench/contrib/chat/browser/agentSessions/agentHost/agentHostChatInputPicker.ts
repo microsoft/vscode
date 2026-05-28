@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { formatSessionConfigChipLabel, getSessionConfigChipLabel } from '../../../../../../platform/agentHost/common/sessionConfigLabel.js';
+import { formatSessionConfigChipLabel, shouldShowSessionConfigChipTitle } from '../../../../../../platform/agentHost/common/sessionConfigLabel.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -358,7 +358,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			trigger.classList.toggle('warning', value === 'autopilot');
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
-		const label = formatSessionConfigChipLabel(getSessionConfigChipLabel(schema), this._labelFor(schema, value));
+		const label = formatSessionConfigChipLabel(shouldShowSessionConfigChipTitle(schema), schema.title, this._labelFor(schema, value));
 		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
 		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
