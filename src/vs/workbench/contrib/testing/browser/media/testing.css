@@ -437,7 +437,7 @@
 
 	.codicon.codicon-testing-failed-icon {
 		color: currentColor !important;
-		font-size: 11px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		margin: 1px 0 0 -4px;
 		z-index: 1;
 	}

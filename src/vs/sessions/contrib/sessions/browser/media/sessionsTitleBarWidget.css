@@ -132,9 +132,9 @@
 	white-space: nowrap;
 
 	.codicon {
-		font-size: 13px;
-		width: 13px;
-		height: 13px;
+		font-size: var(--vscode-codiconFontSize-compact);
+		width: var(--vscode-codiconFontSize-compact);
+		height: var(--vscode-codiconFontSize-compact);
 	}
 }
 

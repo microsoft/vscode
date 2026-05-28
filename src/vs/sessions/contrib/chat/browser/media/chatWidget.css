@@ -187,7 +187,7 @@
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
@@ -363,7 +363,7 @@
 }
 
 .sessions-chat-picker-slot .action-label .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so codicons here size naturally to their font-size, matching pickers (like Copilot CLI)

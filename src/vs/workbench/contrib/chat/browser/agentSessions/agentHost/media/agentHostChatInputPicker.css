@@ -43,7 +43,7 @@
 }
 
 .agent-host-chat-input-picker-slot .action-label .codicon-chevron-down {
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-left: 4px;
 	opacity: 0.75;
 }
@@ -85,7 +85,7 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 

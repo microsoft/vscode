@@ -245,7 +245,7 @@
 
 .monaco-workbench .inline-chat .status .label > .codicon {
 	padding: 0 3px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	line-height: 18px;
 }
 

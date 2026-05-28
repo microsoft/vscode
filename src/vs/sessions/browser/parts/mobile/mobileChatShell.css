@@ -615,11 +615,11 @@
  * read at a comfortable size for touch but stay tight to the label,
  * matching the iOS reference proportions. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
-	font-size: 13px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down {
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-left: 4px;
 	opacity: 0.7;
 }

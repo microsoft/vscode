@@ -87,7 +87,7 @@
 
 .new-chat-in-session .new-chat-bottom-container .action-label .codicon,
 .new-chat-in-session .sessions-chat-toolbar .action-label .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-in-session .sessions-chat-dropdown-label {

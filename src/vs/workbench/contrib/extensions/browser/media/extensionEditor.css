@@ -106,7 +106,7 @@
 
 .extension-editor > .header > .details > .title > .pre-release > .codicon.codicon-extensions-pre-release {
 	color: #ffffff;
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .extension-editor > .header > .details > .title > .pre-release > .pre-release-text {

@@ -112,7 +112,7 @@
 		}
 
 		.codicon {
-			font-size: 14px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 
@@ -252,7 +252,7 @@
 
 		.codicon {
 			color: inherit;
-			font-size: 14px;
+			font-size: var(--vscode-codiconFontSize-compact);
 			flex-shrink: 0;
 			opacity: 1;
 		}
@@ -683,7 +683,7 @@
 		}
 
 		.codicon {
-			font-size: 15px;
+			font-size: 16px;
 			margin: 0;
 			color: var(--vscode-statusBarItem-errorForeground);
 		}

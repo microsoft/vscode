@@ -235,7 +235,7 @@
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon.codicon-git-branch {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	padding: 3px;
 }
 
@@ -651,18 +651,18 @@
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-git-branch {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-tag,
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-target {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-cloud {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-bottom: 1px !important;
 }
 
@@ -784,7 +784,7 @@
 }
 
 .scm-history-view .history-item-load-more .history-item-placeholder .monaco-highlighted-label .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-textLink-foreground)
 }
 

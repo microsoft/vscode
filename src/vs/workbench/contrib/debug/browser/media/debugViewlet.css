@@ -107,7 +107,7 @@
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-dropdown > .dropdown-label .codicon-chevron-down {
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.75;
 	flex-shrink: 0;
 }

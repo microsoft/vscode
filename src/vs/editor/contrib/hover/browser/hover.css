@@ -69,7 +69,7 @@
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner .codicon {
 	cursor: pointer;
-	font-size: 11px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner .codicon.enabled {

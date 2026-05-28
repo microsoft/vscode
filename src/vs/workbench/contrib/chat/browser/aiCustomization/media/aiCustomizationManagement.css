@@ -891,7 +891,7 @@
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-scope .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {

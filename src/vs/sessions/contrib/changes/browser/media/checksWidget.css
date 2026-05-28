@@ -101,10 +101,6 @@
 	line-height: 1;
 }
 
-.ci-status-widget-count-badge .codicon {
-	font-size: 14px;
-}
-
 .ci-status-widget-count-badge.ci-status-success .codicon {
 	color: var(--vscode-testing-iconPassed, #73c991);
 }

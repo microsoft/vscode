@@ -113,7 +113,6 @@
 
 		> .codicon {
 			flex-shrink: 0;
-			font-size: 12px;
 			height: 16px;
 			display: flex;
 			align-items: center;
@@ -165,7 +164,7 @@
 			align-items: center;
 
 			> .codicon {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 			}
 		}
 
@@ -494,7 +493,6 @@
 		line-height: 20px;
 
 		> .codicon {
-			font-size: 14px;
 			height: 20px;
 		}
 

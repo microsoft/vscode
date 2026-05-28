@@ -157,7 +157,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header .extension-icon-badge > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: currentColor;
 }
 

@@ -50,7 +50,7 @@
 	}
 
 	.diff-review-spacer > .codicon {
-		font-size: 9px !important;
+		font-size: var(--vscode-codiconFontSize-compact) !important;
 	}
 
 	.diff-review-actions {

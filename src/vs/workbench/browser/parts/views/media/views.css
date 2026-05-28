@@ -133,7 +133,7 @@
 }
 
 .monaco-workbench .pane > .pane-body .welcome-view-content > p .codicon[class*='codicon-'] {
-	font-size: 13px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	line-height: 1.4em;
 	vertical-align: bottom;
 }
@@ -177,7 +177,7 @@
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox.codicon {
-	font-size: 13px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	line-height: 15px;
 }
 
