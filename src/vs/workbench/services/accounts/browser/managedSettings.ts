@@ -59,6 +59,8 @@ export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?
 				flattened.add(`${src.repo}${suffix}`);
 			} else if (src.source === 'git' && isString(src.url)) {
 				flattened.add(`${src.url}${suffix}`);
+			} else if (src.source === 'github' || src.source === 'git') {
+				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${id}": source "${src.source}" requires ${src.source === 'github' ? '"repo"' : '"url"'}`);
 			} else {
 				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${id}": unknown source type "${src.source}"`);
 			}
