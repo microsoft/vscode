@@ -317,9 +317,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				.map(m => toAgentModelInfo(m, this.id));
 			this._models.set(filtered, undefined);
 		} catch (err) {
-			this._logService.error(err, '[Claude] Failed to refresh models');
 			if (this._githubToken === tokenAtStart) {
+				// Failure is for the current token — surface it and clear stale models.
+				this._logService.error(err, '[Claude] Failed to refresh models');
 				this._models.set([], undefined);
+			} else {
+				// Failure is for a superseded token; the newer refresh has already
+				// published the right model list, so this error is benign.
+				this._logService.debug('[Claude] Stale model refresh failed; a newer refresh is active');
 			}
 		}
 	}
