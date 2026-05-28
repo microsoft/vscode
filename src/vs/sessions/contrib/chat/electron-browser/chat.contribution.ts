@@ -14,7 +14,6 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -32,16 +31,18 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
+		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const initialQuery = typeof args[1] === 'string' ? args[1] : undefined;
 			const sessionResource = args[2] ? URI.revive(args[2] as UriComponents) : undefined;
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} initialQuery=${initialQuery ? 'yes' : 'no'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
-			this.handleOpenIntent(folderUri, initialQuery, sessionResource);
-		});
+			this.handleOpenIntent(folderUri, initialQuery, sessionResource)
+				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
+		};
+		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
 	}
 
 	private async handleOpenIntent(folderUri: URI | undefined, initialQuery: string | undefined, sessionResource: URI | undefined): Promise<void> {
@@ -121,7 +122,8 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		// resolvable yet.
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
 
-		const view = await this.viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		const view = this.sessionsPartService.getSessionView(activeSession?.sessionId);
 		if (!view) {
 			return;
 		}
@@ -144,36 +146,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		// `when` clause that flips on submit). Give it a generous breather.
 		await timeout(3000);
 
-		view.sendQuery(query);
+		const settledView = this.sessionsPartService.getSessionView(this.sessionsManagementService.activeSession.get()?.sessionId);
+		settledView?.sendQuery(query);
 	}
 
-	private waitForActiveSession(timeoutMs = 8000): Promise<boolean> {
-		if (this.sessionsManagementService.activeSession.get()) {
-			return Promise.resolve(true);
-		}
-		return new Promise<boolean>(resolve => {
-			const store = new DisposableStore();
-			const handle = setTimeout(() => {
-				store.dispose();
-				resolve(!!this.sessionsManagementService.activeSession.get());
-			}, timeoutMs);
-			store.add(autorun(reader => {
-				if (this.sessionsManagementService.activeSession.read(reader)) {
-					clearTimeout(handle);
-					store.dispose();
-					resolve(true);
-				}
-			}));
-		});
-	}
-
-	/**
-	 * Resolve once the active session has stopped changing for `stableMs`,
-	 * or after `timeoutMs` overall. The Agents window's restore flow can
-	 * swap the active session several times during startup; auto-submitting
-	 * mid-swap fails inside the chat session provider with "Failed to open
-	 * chat widget".
-	 */
 	private waitForStableActiveSession(timeoutMs = 20_000, stableMs = 2_500): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			const start = Date.now();
