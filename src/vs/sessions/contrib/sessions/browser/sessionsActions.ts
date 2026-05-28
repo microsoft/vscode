@@ -18,7 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -200,7 +200,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			icon: Codicon.add,
 			menu: {
 				id: Menus.SessionBarInlineToolbar,
-				when: SessionIsCreatedContext,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 				group: 'navigation',
 				order: 10,
 			},

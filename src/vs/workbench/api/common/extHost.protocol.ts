@@ -2731,6 +2731,36 @@ export interface IChatUsageDto {
 	promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[];
 }
 
+export interface IQuotaSnapshotDto {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly hasQuota?: boolean;
+	readonly resetAt?: number;
+	readonly usageBasedBilling?: boolean;
+	readonly entitlement?: number;
+	readonly quotaRemaining?: number;
+}
+
+export interface IRateLimitSnapshotDto {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly resetDate?: string;
+}
+
+export interface IQuotaSnapshotsDto {
+	readonly resetDate?: string;
+	readonly resetDateHasTime?: boolean;
+	readonly usageBasedBilling?: boolean;
+	readonly canUpgradePlan?: boolean;
+	readonly chat?: IQuotaSnapshotDto;
+	readonly completions?: IQuotaSnapshotDto;
+	readonly premiumChat?: IQuotaSnapshotDto;
+	readonly additionalUsageEnabled?: boolean;
+	readonly additionalUsageCount?: number;
+	readonly sessionRateLimit?: IRateLimitSnapshotDto;
+	readonly weeklyRateLimit?: IRateLimitSnapshotDto;
+}
+
 export type ICellEditOperationDto =
 	notebookCommon.ICellMetadataEdit
 	| notebookCommon.IDocumentMetadataEdit
@@ -3742,6 +3772,13 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface MainThreadChatQuotaShape extends IDisposable {
+	$updateQuotas(quotas: IQuotaSnapshotsDto): void;
+}
+
+export interface ExtHostChatQuotaShape {
+}
+
 export const enum ChatInputNotificationSeverityDto {
 	Info = 0,
 	Warning = 1,
@@ -4012,6 +4049,7 @@ export const MainContext = {
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
+	MainThreadChatQuota: createProxyIdentifier<MainThreadChatQuotaShape>('MainThreadChatQuota'),
 	MainThreadChatInputNotification: createProxyIdentifier<MainThreadChatInputNotificationShape>('MainThreadChatInputNotification'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
@@ -4099,6 +4137,7 @@ export const ExtHostContext = {
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
+	ExtHostChatQuota: createProxyIdentifier<ExtHostChatQuotaShape>('ExtHostChatQuota'),
 	ExtHostGitExtension: createProxyIdentifier<ExtHostGitExtensionShape>('ExtHostGitExtension'),
 	ExtHostBrowsers: createProxyIdentifier<ExtHostBrowsersShape>('ExtHostBrowsers'),
 };

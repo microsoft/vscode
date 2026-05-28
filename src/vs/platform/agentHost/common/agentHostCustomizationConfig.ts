@@ -5,7 +5,8 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { type CustomizationRef } from './state/protocol/state.js';
+import { CustomizationType, type Customization } from './state/protocol/state.js';
+import { customizationId } from './state/sessionState.js';
 
 /**
  * Well-known root-config keys used by the platform to configure agent-host
@@ -23,8 +24,21 @@ export const enum AgentHostConfigKey {
 	DisableCustomTerminalTool = 'disableCustomTerminalTool',
 }
 
+/**
+ * Persisted on-disk shape for a host-configured plugin. Kept stable across
+ * the customization protocol refactor so existing `agent-host-config.json`
+ * files keep working; entries are mapped to the new
+ * {@link Customization} shape at read time by
+ * {@link getAgentHostConfiguredCustomizations}.
+ */
+interface IPersistedCustomizationConfigEntry {
+	uri: string;
+	displayName: string;
+	description?: string;
+}
+
 export const agentHostCustomizationConfigSchema = createSchema({
-	[AgentHostConfigKey.Customizations]: schemaProperty<CustomizationRef[]>({
+	[AgentHostConfigKey.Customizations]: schemaProperty<IPersistedCustomizationConfigEntry[]>({
 		type: 'array',
 		title: localize('agentHost.config.customizations.title', "Plugins"),
 		description: localize('agentHost.config.customizations.description', "Plugins configured on this agent host and available to remote sessions."),
@@ -63,12 +77,33 @@ export const agentHostCustomizationConfigSchema = createSchema({
 });
 
 export const defaultAgentHostCustomizationConfigValues = {
-	[AgentHostConfigKey.Customizations]: [] as CustomizationRef[],
+	[AgentHostConfigKey.Customizations]: [] as IPersistedCustomizationConfigEntry[],
 };
 
-export function getAgentHostConfiguredCustomizations(values: Record<string, unknown> | undefined): readonly CustomizationRef[] {
+/**
+ * Reads the persisted (legacy-shaped) plugin entries from the agent-host
+ * root config and lifts them into the new {@link Customization} container
+ * shape used by the rest of the platform.
+ */
+export function getAgentHostConfiguredCustomizations(values: Record<string, unknown> | undefined): readonly Customization[] {
 	const raw = values?.[AgentHostConfigKey.Customizations];
-	return agentHostCustomizationConfigSchema.validate(AgentHostConfigKey.Customizations, raw)
+	const entries = agentHostCustomizationConfigSchema.validate(AgentHostConfigKey.Customizations, raw)
 		? raw
 		: defaultAgentHostCustomizationConfigValues[AgentHostConfigKey.Customizations];
+	return entries.map(toContainerCustomization);
 }
+
+/**
+ * Lifts a persisted plugin config entry into the new
+ * {@link Customization} container shape.
+ */
+export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): Customization {
+	return {
+		type: CustomizationType.Plugin,
+		id: customizationId(entry.uri),
+		uri: entry.uri,
+		name: entry.displayName,
+		enabled: true,
+	};
+}
+

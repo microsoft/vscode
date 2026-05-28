@@ -62,6 +62,8 @@ function createEntitlementService(opts: {
 		anonymous: false,
 		onDidChangeAnonymous: Event.None,
 		anonymousObs: observableValue({}, false),
+		acceptQuotas: () => { },
+		clearQuotas: () => { },
 		markAnonymousRateLimited: () => { },
 		markSetupCompleted: () => { },
 		setForceHidden: () => { },
