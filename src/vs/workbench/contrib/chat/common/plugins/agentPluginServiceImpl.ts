@@ -11,7 +11,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { Event } from '../../../../../base/common/event.js';
-import { autorun, derived, derivedOpts, IObservable, observableFromEvent, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
 	posix,
 	win32
@@ -49,7 +49,7 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { EnablementModel, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
@@ -114,65 +114,77 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			discovery.start(this.enablementModel);
 		}
 
-		// Policy-driven enforcement filter, applied after discovery so that
-		// enterprise policy is honored regardless of which discovery source
-		// surfaces a plugin (local paths, marketplace, CLI install dir).
+		// Policy-driven enforcement, applied after discovery so that enterprise
+		// policy is honored regardless of which discovery source surfaces a
+		// plugin (local paths, marketplace, CLI install dir).
 		const enabledPluginsPolicy = observableFromEvent(this,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
 			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
 		const strictMarketplaces = observableConfigValue<boolean>(ChatConfiguration.StrictMarketplaces, false, configurationService);
+		// Re-evaluate marketplace trust when the policy-delivered extra
+		// marketplaces change (consulted under strict mode).
+		const extraMarketplacesChanged = observableSignalFromEvent('extraMarketplaces',
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)));
 
 		this.plugins = derived(read => {
 			if (!pluginsEnabled.read(read)) {
 				return [];
 			}
-			const all = this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
-			return this._applyPolicyEnforcement(all, enabledPluginsPolicy.read(read), strictMarketplaces.read(read), pluginMarketplaceService, logService);
+			return this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
 		});
+
+		// Mark policy-blocked plugins rather than hiding them: a blocked plugin
+		// stays visible (shown as disabled) but its `enablement` is forced to
+		// disabled (see `_toPlugin`), so it is inactive and cannot be re-enabled.
+		this._register(autorun(reader => {
+			const plugins = this.plugins.read(reader);
+			const policy = enabledPluginsPolicy.read(reader);
+			const strict = strictMarketplaces.read(reader);
+			extraMarketplacesChanged.read(reader);
+			transaction(tx => {
+				for (const plugin of plugins) {
+					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, strict, pluginMarketplaceService, logService), tx);
+				}
+			});
+		}));
 	}
 
 	/**
-	 * Filters out plugins that are blocked by enterprise policy:
+	 * Determines whether a plugin is blocked by enterprise policy:
 	 * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
-	 *   is set, only plugins whose ID appears with value `true` survive.
+	 *   is set, only plugins whose ID appears with value `true` are allowed.
 	 * - If `chat.plugins.strictMarketplaces` is on, only plugins from a
-	 *   marketplace listed in `chat.plugins.extraMarketplaces` survive.
+	 *   marketplace listed in `chat.plugins.extraMarketplaces` are allowed.
 	 *
 	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
-	 * paths from `chat.pluginLocations`) are unaffected by these filters — they
-	 * are user-side concerns outside the enterprise enforcement boundary.
+	 * paths from `chat.pluginLocations`) are never blocked — they are user-side
+	 * concerns outside the enterprise enforcement boundary.
 	 */
-	private _applyPolicyEnforcement(
-		plugins: readonly IAgentPlugin[],
+	private _isBlockedByPolicy(
+		plugin: IAgentPlugin,
 		enabledPluginsPolicy: Record<string, boolean> | undefined,
 		strictMarketplaces: boolean,
 		pluginMarketplaceService: IPluginMarketplaceService,
 		logService: ILogService,
-	): readonly IAgentPlugin[] {
-		if (!enabledPluginsPolicy && !strictMarketplaces) {
-			return plugins;
+	): boolean {
+		const m = plugin.fromMarketplace;
+		// Plugins not from a marketplace (filesystem entries) are not gated.
+		if (!m) {
+			return false;
 		}
-		const enabledPluginsPolicySet = enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0;
-		return plugins.filter(plugin => {
-			const m = plugin.fromMarketplace;
-			// Plugins not from a marketplace (filesystem entries) are not gated.
-			if (!m) {
+		if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
+			const pluginId = `${m.name}@${m.marketplace}`;
+			if (enabledPluginsPolicy[pluginId] !== true) {
+				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
 				return true;
 			}
-			if (enabledPluginsPolicySet) {
-				const pluginId = `${m.name}@${m.marketplace}`;
-				if (enabledPluginsPolicy![pluginId] !== true) {
-					logService.debug(`[AgentPluginService] Filtering out plugin '${pluginId}' — not enabled by ChatEnabledPlugins policy`);
-					return false;
-				}
-			}
-			if (strictMarketplaces && !pluginMarketplaceService.isMarketplaceTrusted(m.marketplaceReference)) {
-				logService.debug(`[AgentPluginService] Filtering out plugin '${m.name}@${m.marketplace}' — marketplace not trusted under strict mode`);
-				return false;
-			}
+		}
+		if (strictMarketplaces && !pluginMarketplaceService.isMarketplaceTrusted(m.marketplaceReference)) {
+			logService.debug(`[AgentPluginService] Plugin '${m.name}@${m.marketplace}' blocked — marketplace not trusted under strict mode`);
 			return true;
-		});
+		}
+		return false;
 	}
 
 	private _dedupeAndSort(plugins: readonly IAgentPlugin[]): readonly IAgentPlugin[] {
@@ -193,7 +205,26 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	}
 }
 
-type PluginEntry = IAgentPlugin;
+/**
+ * A discovered plugin. Extends the public {@link IAgentPlugin} with a settable
+ * `policyBlocked` observable that the service writes to when enterprise policy
+ * blocks the plugin.
+ */
+interface PluginEntry extends IAgentPlugin {
+	readonly policyBlocked: ISettableObservable<boolean>;
+}
+
+/**
+ * Marks a plugin as blocked (or unblocked) by enterprise policy. Safe to call
+ * for any {@link IAgentPlugin}; entries without a settable observable (e.g. test
+ * doubles) are ignored.
+ */
+function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): void {
+	const obs = plugin.policyBlocked as ISettableObservable<boolean> | undefined;
+	if (obs && typeof obs.set === 'function') {
+		obs.set(blocked, tx);
+	}
+}
 
 /**
  * Minimal shape of a parsed plugin manifest. Known fields are typed; unknown
@@ -305,7 +336,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 
 		const store = new DisposableStore();
-		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
+		// Set by the service when enterprise policy blocks this plugin; when set,
+		// the plugin is forced disabled regardless of the user's enablement choice.
+		const policyBlocked = observableValue<boolean>('policyBlocked', false);
+		const enablement = derived(r => policyBlocked.read(r)
+			? ContributionEnablementState.DisabledProfile
+			: this._enablementModel.readEnabled(key, r));
 
 		// Read the manifest up front so its `name` field can be used in the
 		// plugin label (for direct installs that have no marketplace metadata).
@@ -403,6 +439,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			uri,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			enablement,
+			policyBlocked,
 			remove: removeCallback,
 			hooks,
 			commands,
