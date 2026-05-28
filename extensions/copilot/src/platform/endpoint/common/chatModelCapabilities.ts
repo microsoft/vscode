@@ -325,7 +325,7 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isHiddenModelM(model);
 }
 
 /**
