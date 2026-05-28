@@ -533,7 +533,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const result = await this.browserViewService.captureScreenshot(this.id, options);
 		// Store full-page screenshots for display in UI as placeholders
-		if (!options?.screenRect && !options?.pageRect) {
+		if (!options?.screenRect && !options?.pageRect && !options?.fullPage) {
 			this._screenshot = result;
 		}
 		return result;

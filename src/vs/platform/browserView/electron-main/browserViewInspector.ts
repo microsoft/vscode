@@ -103,6 +103,19 @@ export class BrowserViewInspector extends Disposable {
 				senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
 
 				this._registry.notifyFrameReady(senderFrame, frameToken);
+
+				// If area selection was activated before the main-frame preload
+				// finished wiring up its IPC listeners (e.g. right after a
+				// navigation), the original `startAreaPicker` postMessage was
+				// dropped. Replay it now so the picker actually appears instead
+				// of leaving the model reporting active with no visible overlay.
+				if (senderFrame === webContents.mainFrame && this._activeAreaSelection.value) {
+					try {
+						senderFrame.postMessage('vscode:browserView:startAreaPicker', undefined);
+					} catch {
+						// Frame may be gone — ignore.
+					}
+				}
 			} else if (channel === 'vscode:browserView:areaPicked') {
 				// Area selection is scoped to the top frame — the user-drawn
 				// rectangle is in main-frame viewport coordinates.
