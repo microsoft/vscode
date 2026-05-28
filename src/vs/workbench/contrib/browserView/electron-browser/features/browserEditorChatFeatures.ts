@@ -720,10 +720,10 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.AddFullPageScreenshotToChat;
 
 	constructor() {
-		const enabledSetting = ContextKeyExpr.has('config.workbench.browser.enableFullPageScreenshot');
+		const enabledSetting = ContextKeyExpr.has('config.workbench.browser.experimentalUserTools.enabled');
 		super({
 			id: AddFullPageScreenshotToChatAction.ID,
-			title: localize2('browser.addFullPageScreenshotToChatAction', 'Add Full Page Screenshot to Chat'),
+			title: localize2('browser.addFullPageScreenshotToChatAction', 'Add Full Page Screenshot to Chat (Experimental)'),
 			category: BrowserActionCategory,
 			icon: Codicon.deviceCamera,
 			f1: true,
@@ -769,7 +769,7 @@ class AddFullPageScreenshotToChatDisabledAction extends Action2 {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '2_screenshots',
 				order: 3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_BROWSER_AT_DEFAULT_ZOOM.negate(), ContextKeyExpr.has('config.workbench.browser.enableFullPageScreenshot'))
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_BROWSER_AT_DEFAULT_ZOOM.negate(), ContextKeyExpr.has('config.workbench.browser.experimentalUserTools.enabled'))
 			}
 		});
 	}
@@ -830,14 +830,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
-		'workbench.browser.enableFullPageScreenshot': {
+		'workbench.browser.experimentalUserTools.enabled': {
 			type: 'boolean',
 			default: false,
 			experiment: { mode: 'startup' },
 			tags: ['experimental'],
 			markdownDescription: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.enableFullPageScreenshot' },
-				"When enabled, an 'Add Full Page Screenshot to Chat' action is available in the Integrated Browser's Add to Chat menu. Only takes effect when the page is at 100% zoom."
+				{ comment: ['This is the description for a setting.'], key: 'browser.experimentalUserTools.enabled' },
+				"When enabled, experimental user-facing tools are available in the Integrated Browser's Add to Chat menu."
 			),
 		}
 	}
