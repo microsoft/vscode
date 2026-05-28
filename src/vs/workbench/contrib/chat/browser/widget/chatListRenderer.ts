@@ -56,7 +56,7 @@ import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPla
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
@@ -1407,7 +1407,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
-			content = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
+			const attachmentSummary = !element.messageText.trim() ? getExplicitFileOrImageAttachmentSummary(element.variables) : undefined;
+			const requestMarkdown = markdown.trim() ? markdown : attachmentSummary;
+			if (requestMarkdown) {
+				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
+			}
 
 			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
 				templateData.value.classList.add('inline-progress');

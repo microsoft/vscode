@@ -28,6 +28,7 @@ import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../..
 import { MockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { NullAgentHostCustomAgentsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 	declare readonly _serviceBrand: undefined;
@@ -190,6 +191,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -229,6 +231,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -279,6 +282,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -375,6 +379,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -428,6 +433,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -481,6 +487,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -527,6 +534,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		let changeCount = 0;
@@ -573,6 +581,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -670,6 +679,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		connection.fireAction({
@@ -746,6 +756,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -814,6 +825,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			controller,
 			fileService,
 			new NullLogService(),
+			new NullAgentHostCustomAgentsService()
 		));
 
 		const harnessId = 'remote-agent-host-test';

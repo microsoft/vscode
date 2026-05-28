@@ -48,7 +48,7 @@ import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -177,6 +177,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
+			this._updateSendButtonState();
 			this.focus();
 		}));
 		this._register(autorun(reader => {
@@ -528,13 +529,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 
 	private async _send(): Promise<void> {
-		const query = this._editor.getModel()?.getValue().trim();
-		if (!query || this._sending) {
+		const query = this._editor.getModel()?.getValue().trim() ?? '';
+		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
+		if ((!query && !hasSendableAttachment) || this._sending) {
 			return;
 		}
 
 		// Check for slash commands first
-		if (this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
+		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
 			return;
 		}
@@ -542,6 +544,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const attachedContext = this._contextAttachments.attachments.length > 0
 			? [...this._contextAttachments.attachments]
 			: undefined;
+		const request = query;
 
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
@@ -554,7 +557,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateInputLoadingState();
 
 		try {
-			await this.options.sendRequest(query, attachedContext);
+			await this.options.sendRequest(request, attachedContext);
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
@@ -572,7 +575,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		this._sendButton.enabled = !this._sending && hasText && this.options.canSendRequest.get();
+		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
+		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment) && this.options.canSendRequest.get();
 	}
 
 	private _restoreState(): void {

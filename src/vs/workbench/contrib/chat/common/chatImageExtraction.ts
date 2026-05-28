@@ -12,7 +12,7 @@ import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './mo
 import { ChatResponseResource } from './model/chatModel.js';
 import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
-import { isImageVariableEntry } from './attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, isImageVariableEntry } from './attachments/chatVariableEntries.js';
 
 export interface IChatExtractedImage {
 	readonly id: string;
@@ -57,7 +57,7 @@ export async function extractImagesFromChatResponse(
 
 	// Use the corresponding user request as the carousel title
 	const request = response.session.getItems().find((item): item is IChatRequestViewModel => isRequestVM(item) && item.id === response.requestId);
-	const title = request ? request.messageText : localize('chatImageExtraction.defaultTitle', "Images");
+	const title = request ? request.messageText.trim() || getExplicitFileOrImageAttachmentSummary(request.variables) || localize('chatImageExtraction.defaultTitle', "Images") : localize('chatImageExtraction.defaultTitle', "Images");
 
 	return {
 		id: response.sessionResource.toString() + '_' + response.id,
