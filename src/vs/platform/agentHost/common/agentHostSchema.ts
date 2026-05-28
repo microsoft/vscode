@@ -45,7 +45,7 @@ export interface ISchemaProperty<T> {
  * Defines a strongly-typed schema property whose runtime validator is
  * derived from the supplied JSON-schema descriptor.
  */
-export function schemaProperty<T>(protocol: SessionConfigPropertySchema): ISchemaProperty<T> {
+export function schemaProperty<T>(protocol: SessionConfigPropertySchema & Record<string, unknown>): ISchemaProperty<T> {
 	const assertFn = buildAssert(protocol);
 	const assertValid = (value: unknown, path: string = ''): asserts value is T => assertFn(value, path);
 	const validate = (value: unknown): value is T => {

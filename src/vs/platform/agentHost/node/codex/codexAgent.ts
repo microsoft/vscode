@@ -60,6 +60,7 @@ const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', '
 const codexSessionConfigSchema = createSchema({
 	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
 		type: 'string',
+		chipLabel: localize('codex.sessionConfig.approvalPolicy.chipLabel', "Approvals"),
 		title: localize('codex.sessionConfig.approvalPolicy', "Approvals"),
 		description: localize('codex.sessionConfig.approvalPolicyDescription', "How Codex requests approval for tool calls."),
 		enum: ['never', 'on-request', 'on-failure', 'untrusted'],
@@ -80,6 +81,7 @@ const codexSessionConfigSchema = createSchema({
 	}),
 	[CodexSessionConfigKey.SandboxMode]: schemaProperty<SandboxMode>({
 		type: 'string',
+		chipLabel: localize('codex.sessionConfig.sandboxMode.chipLabel', "Sandbox"),
 		title: localize('codex.sessionConfig.sandboxMode', "Sandbox"),
 		description: localize('codex.sessionConfig.sandboxModeDescription', "Filesystem and network restrictions applied to tool calls."),
 		enum: ['read-only', 'workspace-write', 'danger-full-access'],
@@ -98,6 +100,7 @@ const codexSessionConfigSchema = createSchema({
 	}),
 	[CodexSessionConfigKey.WebSearchMode]: schemaProperty<WebSearchMode>({
 		type: 'string',
+		chipLabel: localize('codex.sessionConfig.webSearchMode.chipLabel', "Web Search"),
 		title: localize('codex.sessionConfig.webSearchMode', "Web Search"),
 		description: localize('codex.sessionConfig.webSearchModeDescription', "Web-search tool availability for the model."),
 		enum: ['disabled', 'cached', 'live'],
@@ -125,6 +128,7 @@ const codexSessionConfigSchema = createSchema({
 	}),
 	[CodexSessionConfigKey.AdditionalDirectories]: schemaProperty<string[]>({
 		type: 'array',
+		chipLabel: localize('codex.sessionConfig.additionalDirectories.chipLabel', "Additional Writable Directories"),
 		title: localize('codex.sessionConfig.additionalDirectories', "Additional Writable Directories"),
 		description: localize('codex.sessionConfig.additionalDirectoriesDescription', "Absolute paths the sandbox is allowed to write to, in addition to the workspace. Only applies when Sandbox is Workspace Write."),
 		items: { type: 'string', title: localize('codex.sessionConfig.additionalDirectories.item', "Directory") },
@@ -134,6 +138,7 @@ const codexSessionConfigSchema = createSchema({
 	}),
 	[CodexSessionConfigKey.NetworkAccessEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
+		chipLabel: localize('codex.sessionConfig.networkAccessEnabled.chipLabel', "Network"),
 		title: localize('codex.sessionConfig.networkAccessEnabled', "Network"),
 		description: localize('codex.sessionConfig.networkAccessEnabledDescription', "Allow sandboxed tool calls to make outbound network requests. Only applies when Sandbox is Workspace Write."),
 		default: false,
