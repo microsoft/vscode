@@ -7,6 +7,7 @@ import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type Ses
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -245,6 +246,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
+	/**
+	 * In-flight {@link _resumeSession} promises, keyed by sessionId. Used to
+	 * deduplicate concurrent resume requests for the same session so that
+	 * we never construct two {@link CopilotAgentSession} entries for the
+	 * same id — `_sessions` is a {@link DisposableMap} whose `set()` would
+	 * dispose the in-flight first entry mid-{@link CopilotAgentSession.initializeSession},
+	 * leaving the second caller with a half-initialised, eventless session.
+	 */
+	private readonly _resumingSessions = new Map<string, Promise<CopilotAgentSession>>();
 	/**
 	 * Sessions created by a client but not yet materialized into a Copilot
 	 * SDK session + worktree + on-disk metadata. Materialization is deferred
@@ -919,11 +929,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return new CopilotSessionWrapper(raw);
 		};
 
-		let agentSession: CopilotAgentSession;
+		let agentSession: CopilotAgentSession | undefined;
 		try {
 			agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
 			await agentSession.initializeSession();
+			this._registerInitializedSession(sessionId, agentSession);
 		} catch (error) {
+			agentSession?.dispose();
 			await this._removeCreatedWorktree(sessionId);
 			throw error;
 		}
@@ -1434,9 +1446,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Creates a {@link CopilotAgentSession}, registers it in the sessions map,
-	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
-	 * to wire up the SDK session.
+	 * Instantiates a {@link CopilotAgentSession} for the given session id.
+	 * The caller is responsible for awaiting {@link CopilotAgentSession.initializeSession}
+	 * and, on success, registering the entry in {@link _sessions}. The
+	 * session is intentionally **not** registered here so a concurrent
+	 * {@link _resumeSession} for the same id cannot dispose this entry mid-init
+	 * via {@link DisposableMap.set}.
 	 */
 	private _createAgentSession(wrapperFactory: SessionWrapperFactory, sessionId: string, shellManager: ShellManager, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, snapshot?: IActiveClientSnapshot): CopilotAgentSession {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -1455,8 +1470,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 		);
 
-		this._sessions.set(sessionId, agentSession);
 		return agentSession;
+	}
+
+	/**
+	 * Register a freshly initialised session in `_sessions`, or — if
+	 * shutdown has already started between init beginning and resolving —
+	 * dispose the session and throw {@link CancellationError}. Without this
+	 * guard an in-flight `_resumeSession` / `_materializeProvisional` whose
+	 * `initializeSession()` resolves after `dispose()` has run would call
+	 * `_sessions.set(...)` on a disposed `DisposableMap`, leaking the
+	 * session and reproducing the very 'Trying to add a disposable to a
+	 * DisposableStore that has already been disposed' warning this fix
+	 * exists to prevent.
+	 */
+	private _registerInitializedSession(sessionId: string, agentSession: CopilotAgentSession): void {
+		if (this._shutdownPromise) {
+			agentSession.dispose();
+			throw new CancellationError();
+		}
+		this._sessions.set(sessionId, agentSession);
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
@@ -1518,7 +1551,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+		const existing = this._resumingSessions.get(sessionId);
+		if (existing) {
+			return existing;
+		}
+		const promise = this._doResumeSession(sessionId);
+		this._resumingSessions.set(sessionId, promise);
+		const cleanup = () => {
+			if (this._resumingSessions.get(sessionId) === promise) {
+				this._resumingSessions.delete(sessionId);
+			}
+		};
+		promise.then(cleanup, cleanup);
+		return promise;
+	}
+
+	private async _doResumeSession(sessionId: string): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
@@ -1582,7 +1631,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 
 		const agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
-		await agentSession.initializeSession();
+		try {
+			await agentSession.initializeSession();
+		} catch (err) {
+			agentSession.dispose();
+			throw err;
+		}
+		this._registerInitializedSession(sessionId, agentSession);
 
 		return agentSession;
 	}
