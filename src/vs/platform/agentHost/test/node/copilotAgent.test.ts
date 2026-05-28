@@ -888,6 +888,34 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materialization forwards the GitHub token to the SDK at the session level (#318693)', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'gh-token-abc');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'session-level-token'),
+					workingDirectory: URI.file('/workspace'),
+				});
+				assert.strictEqual(result.provisional, true);
+
+				await agent.sendMessage(result.session, 'hello');
+
+				assert.strictEqual(capturedConfig?.gitHubToken, 'gh-token-abc',
+					'createSession should receive the GitHub token at session level so the SDK can resolve a per-session GitHub identity');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materialization skips managed shell tools when root config disables the custom terminal tool', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
