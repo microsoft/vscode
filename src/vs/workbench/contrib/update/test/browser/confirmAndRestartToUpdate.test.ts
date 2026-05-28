@@ -14,9 +14,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUpdateService } from '../../../../../platform/update/common/update.js';
-import { confirmAndRestartToUpdate } from '../../browser/update.js';
-
-const SKIP_KEY = 'update.skipRestartConfirmation';
+import { confirmAndRestartToUpdate, SKIP_RESTART_CONFIRMATION_STORAGE_KEY } from '../../browser/update.js';
 
 suite('confirmAndRestartToUpdate', () => {
 
@@ -50,9 +48,9 @@ suite('confirmAndRestartToUpdate', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('skips dialog and quits when skip flag is set', async () => {
-		storage.store(SKIP_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		storage.store(SKIP_RESTART_CONFIRMATION_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 
-		await confirmAndRestartToUpdate(instantiationService);
+		await instantiationService.invokeFunction(confirmAndRestartToUpdate);
 
 		assert.strictEqual(quitAndInstallCalls, 1);
 	});
@@ -60,27 +58,27 @@ suite('confirmAndRestartToUpdate', () => {
 	test('does not quit when user cancels', async () => {
 		dialog.setConfirmResult({ confirmed: false, checkboxChecked: false });
 
-		await confirmAndRestartToUpdate(instantiationService);
+		await instantiationService.invokeFunction(confirmAndRestartToUpdate);
 
 		assert.strictEqual(quitAndInstallCalls, 0);
-		assert.strictEqual(storage.getBoolean(SKIP_KEY, StorageScope.APPLICATION, false), false);
+		assert.strictEqual(storage.getBoolean(SKIP_RESTART_CONFIRMATION_STORAGE_KEY, StorageScope.APPLICATION, false), false);
 	});
 
 	test('quits without persisting skip flag when user confirms without checkbox', async () => {
 		dialog.setConfirmResult({ confirmed: true, checkboxChecked: false });
 
-		await confirmAndRestartToUpdate(instantiationService);
+		await instantiationService.invokeFunction(confirmAndRestartToUpdate);
 
 		assert.strictEqual(quitAndInstallCalls, 1);
-		assert.strictEqual(storage.getBoolean(SKIP_KEY, StorageScope.APPLICATION, false), false);
+		assert.strictEqual(storage.getBoolean(SKIP_RESTART_CONFIRMATION_STORAGE_KEY, StorageScope.APPLICATION, false), false);
 	});
 
 	test('quits and persists skip flag when user confirms with checkbox', async () => {
 		dialog.setConfirmResult({ confirmed: true, checkboxChecked: true });
 
-		await confirmAndRestartToUpdate(instantiationService);
+		await instantiationService.invokeFunction(confirmAndRestartToUpdate);
 
 		assert.strictEqual(quitAndInstallCalls, 1);
-		assert.strictEqual(storage.getBoolean(SKIP_KEY, StorageScope.APPLICATION, false), true);
+		assert.strictEqual(storage.getBoolean(SKIP_RESTART_CONFIRMATION_STORAGE_KEY, StorageScope.APPLICATION, false), true);
 	});
 });
