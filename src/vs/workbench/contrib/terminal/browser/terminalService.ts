@@ -541,8 +541,20 @@ export class TerminalService extends Disposable implements ITerminalService {
 				continue;
 			}
 			mark(`code/terminal/willRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
+
+			// STC: If the terminal was backed by a daemon, restore via daemonId
+			// not via the (now-stale) numeric PID/id.
+			const config: IShellLaunchConfig = attachPersistentProcess.daemonId
+				? {
+					attachPersistentProcess,
+					persistentDaemon: true,
+					// Store the daemonId for the process manager to pick up
+					cwd: attachPersistentProcess.cwd
+				}
+				: { attachPersistentProcess };
+
 			lastInstance = this.createTerminal({
-				config: { attachPersistentProcess },
+				config,
 				location: lastInstance ? { parentTerminal: lastInstance } : TerminalLocation.Panel
 			});
 			lastInstance.then(() => mark(`code/terminal/didRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`));
