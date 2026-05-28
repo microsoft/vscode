@@ -237,4 +237,35 @@ suite('AgentHostCommitOperationHandler', () => {
 			committedSessions: [],
 		});
 	});
+
+	test('maps Copilot token mint auth failures to AHP_AUTH_REQUIRED before committing', async () => {
+		const gitService = new TestGitService();
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.error = new Error('Copilot session token mint failed: 403 Forbidden');
+		const changesets = new TestChangesetService();
+		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+
+		let err: ProtocolError | undefined;
+		try {
+			await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		} catch (error) {
+			err = error as ProtocolError;
+		}
+
+		assert.deepStrictEqual({
+			code: err?.code,
+			data: err?.data,
+			gitCalls: gitService.calls,
+			completionCalls: copilotApiService.calls.length,
+			changesetCalls: changesets.calls,
+			committedSessions,
+		}, {
+			code: AHP_AUTH_REQUIRED,
+			data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
+			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
+			completionCalls: 1,
+			changesetCalls: [],
+			committedSessions: [],
+		});
+	});
 });
