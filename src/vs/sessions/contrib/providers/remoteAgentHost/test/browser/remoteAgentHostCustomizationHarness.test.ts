@@ -531,7 +531,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.strictEqual(sessionItem.statusMessage, 'something went wrong');
 	});
 
-	test('provider fires change event on SessionCustomizationsChanged action', async () => {
+	test('provider fires one change event on SessionCustomizationsChanged action', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const controller = disposables.add(new RemoteAgentPluginController(
 			'Test Host',
@@ -571,7 +571,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			},
 		});
 
-		assert.strictEqual(changeCount, 2, 'should fire change event for both customization and custom-agent service events');
+		assert.strictEqual(changeCount, 1, 'should fire one change event from customization service');
 	});
 
 	test('provider does not show remove action for client-synced plugins', async () => {
