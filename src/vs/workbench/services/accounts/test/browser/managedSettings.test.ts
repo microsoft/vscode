@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from '../../browser/defaultAccount.js';
+import { adaptManagedSettings, IManagedSettingsResponse } from '../../browser/managedSettings.js';
 
-suite('DefaultAccount.adaptManagedSettings', () => {
+suite('adaptManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

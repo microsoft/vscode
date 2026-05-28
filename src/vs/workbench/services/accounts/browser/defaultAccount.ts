@@ -13,7 +13,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
-import { isObject, isString, isUndefined, Mutable } from '../../../../base/common/types.js';
+import { isString, isUndefined, Mutable } from '../../../../base/common/types.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -32,6 +32,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExt
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
+import { adaptManagedSettings, IManagedSettingsResponse } from './managedSettings.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -69,65 +70,6 @@ const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 
 interface ITokenEntitlementsResponse {
 	token: string;
-}
-
-/**
- * Response shape from `/copilot_internal/managed_settings`. The endpoint returns
- * `.github/copilot/settings.json` content from the enterprise's source org.
- * An empty response (`{}`) is success and means "no policy file present".
- *
- * Exported for unit-testing the {@link adaptManagedSettings} shape transformation.
- */
-export interface IManagedSettingsResponse {
-	readonly enabledPlugins?: Record<string, boolean>;
-	readonly extraKnownMarketplaces?: Record<string, {
-		readonly source:
-		| { readonly source: 'github'; readonly repo: string; readonly ref?: string }
-		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
-	}>;
-	readonly strictKnownMarketplaces?: boolean;
-	/** Any unknown keys in the response are silently ignored for forward compatibility. */
-	readonly [key: string]: unknown;
-}
-
-/**
- * Adapt the `managed_settings` API response into the slice of {@link IPolicyData}
- * that the policy framework consumes. `extraKnownMarketplaces` is flattened from
- * the API's `Record<id, { source }>` shape to the existing
- * `chat.plugins.marketplaces` string-array shape (`<owner>/<repo>[#<ref>]` for
- * GitHub sources, `<url>[#<ref>]` for Git sources), deduplicated.
- *
- * Exported for unit-testing the shape transformation independently of network
- * I/O. Not part of the public service surface.
- */
-export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
-	let extraKnownMarketplaces: readonly string[] | undefined;
-	if (isObject(response.extraKnownMarketplaces)) {
-		// Set preserves insertion order and dedups for free.
-		const flattened = new Set<string>();
-		for (const [id, entry] of Object.entries(response.extraKnownMarketplaces)) {
-			if (!isObject(entry) || !isObject(entry.source)) {
-				onWarn?.(`[DefaultAccount] Skipping malformed extraKnownMarketplaces entry "${id}": expected { source: { source, repo|url } }`);
-				continue;
-			}
-			const src = entry.source as { source?: string; repo?: string; url?: string; ref?: string };
-			const suffix = src.ref ? `#${src.ref}` : '';
-			if (src.source === 'github' && isString(src.repo)) {
-				flattened.add(`${src.repo}${suffix}`);
-			} else if (src.source === 'git' && isString(src.url)) {
-				flattened.add(`${src.url}${suffix}`);
-			} else {
-				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${id}": unknown source type "${src.source}"`);
-			}
-		}
-		extraKnownMarketplaces = [...flattened];
-	}
-
-	return {
-		enabledPlugins: isObject(response.enabledPlugins) ? response.enabledPlugins as Record<string, boolean> : undefined,
-		extraKnownMarketplaces,
-		strictKnownMarketplaces: typeof response.strictKnownMarketplaces === 'boolean' ? response.strictKnownMarketplaces : undefined,
-	};
 }
 
 interface IMcpRegistryProvider {
