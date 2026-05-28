@@ -31,6 +31,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ModePicker } from '../../copilotChatSessions/browser/modePicker.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -92,6 +93,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		let settingAgentInternally = false;
