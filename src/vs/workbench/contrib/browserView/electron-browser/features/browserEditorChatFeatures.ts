@@ -97,7 +97,6 @@ const BrowserCategory = localize2('browserCategory', "Browser");
 
 const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
 const CONTEXT_BROWSER_AREA_SELECTION_ACTIVE = new RawContextKey<boolean>('browserAreaSelectionActive', false, localize('browser.areaSelectionActive', "Whether area selection is currently active"));
-const CONTEXT_BROWSER_AT_DEFAULT_ZOOM = new RawContextKey<boolean>('browserAtDefaultZoom', true, localize('browser.atDefaultZoom', "Whether the browser page is at its default 100% zoom level"));
 
 type IntegratedBrowserAddScreenshotToChatAddedEvent = {
 	screenshotType: 'viewport' | 'area' | 'fullPage';
@@ -117,7 +116,6 @@ type IntegratedBrowserAddScreenshotToChatAddedClassification = {
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	private readonly _elementSelectionActiveContext: IContextKey<boolean>;
 	private readonly _areaSelectionActiveContext: IContextKey<boolean>;
-	private readonly _atDefaultZoomContext: IContextKey<boolean>;
 
 	// Share with Agent
 	private readonly _shareButtonContainer: HTMLElement;
@@ -139,7 +137,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		super(editor);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
 		this._areaSelectionActiveContext = CONTEXT_BROWSER_AREA_SELECTION_ACTIVE.bindTo(contextKeyService);
-		this._atDefaultZoomContext = CONTEXT_BROWSER_AT_DEFAULT_ZOOM.bindTo(contextKeyService);
 
 		// Build share toggle button
 		const hoverDelegate = this._register(instantiationService.createInstance(
@@ -198,16 +195,11 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		store.add(model.onDidChangeAreaSelectionActive(active => {
 			this._areaSelectionActiveContext.set(active);
 		}));
-		this._atDefaultZoomContext.set(model.zoomFactor === 1);
-		store.add(model.onDidChangeZoom(() => {
-			this._atDefaultZoomContext.set(model.zoomFactor === 1);
-		}));
 	}
 
 	override onModelDetached(): void {
 		this._elementSelectionActiveContext.reset();
 		this._areaSelectionActiveContext.reset();
-		this._atDefaultZoomContext.reset();
 	}
 
 	// -- Sharing -------------------------------------------------------
@@ -727,12 +719,12 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.deviceCamera,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, CONTEXT_BROWSER_AT_DEFAULT_ZOOM, enabledSetting),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, enabledSetting),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '2_screenshots',
 				order: 3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_BROWSER_AT_DEFAULT_ZOOM, enabledSetting)
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
 			}
 		});
 	}
@@ -744,45 +736,11 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 	}
 }
 
-/**
- * Disabled placeholder shown in place of {@link AddFullPageScreenshotToChatAction}
- * when the page is not at 100% zoom. Full-page capture via CDP needs the
- * page's CSS-pixel content size to match the rendered image, which only holds
- * at the default zoom factor (see `_captureFullPageScreenshot` in browserView.ts).
- *
- * Implemented as a separate, always-disabled action so the menu item shows the
- * constraint in its tooltip without having to mutate the working action's tooltip.
- */
-class AddFullPageScreenshotToChatDisabledAction extends Action2 {
-	static readonly ID = 'browser.addFullPageScreenshotToChat.disabled';
-
-	constructor() {
-		super({
-			id: AddFullPageScreenshotToChatDisabledAction.ID,
-			title: localize2('browser.addFullPageScreenshotToChatAction.disabled', 'Add Full Page Screenshot to Chat (requires 100% zoom)'),
-			tooltip: localize('browser.addFullPageScreenshotToChatAction.zoomHint', "Full Page Screenshots are only supported when the page is at 100% zoom level"),
-			category: BrowserActionCategory,
-			icon: Codicon.deviceCamera,
-			f1: false,
-			precondition: ContextKeyExpr.false(),
-			menu: {
-				id: MenuId.BrowserChatActionsMenu,
-				group: '2_screenshots',
-				order: 3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_BROWSER_AT_DEFAULT_ZOOM.negate(), ContextKeyExpr.has('config.workbench.browser.experimentalUserTools.enabled'))
-			}
-		});
-	}
-
-	async run(): Promise<void> { /* disabled */ }
-}
-
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
 registerAction2(AddAreaScreenshotToChatAction);
 registerAction2(AddFullPageScreenshotToChatAction);
-registerAction2(AddFullPageScreenshotToChatDisabledAction);
 
 // Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
 // The primary action (chevron's left side) is the first item in the submenu.
