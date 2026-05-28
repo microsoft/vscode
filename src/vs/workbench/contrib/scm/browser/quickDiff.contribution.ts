@@ -53,6 +53,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
+		'scm.diffDecorationsAlgorithm': {
+			type: 'string',
+			enum: ['legacy', 'advanced'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsAlgorithm.legacy', "Uses the legacy diffing algorithm."),
+				localize('scm.diffDecorationsAlgorithm.advanced', "Uses the advanced diffing algorithm.")
+			],
+			default: 'advanced',
+			description: localize('diffDecorationsAlgorithm', "Controls the diffing algorithm used for Source Control diff gutter decorations.")
+		},
 		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
 			enum: [1, 2, 3, 4, 5],
