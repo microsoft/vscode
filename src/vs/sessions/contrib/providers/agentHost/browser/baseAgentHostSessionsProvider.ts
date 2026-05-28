@@ -20,7 +20,7 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentSelection, AgentCustomization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentSelection, AgentCustomization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary, Customization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChangesetState, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -988,6 +988,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
 
+	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
+	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
 
@@ -1184,6 +1187,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		this._onDidChangeCustomAgents.fire();
+		this._onDidChangeCustomizations.fire();
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
@@ -1694,6 +1698,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return getEffectiveAgents(sessionState?.customizations);
 	}
 
+	getCustomizations(sessionId: string): Customization[] {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.customizations ?? [];
+	}
+
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
@@ -2019,6 +2028,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// recomputes (and a feedback loop with `setAgent`).
 		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
 			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
@@ -2037,6 +2047,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._lastSessionStates.set(sessionId, state);
 		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
 			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
 		}
 	}
 
@@ -2049,6 +2060,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleNewSessionStateGone(sessionId: string): void {
 		if (this._lastSessionStates.delete(sessionId)) {
 			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
 		}
 	}
 

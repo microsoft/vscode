@@ -17,14 +17,14 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ROOT_STATE_URI, customizationId, type AgentInfo, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ROOT_STATE_URI, customizationId, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, type IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItem, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
-import { IAgentHostCustomAgentsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';
+import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 function customizationKey(customization: Customization): string {
@@ -145,17 +145,13 @@ export class RemoteAgentPluginController extends Disposable {
  * the parent plugin item appears in the Plugins section.
  */
 export function createRemoteAgentCustomizationItemProvider(
-	agentInfo: AgentInfo,
-	connection: IAgentConnection,
 	connectionAuthority: string,
 	controller: RemoteAgentPluginController,
 	fileService: IFileService,
 	logService: ILogService,
-	agentHostCustomAgentsService: IAgentHostCustomAgentsService,
+	agentHostCustomAgentsService: IAgentHostCustomizationService,
 ): AgentCustomizationItemProvider {
 	return new AgentCustomizationItemProvider(
-		agentInfo,
-		connection,
 		connectionAuthority,
 		fileService,
 		logService,
