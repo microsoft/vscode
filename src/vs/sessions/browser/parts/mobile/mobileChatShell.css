@@ -990,3 +990,129 @@
 	height: 36px;
 	padding: 0;
 }
+
+/* =========================================================================
+ * Phone Layout: Inline Anchor Peek Sheet
+ * -------------------------------------------------------------------------
+ * Bottom-sheet body styles for the inline file/symbol anchor peek (see
+ * `mobileInlineAnchorPeek.ts`). The sheet shell itself comes from
+ * `mobilePickerSheet.css`; this section just shapes the body the peek
+ * renders (metadata rows, snippet preview, action row).
+ * ========================================================================= */
+
+.mobile-inline-anchor-peek {
+display: flex;
+flex-direction: column;
+gap: 12px;
+padding: 4px 16px 16px;
+}
+
+.mobile-inline-anchor-peek-meta {
+display: flex;
+flex-direction: column;
+gap: 8px;
+}
+
+.mobile-inline-anchor-peek-row {
+display: flex;
+flex-direction: column;
+gap: 2px;
+}
+
+.mobile-inline-anchor-peek-row-label {
+font-size: 12px;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.04em;
+color: var(--vscode-descriptionForeground);
+}
+
+.mobile-inline-anchor-peek-row-value {
+font-size: 14px;
+line-height: 1.4;
+word-break: break-all;
+overflow-wrap: anywhere;
+user-select: text;
+-webkit-user-select: text;
+}
+
+.mobile-inline-anchor-peek-snippet {
+display: flex;
+flex-direction: column;
+gap: 4px;
+}
+
+.mobile-inline-anchor-peek-code {
+margin: 0;
+padding: 12px;
+border-radius: var(--vscode-cornerRadius-medium, 6px);
+background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+color: var(--vscode-editor-foreground, var(--vscode-foreground));
+font-family: var(--monaco-monospace-font);
+font-size: 13px;
+line-height: 1.5;
+white-space: pre;
+overflow: auto;
+max-height: 40vh;
+touch-action: pan-x pan-y;
+-webkit-overflow-scrolling: touch;
+user-select: text;
+-webkit-user-select: text;
+}
+
+.mobile-inline-anchor-peek-snippet-hint {
+font-size: 12px;
+color: var(--vscode-descriptionForeground);
+}
+
+.mobile-inline-anchor-peek-actions {
+display: flex;
+flex-direction: row;
+gap: 8px;
+margin-top: 4px;
+}
+
+.mobile-inline-anchor-peek-action {
+flex: 1;
+min-height: 44px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+padding: 8px 12px;
+border: 1px solid var(--vscode-button-border, transparent);
+border-radius: var(--vscode-cornerRadius-medium, 6px);
+background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+font-size: 14px;
+font-weight: 500;
+cursor: pointer;
+touch-action: manipulation;
+-webkit-tap-highlight-color: transparent;
+}
+
+.mobile-inline-anchor-peek-action:first-child {
+background: var(--vscode-button-background);
+color: var(--vscode-button-foreground);
+}
+
+.mobile-inline-anchor-peek-action:active {
+transform: scale(0.98);
+}
+
+.mobile-inline-anchor-peek-action:focus-visible {
+outline: 2px solid var(--vscode-focusBorder);
+outline-offset: 2px;
+}
+
+.mobile-inline-anchor-peek-action-icon {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+}
+
+.mobile-inline-anchor-peek-action-label {
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}

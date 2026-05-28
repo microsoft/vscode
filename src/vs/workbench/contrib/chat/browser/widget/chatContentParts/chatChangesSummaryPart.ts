@@ -15,6 +15,8 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../../nls.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -53,6 +55,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -151,6 +155,29 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		store.add(this.list.onDidOpen((item) => {
 			const diff = item.element;
 			if (!diff) {
+				return;
+			}
+
+			// Phone-layout shortcut: open the MobileDiffView overlay (registered in
+			// vs/sessions) instead of the inline diff editor. The command id is
+			// referenced by string to avoid a cross-layer import.
+			if (this.contextKeyService.getContextKeyValue<boolean>('sessionsIsPhoneLayout') === true) {
+				const diffs = this.fileChangesDiffsObservable.get();
+				// Shape mirrors IFileDiffViewData in
+				// vs/sessions/browser/parts/mobile/contributions/mobileDiffView.ts.
+				const siblings = diffs.map(d => ({
+					originalURI: d.originalURI,
+					modifiedURI: d.modifiedURI,
+					identical: d.identical,
+					added: d.added,
+					removed: d.removed,
+				}));
+				const index = Math.max(0, diffs.indexOf(diff));
+				this.commandService.executeCommand('sessions.mobile.openDiffView', {
+					diff: siblings[index] ?? siblings[0],
+					siblings,
+					index,
+				});
 				return;
 			}
 

@@ -181,6 +181,14 @@ import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresent
 // without duplicate-registration conflicts.
 import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
 
+// Phone-only peek sheet for inline file/symbol anchors in chat
+// markdown. Replaces the desktop hover-preview / open-on-click flow
+// with a bottom sheet that shows the path, language, an optional
+// snippet preview (via `ITextFileService`), and "Open in Editor" /
+// "Copy Link" actions. Web-only — desktop keeps the inline anchor
+// hover widget.
+import './contrib/chat/browser/mobile/mobileInlineAnchorPeek.js';
+
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';

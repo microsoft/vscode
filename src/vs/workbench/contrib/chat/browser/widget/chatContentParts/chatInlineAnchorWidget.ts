@@ -46,6 +46,7 @@ import { IChatContentInlineReference } from '../../../common/chatService/chatSer
 import { IChatWidgetService } from '../../chat.js';
 import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
+import { IChatInlineAnchorPhonePresenter } from './chatInlineAnchorPhonePresenter.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -158,6 +159,7 @@ export class InlineAnchorWidget extends Disposable {
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatInlineAnchorPhonePresenter private readonly chatInlineAnchorPhonePresenter: IChatInlineAnchorPhonePresenter,
 	) {
 		super();
 
@@ -306,6 +308,25 @@ export class InlineAnchorWidget extends Disposable {
 		// Click handler to open with custom editor association from chat.editorAssociations setting
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
+
+			// Phone-layout takeover: when the agents-window has
+			// registered a phone presenter that reports itself as
+			// active, route the tap into a bottom-sheet peek instead
+			// of the desktop "open in editor" flow. The peek shows the
+			// file path, language, an optional snippet preview, and
+			// "Open in editor" / "Copy link" actions so the user can
+			// inspect the target without losing the chat scroll
+			// position. Desktop behavior is unchanged because the
+			// default presenter reports `enabled === false`.
+			if (this.chatInlineAnchorPhonePresenter.enabled.get()) {
+				const symbolName = this.data.kind === 'symbol' ? this.data.symbol.name : undefined;
+				await this.chatInlineAnchorPhonePresenter.showAnchorPeek({
+					uri: location.uri,
+					range: location.range,
+					symbolName,
+				});
+				return;
+			}
 
 			// If the reference is an image file and the carousel is enabled, open the carousel
 			const mimeType = getMediaMime(location.uri.path);

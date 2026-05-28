@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../../base/browser/dom.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { hashAsync } from '../../../../../../base/common/hash.js';
 import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -13,6 +14,8 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { EditorModel } from '../../../../../common/editor/editorModel.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { IDisposableReference } from './chatCollections.js';
@@ -105,6 +108,8 @@ export class MarkdownDiffBlockPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -195,6 +200,33 @@ export class MarkdownDiffBlockPart extends Disposable {
 
 		this.comparePart.object.render(compareData, currentWidth, cts.token);
 		this.element = this.comparePart.object.element;
+
+		// Phone-layout shortcut: open the MobileDiffView overlay (registered in
+		// vs/sessions) instead of the inline diff editor. The command id is
+		// referenced by string to avoid a cross-layer import.
+		//
+		// Note: the inline `before`/`after` content here lives only in
+		// in-memory text models (`vscodeChatCodeBlock://...`) which the mobile
+		// diff view cannot read via `textFileService`. We still route the tap
+		// so that the user always lands in the overlay on phone; the overlay
+		// degrades to its empty/no-changes state when the URIs are unreadable.
+		this._register(dom.addDisposableListener(this.element, 'click', e => {
+			if (contextKeyService.getContextKeyValue<boolean>('sessionsIsPhoneLayout') !== true) {
+				return;
+			}
+			e.preventDefault();
+			e.stopPropagation();
+			// Shape mirrors IFileDiffViewData in
+			// vs/sessions/browser/parts/mobile/contributions/mobileDiffView.ts.
+			const diff = {
+				originalURI: data.codeBlockResource ?? originalUri,
+				modifiedURI: data.codeBlockResource ?? modifiedUri,
+				identical: false,
+				added: 0,
+				removed: 0,
+			};
+			commandService.executeCommand('sessions.mobile.openDiffView', { diff });
+		}, /* useCapture */ true));
 	}
 
 	layout(width: number): void {
