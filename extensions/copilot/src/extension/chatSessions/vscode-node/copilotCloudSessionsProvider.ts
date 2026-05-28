@@ -1002,19 +1002,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					const limits = model.capabilities?.limits;
 					const multiplier = model.billing?.multiplier;
 					const pricing = normalizeTokenPrices(model.billing?.token_prices);
+					const family = model.capabilities?.family ?? model.id;
+					const tooltip = getModelCapabilitiesDescription({ name: model.name, family });
 
 					return {
 						id: model.id,
 						name: model.name,
 						...(!isUBB && multiplier !== undefined ? { description: `${multiplier}x` } : {}),
-						tooltip: getModelCapabilitiesDescription({ name: model.name, family: model.capabilities?.family ?? model.id }),
+						tooltip,
 						modelMetadata: {
 							name: model.name,
 							id: model.id,
 							vendor: model.vendor,
 							version: model.version,
-							family: model.capabilities?.family ?? model.id,
-							tooltip: getModelCapabilitiesDescription({ name: model.name, family: model.capabilities?.family ?? model.id }),
+							family,
+							tooltip,
 							multiplierNumeric: multiplier,
 							pricing: !isUBB && multiplier !== undefined ? `${multiplier}x` : undefined,
 							maxInputTokens: limits?.max_prompt_tokens ?? 0,
@@ -1028,7 +1030,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							priceCategory: model.model_picker_price_category,
 							capabilities: {
 								vision: model.capabilities?.supports?.vision ?? false,
-								toolCalling: model.capabilities?.supports?.tool_calls ?? true,
+								toolCalling: model.capabilities?.supports?.tool_calls ?? false,
 							},
 						},
 					};

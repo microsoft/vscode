@@ -1947,7 +1947,7 @@
                       "chat-completions",
                       "responses"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2118,7 +2118,7 @@
                       "chat-completions",
                       "responses"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2232,7 +2232,7 @@
                       "chat-completions",
                       "responses"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -6909,7 +6909,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.4.1",
+    "@vscode/copilot-api": "^0.4.3",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",
