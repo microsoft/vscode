@@ -1439,7 +1439,8 @@ export class Repository implements Disposable {
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
 		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+			[...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates].map(r => r.resourceUri.fsPath) : [];
+		const allResources = opts.all ? [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates].map(r => r.resourceUri.fsPath) : [];
 
 		if (this.rebaseCommit) {
 			await this.run(
@@ -1447,7 +1448,13 @@ export class Repository implements Disposable {
 				async () => {
 					if (opts.all) {
 						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
+						const resources = opts.all === 'tracked'
+							? this.workingTreeGroup.resourceStates
+								.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
+								.map(r => r.resourceUri.fsPath)
+							: allResources;
+
+						await this.repository.add(resources, addOpts);
 					}
 
 					await this.repository.rebaseContinue();
@@ -1463,7 +1470,13 @@ export class Repository implements Disposable {
 				async () => {
 					if (opts.all) {
 						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
+						const resources = opts.all === 'tracked'
+							? this.workingTreeGroup.resourceStates
+								.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
+								.map(r => r.resourceUri.fsPath)
+							: allResources;
+
+						await this.repository.add(resources, addOpts);
 					}
 
 					delete opts.all;
@@ -3353,6 +3366,89 @@ export class Repository implements Disposable {
 	private optimisticUpdateEnabled(): boolean {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		return config.get<boolean>('optimisticUpdate') === true;
+	}
+
+	private getLocalOnlyResource(resourcePath: string): LocalOnlyResource | undefined {
+		return this.localOnlyResources.find(resource => pathEquals(resource.path, resourcePath));
+	}
+
+	private getStatusFromRaw(raw: { x: string; y: string }): Status | undefined {
+		switch (raw.x + raw.y) {
+			case '??': return Status.UNTRACKED;
+			case '!!': return Status.IGNORED;
+			case 'DD': return Status.BOTH_DELETED;
+			case 'AU': return Status.ADDED_BY_US;
+			case 'UD': return Status.DELETED_BY_THEM;
+			case 'UA': return Status.ADDED_BY_THEM;
+			case 'DU': return Status.DELETED_BY_US;
+			case 'AA': return Status.BOTH_ADDED;
+			case 'UU': return Status.BOTH_MODIFIED;
+		}
+		switch (raw.y) {
+			case 'M': return Status.MODIFIED;
+			case 'D': return Status.DELETED;
+			case 'A': return Status.INTENT_TO_ADD;
+			case 'R': return Status.INTENT_TO_RENAME;
+			case 'T': return Status.TYPE_CHANGED;
+		}
+		switch (raw.x) {
+			case 'M': return Status.INDEX_MODIFIED;
+			case 'A': return Status.INDEX_ADDED;
+			case 'D': return Status.INDEX_DELETED;
+			case 'R': return Status.INDEX_RENAMED;
+			case 'C': return Status.INDEX_COPIED;
+		}
+		return undefined;
+	}
+
+	private async updateLocalOnlyResources(resources: LocalOnlyResource[]): Promise<void> {
+		const uniqueResources: LocalOnlyResource[] = [];
+		for (const resource of resources) {
+			if (!uniqueResources.some(existing => pathEquals(existing.path, resource.path))) {
+				uniqueResources.push(resource);
+			}
+		}
+		this.localOnlyResources = uniqueResources;
+		await this.globalState.update(`${Repository.LOCAL_ONLY_STORAGE_KEY}:${this.root}`, uniqueResources.length > 0 ? uniqueResources : undefined);
+	}
+	private getResource(resourcePath: string): Resource | undefined {
+		return [...this.mergeGroup.resourceStates, ...this.indexGroup.resourceStates, ...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.localOnlyGroup.resourceStates]
+			.find(resource => pathEquals(resource.resourceUri.fsPath, resourcePath));
+	}
+	async addToLocalOnly(resources: Uri[]): Promise<void> {
+		if (resources.length === 0) {
+			return;
+		}
+		const nextResources = [...this.localOnlyResources];
+		for (const resource of resources) {
+			const existingResource = this.getResource(resource.fsPath);
+			const resourceEntry: LocalOnlyResource = {
+				path: resource.fsPath,
+				status: existingResource?.type ?? Status.MODIFIED,
+				renamePath: existingResource?.renameResourceUri?.fsPath
+			};
+			const existingIndex = nextResources.findIndex(existing => pathEquals(existing.path, resourceEntry.path));
+			if (existingIndex === -1) {
+				nextResources.push(resourceEntry);
+			} else {
+				nextResources[existingIndex] = resourceEntry;
+			}
+		}
+		await this.updateLocalOnlyResources(nextResources);
+		await this.updateModelState();
+	}
+
+	async removeFromLocalOnly(resources: Uri[]): Promise<void> {
+		if (resources.length === 0) {
+			return;
+		}
+		const resourcePaths = resources.map(resource => resource.fsPath);
+		const nextResources = this.localOnlyResources.filter(resource => !resourcePaths.some(resourcePath => pathEquals(resource.path, resourcePath)));
+		if (nextResources.length === this.localOnlyResources.length) {
+			return;
+		}
+		await this.updateLocalOnlyResources(nextResources);
+		await this.updateModelState();
 	}
 
 	private async handleTagConflict(remote: string | undefined, raw: string): Promise<boolean> {
