@@ -22,7 +22,7 @@ import { INativeHostService } from '../../../../../platform/native/common/native
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { TitleBarLeadingActionsGroup } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -142,14 +142,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		if (!sessionResource) {
 			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 		}
-		if (!sessionResource) {
-			return;
-		}
 
 		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({
 			folderUri: folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
-			sessionResource: sessionResource.toJSON(),
+			sessionResource: sessionResource?.toJSON(),
 		});
 	}
 }
@@ -233,12 +230,14 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._dismissedSessions = new Set(this._loadDismissed());
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => this._update()));
 		this._register(this._chatWidgetService.onDidAddWidget(() => this._update()));
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
+		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
 		this._register(this._notificationService.onDidDismiss(id => {
 			if (id !== AgentsHandoffInputTipContribution.NOTIFICATION_ID || !this._lastPostedFor) {
 				return;
@@ -252,16 +251,33 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	private _update(): void {
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		const sessionResource = widget?.viewModel?.sessionResource;
-		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
+		const resourceSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
+		// The widget's scoped chat session type reflects the user's current
+		// mode picker selection — populated even when no session has been
+		// created yet (e.g. fresh untitled input in an empty workspace).
+		const widgetSessionType = widget?.scopedContextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
+		const sessionType = resourceSessionType ?? widgetSessionType;
 		const preconditionMet = widget?.scopedContextKeyService.contextMatchesRules(OPEN_AGENTS_WINDOW_PRECONDITION) ?? false;
+		const typeEligible = !!sessionType && AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(sessionType);
+
+		// Empty-workspace path: CLI / agent-host local can't run here, so
+		// surface the tip even without a real session resource. Key the
+		// dismissal on the session type so it persists per-mode rather than
+		// per (nonexistent) session URI.
+		const isEmptyWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		const emptyWorkspaceEligible = preconditionMet
+			&& typeEligible
+			&& isEmptyWorkspace
+			&& !sessionResource
+			&& !this._dismissedSessions.has(`type:${sessionType}`);
+
 		const eligible = preconditionMet
 			&& !!sessionResource
-			&& !!sessionType
-			&& AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(sessionType)
+			&& typeEligible
 			&& !isUntitledChatSession(sessionResource)
 			&& !this._dismissedSessions.has(sessionResource.toString());
 
-		if (!eligible || !sessionResource) {
+		if (!eligible && !emptyWorkspaceEligible) {
 			if (this._lastPostedFor) {
 				this._notificationService.deleteNotification(AgentsHandoffInputTipContribution.NOTIFICATION_ID);
 				this._lastPostedFor = undefined;
@@ -269,15 +285,20 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			return;
 		}
 
+		const key = eligible && sessionResource
+			? sessionResource.toString()
+			: `type:${sessionType}`;
+
 		// Only call setNotification when the target session changes. Re-calling
 		// setNotification clears the user's dismissal, which would make the
 		// dismiss button effectively a no-op when the context key service
 		// fires repeated change events for the same session.
-		const key = sessionResource.toString();
 		if (this._lastPostedFor === key) {
 			return;
 		}
 		this._lastPostedFor = key;
+
+		const commandArgs: unknown[] = sessionResource ? [sessionResource] : [];
 
 		this._notificationService.setNotification({
 			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
@@ -288,7 +309,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 				{
 					label: localize('chat.agentsHandoff.tip.action', "Open in Agents Window"),
 					commandId: OpenChatSessionInAgentsWindowAction.ID,
-					commandArgs: [sessionResource],
+					commandArgs,
 				},
 			],
 			dismissible: true,

@@ -51,7 +51,7 @@ class FakeNotificationService implements IChatInputNotificationService {
 	deleteNotification(id: string): void {
 		this.deleteCalls.push(id);
 	}
-	dismissNotification(): void { /* */ }
+	dismissNotification(_id: string): void { /* */ }
 	getActiveNotification(): IChatInputNotification | undefined { return undefined; }
 	handleMessageSent(): void { /* */ }
 }

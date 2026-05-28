@@ -77,20 +77,25 @@ class ChatCommandLineHandler extends Disposable {
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleChatRequest', (_, ...args: unknown[]) => {
+		const handleChatRequest = (_: unknown, ...args: unknown[]) => {
 			const chatArgs = args[0] as typeof this.environmentService.args.chat;
 			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
-			this.prompt(chatArgs);
-		});
+			this.prompt(chatArgs).catch(err => this.logService.error('vscode:handleChatRequest failed', err));
+		};
+		ipcRenderer.on('vscode:handleChatRequest', handleChatRequest);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:handleChatRequest', handleChatRequest) });
 
-		ipcRenderer.on('vscode:openChatSession', (_, ...args: unknown[]) => {
+		const handleOpenChatSession = (_: unknown, ...args: unknown[]) => {
 			const sessionUriString = args[0] as string;
 			this.logService.trace('vscode:openChatSession', sessionUriString);
 
 			const sessionResource = URI.parse(sessionUriString);
-			this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-		});
+			Promise.resolve(this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget))
+				.catch(err => this.logService.error('vscode:openChatSession failed', err));
+		};
+		ipcRenderer.on('vscode:openChatSession', handleOpenChatSession);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openChatSession', handleOpenChatSession) });
 	}
 
 	private async prompt(args: typeof this.environmentService.args.chat): Promise<void> {
