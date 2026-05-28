@@ -908,7 +908,6 @@ export class QuickInputController extends Disposable {
 				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
 				let anchor = getAnchorRect(target);
 
-				// `overlay` always sizes to the anchor (the picker visually replaces it).
 				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
 
 				if (this.controller.anchorPosition === 'overlay') {
