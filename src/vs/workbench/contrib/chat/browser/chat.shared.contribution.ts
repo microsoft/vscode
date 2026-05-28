@@ -411,6 +411,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: true
 		},
+		[ChatConfiguration.StickyScrollEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.stickyScroll.enabled', "Enables Sticky Scroll for chat requests while scrolling through their responses."),
+			default: product.quality !== 'stable',
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.InlineReferencesStyle]: {
 			type: 'string',
 			enum: ['box', 'link'],

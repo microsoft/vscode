@@ -26,9 +26,30 @@
 	--vscode-chat-font-size-body-xxl: 1.538em;
 }
 
-.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie,
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row:hover {
+	background-color: var(--vscode-chat-list-background) !important;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row {
+	overflow: hidden;
+	animation: chat-sticky-row-fade-in 250ms ease-out;
+}
+
+@keyframes chat-sticky-row-fade-in {
+	from {
+		filter: opacity(0);
+		transform: translateY(-4px);
+	}
+	to {
+		filter: opacity(1);
+		transform: translateY(0);
+	}
 }
 
 .interactive-list > .chat-scroll-down {
@@ -3442,6 +3463,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
+		/* Clamp request text to 4 lines — only in sticky scroll */
+		display: -webkit-box;
+		line-clamp: 4;
+		-webkit-line-clamp: 4;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child ~ * {
+		display: none;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text.sticky-editing {
+		font-style: italic;
+	}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown {
 		margin-left: auto;
 	}
@@ -3668,7 +3707,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.checkpoint-container:focus-within,
 	.checkpoint-container.group-hovered,
-	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
+	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container,
+	.monaco-tree-sticky-row .checkpoint-container,
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
 		opacity: 1;
 	}
 
