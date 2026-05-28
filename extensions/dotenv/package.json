@@ -33,6 +33,12 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "dotenv",
+        "path": "./snippets/dotenv.code-snippets"
+      }
+    ],
     "grammars": [
       {
         "language": "dotenv",
