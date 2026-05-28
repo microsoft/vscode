@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
@@ -27,6 +28,7 @@ import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.
 import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
+import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
@@ -127,13 +129,16 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _sessionIdByThreadId = new Map<string, string>();
 	private _githubToken: string | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
+	private readonly _metadataStore: CodexSessionMetadataStore;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._metadataStore = instantiationService.createInstance(CodexSessionMetadataStore);
 	}
 
 	// #region Auth
@@ -478,6 +483,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
+		this._logService.info(`[Codex DEBUG] createSession session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
 		this._ensureAuthenticated();
 		if (config.fork) {
 			throw new Error('Codex agent does not support session forking');
@@ -547,7 +553,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			model: session.model?.id ?? null,
 		});
 		session.threadId = startResult.thread.id;
+		this._logService.info(`[Codex DEBUG] materialized session=${session.sessionUri.toString()} threadId=${session.threadId}`);
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
+		// Persist the workbench-session ↔ codex-thread mapping so future
+		// cold reloads can resume this thread under the same workbench URI.
+		void this._metadataStore.write(session.sessionUri, {
+			threadId: session.threadId,
+			cwd: session.workingDirectory,
+			modelId: session.model?.id,
+		});
 		this._onDidMaterializeSession.fire({
 			session: session.sessionUri,
 			workingDirectory: session.workingDirectory,
@@ -556,6 +570,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+		this._logService.info(`[Codex DEBUG] sendMessage session=${sessionUri.toString()} prompt=${JSON.stringify(prompt).slice(0, 60)}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
@@ -705,6 +720,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async disposeSession(sessionUri: URI): Promise<void> {
+		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
@@ -764,14 +780,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		// Register the session in our map so subsequent sendMessage triggers
-		// thread/resume (Decision 8). For restored sessions the caller-side
-		// id IS the codex thread id (sessions persisted from a previous
-		// process kept the threadId-as-sessionId mapping).
+		// thread/resume (Decision 8). The threadId came from the metadata
+		// overlay or from `thread/list` (when the session was materialized
+		// in a prior process); `_readSession` returns the resolved id.
 		if (!this._sessions.has(sessionId)) {
 			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
+			const threadId = read.thread.id;
 			this._sessions.set(sessionId, {
 				sessionId,
-				threadId: sessionId,
+				threadId,
 				sessionUri: session,
 				workingDirectory,
 				mapState: createCodexSessionMapState(),
@@ -782,18 +799,23 @@ export class CodexAgent extends Disposable implements IAgent {
 				needsResume: true,
 				lastPromptText: '',
 			});
-			this._sessionIdByThreadId.set(sessionId, sessionId);
+			this._sessionIdByThreadId.set(threadId, sessionId);
 		}
 		return this._threadToMetadata(read.thread, session);
 	}
 
 	private async _readSession(session: URI): Promise<ThreadReadResponse | undefined> {
+		// Resolve the codex thread id for this session URI. Resolution
+		// order: in-memory session → persisted metadata overlay → URI host
+		// (for sessions materialized in a prior process where sessionId
+		// equals threadId by convention).
 		const sessionId = AgentSession.id(session);
-		// Use the mapped threadId if we have one (caller-supplied session
-		// id case); otherwise fall back to using the URI host (restored /
-		// native-listed sessions).
 		const existing = this._sessions.get(sessionId);
-		const threadId = existing?.threadId ?? sessionId;
+		let threadId = existing?.threadId;
+		if (threadId === undefined) {
+			const overlay = await this._metadataStore.read(session);
+			threadId = overlay.threadId ?? sessionId;
+		}
 		try {
 			const conn = await this._ensureConnection();
 			const response = await conn.client.request<'thread/read', ThreadReadResponse>('thread/read', {
@@ -824,7 +846,24 @@ export class CodexAgent extends Disposable implements IAgent {
 			const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
 				limit: 200,
 			});
-			return response.data.map(t => this._threadToMetadata(t, AgentSession.uri(this.id, t.id)));
+			// Map persisted threads back to the URI the workbench already
+			// knows them by. After `_materializeIfNeeded` runs, the codex
+			// thread is persisted to disk under its thread id but the
+			// workbench/state-manager keyed the session by its provisional
+			// URI (`codex:/<provisional-uuid>`). If we returned a fresh
+			// `codex:/<threadId>` URI here, `_refreshSessions` would treat
+			// the provisional URI as missing and evict the live session
+			// the user is actively viewing.
+			const liveUriByThreadId = new Map<string, URI>();
+			for (const s of this._sessions.values()) {
+				if (s.threadId !== undefined) {
+					liveUriByThreadId.set(s.threadId, s.sessionUri);
+				}
+			}
+			return response.data.map(t => this._threadToMetadata(
+				t,
+				liveUriByThreadId.get(t.id) ?? AgentSession.uri(this.id, t.id),
+			));
 		} catch (err) {
 			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
