@@ -209,11 +209,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
 
 	/**
-	 * Placement of the picker relative to {@link anchor}. `'overlay'`
-	 * positions the picker's input box directly on top of the anchor and
-	 * auto-sizes its width to match. Defaults to `'above'`.
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
 	 */
-	anchorPosition?: 'above' | 'below' | 'overlay';
+	anchorPosition?: 'above' | 'overlay';
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -377,11 +377,11 @@ export interface IQuickInput extends IDisposable {
 	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
 
 	/**
-	 * Placement of the quick input relative to {@link anchor}. `'overlay'`
-	 * positions the input box directly on top of the anchor and auto-sizes
-	 * its width to match. Defaults to `'above'`.
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
 	 */
-	anchorPosition?: 'above' | 'below' | 'overlay';
+	anchorPosition?: 'above' | 'overlay';
 
 	/**
 	 * Shows the quick input.

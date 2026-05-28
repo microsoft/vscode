@@ -903,61 +903,48 @@ export class QuickInputController extends Disposable {
 			// Position
 			if (this.controller?.anchor) {
 				const target = this.controller.anchor as HTMLElement | IAnchor;
-				let position: AnchorPosition | 'overlay';
-				switch (this.controller.anchorPosition) {
-					case 'below': position = AnchorPosition.BELOW; break;
-					case 'overlay': position = 'overlay'; break;
-					default: position = AnchorPosition.ABOVE; break;
-				}
-
 				const isElement = dom.isHTMLElement(target);
 				const anchorWindow = isElement ? dom.getWindow(target) : dom.getActiveWindow();
 				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
-				const anchor = getAnchorRect(target);
+				let anchor = getAnchorRect(target);
 
 				// `overlay` always sizes to the anchor (the picker visually replaces it).
-				if (position === 'overlay' || isElement) {
-					width = anchor.width ?? 380;
+				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
+
+				if (this.controller.anchorPosition === 'overlay') {
+					width = anchor.width + 12;
+					anchor = {
+						...anchor,
+						top: anchor.top - 7 - anchor.height,
+						left: anchor.left - 7,
+					};
 				} else {
 					width = 380;
 				}
-				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
 
-				if (position === 'overlay') {
-					const WIDGET_BORDER = 1;
-					const HEADER_PADDING = 6;
-					const OFFSET = HEADER_PADDING + WIDGET_BORDER;
-					style.left = `${anchor.left - container.left - OFFSET}px`;
-					style.top = `${anchor.top - container.top - OFFSET}px`;
-					style.right = 'initial';
-					style.bottom = 'initial';
-					style.width = `${width + 2 * HEADER_PADDING}px`;
-					style.height = '';
+				// Beware:
+				// We need to add some extra pixels to the height to account for the input and padding.
+				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+
+				if (anchorAlignment === AnchorAlignment.RIGHT) {
+					style.right = `${right}px`;
+					style.left = 'initial';
 				} else {
-					// Beware:
-					// We need to add some extra pixels to the height to account for the input and padding.
-					const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
-					const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: position });
-
-					if (anchorAlignment === AnchorAlignment.RIGHT) {
-						style.right = `${right}px`;
-						style.left = 'initial';
-					} else {
-						style.left = `${left}px`;
-						style.right = 'initial';
-					}
-
-					if (anchorPosition === AnchorPosition.ABOVE) {
-						style.bottom = `${bottom}px`;
-						style.top = 'initial';
-					} else {
-						style.top = `${top}px`;
-						style.bottom = 'initial';
-					}
-
-					style.width = `${width}px`;
-					style.height = '';
+					style.left = `${left}px`;
+					style.right = 'initial';
 				}
+
+				if (anchorPosition === AnchorPosition.ABOVE) {
+					style.bottom = `${bottom}px`;
+					style.top = 'initial';
+				} else {
+					style.top = `${top}px`;
+					style.bottom = 'initial';
+				}
+
+				style.width = `${width}px`;
+				style.height = '';
 			} else {
 				style.top = `${this.viewState?.top !== undefined ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
 				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
