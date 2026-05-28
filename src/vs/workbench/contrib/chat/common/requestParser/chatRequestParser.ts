@@ -249,8 +249,26 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent or attachments are supported, asume it is a prompt slash command
+			// Fallback: try `<cmd>:<sub>` if the bare command isn't itself a known prompt.
+			// Supports the space-form subcommand grammar (e.g. `/chronicle tips` resolves to
+			// the `chronicle:tips` prompt) so users don't need to type the colon separator.
 			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
+			if (!isPromptCommand) {
+				const afterSlash = remainingMessage.slice(full.length);
+				const subMatch = afterSlash.match(/^[ \t]+([\p{L}\d_\-\.]+)/u);
+				if (subMatch) {
+					const candidate = `${command}:${subMatch[1]}`;
+					if (this.promptsService.isValidSlashCommandName(candidate)) {
+						const consumedLength = full.length + subMatch[0].length;
+						const extendedRange = new OffsetRange(offset, offset + consumedLength);
+						const extendedEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + consumedLength);
+						const displayText = remainingMessage.slice(0, consumedLength);
+						return new ChatRequestSlashPromptPart(extendedRange, extendedEditorRange, candidate, displayText);
+					}
+				}
+			}
+
+			// if there's no agent or attachments are supported, asume it is a prompt slash command
 			if (isPromptCommand) {
 				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);
 			}
