@@ -281,7 +281,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		this._authTokens.set(params.resource, params.token);
 		// Multiple providers may share the same protected resource (e.g.
 		// both Copilot CLI and Claude consume the GitHub Copilot token).
 		// Fan out to every matching provider in parallel; the request is
@@ -306,6 +305,9 @@ export class AgentService extends Disposable implements IAgentService {
 					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
 				);
 			}
+		}
+		if (authenticated) {
+			this._authTokens.set(params.resource, params.token);
 		}
 		return { authenticated };
 	}

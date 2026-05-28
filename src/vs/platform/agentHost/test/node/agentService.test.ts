@@ -1194,8 +1194,11 @@ suite('AgentService (node dispatcher)', () => {
 
 			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
 
-			assert.deepStrictEqual(result, { authenticated: false });
-			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
+			assert.deepStrictEqual({ result, token: service.getAuthToken('https://unknown.example.com'), authenticateCalls: copilotAgent.authenticateCalls }, {
+				result: { authenticated: false },
+				token: undefined,
+				authenticateCalls: [],
+			});
 		});
 
 		test('stores GitHub Copilot token for operation handlers', async () => {

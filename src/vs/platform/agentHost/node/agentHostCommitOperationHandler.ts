@@ -16,7 +16,7 @@ import { readSessionGitState, type ISessionFileDiff, type SessionState } from '.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { IAgentHostChangesetService } from './agentHostChangesetService.js';
-import { ICopilotApiService } from './shared/copilotApiService.js';
+import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
 
 const MAX_CHANGE_SUMMARY_PROMPT_CHARS = 20_000;
 
@@ -92,9 +92,22 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		this._throwIfCancelled(token);
 
-		const message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
-			messages: this._buildCommitMessagePrompt(workingDirectory, gitState.branchName, diffs),
-		}, { signal }));
+		let message: string;
+		try {
+			message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
+				messages: this._buildCommitMessagePrompt(workingDirectory, gitState.branchName, diffs),
+			}, { signal }));
+		} catch (err) {
+			this._throwIfCancelled(token);
+			if (this._isAuthFailure(err)) {
+				throw new ProtocolError(
+					AHP_AUTH_REQUIRED,
+					localize('agentHost.changeset.commit.authExpired', "Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again."),
+					[GITHUB_COPILOT_PROTECTED_RESOURCE],
+				);
+			}
+			throw err;
+		}
 		if (!message) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.emptyMessage', "Generated commit message was empty."));
 		}
@@ -108,9 +121,9 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to commit changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
+		await this._onCommitted(sessionUri);
 		this._changesets.refreshUncommittedChangeset(sessionUri);
 		this._changesets.refreshSessionChangeset(sessionUri);
-		await this._onCommitted(sessionUri);
 
 		return { message: { markdown: localize('agentHost.changeset.commit.committed', "Committed changes with message: `{0}`", message.split('\n')[0]) } };
 	}
@@ -178,6 +191,15 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			text = fenced[1].trim();
 		}
 		return text;
+	}
+
+	private _isAuthFailure(err: unknown): boolean {
+		if (err instanceof CopilotApiError) {
+			return err.status === 401 || err.status === 403;
+		}
+		const message = err instanceof Error ? err.message : String(err);
+		return /\b(401|403)\b/.test(message)
+			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery|copilot session token mint)\b/i.test(message);
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {
