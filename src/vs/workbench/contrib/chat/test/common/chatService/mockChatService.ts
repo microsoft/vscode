@@ -163,7 +163,9 @@ export class MockChatService implements IChatService {
 
 	async transferChatSession(): Promise<void> { }
 
-	setChatSessionTitle(): void { }
+	readonly onDidChangeChatSessionTitle = Event.None;
+
+	async setChatSessionTitle(): Promise<void> { }
 
 	isEditingLocation(_location: ChatAgentLocation): boolean {
 		return false;

@@ -147,6 +147,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidChangeChatSessionTitle = this._register(new Emitter<{ readonly sessionResource: URI; readonly title: string }>());
+	public readonly onDidChangeChatSessionTitle = this._onDidChangeChatSessionTitle.event;
+
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
@@ -325,6 +328,12 @@ export class ChatService extends Disposable implements IChatService {
 			await this._chatSessionStore.setSessionTitle(localSessionId, title);
 			// Trigger immediate save to ensure consistency
 			this.saveState();
+		}
+
+		// For history sessions (no live model), notify listeners so they can refresh
+		// the UI. Live sessions are handled via model.onDidChange → autorun.
+		if (!model) {
+			this._onDidChangeChatSessionTitle.fire({ sessionResource, title });
 		}
 	}
 
