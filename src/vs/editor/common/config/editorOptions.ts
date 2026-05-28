@@ -3764,7 +3764,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 	constructor() {
 		const defaults: InternalQuickSuggestionsOptions = {
-			other: 'offWhenInlineCompletions',
+			other: 'on',
 			comments: 'off',
 			strings: 'off'
 		};
