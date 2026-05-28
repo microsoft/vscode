@@ -2299,47 +2299,49 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (!cached) {
-			return;
-		}
+		transaction((tx) => {
+			const rawId = AgentSession.id(session);
+			const cached = this._sessionCache.get(rawId);
+			if (!cached) {
+				return;
+			}
 
-		let didChange = false;
+			let didChange = false;
 
-		if (changes.status !== undefined) {
-			const uiStatus = mapProtocolStatus(changes.status);
-			if (uiStatus !== cached.status.get()) {
-				cached.status.set(uiStatus, undefined);
+			if (changes.status !== undefined) {
+				const uiStatus = mapProtocolStatus(changes.status);
+				if (uiStatus !== cached.status.get()) {
+					cached.status.set(uiStatus, tx);
+					didChange = true;
+				}
+
+				const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
+				if (isArchived !== cached.isArchived.get()) {
+					cached.isArchived.set(isArchived, tx);
+					didChange = true;
+				}
+			}
+
+			if (changes.title !== undefined && changes.title !== cached.title.get()) {
+				cached.title.set(changes.title, tx);
 				didChange = true;
 			}
 
-			const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
-			if (isArchived !== cached.isArchived.get()) {
-				cached.isArchived.set(isArchived, undefined);
+			// `changes.changesets` carries the catalogue (counts + URI
+			// templates). The chip aggregate is recomputed from those counts
+			// here; per-file detail is not part of this notification path.
+			if (changes.changesets !== undefined && cached.applyCatalogueCounts(changes.changesets)) {
 				didChange = true;
 			}
-		}
 
-		if (changes.title !== undefined && changes.title !== cached.title.get()) {
-			cached.title.set(changes.title, undefined);
-			didChange = true;
-		}
+			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
+				didChange = true;
+			}
 
-		// `changes.changesets` carries the catalogue (counts + URI
-		// templates). The chip aggregate is recomputed from those counts
-		// here; per-file detail is not part of this notification path.
-		if (changes.changesets !== undefined && cached.applyCatalogueCounts(changes.changesets)) {
-			didChange = true;
-		}
-
-		if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
-			didChange = true;
-		}
-
-		if (didChange) {
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
+			if (didChange) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			}
+		});
 	}
 
 	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {
