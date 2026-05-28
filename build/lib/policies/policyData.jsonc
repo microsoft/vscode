@@ -260,7 +260,7 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.strictMarketplaces.policy",
-                    "value": "Only trust marketplaces listed in `chat.plugins.marketplaces`; plugins from any other marketplace will not load."
+                    "value": "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."
                 }
             },
             "type": "boolean",

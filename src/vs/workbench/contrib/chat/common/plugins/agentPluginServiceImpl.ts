@@ -128,8 +128,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				return [];
 			}
 			const all = this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
-			const enforced = this._applyPolicyEnforcement(all, enabledPluginsPolicy.read(read), strictMarketplaces.read(read), pluginMarketplaceService, logService);
-			return enforced;
+			return this._applyPolicyEnforcement(all, enabledPluginsPolicy.read(read), strictMarketplaces.read(read), pluginMarketplaceService, logService);
 		});
 	}
 
