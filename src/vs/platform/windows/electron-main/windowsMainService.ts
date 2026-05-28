@@ -292,18 +292,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, initialQuery?: string, sessionResource?: URI): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, initialQuery?: string, sessionResource?: URI, preferredSessionType?: { providerId?: string; sessionTypeId: string }): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		// Open in a new browser window with the agent sessions workspace
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
 
-		// Single IPC carrying folder selection, optional initial query, and
-		// optional existing-session resource — the handler in the agents
-		// window sequences them (folder → query or open session) so the
-		// session-open doesn't race the folder-resolve.
-		if ((folderUri || initialQuery || sessionResource) && windows.length > 0) {
-			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), initialQuery, sessionResource?.toJSON());
+		// Single IPC carrying folder selection, optional initial query,
+		// optional existing-session resource, and an optional preferred
+		// session type to pre-seed the session-type picker. The handler in
+		// the agents window sequences them (folder → query or open session)
+		// so the session-open doesn't race the folder-resolve.
+		if ((folderUri || initialQuery || sessionResource || preferredSessionType) && windows.length > 0) {
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), initialQuery, sessionResource?.toJSON(), preferredSessionType);
 		}
 
 		return windows;

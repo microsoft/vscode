@@ -18,6 +18,8 @@ import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessio
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { writeStoredSessionTypePref } from '../browser/sessionTypePicker.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,15 +33,44 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const initialQuery = typeof args[1] === 'string' ? args[1] : undefined;
 			const sessionResource = args[2] ? URI.revive(args[2] as UriComponents) : undefined;
-			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} initialQuery=${initialQuery ? 'yes' : 'no'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+			const rawPref = args[3] && typeof args[3] === 'object' ? args[3] as Record<string, unknown> : undefined;
+			const preferredSessionType = rawPref && typeof rawPref.sessionTypeId === 'string'
+				? { sessionTypeId: rawPref.sessionTypeId, providerId: typeof rawPref.providerId === 'string' ? rawPref.providerId : undefined }
+				: undefined;
+			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} initialQuery=${initialQuery ? 'yes' : 'no'} sessionResource=${sessionResource?.toString() ?? '(none)'} preferredSessionType=${preferredSessionType?.sessionTypeId ?? '(none)'}`);
+
+			// Pre-seed the session-type picker before any UI consults it.
+			// The picker re-reads from storage on its own onDidChangeValue
+			// listener once the active session is cleared.
+			if (preferredSessionType) {
+				writeStoredSessionTypePref(this.storageService, preferredSessionType);
+			}
+
+			// Empty / new-session handoff: a folderUri may still come along (we
+			// always pass the source workspace's folder) but as long as no real
+			// session or initial query is being restored, our seed wins.
+			const preferredOnly = !!preferredSessionType && !sessionResource && !initialQuery;
+
 			this.handleOpenIntent(folderUri, initialQuery, sessionResource)
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
+
+			if (preferredOnly) {
+				// Wait for the workbench's own restoreLastActiveSession to
+				// finish (which would otherwise overwrite our pick by
+				// reactivating a prior session), then drop the active session
+				// so the session-type picker re-reads the freshly stored
+				// preference from storage.
+				this.lifecycleService.when(LifecyclePhase.Eventually)
+					.then(() => this.sessionsManagementService.unsetNewSession())
+					.catch(err => this.logService.error('[AgentsHandoff] preferred-only unsetNewSession failed', err));
+			}
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
@@ -84,12 +115,20 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		this.logService.info('[AgentsHandoff] target session available; opening');
 
 		// Retry on cancellation / not-found — the agents window may still be
-		// resolving its own restore, which can cancel our token.
+		// resolving its own restore, which can cancel our token. `openSession`
+		// also returns without throwing when its load is cancelled mid-flight,
+		// so verify the active session matches the target afterwards and
+		// retry if it doesn't.
+		const targetKey = sessionResource.toString();
 		for (let attempt = 0; attempt < 6; attempt++) {
 			try {
 				await this.sessionsManagementService.openSession(sessionResource);
-				this.logService.info('[AgentsHandoff] openSession succeeded');
-				return;
+				const active = this.sessionsManagementService.activeSession.get();
+				if (active && active.resource.toString() === targetKey) {
+					this.logService.info('[AgentsHandoff] openSession succeeded');
+					return;
+				}
+				this.logService.warn(`[AgentsHandoff] openSession attempt ${attempt} resolved but active session is ${active?.resource.toString() ?? '(none)'}; retrying`);
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				this.logService.warn(`[AgentsHandoff] openSession attempt ${attempt} failed: ${message}`);
@@ -97,6 +136,8 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 				if (!retryable) {
 					return;
 				}
+			}
+			if (attempt < 5) {
 				await timeout(500 + attempt * 500);
 			}
 		}

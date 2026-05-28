@@ -29,11 +29,18 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+
+// Provider id for the local agent host. Duplicated from
+// `vs/sessions/common/agentHostSessionsProvider.LOCAL_AGENT_HOST_PROVIDER_ID`
+// because the workbench layer cannot import from `vs/sessions`. The string is
+// part of the handoff IPC wire protocol so both sides must keep it in sync.
+const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
 
 export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	constructor() {
@@ -116,8 +123,8 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 				when: ContextKeyExpr.and(
 					OPEN_AGENTS_WINDOW_PRECONDITION,
 					ContextKeyExpr.or(
-						ChatContextKeys.chatSessionType.isEqualTo('copilotcli'),
-						ChatContextKeys.chatSessionType.isEqualTo('agent-host-copilot'),
+						ChatContextKeys.chatSessionType.isEqualTo(SessionType.CopilotCLI),
+						ChatContextKeys.chatSessionType.isEqualTo(SessionType.AgentHostCopilot),
 					),
 				),
 			}],
@@ -143,10 +150,20 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 		}
 
+		// No real session URI to hand off (empty-workspace path triggered
+		// from the input tip): pre-seed the agents window's session-type
+		// picker so it lands on Copilot CLI [Local].
+		let preferredSessionType: { providerId?: string; sessionTypeId: string } | undefined;
+		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
+		if (!hasRealSession) {
+			preferredSessionType = { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: SessionType.CopilotCLI };
+		}
+
 		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({
 			folderUri: folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
-			sessionResource: sessionResource?.toJSON(),
+			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
+			preferredSessionType,
 		});
 	}
 }
@@ -214,10 +231,19 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	private static readonly NOTIFICATION_ID = 'chat.agentsHandoff.openInAgentsWindow';
 
 	/** Session types eligible for the handoff tip — the same set the Agents window can render directly. */
-	private static readonly ELIGIBLE_SESSION_TYPES = new Set(['copilotcli', 'agent-host-copilot']);
+	private static readonly ELIGIBLE_SESSION_TYPES: ReadonlySet<string> = new Set([SessionType.CopilotCLI, SessionType.AgentHostCopilot]);
 
-	/** Storage key for the per-session dismissal set. Stored as a JSON-encoded array of session URI strings. */
+	/**
+	 * Storage key for the dismissed-sessions list. WORKSPACE scope so a user's
+	 * dismissal in one workspace doesn't permanently silence the tip across
+	 * all of their workspaces. The empty-workspace dismissal lives under the
+	 * shared key {@link EMPTY_WORKSPACE_KEY} and is itself scoped per
+	 * empty-workspace window.
+	 */
 	private static readonly DISMISSED_STORAGE_KEY = 'chat.agentsHandoff.tip.dismissedSessions';
+
+	/** Pseudo-key tracking dismissal of the empty-workspace tip (no real session URI exists). */
+	private static readonly EMPTY_WORKSPACE_KEY = '__empty-workspace__';
 
 	/** The session URI we last posted a notification for. Used to avoid clearing the user's dismissal when re-evaluating the same state. */
 	private _lastPostedFor: string | undefined;
@@ -252,30 +278,34 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		const sessionResource = widget?.viewModel?.sessionResource;
 		const resourceSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
-		// The widget's scoped chat session type reflects the user's current
-		// mode picker selection — populated even when no session has been
-		// created yet (e.g. fresh untitled input in an empty workspace).
-		const widgetSessionType = widget?.scopedContextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
-		const sessionType = resourceSessionType ?? widgetSessionType;
 		const preconditionMet = widget?.scopedContextKeyService.contextMatchesRules(OPEN_AGENTS_WINDOW_PRECONDITION) ?? false;
-		const typeEligible = !!sessionType && AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(sessionType);
 
-		// Empty-workspace path: CLI / agent-host local can't run here, so
-		// surface the tip even without a real session resource. Key the
-		// dismissal on the session type so it persists per-mode rather than
-		// per (nonexistent) session URI.
-		const isEmptyWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		const emptyWorkspaceEligible = preconditionMet
-			&& typeEligible
-			&& isEmptyWorkspace
-			&& !sessionResource
-			&& !this._dismissedSessions.has(`type:${sessionType}`);
-
+		// Existing-session path: gate on the URI-derived session type so we
+		// don't post the tip for non-eligible session kinds (Copilot Cloud,
+		// local, etc.). The notification widget also filters by
+		// `sessionTypes`, but we want to avoid even posting when the URI
+		// already tells us this isn't a handoff target.
 		const eligible = preconditionMet
 			&& !!sessionResource
-			&& typeEligible
+			&& !!resourceSessionType
+			&& AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(resourceSessionType)
 			&& !isUntitledChatSession(sessionResource)
 			&& !this._dismissedSessions.has(sessionResource.toString());
+
+		// Empty-workspace path: no usable session yet (CLI / agent-host local
+		// can't run here, and picking the mode only creates a placeholder
+		// untitled session that we shouldn't try to hand off). Gate on the
+		// widget's current session type so we don't churn `_lastPostedFor`
+		// while the user is on a non-eligible mode (Claude, Cloud, …) — the
+		// notification widget's own `sessionTypes` filter would still hide
+		// the rendered banner, but we don't want to post-then-hide.
+		const widgetSessionType = widget?.scopedContextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
+		const isEmptyWorkspace = this._workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		const emptyWorkspaceEligible = preconditionMet
+			&& isEmptyWorkspace
+			&& (!sessionResource || isUntitledChatSession(sessionResource))
+			&& (!!widgetSessionType && AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES.has(widgetSessionType))
+			&& !this._dismissedSessions.has(AgentsHandoffInputTipContribution.EMPTY_WORKSPACE_KEY);
 
 		if (!eligible && !emptyWorkspaceEligible) {
 			if (this._lastPostedFor) {
@@ -287,7 +317,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 
 		const key = eligible && sessionResource
 			? sessionResource.toString()
-			: `type:${sessionType}`;
+			: AgentsHandoffInputTipContribution.EMPTY_WORKSPACE_KEY;
 
 		// Only call setNotification when the target session changes. Re-calling
 		// setNotification clears the user's dismissal, which would make the
@@ -298,13 +328,27 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		}
 		this._lastPostedFor = key;
 
-		const commandArgs: unknown[] = sessionResource ? [sessionResource] : [];
+		// Only forward a real (non-untitled) session resource. In the empty
+		// workspace case the picker may have created a placeholder untitled
+		// session that we shouldn't try to restore on the other side.
+		const commandArgs: unknown[] = eligible && sessionResource ? [sessionResource] : [];
+
+		// Empty-workspace + local Copilot CLI: the local agent host can't
+		// run without a folder, so frame the tip as the path forward rather
+		// than a generic "continue in agents" upsell.
+		const useEmptyWorkspaceCopy = emptyWorkspaceEligible && !eligible;
+		const message = useEmptyWorkspaceCopy
+			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot CLI [Local] isn't available without an open folder")
+			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window");
+		const description = useEmptyWorkspaceCopy
+			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot CLI session.")
+			: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace.");
 
 		this._notificationService.setNotification({
 			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window"),
-			description: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace."),
+			message,
+			description,
 			actions: [
 				{
 					label: localize('chat.agentsHandoff.tip.action', "Open in Agents Window"),
@@ -319,7 +363,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	}
 
 	private _loadDismissed(): readonly string[] {
-		const raw = this._storageService.get(AgentsHandoffInputTipContribution.DISMISSED_STORAGE_KEY, StorageScope.PROFILE);
+		const raw = this._storageService.get(AgentsHandoffInputTipContribution.DISMISSED_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!raw) {
 			return [];
 		}
@@ -335,7 +379,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		this._storageService.store(
 			AgentsHandoffInputTipContribution.DISMISSED_STORAGE_KEY,
 			JSON.stringify(Array.from(this._dismissedSessions)),
-			StorageScope.PROFILE,
+			StorageScope.WORKSPACE,
 			StorageTarget.MACHINE,
 		);
 	}
