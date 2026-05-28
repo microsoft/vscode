@@ -88,7 +88,7 @@ suite('Suggest Widget Model', () => {
 
 	test('Ghost Text', async () => {
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, suggest: { preview: true }, quickSuggestions: { other: 'on', comments: 'off', strings: 'off' } },
+			{ fakeClock: true, provider, suggest: { preview: true } },
 			async ({ editor, editorViewModel, context, model }) => {
 				context.keyboardType('h');
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);

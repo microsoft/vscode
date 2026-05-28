@@ -141,16 +141,12 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Calls provider.createNewChat(sessionId)
    → Provider creates the backend chat model and returns an IChat
    → Management service opens the chat widget with that chat's resource
+  → ChatView locks the embedded ChatWidget to the contributed chat session type
+    (for example agent-host-codex) before setting the model, so follow-up turns
+    keep routing to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → isNewChatSession context → false
-
-4. User sends a follow-up from the active session chat widget
-   → ChatView loads the chat model for the active IChat resource
-   → For contributed chat-session resources (anything other than local chat),
-     ChatView locks the embedded ChatWidget to the session contribution
-   → ChatWidget sends follow-ups with agentIdSilent set to that contribution,
-     preserving provider routing (for example agent-host-codex) across turns
 ```
 
 ### Session Change Propagation
@@ -210,4 +206,3 @@ The **agents window core workbench** is defined as all sessions code *outside* `
 When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
 
 **Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.
-

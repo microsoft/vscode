@@ -22,7 +22,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { type CustomizationRef, type MessageAttachment, type PendingMessage, type SessionInputAnswer, SessionInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type SessionInputAnswer, SessionInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -1251,7 +1251,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Phase 4+.
 	}
 
-	setClientCustomizations(_session: URI, _clientId: string, _customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+	setClientCustomizations(_session: URI, _clientId: string, _customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 		return Promise.resolve([]);
 	}
 

@@ -21,6 +21,7 @@ import {
 	type RootState,
 	type SessionState,
 	type SessionSummary,
+	type TextRange,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
 	type ToolCallResult,
@@ -53,7 +54,24 @@ export {
 	type FileEdit as ISessionFileDiff,
 	type ModelSelection,
 	type AgentSelection,
-	type CustomizationAgentRef,
+	type AgentCustomization,
+	type Customization,
+	type PluginCustomization,
+	type DirectoryCustomization,
+	type ClientPluginCustomization,
+	type ChildCustomization,
+	type SkillCustomization,
+	type PromptCustomization,
+	type RuleCustomization,
+	type HookCustomization,
+	type McpServerCustomization,
+	type CustomizationLoadState,
+	type CustomizationLoadingState,
+	type CustomizationLoadedState,
+	type CustomizationDegradedState,
+	type CustomizationErrorState,
+	CustomizationLoadStatus,
+	CustomizationType,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary,
@@ -70,8 +88,6 @@ export {
 	type ToolCallState,
 	type ToolCallStreamingState,
 	type ToolDefinition,
-	type CustomizationRef,
-	type SessionCustomization,
 	type ToolResultEmbeddedResourceContent as IToolResultBinaryContent,
 	type ToolResultContent,
 	type ToolResultFileEditContent,
@@ -91,7 +107,6 @@ export {
 	type ChangesetState,
 	type ChangesetFile,
 	type ChangesetOperation,
-	CustomizationStatus,
 	MessageAttachmentKind,
 	PendingMessageKind,
 	PolicyState,
@@ -159,6 +174,25 @@ export function isAhpRootChannel(uri: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+/**
+ * Mints a session-unique opaque id for a customization, derived from its
+ * source URI and (when present) its `range` within the source. Plugins MAY
+ * declare multiple children (e.g. MCP servers, hooks) inside the same
+ * manifest file; including the range disambiguates them without an extra
+ * mapping table.
+ *
+ * The range is appended as a reserved `#range=` query-style suffix; any
+ * existing `#` in the URI is percent-encoded first so a source URI that
+ * already contains a fragment cannot collide with a ranged id.
+ */
+export function customizationId(uri: string, range?: TextRange): string {
+	if (!range) {
+		return uri;
+	}
+	const safeUri = uri.replace(/#/g, '%23');
+	return `${safeUri}#range=${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
 }
 
 // ---- VS Code-specific derived types -----------------------------------------

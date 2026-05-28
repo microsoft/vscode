@@ -123,6 +123,10 @@ class FakeCopilotApiService implements ICopilotApiService {
 	async responses(): Promise<Response> {
 		throw new Error('responses not used by Claude proxy tests');
 	}
+
+	async utilityChatCompletion(): Promise<never> {
+		throw new Error('utilityChatCompletion not used by Claude proxy tests');
+	}
 }
 
 // #endregion
@@ -1245,6 +1249,7 @@ suite('ClaudeProxyService', () => {
 				countTokens: () => Promise.reject(new Error('not used')),
 				models: () => Promise.resolve([]),
 				responses: () => Promise.reject(new Error('not used')),
+				utilityChatCompletion: () => Promise.reject(new Error('not used')),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);
@@ -1313,6 +1318,7 @@ suite('ClaudeProxyService', () => {
 				countTokens: fake.countTokens.bind(fake),
 				models: fake.models.bind(fake),
 				responses: fake.responses.bind(fake),
+				utilityChatCompletion: fake.utilityChatCompletion.bind(fake),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);

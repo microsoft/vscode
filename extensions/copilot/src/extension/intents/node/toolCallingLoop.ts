@@ -480,7 +480,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * Whether the loop should auto-retry after a failed fetch in auto-approve/autopilot mode.
 	 * Does not retry rate-limited, quota-exceeded, or cancellation errors.
 	 */
-	private shouldAutoRetry(response: ChatResponse): boolean {
+	protected shouldAutoRetry(response: ChatResponse): boolean {
 		const permLevel = this.options.request.permissionLevel;
 		if (permLevel !== 'autoApprove' && permLevel !== 'autopilot') {
 			return false;

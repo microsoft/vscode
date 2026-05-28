@@ -639,6 +639,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+		if (this.layoutPolicy.viewportClass.get() === 'phone') {
+			return {};
+		}
+
 		const raw = storageService.get(Workbench._PART_VISIBILITY_KEY, StorageScope.WORKSPACE);
 		if (raw) {
 			try {
@@ -652,6 +656,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private _savePartVisibility(): void {
+		if (this.layoutPolicy.viewportClass.get() === 'phone') {
+			return;
+		}
+
 		this.storageService.store(Workbench._PART_VISIBILITY_KEY, JSON.stringify({
 			editor: this.partVisibility.editor,
 			auxiliaryBar: this.partVisibility.auxiliaryBar,
