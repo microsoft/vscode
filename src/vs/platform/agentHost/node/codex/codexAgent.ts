@@ -9,18 +9,22 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
+import { basename, dirname, isAbsolute, join, resolve, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
+import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import type { ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
+import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { type CustomizationRef, type MessageAttachment, type PendingMessage, type SessionInputAnswer, SessionInputResponseKind, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient } from './codexAppServerClient.js';
@@ -29,10 +33,16 @@ import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, map
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
+import { CodexSessionConfigKey, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
+import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
+import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
+import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
+import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
+import type { TurnStartParams } from './protocol/generated/v2/TurnStartParams.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -41,6 +51,112 @@ const CLIENT_INFO = {
 	// non-empty placeholder; bumping it isn't required when our code
 	// changes.
 	version: '0.1.0',
+};
+
+const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
+const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
+
+const codexSessionConfigSchema = createSchema({
+	[CodexSessionConfigKey.ApprovalPolicy]: schemaProperty<CodexApprovalPolicy>({
+		type: 'string',
+		title: localize('codex.sessionConfig.approvalPolicy', "Approvals"),
+		description: localize('codex.sessionConfig.approvalPolicyDescription', "How Codex requests approval for tool calls."),
+		enum: ['never', 'on-request', 'on-failure', 'untrusted'],
+		enumLabels: [
+			localize('codex.sessionConfig.approvalPolicy.never', "Never Ask"),
+			localize('codex.sessionConfig.approvalPolicy.onRequest', "On Request"),
+			localize('codex.sessionConfig.approvalPolicy.onFailure', "On Failure"),
+			localize('codex.sessionConfig.approvalPolicy.untrusted', "Untrusted Only"),
+		],
+		enumDescriptions: [
+			localize('codex.sessionConfig.approvalPolicy.neverDescription', "Auto-approve every tool call."),
+			localize('codex.sessionConfig.approvalPolicy.onRequestDescription', "Let Codex decide when to ask for approval."),
+			localize('codex.sessionConfig.approvalPolicy.onFailureDescription', "Only ask for approval after a tool call fails."),
+			localize('codex.sessionConfig.approvalPolicy.untrustedDescription', "Ask only when Codex invokes an untrusted command."),
+		],
+		default: 'on-request',
+		sessionMutable: true,
+	}),
+	[CodexSessionConfigKey.SandboxMode]: schemaProperty<SandboxMode>({
+		type: 'string',
+		title: localize('codex.sessionConfig.sandboxMode', "Sandbox"),
+		description: localize('codex.sessionConfig.sandboxModeDescription', "Filesystem and network restrictions applied to tool calls."),
+		enum: ['read-only', 'workspace-write', 'danger-full-access'],
+		enumLabels: [
+			localize('codex.sessionConfig.sandboxMode.readOnly', "Read-Only"),
+			localize('codex.sessionConfig.sandboxMode.workspaceWrite', "Workspace Write"),
+			localize('codex.sessionConfig.sandboxMode.dangerFullAccess', "Full Access (Dangerous)"),
+		],
+		enumDescriptions: [
+			localize('codex.sessionConfig.sandboxMode.readOnlyDescription', "Tool calls can read the workspace but cannot modify files."),
+			localize('codex.sessionConfig.sandboxMode.workspaceWriteDescription', "Tool calls can read and write within the workspace; network is controlled separately."),
+			localize('codex.sessionConfig.sandboxMode.dangerFullAccessDescription', "Tool calls have unrestricted disk and network access."),
+		],
+		default: 'workspace-write',
+		sessionMutable: true,
+	}),
+	[CodexSessionConfigKey.WebSearchMode]: schemaProperty<WebSearchMode>({
+		type: 'string',
+		title: localize('codex.sessionConfig.webSearchMode', "Web Search"),
+		description: localize('codex.sessionConfig.webSearchModeDescription', "Web-search tool availability for the model."),
+		enum: ['disabled', 'cached', 'live'],
+		enumLabels: [
+			localize('codex.sessionConfig.webSearchMode.disabled', "Disabled"),
+			localize('codex.sessionConfig.webSearchMode.cached', "Cached Only"),
+			localize('codex.sessionConfig.webSearchMode.live', "Live"),
+		],
+		default: 'disabled',
+		sessionMutable: false,
+	}),
+	[CodexSessionConfigKey.ModelReasoningEffort]: schemaProperty<ReasoningEffort>({
+		type: 'string',
+		title: localize('codex.sessionConfig.modelReasoningEffort', "Reasoning Effort"),
+		description: localize('codex.sessionConfig.modelReasoningEffortDescription', "Controls how much reasoning effort Codex uses."),
+		enum: [...CODEX_REASONING_EFFORTS],
+		enumLabels: [
+			localize('codex.sessionConfig.modelReasoningEffort.minimal', "Minimal"),
+			localize('codex.sessionConfig.modelReasoningEffort.low', "Low"),
+			localize('codex.sessionConfig.modelReasoningEffort.medium', "Medium"),
+			localize('codex.sessionConfig.modelReasoningEffort.high', "High"),
+		],
+		default: 'medium',
+		sessionMutable: true,
+	}),
+	[CodexSessionConfigKey.AdditionalDirectories]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('codex.sessionConfig.additionalDirectories', "Additional Writable Directories"),
+		description: localize('codex.sessionConfig.additionalDirectoriesDescription', "Absolute paths the sandbox is allowed to write to, in addition to the workspace. Only applies when Sandbox is Workspace Write."),
+		items: { type: 'string', title: localize('codex.sessionConfig.additionalDirectories.item', "Directory") },
+		enumDynamic: true,
+		default: [],
+		sessionMutable: true,
+	}),
+	[CodexSessionConfigKey.NetworkAccessEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('codex.sessionConfig.networkAccessEnabled', "Network"),
+		description: localize('codex.sessionConfig.networkAccessEnabledDescription', "Allow sandboxed tool calls to make outbound network requests. Only applies when Sandbox is Workspace Write."),
+		default: false,
+		sessionMutable: true,
+	}),
+	[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
+});
+
+interface ICodexSessionConfigDefaults {
+	readonly [CodexSessionConfigKey.ApprovalPolicy]: CodexApprovalPolicy;
+	readonly [CodexSessionConfigKey.SandboxMode]: SandboxMode;
+	readonly [CodexSessionConfigKey.WebSearchMode]: WebSearchMode;
+	readonly [CodexSessionConfigKey.ModelReasoningEffort]: ReasoningEffort;
+	readonly [CodexSessionConfigKey.AdditionalDirectories]: string[];
+	readonly [CodexSessionConfigKey.NetworkAccessEnabled]: boolean;
+}
+
+const codexSessionConfigDefaults: ICodexSessionConfigDefaults = {
+	[CodexSessionConfigKey.ApprovalPolicy]: 'on-request',
+	[CodexSessionConfigKey.SandboxMode]: 'workspace-write',
+	[CodexSessionConfigKey.WebSearchMode]: 'disabled',
+	[CodexSessionConfigKey.ModelReasoningEffort]: 'medium',
+	[CodexSessionConfigKey.AdditionalDirectories]: [],
+	[CodexSessionConfigKey.NetworkAccessEnabled]: false,
 };
 
 /**
@@ -135,6 +251,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ILogService private readonly _logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -187,12 +304,85 @@ export class CodexAgent extends Disposable implements IAgent {
 		return { id: chosen.id };
 	}
 
+	private _createReasoningEffortConfigSchema(): ConfigSchema {
+		return {
+			type: 'object',
+			properties: {
+				[CODEX_THINKING_LEVEL_KEY]: {
+					type: 'string',
+					title: localize('codex.modelThinkingLevel.title', "Thinking Level"),
+					description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
+					default: 'medium',
+					enum: [...CODEX_REASONING_EFFORTS],
+					enumLabels: [
+						localize('codex.modelThinkingLevel.minimal', "Minimal"),
+						localize('codex.modelThinkingLevel.low', "Low"),
+						localize('codex.modelThinkingLevel.medium', "Medium"),
+						localize('codex.modelThinkingLevel.high', "High"),
+					],
+				},
+			},
+		};
+	}
+
+	private _getReasoningEffort(session: ICodexSession): ReasoningEffort | undefined {
+		const modelConfigEffort = narrowReasoningEffort(session.model?.config?.[CODEX_THINKING_LEVEL_KEY]);
+		if (modelConfigEffort) {
+			return modelConfigEffort;
+		}
+		const config = this._configurationService.getSessionConfigValues(session.sessionUri.toString());
+		return narrowReasoningEffort(config?.[CodexSessionConfigKey.ModelReasoningEffort]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ModelReasoningEffort];
+	}
+
+	private _readSessionConfig(session: ICodexSession): ReturnType<typeof codexSessionConfigSchema.validateOrDefault> {
+		return codexSessionConfigSchema.validateOrDefault(
+			this._configurationService.getSessionConfigValues(session.sessionUri.toString()),
+			codexSessionConfigDefaults,
+		);
+	}
+
+	private _sandboxPolicy(session: ICodexSession, config: ReturnType<typeof codexSessionConfigSchema.validateOrDefault>): SandboxPolicy {
+		const mode = narrowSandboxMode(config[CodexSessionConfigKey.SandboxMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode];
+		if (mode === 'danger-full-access') {
+			return { type: 'dangerFullAccess' };
+		}
+		const networkAccess = narrowBoolean(config[CodexSessionConfigKey.NetworkAccessEnabled]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.NetworkAccessEnabled];
+		if (mode === 'read-only') {
+			return { type: 'readOnly', networkAccess: false };
+		}
+		const writableRoots = [
+			...(session.workingDirectory ? [session.workingDirectory.fsPath] : []),
+			...(narrowAdditionalDirectories(config[CodexSessionConfigKey.AdditionalDirectories]) ?? []),
+		];
+		return {
+			type: 'workspaceWrite',
+			writableRoots,
+			networkAccess,
+			excludeTmpdirEnvVar: false,
+			excludeSlashTmp: false,
+		};
+	}
+
+	private _turnStartOptions(session: ICodexSession): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'effort' | 'runtimeWorkspaceRoots'> {
+		const config = this._readSessionConfig(session);
+		const approvalPolicy = narrowApprovalPolicy(config[CodexSessionConfigKey.ApprovalPolicy]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy];
+		const sandboxPolicy = this._sandboxPolicy(session, config);
+		const runtimeWorkspaceRoots = sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined;
+		return {
+			approvalPolicy,
+			sandboxPolicy,
+			effort: this._getReasoningEffort(session),
+			...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
+		};
+	}
+
 	private async _refreshModels(token: string): Promise<void> {
 		try {
 			const all = await this._copilotApiService.models(token);
 			if (this._githubToken !== token) {
 				return;
 			}
+			const configSchema = this._createReasoningEffortConfigSchema();
 			const filtered = all
 				.filter(m => /^(gpt-5|codex)/i.test(m.id) || /codex/i.test(m.name ?? ''))
 				.map((m): IAgentModelInfo => ({
@@ -201,6 +391,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					name: m.name ?? m.id,
 					maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
 					supportsVision: !!m.capabilities?.supports?.vision,
+					configSchema,
 				}));
 			this._models.set(filtered, undefined);
 		} catch (err) {
@@ -548,9 +739,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Cannot materialize codex session ${session.sessionId}: no working directory`);
 		}
 		const conn = await this._ensureConnection();
+		const config = this._readSessionConfig(session);
 		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 			cwd: session.workingDirectory.fsPath,
 			model: session.model?.id ?? null,
+			approvalPolicy: narrowApprovalPolicy(config[CodexSessionConfigKey.ApprovalPolicy]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+			sandbox: narrowSandboxMode(config[CodexSessionConfigKey.SandboxMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+			config: {
+				web_search: narrowWebSearchMode(config[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
+			},
 		});
 		session.threadId = startResult.thread.id;
 		this._logService.info(`[Codex DEBUG] materialized session=${session.sessionUri.toString()} threadId=${session.threadId}`);
@@ -623,10 +820,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
 		try {
+			const turnOptions = this._turnStartOptions(session);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
 				input: input.slice(),
 				model: session.model?.id ?? null,
+				...turnOptions,
 			});
 			// We don't await turn completion here — the notification
 			// stream emits SessionTurnComplete asynchronously.
@@ -910,13 +1109,39 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByThreadId.clear();
 	}
 
-	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		// Phase 5 adds the dynamic schema.
-		return Promise.resolve({ values: {}, schema: { type: 'object', properties: {} } });
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		const values = codexSessionConfigSchema.validateOrDefault(params.config, codexSessionConfigDefaults);
+		return Promise.resolve({ values: { ...values }, schema: codexSessionConfigSchema.toProtocol() });
 	}
 
-	sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
-		return Promise.resolve({ items: [] });
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		if (params.property !== CodexSessionConfigKey.AdditionalDirectories) {
+			return { items: [] };
+		}
+		const query = params.query?.trim();
+		if (!query) {
+			return { items: [] };
+		}
+		const workingDirectory = params.workingDirectory?.fsPath;
+		const resolved = isAbsolute(query)
+			? query
+			: resolve(workingDirectory ?? process.cwd(), query);
+		const parent = query.endsWith(sep) ? resolved : dirname(resolved);
+		const prefix = query.endsWith(sep) ? '' : basename(resolved).toLowerCase();
+		try {
+			const entries = await fs.promises.readdir(parent, { withFileTypes: true });
+			return {
+				items: entries
+					.filter(entry => entry.isDirectory() && entry.name.toLowerCase().startsWith(prefix))
+					.slice(0, 50)
+					.map(entry => {
+						const value = join(parent, entry.name);
+						return { value, label: entry.name, description: value };
+					}),
+			};
+		} catch {
+			return { items: [] };
+		}
 	}
 
 	// #endregion

@@ -52,6 +52,17 @@ import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermission
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 
+const CHIP_ORDER = new Map<string, number>([
+	[SessionConfigKey.Isolation, 0],
+	[SessionConfigKey.Branch, 1],
+	['codex.sandboxMode', 2],
+	['codex.approvalPolicy', 3],
+	['codex.webSearchMode', 4],
+	['codex.modelReasoningEffort', 5],
+	['codex.additionalDirectories', 6],
+	['codex.networkAccessEnabled', 7],
+]);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -311,15 +322,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
 		for (const [property, schema] of properties) {
-			// Only render pickers for properties we know how to present. Today
-			// that's string properties with either a static `enum` or a
-			// dynamic enum sourced via `getSessionConfigCompletions`.
-			// Anything else (objects, arrays, free-form strings, numbers,
-			// booleans) has no enumerable choice set and is edited through
-			// the JSONC settings editor instead.
-			const hasStaticEnum = !!schema.enum && schema.enum.length > 0;
-			const hasDynamicEnum = !!schema.enumDynamic;
-			if (schema.type !== 'string' || (!hasStaticEnum && !hasDynamicEnum)) {
+			if (!this._isPickable(schema) || this._isHiddenByDependency(resolvedConfig.values, property)) {
 				continue;
 			}
 			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
@@ -367,18 +370,35 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 * (e.g. the mobile chip row groups Approvals | Branch | Worktree).
 	 */
 	protected _orderProperties(properties: ReadonlyArray<[string, SessionConfigPropertySchema]>): ReadonlyArray<[string, SessionConfigPropertySchema]> {
-		const order = new Map<string, number>([
-			[SessionConfigKey.Isolation, 0],
-			[SessionConfigKey.Branch, 1],
-		]);
 		return properties
 			.map(([key, schema], index) => ({ key, schema, index }))
 			.sort((a, b) => {
-				const aRank = order.get(a.key) ?? Number.MAX_SAFE_INTEGER;
-				const bRank = order.get(b.key) ?? Number.MAX_SAFE_INTEGER;
+				const aRank = CHIP_ORDER.get(a.key) ?? Number.MAX_SAFE_INTEGER;
+				const bRank = CHIP_ORDER.get(b.key) ?? Number.MAX_SAFE_INTEGER;
 				return aRank - bRank || a.index - b.index;
 			})
 			.map(({ key, schema }) => [key, schema] as [string, SessionConfigPropertySchema]);
+	}
+
+	private _isPickable(schema: SessionConfigPropertySchema): boolean {
+		if (schema.type === 'boolean') {
+			return true;
+		}
+		if (schema.type === 'array') {
+			return !!schema.enumDynamic && schema.items?.type === 'string';
+		}
+		if (schema.type !== 'string') {
+			return false;
+		}
+		return !!schema.enumDynamic || (Array.isArray(schema.enum) && schema.enum.length > 0);
+	}
+
+	private _isHiddenByDependency(values: Record<string, unknown>, property: string): boolean {
+		if (property !== 'codex.additionalDirectories' && property !== 'codex.networkAccessEnabled') {
+			return false;
+		}
+		const sandbox = values['codex.sandboxMode'];
+		return sandbox !== undefined && sandbox !== 'workspace-write';
 	}
 
 	/**
@@ -461,7 +481,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					}
 				}
 
-				provider.setSessionConfigValue(sessionId, property, item.value).catch(() => { /* best-effort */ });
+				const nextValue: unknown = schema.type === 'boolean'
+					? item.value === 'true'
+					: schema.type === 'array'
+						? [...(Array.isArray(currentValue) ? currentValue.filter((entry): entry is string => typeof entry === 'string') : []), item.value]
+						: item.value;
+				provider.setSessionConfigValue(sessionId, property, nextValue).catch(() => { /* best-effort */ });
 			},
 			onFilter: schema.enumDynamic
 				? query => this._filterDelayer.trigger(async () => toActionItems(property, await this._getItems(provider, sessionId, property, schema, query), provider.getSessionConfig(sessionId)?.values[property]))
@@ -486,6 +511,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		if (schema.type === 'boolean') {
+			return [
+				{ value: 'true', label: localize('agentHostSessionConfig.boolean.true', "On") },
+				{ value: 'false', label: localize('agentHostSessionConfig.boolean.false', "Off") },
+			];
+		}
 		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
@@ -509,6 +540,17 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (schema.type === 'boolean') {
+			return value === true
+				? localize('agentHostSessionConfig.boolean.onLabel', "On")
+				: localize('agentHostSessionConfig.boolean.offLabel', "Off");
+		}
+		if (schema.type === 'array') {
+			const count = Array.isArray(value) ? value.length : 0;
+			return count === 0
+				? localize('agentHostSessionConfig.array.none', "None")
+				: localize('agentHostSessionConfig.array.count', "{0} Selected", count);
+		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
