@@ -270,11 +270,20 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			// Delegate to base ChatEndpoint for Messages API dispatch
 			return super.createRequestBody(options);
 		} else {
-			// Handle CAPI: provide callback for thinking data processing
+			// Handle Chat Completions: provide callback for thinking data processing
+			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 			const callback: RawMessageConversionCallback = (out, data) => {
 				if (data && data.id) {
 					out.cot_id = data.id;
-					out.cot_summary = Array.isArray(data.text) ? data.text.join('') : data.text;
+					const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+					out.cot_summary = text;
+					if (supportsThinking) {
+						// Reasoning models require the assistant message to echo back its
+						// prior reasoning. DeepSeek, Moonshot (Kimi), Minimax, and similar
+						// OpenAI-compatible providers expect `reasoning_content`; OpenRouter's
+						out.reasoning_content = text;
+						out.reasoning = text;
+					}
 				}
 			};
 			const body = createCapiRequestBody(options, this.model, callback);
