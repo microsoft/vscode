@@ -12,8 +12,9 @@ export interface ThinkingDataInMessage {
 	reasoning_opaque?: string;
 	reasoning_text?: string;
 
-	//OpenRouter compatible fields.
+	// DeepSeek / Moonshot (Kimi) / Minimax field.
 	reasoning_content?: string;
+	// OpenRouter field.
 	reasoning?: string;
 }
 
@@ -26,8 +27,9 @@ export interface RawThinkingDelta {
 	reasoning_opaque?: string;
 	reasoning_text?: string;
 
-	//OpenRouter compatible fields.
+	// DeepSeek / Moonshot (Kimi) / Minimax field.
 	reasoning_content?: string;
+	// OpenRouter field.
 	reasoning?: string;
 
 	// Anthropic fields

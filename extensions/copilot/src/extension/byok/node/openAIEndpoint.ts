@@ -281,6 +281,8 @@ export class OpenAIEndpoint extends ChatEndpoint {
 						// Reasoning models require the assistant message to echo back its
 						// prior reasoning. DeepSeek, Moonshot (Kimi), Minimax, and similar
 						// OpenAI-compatible providers expect `reasoning_content`; OpenRouter's
+						// BYOK proxy expects `reasoning`. Without these, the turn after a tool
+						// call is rejected with HTTP 400.
 						out.reasoning_content = text;
 						out.reasoning = text;
 					}
