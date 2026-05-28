@@ -405,10 +405,10 @@ suite('normalizeTokenPrices', () => {
 			cache_price: 375_000_000,
 		});
 		assert.ok(result);
-		assert.strictEqual(result.inputCost, 3);
-		assert.strictEqual(result.outputCost, 15);
-		assert.strictEqual(result.cacheCost, 0.375);
-		assert.strictEqual(result.longContextInputCost, undefined);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.longContext, undefined);
 	});
 
 	test('scales legacy prices when batch_size differs from 1M', () => {
@@ -418,9 +418,9 @@ suite('normalizeTokenPrices', () => {
 			output_price: 7_500_000_000,
 		});
 		assert.ok(result);
-		assert.strictEqual(result.inputCost, 3);
-		assert.strictEqual(result.outputCost, 15);
-		assert.strictEqual(result.cacheCost, undefined);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, undefined);
 	});
 
 	test('defaults batch_size to 1M when missing', () => {
@@ -429,8 +429,8 @@ suite('normalizeTokenPrices', () => {
 			output_price: 2_000_000_000,
 		});
 		assert.ok(result);
-		assert.strictEqual(result.inputCost, 1);
-		assert.strictEqual(result.outputCost, 2);
+		assert.strictEqual(result.default.inputPrice, 1);
+		assert.strictEqual(result.default.outputPrice, 2);
 	});
 
 	test('converts tiered AIU prices to credits per 1M tokens', () => {
@@ -439,10 +439,10 @@ suite('normalizeTokenPrices', () => {
 			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
 		});
 		assert.ok(result);
-		assert.strictEqual(result.inputCost, 3);
-		assert.strictEqual(result.outputCost, 15);
-		assert.strictEqual(result.cacheCost, 0.375);
-		assert.strictEqual(result.longContextInputCost, undefined);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.longContext, undefined);
 	});
 
 	test('includes long-context tier when present', () => {
@@ -452,10 +452,10 @@ suite('normalizeTokenPrices', () => {
 			long_context: { input_price: 6, output_price: 30, cache_price: 0.75 },
 		});
 		assert.ok(result);
-		assert.strictEqual(result.inputCost, 3);
-		assert.strictEqual(result.longContextInputCost, 6);
-		assert.strictEqual(result.longContextOutputCost, 30);
-		assert.strictEqual(result.longContextCacheCost, 0.75);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.longContext?.inputPrice, 6);
+		assert.strictEqual(result.longContext?.outputPrice, 30);
+		assert.strictEqual(result.longContext?.cachePrice, 0.75);
 	});
 
 	test('tiered format takes precedence over flat fields', () => {
@@ -466,7 +466,7 @@ suite('normalizeTokenPrices', () => {
 			default: { input_price: 3, output_price: 15 },
 		});
 		assert.ok(result);
-		assert.strictEqual(result.inputCost, 3);
-		assert.strictEqual(result.outputCost, 15);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
 	});
 });
