@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { ResourceMap } from '../../../../base/common/map.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../files/common/files.js';
+import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 
 /**
@@ -29,14 +29,16 @@ export interface IDiscoveredFile {
 	readonly type: DiscoveredType;
 }
 
+/**
+ * Maximum recursion depth when traversing subdirectories for instruction files.
+ */
+const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
+
 const AGENT_FILE_SUFFIX = '.agent.md';
-const AGENT_FILE_FALLBACK_SUFFIX = '.md';
+const MARKDOWN_SUFFIX = '.md';
 const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
-const PROMPT_FILE_SUFFIX = '.prompt.md';
 const SKILL_FILENAME = 'SKILL.md';
-const SKILL_FILENAME_LOWER = 'skill.md';
-const README_FILENAME = 'README.md';
-const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME_LOWER = 'copilot-instructions.md';
+const README_FILENAME_LOWER = 'readme.md';
 
 interface ISearchRoot {
 	readonly path: readonly string[];
@@ -62,6 +64,7 @@ function getSearchRoots(workingDirectory: URI, userHome: URI): { workspace: ISea
 		user: [
 			{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent },
 			{ path: ['.agents', 'skills'], type: DiscoveredType.Skill },
+			{ path: ['.copilot', 'instructions'], type: DiscoveredType.Instruction },
 		],
 	};
 }
@@ -152,9 +155,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceMap<IDiscoveredFile>): Promise<void> {
 		const rootUri = joinPath(base, ...root.path);
-		let stat;
+		let stat: IFileStatWithMetadata;
 		try {
-			stat = await this._fileService.resolve(rootUri, { resolveMetadata: false });
+			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
 		} catch {
 			// Root does not exist (or is unreadable) — nothing to discover or watch.
 			return;
@@ -166,13 +169,14 @@ export class SessionCustomizationDiscovery extends Disposable {
 		// Only watch roots that exist; recursive: true so we pick up edits to
 		// files inside skill subdirectories.
 		try {
-			this._watchers.add(this._fileService.watch(rootUri, { recursive: true, excludes: [] }));
+			const recursive = root.type === DiscoveredType.Skill || root.type === DiscoveredType.Instruction;
+			this._watchers.add(this._fileService.watch(rootUri, { recursive, excludes: [] }));
 		} catch (err) {
 			this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
 		}
 
-		for (const child of stat.children) {
-			if (root.type === DiscoveredType.Skill) {
+		if (root.type === DiscoveredType.Skill) {
+			for (const child of stat.children) {
 				if (child.isDirectory) {
 					const skillFile = joinPath(child.resource, SKILL_FILENAME);
 					try {
@@ -184,44 +188,45 @@ export class SessionCustomizationDiscovery extends Disposable {
 						// SKILL.md missing — skip this skill directory.
 					}
 				}
-			} else if (child.isFile) {
-				const name = child.name.toLowerCase();
-				if (root.type === DiscoveredType.Agent) {
-					// Agent directories (e.g. `.github/agents/`) are already
-					// type-disambiguated by their path, so plain `.md` files
-					// in them are treated as agents (matching what the
-					// workbench prompts service does in
-					// `getPromptFileType`). The classification rules are
-					// duplicated here because the discovery code lives in
-					// `platform/` and cannot import from `workbench/`; keep
-					// in sync with
-					// `src/vs/workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.ts`.
-					//
-					// More-specific suffixes win first: `.prompt.md`,
-					// `.instructions.md`, and `SKILL.md` placed inside an
-					// agents folder are NOT agents. `README.md` is also
-					// excluded so documentation files aren't misclassified.
-					if (!name.endsWith(AGENT_FILE_FALLBACK_SUFFIX) || seen.has(child.resource)) {
+			}
+		} else if (root.type === DiscoveredType.Agent) {
+			// agents are all .md files (excpet README.md) directly under the root (no subdirectory scanning)
+			for (const child of stat.children) {
+				if (child.isFile) {
+					const name = child.name.toLowerCase();
+					if (!name.endsWith(MARKDOWN_SUFFIX) || name === README_FILENAME_LOWER || seen.has(child.resource)) {
 						continue;
 					}
-					if (child.name === README_FILENAME
-						|| name === SKILL_FILENAME_LOWER
-						|| name === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME_LOWER
-						|| name.endsWith(PROMPT_FILE_SUFFIX)
-						|| name.endsWith(INSTRUCTION_FILE_SUFFIX)) {
-						continue;
-					}
-					// `.agent.md` and `.chatmode.md` are explicitly agents;
-					// any other `.md` file in an agents folder is also
-					// treated as an agent (workbench fallback rule).
 					seen.set(child.resource, { uri: child.resource, type: DiscoveredType.Agent });
-				} else {
-					const suffix = INSTRUCTION_FILE_SUFFIX;
-					if (name.endsWith(suffix) && !seen.has(child.resource)) {
-						seen.set(child.resource, { uri: child.resource, type: root.type });
-					}
 				}
 			}
+		} else if (root.type === DiscoveredType.Instruction) {
+			// instructions are all .instructions.md files directly under the root or in a subdirectory
+			const findInstructions = async (stat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
+				for (const child of stat.children ?? []) {
+					if (child.isFile) {
+						const name = child.name.toLowerCase();
+						if (!name.endsWith(INSTRUCTION_FILE_SUFFIX) || seen.has(child.resource)) {
+							continue;
+						}
+						seen.set(child.resource, { uri: child.resource, type: DiscoveredType.Instruction });
+					} else if (child.isDirectory && recursionLevel < MAX_INSTRUCTIONS_RECURSION_DEPTH) {
+						let childStat: IFileStatWithMetadata | undefined = undefined;
+						try {
+							childStat = await this._fileService.resolve(child.resource, { resolveMetadata: true });
+
+						} catch {
+							// Ignore unreadable subdirectories.
+						}
+						if (childStat) {
+							await findInstructions(childStat, recursionLevel + 1);
+						}
+					}
+				}
+			};
+			await findInstructions(stat, 0);
+		} else {
+			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}
 	}
 }

@@ -74,18 +74,11 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
 	});
 
-	test('excludes exact-case README.md and more-specific prompt-type files inside agent folders', async () => {
-		// `.github/agents/` is type-disambiguated, but the workbench
-		// classifier (`getPromptFileType`) gives precedence to more-specific
-		// suffixes and excludes README. Discovery must mirror those rules.
+	test('excludes exact-case README.md inside agent folders', async () => {
 		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
 		const wsPlainAgent = await seed('/workspace/.github/agents/plain.md', 'plain agent body');
 		await seed('/workspace/.github/agents/README.md', 'docs');
 		const wsLowercaseReadmeAgent = await seed('/workspace/.github/agents/readme.md', 'docs lower');
-		await seed('/workspace/.github/agents/sub.instructions.md', 'instructions');
-		await seed('/workspace/.github/agents/sub.prompt.md', 'prompt');
-		await seed('/workspace/.github/agents/SKILL.md', 'skill');
-		await seed('/workspace/.github/agents/copilot-instructions.md', 'copilot instr');
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const files = await discovery.files();
@@ -94,6 +87,19 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 			{ uri: wsAgent, type: DiscoveredType.Agent },
 			{ uri: wsLowercaseReadmeAgent, type: DiscoveredType.Agent },
 			{ uri: wsPlainAgent, type: DiscoveredType.Agent },
+		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
+	});
+
+	test('discovers nested .instructions.md files', async () => {
+		const nestedWsInstr = await seed('/workspace/.github/instructions/team/security/policy.instructions.md', 'workspace nested instruction');
+		const nestedUserInstr = await seed('/home/.copilot/instructions/domain/tools/deep.instructions.md', 'user nested instruction');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = await discovery.files();
+
+		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
+			{ uri: nestedUserInstr, type: DiscoveredType.Instruction },
+			{ uri: nestedWsInstr, type: DiscoveredType.Instruction },
 		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
 	});
 
