@@ -1124,7 +1124,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
-		return !!action.userMessage.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
+		return !!action.message.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
@@ -1162,7 +1162,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * chance to make use of it.
 	 */
 	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
-		const attachments = action.userMessage.attachments;
+		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
@@ -1171,7 +1171,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
 		return {
 			...action,
-			userMessage: { ...action.userMessage, attachments: rewritten },
+			message: { ...action.message, attachments: rewritten },
 		};
 	}
 

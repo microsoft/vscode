@@ -768,6 +768,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 
