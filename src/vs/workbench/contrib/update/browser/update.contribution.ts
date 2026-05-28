@@ -11,7 +11,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution, confirmAndRestartToUpdate } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -172,7 +172,7 @@ class RestartToUpdateAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IUpdateService).quitAndInstall();
+		await confirmAndRestartToUpdate(accessor);
 	}
 }
 

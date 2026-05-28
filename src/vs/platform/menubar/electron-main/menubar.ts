@@ -670,7 +670,9 @@ export class Menubar extends Disposable {
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miRestartToUpdate', "Restart to &&Update")), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
-						this.updateService.quitAndInstall();
+						if (!this.runActionInRenderer({ type: 'commandId', commandId: 'update.restart' })) {
+							this.updateService.quitAndInstall();
+						}
 					}
 				})];
 
