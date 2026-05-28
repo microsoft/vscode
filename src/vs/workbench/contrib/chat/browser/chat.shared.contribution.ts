@@ -914,7 +914,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EnabledPlugins]: {
 			type: 'object',
 			additionalProperties: { type: 'boolean' },
-			markdownDescription: nls.localize('chat.plugins.enabledPlugins', "Enterprise-managed plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable (`true`) or disable (`false`) the plugin. Merged with entries from {0}.", `\`#${ChatConfiguration.PluginLocations}#\``),
+			markdownDescription: nls.localize('chat.plugins.enabledPlugins', "Enterprise-managed plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form (resolved to Copilot CLI install paths); values enable (`true`) or disable (`false`) the plugin. Discovered alongside the path-keyed entries in {0}. When set by policy, also restricts which marketplace-discovered plugins are allowed to load (only IDs mapped to `true` here pass the gate).", `\`#${ChatConfiguration.PluginLocations}#\``),
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			policy: {
