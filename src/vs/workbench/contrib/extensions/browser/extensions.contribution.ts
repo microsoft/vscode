@@ -1362,7 +1362,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1383,7 +1388,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1404,7 +1414,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetProductIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1463,7 +1478,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1486,7 +1506,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1508,7 +1533,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1530,7 +1560,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1550,7 +1585,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				const action = instantiationService.createInstance(ClearLanguageAction);
 				action.extension = extension;
-				return action.run();
+				// TODO: replace with `using` once available
+				try {
+					return await action.run();
+				} finally {
+					action.dispose();
+				}
 			}
 		});
 
@@ -1571,7 +1611,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1595,7 +1640,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						isMachineScoped: true,
 					});
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1619,7 +1669,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						preRelease: true
 					});
 					action.extension = extension;
-					return action.run();
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
@@ -1638,7 +1693,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					return instantiationService.createInstance(InstallAnotherVersionAction, extension, false).run();
+					const action = instantiationService.createInstance(InstallAnotherVersionAction, extension, false);
+					// TODO: replace with `using` once available
+					try {
+						return await action.run();
+					} finally {
+						action.dispose();
+					}
 				}
 			}
 		});
