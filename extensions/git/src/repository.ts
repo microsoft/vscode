@@ -50,7 +50,8 @@ export const enum ResourceGroupType {
 	Merge,
 	Index,
 	WorkingTree,
-	Untracked
+	Untracked,
+	LocalOnly
 }
 
 export class Resource implements SourceControlResourceState {
@@ -356,6 +357,12 @@ interface GitResourceGroups {
 	untrackedGroup?: Resource[];
 	workingTreeGroup?: Resource[];
 	localOnlyGroup?: Resource[];
+}
+
+interface LocalOnlyResource {
+	path: string;
+	status: Status;
+	renamePath?: string;
 }
 
 class ProgressManager {
@@ -703,6 +710,7 @@ export interface IRepositoryResolver {
 
 export class Repository implements Disposable {
 	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
+	static readonly LOCAL_ONLY_STORAGE_KEY = 'localOnlyResources';
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -904,6 +912,7 @@ export class Repository implements Disposable {
 	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
+	private localOnlyResources: LocalOnlyResource[] = [];
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
@@ -921,6 +930,7 @@ export class Repository implements Disposable {
 		private readonly repositoryCache: RepositoryCache
 	) {
 		this._operations = new OperationManager(this.logger);
+		this.localOnlyResources = this.globalState.get<LocalOnlyResource[]>(`${Repository.LOCAL_ONLY_STORAGE_KEY}:${this.root}`, []);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
 		this.disposables.push(repositoryWatcher);
@@ -3055,6 +3065,26 @@ export class Repository implements Disposable {
 			const renameUri = raw.rename
 				? Uri.file(path.join(this.repository.root, raw.rename))
 				: undefined;
+			const localOnlyResource = this.getLocalOnlyResource(uri.fsPath);
+
+			if (localOnlyResource) {
+				if (raw.x === 'M' || raw.x === 'A' || raw.x === 'D' || raw.x === 'R' || raw.x === 'C') {
+					switch (raw.x) {
+						case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons, undefined, this.kind)); break;
+						case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons, undefined, this.kind)); break;
+						case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind)); break;
+						case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind)); break;
+						case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind)); break;
+					}
+				}
+
+				if (raw.y !== ' ') {
+					const localOnlyStatus = this.getStatusFromRaw(raw) ?? localOnlyResource.status;
+					localOnlyGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.LocalOnly, uri, localOnlyStatus, useIcons, renameUri ?? (localOnlyResource.renamePath ? Uri.file(localOnlyResource.renamePath) : undefined), this.kind));
+				}
+
+				return undefined;
+			}
 
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
