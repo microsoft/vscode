@@ -748,6 +748,9 @@ export class Repository implements Disposable {
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
 
+	private _localOnlyGroup: SourceControlResourceGroup;
+	get localOnlyGroup(): GitResourceGroup { return this._localOnlyGroup as GitResourceGroup; }
+
 	private _EMPTY_TREE: string | undefined;
 
 	private _HEAD: Branch | undefined;
