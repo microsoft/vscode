@@ -234,7 +234,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
 	readonly onDidChangeElementSelectionActive: Event<boolean>;
-	readonly onDidSelectArea: Event<IBrowserViewRect>;
+	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 
@@ -630,8 +630,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
 	}
 
-	get onDidSelectArea(): Event<IBrowserViewRect> {
-		return this.browserViewService.onDynamicDidSelectArea(this.id);
+	get onDidPickArea(): Event<IBrowserViewRect | undefined> {
+		return this.browserViewService.onDynamicDidPickArea(this.id);
 	}
 
 	get onDidChangeAreaSelectionActive(): Event<boolean> {

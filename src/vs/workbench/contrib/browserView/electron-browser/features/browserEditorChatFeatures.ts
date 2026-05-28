@@ -26,7 +26,7 @@ import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IElementData, IElementAncestor, BrowserViewCommandId, IBrowserViewRect } from '../../../../../platform/browserView/common/browserView.js';
+import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -487,32 +487,12 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 		this.editor.ensureBrowserFocus();
 
-		// Wait for the user to draw a rectangle, or for the picker to be cancelled.
-		// Cancellation arrives as `onDidChangeAreaSelectionActive(false)`, which can race
-		// the `onDidSelectArea` event across the IPC boundary (the two events travel
-		// through separate channel subscriptions, so the renderer may receive them out
-		// of order even though main fires them in order). When we see `active=false`,
-		// defer the cancel decision to the next macrotask so that an in-flight rect
-		// event has a chance to win and dispose the cancel listener first.
-		const rect = await new Promise<IBrowserViewRect | undefined>(resolve => {
-			let settled = false;
-			const settle = (r: IBrowserViewRect | undefined) => {
-				if (settled) { return; }
-				settled = true;
-				selectionListener.dispose();
-				inactiveListener.dispose();
-				resolve(r);
-			};
-			const selectionListener = Event.once(model.onDidSelectArea)(r => settle(r));
-			const inactiveListener = model.onDidChangeAreaSelectionActive(active => {
-				if (active || settled) {
-					return;
-				}
-				setTimeout(() => settle(undefined), 0);
-			});
-
-			void model.toggleAreaSelection(true);
-		});
+		// `onDidPickArea` fires exactly once per session with the user-drawn rectangle
+		// or `undefined` on cancellation, so we don't have to reconcile rect vs.
+		// activation-state events across the IPC boundary.
+		const pickPromise = Event.toPromise(Event.once(model.onDidPickArea));
+		void model.toggleAreaSelection(true);
+		const rect = await pickPromise;
 
 		if (!rect) {
 			return;

@@ -187,8 +187,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).inspector.onDidChangeElementSelectionActive;
 	}
 
-	onDynamicDidSelectArea(id: string) {
-		return this._getBrowserView(id).inspector.onDidSelectArea;
+	onDynamicDidPickArea(id: string) {
+		return this._getBrowserView(id).inspector.onDidPickArea;
 	}
 
 	onDynamicDidChangeAreaSelectionActive(id: string) {

@@ -70,10 +70,10 @@ export interface IElementData {
 }
 
 export interface IBrowserViewRect {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
 }
 
 export interface IBrowserViewTheme {
@@ -322,7 +322,11 @@ export interface IBrowserViewService {
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
-	onDynamicDidSelectArea(id: string): Event<IBrowserViewRect>;
+	/**
+	 * Fires exactly once per area-selection session, terminating it. Receives the user-drawn
+	 * rectangle on success, or `undefined` if the picker was cancelled.
+	 */
+	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 
@@ -516,9 +520,9 @@ export interface IBrowserViewService {
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame of a browser view.
-	 * Area selections are delivered via {@link onDynamicDidSelectArea} with the
-	 * literal user-drawn rectangle in viewport coordinates.
-	 * State changes are delivered via {@link onDynamicDidChangeAreaSelectionActive}.
+	 * The pick result (rectangle, or `undefined` on cancellation) is delivered via
+	 * {@link onDynamicDidPickArea}. UI toggle state is delivered via
+	 * {@link onDynamicDidChangeAreaSelectionActive}.
 	 *
 	 * @param id The browser view identifier
 	 * @param enabled Whether to enable or disable. Omit to toggle.

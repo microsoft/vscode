@@ -58,8 +58,14 @@ export class BrowserViewInspector extends Disposable {
 	private _theme: IBrowserViewTheme = {};
 
 	// Area selection — drag-to-select a rectangle on the top frame.
-	private readonly _onDidSelectArea = this._register(new Emitter<IBrowserViewRect>());
-	readonly onDidSelectArea: Event<IBrowserViewRect> = this._onDidSelectArea.event;
+	// `onDidPickArea` fires exactly once per session, terminating it.
+	// The rectangle is undefined when the picker is cancelled (ESC, zero-area drag,
+	// external toggle off, navigation, or supersession by element selection).
+	// Consumers should listen to this single event instead of trying to reconcile
+	// rect vs. activation events across the IPC boundary — those two events travel
+	// through separate channels and can be delivered out of order.
+	private readonly _onDidPickArea = this._register(new Emitter<IBrowserViewRect | undefined>());
+	readonly onDidPickArea: Event<IBrowserViewRect | undefined> = this._onDidPickArea.event;
 
 	private readonly _onDidChangeAreaSelectionActive = this._register(new Emitter<boolean>());
 	readonly onDidChangeAreaSelectionActive: Event<boolean> = this._onDidChangeAreaSelectionActive.event;
@@ -123,26 +129,13 @@ export class BrowserViewInspector extends Disposable {
 					return;
 				}
 				const rect = args[0] as IBrowserViewRect | undefined;
-				// Fire the selection BEFORE the deactivation so consumers waiting on
-				// both events (rect vs. cancel) don't accidentally treat the rect
-				// arrival as a cancellation.
-				if (rect && rect.width > 0 && rect.height > 0) {
-					this._onDidSelectArea.fire(rect);
-				}
-				this._activeAreaSelection.clearAndLeak();
-				if (this._areaSelectionActive) {
-					this._areaSelectionActive = false;
-					this._onDidChangeAreaSelectionActive.fire(false);
-				}
+				const validRect = rect && rect.width > 0 && rect.height > 0 ? rect : undefined;
+				this._finishAreaPick(validRect);
 			} else if (channel === 'vscode:browserView:areaPickStopped') {
 				if (senderFrame !== webContents.mainFrame) {
 					return;
 				}
-				this._activeAreaSelection.clearAndLeak();
-				if (this._areaSelectionActive) {
-					this._areaSelectionActive = false;
-					this._onDidChangeAreaSelectionActive.fire(false);
-				}
+				this._finishAreaPick(undefined);
 			}
 		};
 		webContents.on('ipc-message', onIpcMessage);
@@ -308,8 +301,8 @@ export class BrowserViewInspector extends Disposable {
 
 	/**
 	 * Toggle drag-to-select area picking on the top frame only.
-	 * The picker reports the literal user-drawn rectangle in viewport coordinates;
-	 * no DOM elements are inspected.
+	 * The picker reports the literal user-drawn rectangle (or `undefined` on cancellation)
+	 * via {@link onDidPickArea}; no DOM elements are inspected.
 	 */
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {
 		const newEnabled = enabled ?? !this._areaSelectionActive;
@@ -332,12 +325,12 @@ export class BrowserViewInspector extends Disposable {
 
 		const selection: IActiveSelection = {
 			dispose: () => {
-				if (this._activeAreaSelection.value === selection) {
-					this._areaSelectionActive = false;
-					this._onDidChangeAreaSelectionActive.fire(false);
-					this._activeAreaSelection.clearAndLeak();
-					stop();
-				}
+				// External cancellation (toggleAreaSelection(false), navigation, element
+				// selection takeover). The IPC-driven termination paths use clearAndLeak
+				// inside `_finishAreaPick`, so reaching here means the picker is still
+				// running in the page and we need to tell it to stop.
+				stop();
+				this._finishAreaPick(undefined);
 			}
 		};
 		this._activeAreaSelection.value = selection;
@@ -350,6 +343,24 @@ export class BrowserViewInspector extends Disposable {
 			}
 		} catch {
 			this._activeAreaSelection.clear();
+		}
+	}
+
+	/**
+	 * Terminate the current area-pick session, firing `onDidPickArea` exactly once.
+	 * No-op if no session is active. Uses `clearAndLeak` to avoid recursing into
+	 * the IActiveSelection.dispose path.
+	 */
+	private _finishAreaPick(rect: IBrowserViewRect | undefined): void {
+		if (!this._areaSelectionActive && !this._activeAreaSelection.value) {
+			return;
+		}
+		const wasActive = this._areaSelectionActive;
+		this._areaSelectionActive = false;
+		this._activeAreaSelection.clearAndLeak();
+		this._onDidPickArea.fire(rect);
+		if (wasActive) {
+			this._onDidChangeAreaSelectionActive.fire(false);
 		}
 	}
 

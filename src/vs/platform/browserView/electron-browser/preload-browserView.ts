@@ -818,19 +818,10 @@ class AreaPicker {
 		this._dragbox = dragbox;
 	}
 
-	start(): boolean {
+	start(): void {
 		if (this._selectionActive) {
-			return true;
+			return;
 		}
-		// Clear any leftover dragbox geometry from a previous session — the
-		// pointerUp teardown removes the shadow host but doesn't reset the
-		// dragbox styles, so on a second pick the previous rectangle would
-		// flash on screen until the user's first pointerdown rezeros it.
-		this._dragbox.style.display = 'none';
-		this._dragbox.style.left = '0px';
-		this._dragbox.style.top = '0px';
-		this._dragbox.style.width = '0px';
-		this._dragbox.style.height = '0px';
 		this._dragStart = undefined;
 
 		document.documentElement.appendChild(this._shadowHost);
@@ -838,6 +829,7 @@ class AreaPicker {
 
 		// Force a crosshair cursor across the whole page while picking.
 		const cursorStyle = document.createElement('style');
+		cursorStyle.setAttribute('data-vscode-area-pick-cursor', '');
 		cursorStyle.textContent = AreaPicker._CURSOR_CROSSHAIR;
 		document.head.appendChild(cursorStyle);
 		this._cursorStylesheet = cursorStyle;
@@ -848,14 +840,23 @@ class AreaPicker {
 		window.addEventListener('click', this._onClick, true);
 		window.addEventListener('contextmenu', this._onClick, true);
 		window.addEventListener('keydown', this._onKeyDown, true);
-
-		return true;
 	}
 
 	stop(): void {
 		if (!this._selectionActive) {
 			return;
 		}
+		this._teardown();
+		this._onStopped();
+	}
+
+	/**
+	 * Synchronous teardown of the overlay, cursor style, and event listeners.
+	 * Used by both {@link stop} (which then fires `_onStopped`) and `_onPointerUp`
+	 * (which fires `_onPicked` or `_onStopped` after teardown completes, so the
+	 * IPC consumer can capture the page without our overlay in the frame).
+	 */
+	private _teardown(): void {
 		this._selectionActive = false;
 		this._shadowHost.remove();
 
@@ -870,9 +871,11 @@ class AreaPicker {
 		window.removeEventListener('keydown', this._onKeyDown, true);
 
 		this._dragbox.style.display = 'none';
+		this._dragbox.style.left = '0px';
+		this._dragbox.style.top = '0px';
+		this._dragbox.style.width = '0px';
+		this._dragbox.style.height = '0px';
 		this._dragStart = undefined;
-
-		this._onStopped();
 	}
 
 	setTheme(theme: IBrowserViewTheme): void {
@@ -914,7 +917,6 @@ class AreaPicker {
 			return;
 		}
 		const start = this._dragStart;
-		this._dragStart = undefined;
 
 		const left = Math.min(start.x, e.clientX);
 		const top = Math.min(start.y, e.clientY);
@@ -923,19 +925,7 @@ class AreaPicker {
 
 		// Tear down the overlay before committing so the IPC consumer can
 		// immediately start a screenshot without our dragbox being in the way.
-		const tornDown = this._selectionActive;
-		if (tornDown) {
-			this._selectionActive = false;
-			this._shadowHost.remove();
-			this._cursorStylesheet?.remove();
-			this._cursorStylesheet = undefined;
-			window.removeEventListener('pointermove', this._onPointerMove, true);
-			window.removeEventListener('pointerdown', this._onPointerDown, true);
-			window.removeEventListener('pointerup', this._onPointerUp, true);
-			window.removeEventListener('click', this._onClick, true);
-			window.removeEventListener('contextmenu', this._onClick, true);
-			window.removeEventListener('keydown', this._onKeyDown, true);
-		}
+		this._teardown();
 
 		e.preventDefault();
 		e.stopPropagation();
