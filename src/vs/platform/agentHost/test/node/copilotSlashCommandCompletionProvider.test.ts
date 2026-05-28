@@ -12,6 +12,14 @@ import { CopilotSlashCommandCompletionProvider, parseLeadingSlashCommand } from 
 
 suite('CopilotSlashCommandCompletionProvider', () => {
 
+	suiteSetup(() => {
+		process.env['RUBBER_DUCK_AGENT'] = 'true';
+	});
+
+	suiteTeardown(() => {
+		delete process.env['RUBBER_DUCK_AGENT'];
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('parseLeadingSlashCommand', () => {
@@ -21,6 +29,22 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('matches lone /compact', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/compact'), { command: 'compact', rest: '' });
+		});
+
+		test('matches lone /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '' });
+		});
+
+		test('captures trailing text after a space for /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck review my approach'), { command: 'rubber-duck', rest: 'review my approach' });
+		});
+
+		test('rejects /rubber-duck-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber-duck-extra'), undefined);
+		});
+
+		test('rejects /rubber alone (incomplete command)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber'), undefined);
 		});
 
 		test('captures trailing text after a space', () => {
@@ -66,9 +90,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items, []);
 		});
 
-		test('returns both items for lone "/"', async () => {
+		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/rubber-duck ']);
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
@@ -79,6 +103,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		test('filters to /compact when "/c" typed', async () => {
 			const items = await run('/c');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact']);
+		});
+
+		test('filters to /rubber-duck when "/r" typed', async () => {
+			const items = await run('/r');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/rubber-duck ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -121,6 +150,13 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						description: 'Free up context by compacting the conversation history',
 					},
 				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'rubber-duck',
+						description: 'Get an independent critique of the current approach',
+					},
+				},
 			]);
 		});
 
@@ -129,7 +165,20 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/rubber-duck ']);
+		});
+
+		test('omits /rubber-duck when env var is unset', async () => {
+			const saved = process.env['RUBBER_DUCK_AGENT'];
+			delete process.env['RUBBER_DUCK_AGENT'];
+			try {
+				const items = await run('/');
+				assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact']);
+			} finally {
+				if (saved !== undefined) {
+					process.env['RUBBER_DUCK_AGENT'] = saved;
+				}
+			}
 		});
 
 		test('passes raw session id (no scheme/slash) to hasHistory', async () => {
