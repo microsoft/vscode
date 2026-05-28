@@ -57,6 +57,7 @@ Each provider lives in its own subfolder and implements `ISessionsProvider`:
 src/vs/sessions/contrib/providers/
 ├── agentHost/            # Local agent host provider
 ├── copilotChatSessions/  # Copilot chat sessions provider (wraps ChatSessionsService)
+├── localChatSessions/    # Local in-process VS Code chat sessions provider
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
 
@@ -65,6 +66,7 @@ Providers can import from all layers below them (core, services, non-provider co
 ### Provider-Specific Documentation
 
 - [Copilot Chat Sessions Provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) — wraps `ChatSessionsService`, metadata contract, workspace derivation
+- [Local Chat Sessions Provider](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) — local in-process VS Code chat, self-managed session list via storage
 - [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
 
 ### Related Specifications
@@ -142,6 +144,10 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → isNewChatSession context → false
+
+Agent-host providers seed new-session config from the last values picked in the
+session-config UI (stored in profile storage), while `chat.permissions.default`
+takes precedence for `autoApprove` (with policy-safe normalization).
 ```
 
 ### Session Change Propagation
@@ -201,4 +207,3 @@ The **agents window core workbench** is defined as all sessions code *outside* `
 When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
 
 **Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.
-

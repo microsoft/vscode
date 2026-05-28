@@ -10,6 +10,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
+import { extractToolParameters } from '../../../platform/otel/node/extractToolParameters';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { equals as arraysEqual } from '../../../util/vs/base/common/arrays';
@@ -151,6 +152,20 @@ export class ToolsService extends BaseToolsService {
 				span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(options.input), this._otelService.config.maxAttributeSizeChars));
 			} catch { /* swallow serialization errors */ }
 		}
+
+		// Structured `github.copilot.tool.parameters.*`. Hashes and edit_type emit
+		// unconditionally; raw paths, commands, and MCP names are gated.
+		try {
+			const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = extractToolParameters(String(name), options.input);
+			for (const [k, v] of Object.entries(paramAttrs)) {
+				span.setAttribute(k, v);
+			}
+			if (this._otelService.config.captureContent) {
+				for (const [k, v] of Object.entries(gatedParamAttrs)) {
+					span.setAttribute(k, v);
+				}
+			}
+		} catch { /* swallow extraction errors */ }
 
 		// For runSubagent tool, store this execute_tool span's trace context so the subagent's
 		// invoke_agent span can be parented to THIS tool call (not the grandparent invoke_agent).

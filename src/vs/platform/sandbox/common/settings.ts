@@ -8,7 +8,7 @@
  */
 export const enum AgentSandboxSettingId {
 	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
-	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabled.windows',
+	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabledWindows',
 	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
 	AgentSandboxAutoApproveUnsandboxedCommands = 'chat.agent.sandbox.autoApproveUnsandboxedCommands',
 	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',

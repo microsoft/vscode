@@ -96,7 +96,7 @@ export class BrowserView extends Disposable {
 	) {
 		super();
 
-		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+		const webPreferences: Electron.WebPreferences = {
 			...options?.webPreferences,
 
 			nodeIntegration: false,
@@ -110,8 +110,7 @@ export class BrowserView extends Disposable {
 			webviewTag: false,
 			session: this.session.electronSession,
 
-			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
-			type: 'browserView'
+			focusOnNavigation: false
 		};
 
 		this._view = new WebContentsView({
@@ -503,7 +502,7 @@ export class BrowserView extends Disposable {
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 
 		if (bounds.emulation) {
-			this.emulator.applyScreenEmulation(bounds.emulation.viewportWidth, bounds.emulation.viewportHeight, bounds.emulation.scale, bounds.zoomFactor);
+			this.emulator.applyScreenEmulation(bounds.width, bounds.height, bounds.emulation.scale, bounds.zoomFactor);
 		}
 
 		this._view.setBounds({

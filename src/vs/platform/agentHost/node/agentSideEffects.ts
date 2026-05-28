@@ -684,6 +684,9 @@ export class AgentSideEffects extends Disposable {
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
+		} else if (effective.state.confirmationTitle) {
+			// Make sure the agent is registered for the eventual `SessionToolCallConfirmed` response.
+			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
@@ -835,7 +838,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionCustomizationToggled: {
 				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
+				agent?.setCustomizationEnabled?.(action.id, action.enabled);
 				break;
 			}
 			case ActionType.SessionIsReadChanged: {

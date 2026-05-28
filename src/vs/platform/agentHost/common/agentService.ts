@@ -6,9 +6,11 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
+import { isWeb } from '../../../base/common/platform.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
@@ -16,7 +18,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -39,6 +41,11 @@ export const enum AgentHostIpcChannels {
 
 /** Configuration key that controls whether the local agent host process is spawned. */
 export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
+
+/** Whether the local/process-backed agent host is enabled in this runtime. */
+export function isAgentHostEnabled(configurationService: IConfigurationService): boolean {
+	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
+}
 
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
@@ -629,17 +636,19 @@ export interface IAgent {
 	readonly onDidCustomizationsChange?: Event<void>;
 
 	/**
-	 * Returns the host-owned customization refs this agent currently exposes.
+	 * Returns the host-owned customizations this agent currently exposes.
 	 *
 	 * Used to publish baseline customization metadata on {@link AgentInfo}.
+	 * Always container customizations ({@link PluginCustomization} or
+	 * {@link DirectoryCustomization}).
 	 */
-	getCustomizations?(): readonly CustomizationRef[];
+	getCustomizations?(): readonly Customization[];
 
 	/**
 	 * Returns the effective customization list for a session, including
 	 * source, enablement, and loading/error status.
 	 */
-	getSessionCustomizations?(session: URI): Promise<readonly SessionCustomization[]>;
+	getSessionCustomizations?(session: URI): Promise<readonly Customization[]>;
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
@@ -669,7 +678,7 @@ export interface IAgent {
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Receives client-provided tool definitions to make available in a
@@ -698,8 +707,10 @@ export interface IAgent {
 	/**
 	 * Notifies the agent that a customization has been toggled on or off.
 	 * The agent MAY restart its client before the next message is sent.
+	 *
+	 * @param id The opaque session-unique customization id.
 	 */
-	setCustomizationEnabled(uri: string, enabled: boolean): void;
+	setCustomizationEnabled(id: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;

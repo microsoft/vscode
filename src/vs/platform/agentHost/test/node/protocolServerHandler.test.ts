@@ -10,17 +10,18 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { FileType } from '../../../files/common/files.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -187,6 +188,7 @@ suite('ProtocolServerHandler', () => {
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
+	let fileSystemProvider: AgentHostFileSystemProvider;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -225,7 +227,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager,
 			server,
 			{ defaultDirectory: URI.file('/home/testuser').toString() },
-			disposables.add(new AgentHostFileSystemProvider()),
+			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			new NullLogService(),
 		));
 	});
@@ -739,6 +741,43 @@ suite('ProtocolServerHandler', () => {
 		await reconnectRespPromise;
 		assert.deepStrictEqual(subscribeCalls, [sessionUri], 'reconnect should call subscribe to restore evicted state');
 		assert.ok(stateManager.getSnapshot(sessionUri), 'state should have been re-hydrated by reconnect');
+	});
+
+	test('reconnect re-registers the reverse-RPC filesystem authority', async () => {
+		// The server-side filesystem provider talks back to the client via
+		// reverse-RPC (e.g. `resourceList`). If the authority is not
+		// re-registered on reconnect, the agent host would fail with
+		// "No connection for authority: <clientId>" until the client
+		// reinitialized. Verify a reverse-RPC routes through the new
+		// transport after reconnect.
+		const transport1 = connectClient('client-fs');
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-fs',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.sent.length = 0;
+
+		// Wire the test's response *before* we trigger the reverse-RPC so
+		// the response is observed on the next microtask.
+		disposables.add(transport2.onDidSend(msg => {
+			if (isJsonRpcRequest(msg) && msg.method === 'resourceList') {
+				transport2.simulateMessage({
+					jsonrpc: '2.0',
+					id: msg.id,
+					result: { entries: [{ name: 'after-reconnect.txt', type: 'file' as const }] },
+				});
+			}
+		}));
+
+		const result = await fileSystemProvider.readdir(agentHostUri('client-fs', '/workspace'));
+		assert.deepStrictEqual(result, [['after-reconnect.txt', FileType.File]]);
 	});
 
 	test('client disconnect cleans up', () => {

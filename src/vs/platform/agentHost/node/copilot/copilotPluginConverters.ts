@@ -9,8 +9,8 @@ import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import type { CustomizationAgentRef } from '../../common/state/protocol/state.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -106,15 +106,35 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 }
 
 /**
- * Projects parsed plugin agents into the protocol's {@link CustomizationAgentRef}
- * shape so they can be advertised on the owning {@link CustomizationRef.agents}.
+ * Projects parsed plugin agents into their protocol-level
+ * {@link AgentCustomization} shape.
  */
-export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]): CustomizationAgentRef[] {
-	return agents.map(a => ({
-		uri: a.uri.toString(),
-		name: a.name,
-		...(a.description ? { description: a.description } : {}),
-	}));
+export function toAgentCustomizations(agents: readonly IParsedAgent[]): AgentCustomization[] {
+	return agents.map(a => a.customization);
+}
+
+/**
+ * Collects every child customization (agent, skill, rule, hook, MCP
+ * server) produced by a parsed plugin, deduped by id. This is the single
+ * source of truth for populating a container customization's `children`
+ * array — every projector that produced an SDK config above derives its
+ * matching protocol child from the same parsed primitive.
+ */
+export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildCustomization[] {
+	const byId = new Map<string, ChildCustomization>();
+	const add = (c: ChildCustomization) => {
+		if (!byId.has(c.id)) {
+			byId.set(c.id, c);
+		}
+	};
+	for (const plugin of plugins) {
+		for (const a of plugin.agents) { add(a.customization); }
+		for (const s of plugin.skills) { add(s.customization); }
+		for (const r of plugin.instructions) { add(r.customization); }
+		for (const h of plugin.hooks) { add(h.customization); }
+		for (const m of plugin.mcpServers) { add(m.customization); }
+	}
+	return [...byId.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,11 +146,22 @@ export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]
  * The SDK expects directory paths; we extract the parent directory of each SKILL.md.
  */
 export function toSdkSkillDirectories(skills: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(skills);
+}
+
+/**
+ * Converts parsed plugin instructions into the SDK's
+ * `instructionDirectories` config.
+ */
+export function toSdkInstructionDirectories(instructions: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(instructions);
+}
+
+function toSdkResourceDirectories(resources: readonly INamedPluginResource[]): string[] {
 	const seen = new Set<string>();
 	const result: string[] = [];
-	for (const skill of skills) {
-		// SKILL.md parent directory is the skill directory
-		const dir = dirname(skill.uri.fsPath);
+	for (const resource of resources) {
+		const dir = dirname(resource.uri.fsPath);
 		if (!seen.has(dir)) {
 			seen.add(dir);
 			result.push(dir);
@@ -373,6 +404,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
 			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));
 	};
 	return serialize(a) === serialize(b);

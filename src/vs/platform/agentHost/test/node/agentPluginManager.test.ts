@@ -13,7 +13,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
-import { CustomizationStatus, type CustomizationRef, type SessionCustomization } from '../../common/state/sessionState.js';
+import { customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 
 suite('AgentPluginManager', () => {
@@ -37,8 +38,16 @@ suite('AgentPluginManager', () => {
 		return URI.from({ scheme: Schemas.inMemory, path: `/plugins/${name}` }).toString();
 	}
 
-	function makeRef(name: string, nonce?: string): CustomizationRef {
-		return { uri: pluginUri(name), displayName: `Plugin ${name}`, nonce };
+	function makeRef(name: string, nonce?: string): ClientPluginCustomization {
+		const uri = pluginUri(name);
+		return {
+			type: CustomizationType.Plugin,
+			id: customizationId(uri),
+			uri,
+			name: `Plugin ${name}`,
+			enabled: true,
+			...(nonce !== undefined ? { nonce } : {}),
+		};
 	}
 
 	async function seedPluginDir(name: string, files: Record<string, string>): Promise<void> {
@@ -62,9 +71,9 @@ suite('AgentPluginManager', () => {
 				makeRef('alpha', 'n1'),
 				makeRef('beta', 'n2'),
 			]);
-			assert.strictEqual(results[0].customization.status, CustomizationStatus.Loaded);
+			assert.strictEqual(results[0].customization.load?.kind, 'loaded');
 			assert.ok(results[0].pluginDir, 'should have pluginDir');
-			assert.strictEqual(results[1].customization.status, CustomizationStatus.Loaded);
+			assert.strictEqual(results[1].customization.load?.kind, 'loaded');
 			assert.ok(results[1].pluginDir, 'should have pluginDir');
 		});
 
@@ -72,8 +81,8 @@ suite('AgentPluginManager', () => {
 			const results = await manager.syncCustomizations('test-client', [makeRef('nonexistent')]);
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].customization.status, CustomizationStatus.Error);
-			assert.ok(results[0].customization.statusMessage);
+			assert.strictEqual(results[0].customization.load?.kind, 'error');
+			assert.ok(results[0].customization.load?.kind === 'error' && results[0].customization.load.message);
 			assert.strictEqual(results[0].pluginDir, undefined);
 		});
 
@@ -84,19 +93,19 @@ suite('AgentPluginManager', () => {
 				makeRef('good', 'n1'),
 				makeRef('missing'),
 			]);
-			assert.strictEqual(results[1].customization.status, CustomizationStatus.Error);
+			assert.strictEqual(results[1].customization.load?.kind, 'error');
 			assert.strictEqual(results[1].pluginDir, undefined);
 		});
 
 		test('fires progress callback with changed customization status', async () => {
 			await seedPluginDir('prog', { 'index.js': 'content' });
 
-			const progressCalls: SessionCustomization[] = [];
+			const progressCalls: Customization[] = [];
 			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], status => {
 				progressCalls.push(status);
 			});
 
-			assert.deepStrictEqual(progressCalls.map(call => call.status), [CustomizationStatus.Loaded]);
+			assert.deepStrictEqual(progressCalls.map(call => call.load?.kind), ['loaded']);
 		});
 
 		test('skips copy when nonce matches', async () => {
@@ -123,8 +132,8 @@ suite('AgentPluginManager', () => {
 			]);
 
 			// Both should succeed without error
-			assert.strictEqual(r1[0].customization.status, CustomizationStatus.Loaded);
-			assert.strictEqual(r2[0].customization.status, CustomizationStatus.Loaded);
+			assert.strictEqual(r1[0].customization.load?.kind, 'loaded');
+			assert.strictEqual(r2[0].customization.load?.kind, 'loaded');
 		});
 	});
 
@@ -165,7 +174,7 @@ suite('AgentPluginManager', () => {
 			const result = await manager2.syncCustomizations('test-client', [ref]);
 
 			// Should be loaded from cache (nonce match), not error
-			assert.strictEqual(result[0].customization.status, CustomizationStatus.Loaded);
+			assert.strictEqual(result[0].customization.load?.kind, 'loaded');
 			assert.ok(result[0].pluginDir);
 		});
 	});

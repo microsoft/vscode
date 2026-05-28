@@ -1973,7 +1973,6 @@
       },
       {
         "vendor": "customendpoint",
-        "when": "productQualityType != 'stable'",
         "displayName": "Custom Endpoint",
         "configuration": {
           "type": "object",
@@ -1992,10 +1991,15 @@
                 "responses",
                 "messages"
               ],
+              "enumItemLabels": [
+                "Chat Completions",
+                "Responses",
+                "Messages"
+              ],
               "enumDescriptions": [
-                "Chat Completions API.",
-                "Responses API.",
-                "Messages API."
+                "Chat Completions API",
+                "Responses API",
+                "Messages API"
               ],
               "default": "chat-completions",
               "title": "API Type",
@@ -2044,6 +2048,17 @@
                       "responses",
                       "messages"
                     ],
+                    "enumItemLabels": [
+                      "Chat Completions",
+                      "Responses",
+                      "Messages"
+                    ],
+                    "enumDescriptions": [
+                      "Chat Completions API",
+                      "Responses API",
+                      "Messages API"
+                    ],
+                    "title": "API Type",
                     "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
                   "toolCalling": {
@@ -3207,7 +3222,7 @@
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "nextEditSuggestions",
               "onExp"
@@ -4278,16 +4293,6 @@
             "tags": [
               "advanced"
             ]
-          },
-          "github.copilot.chat.freezeCustomizationsIndex": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ],
-            "description": "%github.copilot.config.freezeCustomizationsIndex%"
           },
           "github.copilot.chat.installExtensionSkill.enabled": {
             "type": "boolean",
@@ -6632,6 +6637,13 @@
         ]
       },
       {
+        "path": "./assets/prompts/chronicle-improve.prompt.md",
+        "when": "github.copilot.sessionSearch.enabled",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
         "path": "./assets/prompts/chronicle-reindex.prompt.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
@@ -6897,7 +6909,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.4.0",
+    "@vscode/copilot-api": "^0.4.1",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",

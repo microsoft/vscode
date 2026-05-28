@@ -62,7 +62,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { bindContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -107,8 +107,7 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostCustomAgentPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
-import { WorkbenchAgentHostAgentPickerActionItem } from '../../agentSessions/agentHost/agentHostCustomAgentPicker.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -399,9 +398,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
-	// Stored so `openAgentHostCustomAgentPicker()` (the future keybinding
-	// parallel to `openModePicker`) can open the picker programmatically.
-	private customAgentWidget: WorkbenchAgentHostAgentPickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -702,9 +698,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const models = this.getModels();
 			if (this._currentSessionType === SessionType.CopilotCLI) {
 				if (shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
-					const ids = models.map(m => m.identifier).join(', ');
-					const metadataIds = models.map(m => m.metadata.id).join(', ');
-					logChangesToStateModel(this._inputModel, `resetting current language model due to model list change from ${modelIdentifier}, identifiers: ${ids}, metadataIds: ${metadataIds}`, undefined, undefined, this.logService);
+					if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
+						const mergedModels = this.getAllMergedModels();
+						const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+						const messageparts: string[] = [
+							`resetting current language model due to model list change from ${modelIdentifier}`,
+							`this._widget?.viewModel?.model.sessionResource = ${this._widget?.viewModel?.model.sessionResource?.toString()}`,
+							`this.getCurrentSessionType = ${this.getCurrentSessionType()}`,
+							`this._currentSessionType = ${this._currentSessionType}`,
+							`model identifiers: ${models.map(m => m.identifier).join(', ')}`,
+							`model target Session Types: ${models.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`model metadataid: ${models.map(m => m.metadata.id).join(', ')}`,
+							`merged.model identifiers: ${mergedModels.map(m => m.identifier).join(', ')}`,
+							`merged.model target Session Types: ${mergedModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`merged.model metadataid: ${mergedModels.map(m => m.metadata.id).join(', ')}`,
+							`filtered.model identifiers: ${filteredModels.map(m => m.identifier).join(', ')}`,
+							`filtered.model target Session Types: ${filteredModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+							`filtered.model metadataid: ${filteredModels.map(m => m.metadata.id).join(', ')}`,
+						];
+						if (this.getCurrentSessionType() !== SessionType.CopilotCLI) {
+							const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+							if (delegateSessionType) {
+								messageparts.push(`delegateSessionType = ${delegateSessionType}`);
+							}
+							const sessionResource = this._widget?.viewModel?.model.sessionResource;
+							messageparts.push(`current session resource = ${sessionResource}`);
+						}
+
+						logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
+					}
 					this.setCurrentLanguageModelToDefault();
 				}
 			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
@@ -881,10 +903,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.modeWidget?.show();
-	}
-
-	public openAgentHostCustomAgentPicker(): void {
-		this.customAgentWidget?.show();
 	}
 
 	private _showCombinedPhonePickerSheet(): void {
@@ -1085,7 +1103,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Observe changes from model and sync to view
-		this._modelSyncDisposables.add(autorun(reader => {
+		this._modelSyncDisposables.add(autorun(async reader => {
 			let state = model.state.read(reader);
 			let message = `syncing from model for ${forSessionResource.toString()} in ${this._currentSessionKey}`;
 			if (!state && this._chatSessionIsEmpty) {
@@ -1093,7 +1111,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 			}
 			logChangesToStateModel(this._inputModel, message, state, undefined, this.logService);
-			this._syncFromModel(state, forSessionResource);
+			await this._syncFromModel(state, forSessionResource);
 		}));
 	}
 
@@ -1133,7 +1151,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync from model to view (when model state changes)
 	 */
-	private _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): void {
+	private async _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): Promise<void> {
 		// Prevent circular updates
 		if (this._isSyncingToOrFromInputModel) {
 			return;
@@ -1146,6 +1164,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
 				if (currentMode.id !== state.mode.id) {
+					// Await mode list to be up to date before applying
+					await this._currentChatModesObservable.get().waitForPendingUpdates();
 					this.setChatMode(state.mode.id, false);
 				}
 			}
@@ -2521,16 +2541,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
-				} else if (action.id === OpenAgentHostCustomAgentPickerAction.ID && action instanceof MenuItemAction && this._widget) {
-					// Workbench-chat custom-agent picker for Agent Host sessions.
-					// Hidden in the Agents Window via the action's `when` clause
-					// (`!isSessionsWindow`).
-					return this.customAgentWidget = this.instantiationService.createInstance(
-						WorkbenchAgentHostAgentPickerActionItem,
-						action,
-						pickerOptions,
-						this._widget,
-					);
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
 					const getActiveSessionType = () => {
@@ -2633,14 +2643,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
 		}
 
-		// Secondary toolbar (permissions) — below the input box
-		const agentHostShortPickerIds = new Set<string>([
-			OpenAgentHostModePickerAction.ID,
-			OpenAgentHostAutoApprovePickerAction.ID,
-			OpenAgentHostPermissionModePickerAction.ID,
-			OpenAgentHostBranchPickerAction.ID,
-			OpenAgentHostIsolationPickerAction.ID,
-			'sessions.tunnelHost.toggleSharing'
+		// Secondary toolbar (permissions) — below the input box.
+		// Per-action minimum widths (in pixels) for pickers that collapse to an
+		// icon-only label via a CSS container query in `AgentHostChatInputPicker`.
+		// Most pickers reserve ~22px for the icon; the tunnel-sharing toggle has
+		// no chevron, so it can collapse further to 16px.
+		const agentHostShortPickerMinWidths = new Map<string, number>([
+			[OpenAgentHostModePickerAction.ID, 22],
+			[OpenAgentHostAutoApprovePickerAction.ID, 22],
+			[OpenAgentHostPermissionModePickerAction.ID, 22],
+			[OpenAgentHostBranchPickerAction.ID, 22],
+			[OpenAgentHostIsolationPickerAction.ID, 22],
+			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
 		// are advertised by the agent's schema but not handled by a
@@ -2668,7 +2682,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// container query in `AgentHostChatInputPicker` when narrow.
 				// Report a smaller min-width for them so the responsive layout
 				// keeps them visible instead of overflowing into the menu.
-				getActionMinWidth: action => agentHostShortPickerIds.has(action.id) ? 22 : undefined,
+				getActionMinWidth: action => agentHostShortPickerMinWidths.get(action.id),
 			},
 			actionViewItemProvider: (action, options) => {
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {

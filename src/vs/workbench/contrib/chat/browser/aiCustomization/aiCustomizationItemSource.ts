@@ -81,8 +81,9 @@ export interface IAICustomizationListItem {
  */
 export interface IAICustomizationItemSource extends IDisposable {
 	readonly sessionResource: URI;
-	readonly onDidChange: Event<void>;
-	fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
 }
 
 // #endregion
@@ -257,7 +258,7 @@ export class AICustomizationItemNormalizer {
  */
 export class ItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
-	readonly onDidChange: Event<void>;
+	readonly onDidAICustomizationItemsChange: Event<void>;
 	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
 
 	constructor(
@@ -270,20 +271,18 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
 		super();
-		this.onDidChange = Event.any(
+		this.onDidAICustomizationItemsChange = Event.any(
 			this.itemProvider.onDidChange,
 			this.promptsService.onDidChangeSkills
 		);
 
 		// Invalidate cache when provider or skills change
-		this._register(this.itemProvider.onDidChange(() => {
+		this._register(this.onDidAICustomizationItemsChange(() => {
 			this.cachedPromise = undefined;
 		}));
 	}
 
-
-	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		// Use cached result if available
+	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.cachedPromise) {
 			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
 		}
@@ -292,6 +291,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		if (cached !== this.cachedPromise || !allItems) {
 			return [];
 		}
+		return allItems;
+	}
+
+	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await this.fetchProviderItems();
 
 		let providerItems: readonly ICustomizationItem[];
 		if (promptType === PromptsType.hook) {
@@ -413,8 +417,14 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
-	readonly onDidChange: Event<void>;
-	private cachedPromise: Promise<readonly IAICustomizationListItem[] | undefined> | undefined;
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	// Caches the raw, unfiltered items returned by the provider so each
+	// `fetchAICustomizationItems` call can apply its own `promptType` filter.
+	// Previously the cache stored items already filtered/normalized for the
+	// first requested `promptType`, which caused every subsequent section
+	// (Instructions, Skills, …) to see an empty list whenever the Agents tab
+	// was loaded first.
+	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
 
 	constructor(
 		readonly sessionResource: URI,
@@ -422,28 +432,35 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
 		super();
-		this.onDidChange = this.itemProvider.onDidChange;
+		this.onDidAICustomizationItemsChange = this.itemProvider.onDidChange;
 
-		// Invalidate cache when provider or skills change
+		// Invalidate cache when the provider changes
 		this._register(this.itemProvider.onDidChange(() => {
 			this.cachedPromise = undefined;
 		}));
 	}
 
-
-	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		// Use cached result if available
+	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.cachedPromise) {
-			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None).then(items =>
-				items ? this.itemNormalizer.normalizeItems(items, promptType) : undefined
-			);
+			const promise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
+			this.cachedPromise = promise;
+			promise.catch(() => {
+				if (this.cachedPromise === promise) {
+					this.cachedPromise = undefined;
+				}
+			});
 		}
 		const cached = this.cachedPromise;
 		const allItems = await cached;
 		if (cached !== this.cachedPromise || !allItems) {
 			return [];
 		}
-		return allItems.filter(item => item.promptType === promptType);
+		return allItems;
+	}
+
+	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await this.fetchProviderItems();
+		return this.itemNormalizer.normalizeItems(allItems, promptType);
 	}
 
 
