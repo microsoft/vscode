@@ -691,6 +691,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentsHandoffTip.mode.custom', "Show the handoff tip with an alternate description."),
 			],
 			default: 'hidden',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			description: nls.localize('chat.agentsHandoffTip.mode', "Controls the tip shown above the chat input offering to continue eligible agent sessions in the Agents Window."),
 		},
 		[ChatConfiguration.ChatContextUsageEnabled]: {
