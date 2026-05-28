@@ -34,7 +34,10 @@ import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatConfiguration } from '../../common/constants.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 // Provider id for the local agent host. Duplicated from
 // `vs/sessions/common/agentHostSessionsProvider.LOCAL_AGENT_HOST_PROVIDER_ID`
@@ -219,6 +222,31 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 }
 
 /**
+ * Display modes for the agents-window handoff input tip, exposed via the
+ * {@link ChatConfiguration.AgentsHandoffTipMode} setting.
+ */
+export const enum AgentsHandoffTipMode {
+	/** Don't show the tip. */
+	Hidden = 'hidden',
+	/** Show the tip with the default message + description. */
+	Default = 'default',
+	/** Show the tip with the alternate "Free with your Copilot" framing. */
+	Custom = 'custom',
+}
+
+type AgentsHandoffTipActionEvent = {
+	mode: string;
+	sessionType: string;
+};
+
+type AgentsHandoffTipActionClassification = {
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured tip mode active when the tip was clicked (default, custom).' };
+	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session type / agent harness being handed off (e.g. copilot-cli, agent-host-copilot).' };
+	owner: 'justschen';
+	comment: 'Tracks clicks on the agents-window handoff input tip to measure engagement across wording variants.';
+};
+
+/**
  * Posts a tip notification above the chat input whenever the focused chat
  * widget is showing a contributed session (Copilot CLI, Cloud, Claude, etc.)
  * that the Agents Window can render directly. The notification provides a
@@ -229,6 +257,14 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	static readonly ID = 'workbench.contrib.agentsHandoffInputTip';
 
 	private static readonly NOTIFICATION_ID = 'chat.agentsHandoff.openInAgentsWindow';
+
+	/**
+	 * Dedicated command backing the tip's action button. Lets us attach
+	 * mode + harness telemetry to the exact tip click (the title-bar menu
+	 * entry runs {@link OpenChatSessionInAgentsWindowAction} directly and is
+	 * intentionally not tracked here).
+	 */
+	private static readonly TIP_OPEN_COMMAND_ID = 'workbench.action.chat.agentsHandoffTip.open';
 
 	/** Session types eligible for the handoff tip — the same set the Agents window can render directly. */
 	private static readonly ELIGIBLE_SESSION_TYPES: ReadonlySet<string> = new Set([SessionType.CopilotCLI, SessionType.AgentHostCopilot]);
@@ -248,6 +284,9 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	/** The session URI we last posted a notification for. Used to avoid clearing the user's dismissal when re-evaluating the same state. */
 	private _lastPostedFor: string | undefined;
 
+	/** The session type (agent harness) of the currently posted tip, for telemetry. */
+	private _lastPostedSessionType: string | undefined;
+
 	/** Sessions for which the user has previously dismissed the tip; never re-posted. */
 	private readonly _dismissedSessions: Set<string>;
 
@@ -257,13 +296,32 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._dismissedSessions = new Set(this._loadDismissed());
+
+		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID, (accessor, ...args) => {
+			this._telemetryService.publicLog2<AgentsHandoffTipActionEvent, AgentsHandoffTipActionClassification>('chat.agentsHandoffTip.action', {
+				mode: this._getMode(),
+				sessionType: this._lastPostedSessionType ?? '',
+			});
+			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, ...args);
+		}));
+
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => this._update()));
 		this._register(this._chatWidgetService.onDidAddWidget(() => this._update()));
 		this._register(contextKeyService.onDidChangeContext(() => this._update()));
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(() => this._update()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentsHandoffTipMode)) {
+				// Mode changed: force a re-post so the description swaps or the
+				// tip appears/disappears immediately.
+				this._lastPostedFor = undefined;
+				this._update();
+			}
+		}));
 		this._register(this._notificationService.onDidDismiss(id => {
 			if (id !== AgentsHandoffInputTipContribution.NOTIFICATION_ID || !this._lastPostedFor) {
 				return;
@@ -271,10 +329,33 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			this._dismissedSessions.add(this._lastPostedFor);
 			this._saveDismissed();
 		}));
+
 		this._update();
 	}
 
+	private _getMode(): AgentsHandoffTipMode {
+		const value = this._configurationService.getValue<string>(ChatConfiguration.AgentsHandoffTipMode);
+		switch (value) {
+			case AgentsHandoffTipMode.Hidden:
+			case AgentsHandoffTipMode.Custom:
+				return value;
+			default:
+				return AgentsHandoffTipMode.Default;
+		}
+	}
+
 	private _update(): void {
+		const mode = this._getMode();
+
+		// Mode that suppresses the tip entirely.
+		if (mode === AgentsHandoffTipMode.Hidden) {
+			if (this._lastPostedFor) {
+				this._notificationService.deleteNotification(AgentsHandoffInputTipContribution.NOTIFICATION_ID);
+				this._lastPostedFor = undefined;
+			}
+			return;
+		}
+
 		const widget = this._chatWidgetService.lastFocusedWidget;
 		const sessionResource = widget?.viewModel?.sessionResource;
 		const resourceSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
@@ -328,6 +409,9 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		}
 		this._lastPostedFor = key;
 
+		// Record the agent harness (session type) of the posted tip for click telemetry.
+		this._lastPostedSessionType = eligible ? resourceSessionType : widgetSessionType;
+
 		// Only forward a real (non-untitled) session resource. In the empty
 		// workspace case the picker may have created a placeholder untitled
 		// session that we shouldn't try to restore on the other side.
@@ -342,7 +426,9 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window");
 		const description = useEmptyWorkspaceCopy
 			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot CLI session.")
-			: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace.");
+			: mode === AgentsHandoffTipMode.Custom
+				? localize('chat.agentsHandoff.tip.description.copilot', "Free with your Copilot plan — get a dedicated, multi-pane view alongside your workspace.")
+				: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace.");
 
 		this._notificationService.setNotification({
 			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
@@ -352,7 +438,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			actions: [
 				{
 					label: localize('chat.agentsHandoff.tip.action', "Open in Agents Window"),
-					commandId: OpenChatSessionInAgentsWindowAction.ID,
+					commandId: AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID,
 					commandArgs,
 				},
 			],

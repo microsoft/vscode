@@ -766,12 +766,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.footerDetailsContainer.classList.add('hidden');
 		}
 
-		// Show the "Open in Agents Window" card on completed responses of any
-		// contributed session type that the Agents window can render (Copilot
-		// CLI, Cloud, Claude, agent-host, etc.). Excludes the default local
-		// chat (sessionType "local") and only when the open command is
-		// available (desktop, outside the Agents window).
-
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		ChatContextKeys.responseIsFiltered.bindTo(templateData.contextKeyService).set(isFiltered);

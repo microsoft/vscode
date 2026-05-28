@@ -30,13 +30,12 @@ export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 export function writeStoredSessionTypePref(
 	storageService: IStorageService,
 	pick: { readonly providerId?: string; readonly sessionTypeId: string },
-	target: StorageTarget = StorageTarget.USER,
 ): void {
 	storageService.store(
 		STORAGE_KEY_LAST_SESSION_TYPE,
 		JSON.stringify({ providerId: pick.providerId, sessionTypeId: pick.sessionTypeId }),
 		StorageScope.PROFILE,
-		target,
+		StorageTarget.USER,
 	);
 }
 
