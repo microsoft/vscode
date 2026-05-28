@@ -230,7 +230,7 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.enabledPlugins.policy",
-                    "value": "Enterprise-managed plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin. Merged with user-configured path entries."
+                    "value": "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."
                 }
             },
             "type": "object",
@@ -245,14 +245,11 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.marketplaces.policy",
-                    "value": "Enterprise-managed list of plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`). Merged with user-configured entries."
+                    "value": "Plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
                 }
             },
             "type": "array",
-            "default": [
-                "github/copilot-plugins",
-                "github/awesome-copilot#marketplace"
-            ],
+            "default": [],
             "included": true
         },
         {
@@ -263,7 +260,7 @@
             "localization": {
                 "description": {
                     "key": "chat.plugins.strictMarketplaces.policy",
-                    "value": "When enabled by enterprise policy, only marketplaces listed in `chat.plugins.marketplaces` are trusted; plugins from any other marketplace will not load."
+                    "value": "Only trust marketplaces listed in `chat.plugins.marketplaces`; plugins from any other marketplace will not load."
                 }
             },
             "type": "boolean",
