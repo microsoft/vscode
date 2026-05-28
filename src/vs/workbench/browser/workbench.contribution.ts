@@ -683,6 +683,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				agentsWindow: { default: 'toggle', readOnly: true },
 			},
+			'workbench.activityBar.dragAndDrop.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription':
+					localize('workbench.activityBar.dragAndDrop.enabled', "Controls whether Activity Bar drag and drop is enabled.")
+			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,
