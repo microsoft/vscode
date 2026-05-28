@@ -24,6 +24,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
@@ -976,6 +977,7 @@ registerAction2(class CopyBreadcrumbPath extends Action2 {
 		const clipboardService = accessor.get(IClipboardService);
 		const configurationService = accessor.get(IConfigurationService);
 		const outlineService = accessor.get(IOutlineService);
+		const notificationService = accessor.get(INotificationService);
 
 		if (!groups.activeGroup.activeEditorPane) {
 			return;
@@ -992,6 +994,7 @@ registerAction2(class CopyBreadcrumbPath extends Action2 {
 		outline.dispose();
 
 		if (labels.length === 0) {
+			notificationService.info(localize('cmd.copyPath.noSymbols', "No breadcrumb symbols to copy."));
 			return;
 		}
 
