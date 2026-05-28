@@ -9,6 +9,9 @@ import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostClaudeAgentSdkPathSettingId,
+	AgentHostCodexAgentBinaryArgsSettingId,
+	AgentHostCodexAgentBinaryPathSettingId,
+	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
@@ -51,6 +54,28 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
 			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostCodexAgentBinaryPathSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.codexAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `codex` binary. When set, the Codex agent provider is registered inside the agent host and `codex app-server` is spawned from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostCodexAgentCodexHomeSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.codexAgent.codexHome', "Optional override for `$CODEX_HOME`. Controls where the codex binary reads config and writes rollouts. When empty, codex uses its default (`~/.codex`)."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostCodexAgentBinaryArgsSettingId]: {
+			type: 'array',
+			items: { type: 'string' },
+			description: nls.localize('chat.agentHost.codexAgent.binaryArgs', "Additional command-line arguments passed to `codex app-server`. Primarily useful for debugging (for example, `--log-level=debug`)."),
+			default: [],
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},

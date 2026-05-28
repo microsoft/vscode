@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostRubberDuckEnabledSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostRubberDuckEnabledSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -84,6 +84,23 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			|| '';
 		if (claudeSdkPath) {
 			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
+		}
+
+		// Codex agent is opt-in via `chat.agentHost.codexAgent.path`. Mirrors the
+		// Claude opt-in pattern above.
+		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
+			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
+			|| '';
+		if (codexBinaryPath) {
+			env[AgentHostCodexAgentBinaryPathEnvVar] = codexBinaryPath;
+		}
+		const codexHome = this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId) || '';
+		if (codexHome) {
+			env[AgentHostCodexAgentCodexHomeEnvVar] = codexHome;
+		}
+		const codexArgs = this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId);
+		if (Array.isArray(codexArgs) && codexArgs.length > 0) {
+			env[AgentHostCodexAgentBinaryArgsEnvVar] = JSON.stringify(codexArgs);
 		}
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
