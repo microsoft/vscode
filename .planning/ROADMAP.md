@@ -19,13 +19,13 @@
 | 4 | **Auth-rotation handling: token passthrough on proxy.** Proxy holds current Copilot token by ref, injects at request time. Codex sees a stable apiKey (the proxy nonce) and is never restarted on rotation. | Invisible to user; no mid-turn disruption. |
 | 5 | **Prewarming: deferred to Phase 6.** | Architectural enabler is free with shared process; the actual map/TTL/republish logic is polish. |
 | 6 | **Spawn timing: lazy.** First `listSessions` or `createSession` triggers spawn. No idle shutdown. | Symmetric with other lazy choices. ~100 ms one-time cold start. |
-| 7 | **Session id == codex threadId.** `createSession` blocks ~100 ms on `thread/start`. No provisional state. | Trivial round-trip with disk, `ahpx`, restored sessions. |
+| 7 | **Stable workbench session URI, lazy codex thread materialization.** `createSession` returns a provisional `codex:/<uuid>` URI; first send (or prewarm) calls `thread/start` and persists the resulting workbench-session ↔ codex-thread mapping. | Keeps Agents-window provisional/session rebind behavior stable and avoids spawning orphan codex threads before the first user turn. |
 | 8 | **Restore: lazy `thread/resume` on first `sendMessage`.** `thread/read` only at restore time. | Browsing 20 restored sessions doesn't load 20 threads into codex memory. |
 | 9 | **Permissions:** per-session approval chip only; no global setting. Approval requests go through tool-call lifecycle (`SessionToolCallPendingConfirmation` → `respondToPermissionRequest`). Structured questions go through input-request (`SessionInputRequested` → `respondToUserInputRequest`). | Mirrors Claude. |
 | 10 | **Cwd model:** reject `createSession` without `workingDirectory`. Cwd immutable per session. **No worktree isolation in v1** (Phase 7+ if wanted). Register `IAgentHostSessionWorkingDirectoryResolver` for the codex resource scheme. | Codex requires a real cwd for sandbox; worktree machinery is a Copilot-specific multi-day port. |
 | 11 | **Workbench settings:** `chat.agentHost.codexAgent.path`, `chat.agentHost.codexAgent.codexHome`, `chat.agentHost.codexAgent.binaryArgs`. Per-session knobs (sandbox, approval, webSearch, additional dirs, network, reasoning effort) come via the dynamic config schema in Phase 5. | Tight surface; per-session config lives in `resolveSessionConfig`. |
 | 12 | **Models:** reuse Copilot model list filtered to `gpt-5*` / `codex*`. Refresh on first need + token rotation. Per-model `supportedEfforts` drives the reasoning-effort chip. | One source of truth (CAPI); same model entries codex would see. |
-| 13 | **Session-type picker: register in both.** Agents window auto-derives from `rootState.agents` (free). Add `sessions.chat.codexAgent.enabled` + `CodexSessionType` to `CopilotChatSessionsProvider` in Phase 6 so codex appears in the chat-window picker too. | Parity with Claude. |
+| 13 | **Session-type picker: use the AHP dynamic provider path.** Agents window and VS Code chat-window pickers derive Codex from `rootState.agents` when `chat.agentHost.codexAgent.path` registers the `codex` provider. No separate `sessions.chat.codexAgent.enabled` setting is needed for the agent-host-protocol surface. | Avoids confusing the AHP Codex provider with extension-host Claude/Copilot session providers. |
 | 14 | **Tool-call fidelity: Level 2.** Generic in Phase 2; dedicated cards (shell / file edit / web fetch / search) in Phase 6. **Plan/diff streaming integration with editing session is out of scope.** | Match user value to effort. |
 | 15 | **Cancellation:** `turn/interrupt`, no process kill. Keep streamed content; turn transitions to `cancelled`. No client-side timeout — wait for codex's response indefinitely. Late-arriving `turn/completed` wins. | Simple, predictable. |
 | 16 | **Steering:** implement `setPendingMessages` → `turn/steer { threadId, input, expectedTurnId }` with full input list. On `expectedTurnId` mismatch, no-op (framework requeues via normal `sendMessage`). | Phase 2 essential — primary mid-turn UX. |
@@ -227,7 +227,7 @@ All three registered in the settings contribution file added in `f3831aeef7d`. F
 
 ## Phase 6 — Polish
 
-**Goal.** Reasoning blocks, dedicated tool cards, dual-picker registration, prewarming, telemetry.
+**Goal.** Reasoning blocks, dedicated tool cards, dynamic picker visibility, prewarming, and diagnostics.
 
 **Deliverables.**
 
@@ -240,14 +240,9 @@ All three registered in the settings contribution file added in `f3831aeef7d`. F
    - `commandExecution` with `aggregatedOutput` on `item/completed` → final output rendered.
    - Anything else: fall through to generic.
 3. **`account/read` snapshot** at startup for telemetry / debugging only. We don't surface auth state.
-4. **CopilotChatSessionsProvider registration.** Add `sessions.chat.codexAgent.enabled` config (boolean, default true) and `CodexSessionType` entry in `copilotChatSessions.contribution.ts`, mirroring the Claude block.
+4. **Chat-window / Agents-window picker visibility.** Rely on dynamic agent-host registration from `rootState.agents`; Codex appears when `chat.agentHost.codexAgent.path` enables the AHP provider.
 5. **Prewarming.** Hold a small pool (1–2) of pre-`thread/start`'d threads in `CodexAgent`. Suppress their `thread/started` from sessions UI; republish when claimed. TTL ~60 s; refill after consume. Tests for: claim happy path, TTL expiry, empty-pool fallback to live `thread/start`, race between background prewarm and user-initiated session creation.
-6. **Telemetry events** (gated on `chat.agentHost.otel.enabled`):
-   - codex session created / completed / failed
-   - codex turn started / completed / failed / interrupted
-   - codex proxy handle acquired / released
-   - codex process spawned / crashed / restarted
-   - codex prewarm hit / miss / TTL eviction
+6. **Diagnostics.** Log Codex startup, account snapshot, request forwarding, notification triage, and prewarm lifecycle in the agent-host logs. Structured OTel spans remain a follow-up if the AHP telemetry contract grows a provider-event surface.
 7. **`thread/tokenUsage/updated`** → existing `SessionUsage` action for token-count UI.
 
 **Exit criteria.**
@@ -255,7 +250,7 @@ All three registered in the settings contribution file added in `f3831aeef7d`. F
 - Shell, file-edit, web-search cards render with proper UX.
 - Codex appears in the chat-window session-type picker.
 - New codex sessions feel instant (prewarmed).
-- Telemetry events visible in OTEL output.
+- Codex diagnostics visible in agent-host logs.
 
 **Decision lock-ins.** Decisions 5, 13, 14 (Level 2).
 

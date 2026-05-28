@@ -435,6 +435,26 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(state.currentTurnId, undefined);
 	});
 
+	test('turn/completed completes orphaned tool calls before completing the turn', () => {
+		const state = createCodexSessionMapState();
+		state.itemToToolCall.set('cmd_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'shell', output: 'partial output' });
+		const actions = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a', items: [], itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			},
+		});
+		assert.deepStrictEqual({ actions, remainingToolCalls: state.itemToToolCall.size }, {
+			actions: [
+				{ type: ActionType.SessionToolCallComplete, turnId: 'turn_a', toolCallId: 'tc_1', result: { success: false, pastTenseMessage: 'Stopped shell', content: [{ type: ToolResultContentType.Text, text: 'partial output' }], error: { message: 'Turn completed before the tool reported completion' } } },
+				{ type: ActionType.SessionTurnComplete, turnId: 'turn_a' },
+			],
+			remainingToolCalls: 0,
+		});
+	});
+
 	test('turn/completed with status=failed emits SessionError + SessionTurnComplete', () => {
 		const state = createCodexSessionMapState();
 		const actions = mapTurnCompleted(state, {

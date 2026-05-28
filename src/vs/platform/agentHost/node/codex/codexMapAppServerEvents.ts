@@ -690,11 +690,25 @@ export function mapTurnCompleted(
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
 	state.itemToReasoningPartId.clear();
+	const orphanedToolCalls = [...state.itemToToolCall.values()];
+	state.itemToToolCall.clear();
 	const turnId = params.turn.id;
 	const status = params.turn.status;
+	const orphanedToolCallActions: SessionAction[] = orphanedToolCalls.map(entry => ({
+		type: ActionType.SessionToolCallComplete,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		result: {
+			success: false,
+			pastTenseMessage: `Stopped ${entry.toolName}`,
+			content: entry.output ? [{ type: ToolResultContentType.Text as const, text: entry.output }] : undefined,
+			error: { message: status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion' },
+		},
+	}));
 	if (status === 'failed' && params.turn.error) {
 		const errMessage = params.turn.error.message ?? 'Codex turn failed';
 		return [
+			...orphanedToolCallActions,
 			{
 				type: ActionType.SessionError,
 				turnId,
@@ -710,9 +724,9 @@ export function mapTurnCompleted(
 		];
 	}
 	if (status === 'interrupted') {
-		return [{ type: ActionType.SessionTurnCancelled, turnId }];
+		return [...orphanedToolCallActions, { type: ActionType.SessionTurnCancelled, turnId }];
 	}
-	return [{ type: ActionType.SessionTurnComplete, turnId }];
+	return [...orphanedToolCallActions, { type: ActionType.SessionTurnComplete, turnId }];
 }
 
 /**

@@ -186,15 +186,19 @@ suite('CodexAppServerClient', () => {
 		}
 	});
 
-	test('unknown server notification is silently dropped', async () => {
+	test('unhandled server notification is dropped with a warning', async () => {
 		const peer = makeFakePeer();
-		const client = new CodexAppServerClient(peer.transport);
+		const logs: { level: string; message: string }[] = [];
+		const client = new CodexAppServerClient(peer.transport, (level, message) => logs.push({ level, message }));
 		try {
 			let invoked = false;
 			const handle = client.onNotification('thread/started', () => { invoked = true; });
 			peer.push({ method: 'made-up/method', params: { anything: 1 } });
 			await new Promise(r => setImmediate(r));
-			assert.strictEqual(invoked, false);
+			assert.deepStrictEqual({ invoked, logs }, {
+				invoked: false,
+				logs: [{ level: 'warn', message: 'dropping unhandled notification: made-up/method' }],
+			});
 			handle.dispose();
 		} finally {
 			client.dispose();

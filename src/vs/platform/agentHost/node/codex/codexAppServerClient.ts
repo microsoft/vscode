@@ -305,9 +305,10 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 	private _handleServerNotification(msg: ServerNotification): void {
 		const handler = this._notificationHandlers.get(msg.method);
 		if (!handler) {
-			// Tolerate unknown notifications (newer codex versions may add
-			// notifications we don't know about). Log + drop.
-			this._log('info', `dropping unknown notification: ${msg.method}`);
+			// Tolerate unhandled notifications (newer codex versions may add
+			// notifications we don't handle yet). Warn so every dropped method is
+			// intentionally triaged by CodexAgent instead of disappearing silently.
+			this._log('warn', `dropping unhandled notification: ${msg.method}`);
 			return;
 		}
 		try {

@@ -205,6 +205,8 @@ interface ICodexSession {
 	needsResume: boolean;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
 	lastPromptText: string;
+	/** True once the workbench has disposed this session. Guards background prewarm continuations. */
+	disposed: boolean;
 	/** In-flight background or foreground materialization, shared across callers. */
 	materializePromise: Promise<void> | undefined;
 	/** Whether the workbench-facing materialize event has been emitted. */
@@ -546,6 +548,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		// Wire global notification → SessionAction dispatch.
 		this._register(client.onNotification('thread/started', () => { /* no-op: createSession awaits the request response */ }));
+		this._registerIgnoredNotifications(client);
 		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => mapTurnStarted(s.mapState, params, s.lastPromptText))));
 		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => mapItemStarted(s.mapState, params))));
 		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, params))));
@@ -580,6 +583,22 @@ export class CodexAgent extends Disposable implements IAgent {
 		));
 
 		return { client, proxyHandle, child };
+	}
+
+	private _registerIgnoredNotifications(client: ICodexAppServerClient): void {
+		const ignored = [
+			'thread/status/changed',
+			'thread/settings/updated',
+			'thread/goal/updated',
+			'thread/goal/cleared',
+			'account/updated',
+			'account/rateLimits/updated',
+			'remoteControl/status/changed',
+			'serverRequest/resolved',
+		] as const;
+		for (const method of ignored) {
+			this._register(client.onNotification(method, () => { /* intentionally ignored */ }));
+		}
 	}
 
 	private async _logAccountSnapshot(client: ICodexAppServerClient): Promise<void> {
@@ -753,6 +772,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			currentTurnId: undefined,
 			needsResume: false,
 			lastPromptText: '',
+			disposed: false,
 			materializePromise: undefined,
 			materializedEventFired: false,
 			prewarmTimer: undefined,
@@ -773,6 +793,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `sendMessage` before the first `turn/start`.
 	 */
 	private async _materializeIfNeeded(session: ICodexSession, fireMaterializedEvent = true): Promise<void> {
+		if (session.disposed) {
+			return;
+		}
 		if (session.threadId !== undefined) {
 			if (fireMaterializedEvent) {
 				this._fireMaterialized(session);
@@ -796,6 +819,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _materialize(session: ICodexSession): Promise<void> {
+		if (session.disposed) {
+			return;
+		}
 		if (!session.workingDirectory) {
 			throw new Error(`Cannot materialize codex session ${session.sessionId}: no working directory`);
 		}
@@ -810,12 +836,24 @@ export class CodexAgent extends Disposable implements IAgent {
 				web_search: narrowWebSearchMode(config[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 			},
 		});
-		session.threadId = startResult.thread.id;
+		const threadId = startResult.thread.id;
+		if (session.disposed) {
+			try {
+				await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+			} catch (err) {
+				this._logService.info(`[Codex:${threadId}] thread/unsubscribe after disposed prewarm failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			return;
+		}
+		session.threadId = threadId;
 		this._logService.info(`[Codex DEBUG] materialized session=${session.sessionUri.toString()} threadId=${session.threadId}`);
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
+		if (session.disposed) {
+			return;
+		}
 		if (session.materializedEventFired) {
 			return;
 		}
@@ -846,7 +884,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _expirePrewarm(session: ICodexSession): Promise<void> {
-		if (session.prewarmClaimed || session.threadId === undefined) {
+		if (session.disposed || session.prewarmClaimed || session.threadId === undefined) {
 			return;
 		}
 		const threadId = session.threadId;
@@ -862,7 +900,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _persistMaterializedSession(session: ICodexSession): void {
-		if (!session.threadId) {
+		if (session.disposed || !session.threadId) {
 			return;
 		}
 		// Persist only once the prewarmed thread is claimed by a turn. This
@@ -1043,6 +1081,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		session.disposed = true;
+		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
 		if (session.threadId !== undefined) {
 			this._sessionIdByThreadId.delete(session.threadId);
@@ -1115,6 +1155,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				currentTurnId: undefined,
 				needsResume: true,
 				lastPromptText: '',
+				disposed: false,
 				materializePromise: undefined,
 				materializedEventFired: true,
 				prewarmTimer: undefined,
