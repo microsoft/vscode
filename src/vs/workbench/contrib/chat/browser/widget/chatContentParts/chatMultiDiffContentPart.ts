@@ -16,6 +16,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -60,6 +61,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -231,6 +233,34 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		if (!this.readOnly) {
 			store.add(this.list.onDidOpen((e) => {
 				if (!e.element) {
+					return;
+				}
+
+				// Phone-layout shortcut: open the MobileDiffView overlay (registered in
+				// vs/sessions) instead of the inline diff editor. The command id is
+				// referenced by string to avoid a cross-layer import.
+				if (this.contextKeyService.getContextKeyValue<boolean>('sessionsIsPhoneLayout') === true && e.element.diff) {
+					const items = this.list.length > 0
+						? Array.from({ length: this.list.length }, (_, i) => this.list.element(i))
+						: [];
+					// Shape mirrors IFileDiffViewData in
+					// vs/sessions/browser/parts/mobile/contributions/mobileDiffView.ts.
+					const siblings = items
+						.filter(it => it.diff)
+						.map(it => ({
+							originalURI: it.diff!.originalURI,
+							modifiedURI: it.diff!.modifiedURI,
+							identical: it.diff!.identical,
+							added: it.diff!.added,
+							removed: it.diff!.removed,
+						}));
+					const tappedUri = e.element.diff.modifiedURI;
+					const index = Math.max(0, siblings.findIndex(s => s.modifiedURI?.toString() === tappedUri.toString()));
+					this.commandService.executeCommand('sessions.mobile.openDiffView', {
+						diff: siblings[index] ?? siblings[0],
+						siblings,
+						index,
+					});
 					return;
 				}
 

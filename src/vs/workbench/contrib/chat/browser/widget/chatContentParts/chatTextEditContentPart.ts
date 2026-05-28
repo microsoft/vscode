@@ -19,6 +19,8 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { DefaultModelSHA1Computer } from '../../../../../../editor/common/services/modelService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../../../common/model/chatModel.js';
@@ -49,7 +51,9 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		diffEditorPool: DiffEditorPool,
 		currentWidth: number,
-		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService
+		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 		const element = context.element;
@@ -107,6 +111,35 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 			this.comparePart.object.render(data, currentWidth, cts.token);
 
 			this.domNode = this.comparePart.object.element;
+
+			// Phone-layout shortcut: open the MobileDiffView overlay (registered in
+			// vs/sessions) instead of the inline diff editor. The command id is
+			// referenced by string to avoid a cross-layer import.
+			//
+			// Note: only `chatTextEdit.uri` is available as a real file URI here —
+			// the "modified" side lives in an in-memory text model
+			// (`vscodeChatCodeBlock://...`). Pass the file URI for both sides so
+			// the overlay opens deterministically; the diff content there will
+			// reflect the file's current on-disk state, which is acceptable as a
+			// routing target. Refining the per-edit content is out of scope for
+			// this phase.
+			this._register(dom.addDisposableListener(this.domNode, 'click', e => {
+				if (contextKeyService.getContextKeyValue<boolean>('sessionsIsPhoneLayout') !== true) {
+					return;
+				}
+				e.preventDefault();
+				e.stopPropagation();
+				// Shape mirrors IFileDiffViewData in
+				// vs/sessions/browser/parts/mobile/contributions/mobileDiffView.ts.
+				const diff = {
+					originalURI: chatTextEdit.uri,
+					modifiedURI: chatTextEdit.uri,
+					identical: false,
+					added: 0,
+					removed: 0,
+				};
+				commandService.executeCommand('sessions.mobile.openDiffView', { diff });
+			}, /* useCapture */ true));
 		}
 	}
 
