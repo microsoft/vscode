@@ -405,15 +405,6 @@ configurationRegistry.registerConfiguration({
 			default: 'word',
 			tags: ['experimental'],
 		},
-		[ChatConfiguration.LanguageModelProviderExtensionDiscovery]: {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.languageModelProviderExtensions.enabled', "Enables discovering installable language-model provider extensions from the language model management UI."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),

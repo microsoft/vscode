@@ -149,7 +149,6 @@ suite('ChatModelsWidget', () => {
 			const actions = buildAddModelsDropdownActions(
 				vendors,
 				false,
-				true,
 				() => { vendorRunCount++; },
 				() => { discoveryRunCount++; }
 			);
@@ -165,7 +164,7 @@ suite('ChatModelsWidget', () => {
 			});
 		});
 
-		test('flag disabled: returns only existing configurable vendor actions', async () => {
+		test('returns configurable vendor actions before the install/discovery action', async () => {
 			const vendors = [
 				createVendor('zebra', 'Zebra'),
 				createVendor('acme', 'Acme'),
@@ -178,7 +177,6 @@ suite('ChatModelsWidget', () => {
 			const actions = buildAddModelsDropdownActions(
 				vendors,
 				true,
-				false,
 				v => { ran.push(v.vendor); },
 				() => { discoveryRunCount++; }
 			);
@@ -195,18 +193,17 @@ suite('ChatModelsWidget', () => {
 				ran,
 				discoveryRunCount,
 			}, {
-				shape: ['enable-acme', 'enable-zebra', 'enable-customoai', 'separator', 'enable-customendpoint'],
+				shape: ['enable-acme', 'enable-zebra', 'enable-customoai', 'separator', 'enable-customendpoint', 'separator', INSTALL_ACTION_ID],
 				ran: ['acme', 'zebra', 'customoai', 'customendpoint'],
-				discoveryRunCount: 0,
+				discoveryRunCount: 1,
 			});
 		});
 
-		test('flag enabled with no configurable vendors: only the install/discovery action is returned', async () => {
+		test('with no configurable vendors: only the install/discovery action is returned', async () => {
 			let discoveryRunCount = 0;
 
 			const actions = buildAddModelsDropdownActions(
 				[],
-				true,
 				true,
 				() => assert.fail('vendor run should not be called'),
 				() => { discoveryRunCount++; }
@@ -226,7 +223,7 @@ suite('ChatModelsWidget', () => {
 			});
 		});
 
-		test('flag enabled with configurable vendors: vendor actions come first followed by a separator and the install/discovery action', async () => {
+		test('with configurable vendors: vendor actions come first followed by a separator and the install/discovery action', async () => {
 			const vendors = [
 				createVendor('acme', 'Acme'),
 				createVendor('customendpoint', 'Custom Endpoint'),
@@ -236,7 +233,6 @@ suite('ChatModelsWidget', () => {
 
 			const actions = buildAddModelsDropdownActions(
 				vendors,
-				true,
 				true,
 				v => { ran.push(v.vendor); },
 				() => { discoveryRunCount++; }

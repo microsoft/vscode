@@ -39,8 +39,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatConfiguration, CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -160,7 +159,6 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 export function buildAddModelsDropdownActions(
 	configurableVendors: ILanguageModelProviderDescriptor[],
 	supportsAddingModels: boolean,
-	extensionDiscoveryEnabled: boolean,
 	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => unknown,
 	runExtensionDiscoveryAction: () => unknown,
 ): IAction[] {
@@ -195,19 +193,17 @@ export function buildAddModelsDropdownActions(
 		actions.push(toVendorAction(customEndpointVendor));
 	}
 
-	if (extensionDiscoveryEnabled) {
-		if (actions.length > 0) {
-			actions.push(new Separator());
-		}
-		actions.push(toAction({
-			id: 'workbench.models.installProviderExtensions',
-			label: localize('models.installProviderExtensions', "Browse Marketplace for Model Providers..."),
-			class: ThemeIcon.asClassName(Codicon.extensions),
-			run: async () => {
-				await runExtensionDiscoveryAction();
-			}
-		}));
+	if (actions.length > 0) {
+		actions.push(new Separator());
 	}
+	actions.push(toAction({
+		id: 'workbench.models.installProviderExtensions',
+		label: localize('models.installProviderExtensions', "Browse Marketplace for Model Providers..."),
+		class: ThemeIcon.asClassName(Codicon.extensions),
+		run: async () => {
+			await runExtensionDiscoveryAction();
+		}
+	}));
 
 	return actions;
 }
@@ -1092,7 +1088,6 @@ export class ChatModelsWidget extends Disposable {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
@@ -1227,11 +1222,6 @@ export class ChatModelsWidget extends Disposable {
 		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.viewModel.refresh()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
-				this.updateAddModelsButton();
-			}
-		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.LanguageModelProviderExtensionDiscovery)) {
 				this.updateAddModelsButton();
 			}
 		}));
@@ -1558,12 +1548,9 @@ export class ChatModelsWidget extends Disposable {
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);
 
-		const extensionDiscoveryEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.LanguageModelProviderExtensionDiscovery) === true;
-
 		this.dropdownActions = buildAddModelsDropdownActions(
 			configurableVendors,
 			supportsAddingModels,
-			extensionDiscoveryEnabled,
 			vendor => this.addModelsForVendor(vendor),
 			() => this.openLanguageModelProviderExtensionsSearch()
 		);
