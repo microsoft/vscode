@@ -728,10 +728,11 @@ export class ChatStatusDashboard extends DomWidget {
 		const indicatorElement = $('div.quota-indicator', undefined,
 			$('div.quota-title', undefined,
 				$('span', undefined, isCompact ? compactTitle : label),
-				resetValue
+				...isCompact ? [] : [resetValue]
 			),
 			$('div.quota-details', undefined,
-				quotaPercentage
+				quotaPercentage,
+				...isCompact ? [resetValue] : []
 			),
 			...isCompact ? [] : [$('div.quota-bar', undefined, quotaBit)]
 		);

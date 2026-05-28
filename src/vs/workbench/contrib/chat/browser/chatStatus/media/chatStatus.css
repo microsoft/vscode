@@ -255,6 +255,7 @@
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
 	font-size: 12px;
+	font-weight: normal;
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
