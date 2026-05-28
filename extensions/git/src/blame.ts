@@ -153,6 +153,8 @@ class GitBlameInformationCache {
 	}
 }
 
+const commitHashRegex = /^([0-9a-f]{40}|[0-9a-f]{64})$/i;
+
 export class GitBlameController {
 	private readonly _subjectMaxLength = 50;
 
@@ -419,7 +421,7 @@ export class GitBlameController {
 			// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit.
 			// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
 			// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
-			if (/^[0-9a-f]{40}$/i.test(ref) || ref === 'HEAD' || ref === '~') {
+			if (commitHashRegex.test(ref) || ref === 'HEAD' || ref === '~') {
 				workingTreeChanges = allChanges = [];
 				workingTreeAndIndexChanges = undefined;
 			} else if (ref === '') {
@@ -478,7 +480,7 @@ export class GitBlameController {
 		} else {
 			// Resource with the `git` scheme
 			const { ref } = fromGitUri(textEditor.document.uri);
-			commit = /^[0-9a-f]{40}$/i.test(ref) ? ref : repository.HEAD.commit;
+			commit = commitHashRegex.test(ref) ? ref : repository.HEAD.commit;
 		}
 
 		// Git blame information
