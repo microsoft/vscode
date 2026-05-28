@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -125,6 +125,38 @@ suite('ChangesetSessionCoordinator', () => {
 			acquisitions: ['file:///repo'],
 			rootLookups: ['file:///repo/worktree'],
 		});
+	});
+
+	test('defers session changeset refresh until the working directory is known', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, undefined, false);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildSessionChangesetUri(session)));
+		await tick();
+
+		const summary = environment.stateManager.getSessionState(session)!.summary;
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.coordinator.onSessionMaterialized(session);
+		await tick();
+
+		assert.deepStrictEqual(environment.changesets.sessionRefreshes, [session]);
+	});
+
+	test('drops pending session changeset refresh when the last subscriber leaves', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		const changeset = buildSessionChangesetUri(session);
+		createSession(environment.stateManager, session, undefined, false);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+		const summary = environment.stateManager.getSessionState(session)!.summary;
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.coordinator.onSessionMaterialized(session);
+		await tick();
+
+		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {

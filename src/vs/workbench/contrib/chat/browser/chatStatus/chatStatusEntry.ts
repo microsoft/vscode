@@ -189,7 +189,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
+					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions limit reached");
 				} else {
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}

@@ -21,6 +21,7 @@ import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -55,6 +56,56 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
 
 const $ = DOM.$;
+
+// Sentinel values stored on the row template's `currentIconSelector` when the
+// icon container holds a pixel spinner (vs. a codicon). Distinct values per
+// spinner variant so transitions between variants correctly rebuild the DOM,
+// while transitions that keep the same variant just update the color and avoid
+// restarting the CSS animation.
+const PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
+const PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
+
+// Duration of the cross-fade when the icon swaps to a different glyph/variant.
+const ICON_SWAP_FADE_MS = 180;
+
+// Marker dataset key on the outgoing element during a cross-fade swap. Lets a
+// follow-up swap (before the previous fade finishes) skip re-processing it.
+const ICON_FADING_OUT_ATTR = 'iconFadingOut';
+
+/**
+ * Swap the contents of `container` to `newChild` with a brief opacity cross-fade.
+ * Outgoing children (if any) are taken out of normal flow via `position: absolute`
+ * so the new child can settle into its normal grid/flex slot during the fade.
+ * The container must be `position: relative` for the absolute positioning to anchor.
+ *
+ * The provided `store` owns the removal timer for the outgoing element so the
+ * swap is cleaned up if the row/template is disposed mid-fade. Safe to call
+ * repeatedly: rapid successive swaps each mark their own outgoing element and
+ * never re-process one already fading out.
+ */
+function swapIconWithCrossfade(container: HTMLElement, newChild: HTMLElement, animate: boolean, store: DisposableStore): void {
+	if (!animate) {
+		DOM.clearNode(container);
+		container.appendChild(newChild);
+		return;
+	}
+	for (const existing of Array.from(container.children) as HTMLElement[]) {
+		if (existing.dataset[ICON_FADING_OUT_ATTR] === '1') {
+			continue;
+		}
+		existing.dataset[ICON_FADING_OUT_ATTR] = '1';
+		existing.style.position = 'absolute';
+		existing.style.top = '0';
+		existing.style.left = '0';
+		existing.style.transition = `opacity ${ICON_SWAP_FADE_MS}ms ease`;
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(existing), () => { existing.style.opacity = '0'; });
+		disposableTimeout(() => existing.remove(), ICON_SWAP_FADE_MS + 40, store);
+	}
+	newChild.style.opacity = '0';
+	newChild.style.transition = `opacity ${ICON_SWAP_FADE_MS}ms ease`;
+	container.appendChild(newChild);
+	DOM.scheduleAtNextAnimationFrame(DOM.getWindow(newChild), () => { newChild.style.opacity = '1'; });
+}
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
@@ -313,39 +364,60 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			this._motionReducedSignal.read(reader);
 
-			// In-progress sessions get the shared pixel-art spinner (when motion is allowed)
-			// instead of the codicon `loading~spin`. Use a sentinel selector key so subsequent
-			// renders with the same state skip rebuilding the DOM and don't restart the animation.
-			const isPixelSpinner = sessionStatus === SessionStatus.InProgress && !this.accessibilityService.isMotionReduced();
-			if (isPixelSpinner) {
-				const pixelSpinnerKey = '__pixel_spinner__';
-				const iconColor = asCssVariable('textLink.foreground');
-				if (template.currentIconSelector !== pixelSpinnerKey) {
-					template.currentIconSelector = pixelSpinnerKey;
-					DOM.clearNode(template.iconContainer);
-					const spinner = createPixelSpinner(template.iconContainer);
-					spinner.style.color = iconColor;
-				} else {
-					const spinner = template.iconContainer.firstElementChild as HTMLElement | null;
-					if (spinner) {
-						spinner.style.color = iconColor;
+			// In-progress and needs-input sessions get the shared pixel-art spinner (when
+			// motion is allowed) instead of the codicon `loading~spin` / pulsing dot. The
+			// two states use different spinner variants (and colors), so cache the variant
+			// key on the template — same-variant re-renders only update color, transitions
+			// between variants rebuild the DOM. Note: row recycling (template reused for a
+			// different session) goes through the same swap path, so a recycled row briefly
+			// cross-fades from the previous session's icon to the new one — preferred over a
+			// snap.
+			const motionReduced = this.accessibilityService.isMotionReduced();
+			// Returns true when the icon was swapped, false when the existing one is reused.
+			// Caller is responsible for keeping color in sync on the no-swap path.
+			const applyIconSwap = (key: string, createIcon: () => HTMLElement): boolean => {
+				if (template.currentIconSelector === key) {
+					return false;
+				}
+				const animate = template.currentIconSelector !== undefined;
+				template.currentIconSelector = key;
+				swapIconWithCrossfade(template.iconContainer, createIcon(), animate, template.disposables);
+				return true;
+			};
+			const recolorActiveIcon = (color: string): void => {
+				for (const child of Array.from(template.iconContainer.children) as HTMLElement[]) {
+					if (child.dataset[ICON_FADING_OUT_ATTR] !== '1') {
+						child.style.color = color;
+						break;
 					}
+				}
+			};
+
+			const isPixelSpinner = (sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput) && !motionReduced;
+			if (isPixelSpinner) {
+				const isNeedsInput = sessionStatus === SessionStatus.NeedsInput;
+				const variant: 'grid' | 'ring' = isNeedsInput ? 'ring' : 'grid';
+				const spinnerKey = isNeedsInput ? PIXEL_SPINNER_RING_KEY : PIXEL_SPINNER_GRID_KEY;
+				const iconColor = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
+				const swapped = applyIconSwap(spinnerKey, () => {
+					const spinner = createPixelSpinner(undefined, { variant });
+					spinner.style.color = iconColor;
+					return spinner;
+				});
+				if (!swapped) {
+					recolorActiveIcon(iconColor);
 				}
 			} else {
 				const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 				const iconSelector = ThemeIcon.asCSSSelector(icon);
 				const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
-
-				if (iconSelector !== template.currentIconSelector) {
-					template.currentIconSelector = iconSelector;
-					DOM.clearNode(template.iconContainer);
-					const iconSpan = DOM.append(template.iconContainer, $(`span${iconSelector}`));
+				const swapped = applyIconSwap(iconSelector, () => {
+					const iconSpan = $(`span${iconSelector}`);
 					iconSpan.style.color = iconColor;
-				} else {
-					const iconSpan = template.iconContainer.firstElementChild as HTMLElement | null;
-					if (iconSpan) {
-						iconSpan.style.color = iconColor;
-					}
+					return iconSpan;
+				});
+				if (!swapped) {
+					recolorActiveIcon(iconColor);
 				}
 			}
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
@@ -382,7 +454,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const isWorkspaceSession = workspace &&
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -560,7 +632,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				// When motion is allowed, the pixel spinner is rendered directly in renderSession
 				// and this method is not consulted; here we only provide the reduced-motion fallback.
 				return { ...Codicon.sessionInProgressCompact, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput: return { ...Codicon.circleFilledCompact, color: themeColorFromId('list.warningForeground') };
+			case SessionStatus.NeedsInput:
+				// Same as above — pixel spinner replaces the pulsing dot when motion is allowed.
+				return { ...Codicon.circleFilledCompact, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error: return { ...Codicon.errorCompact, color: themeColorFromId('errorForeground') };
 			default:
 				if (pullRequestIcon) {

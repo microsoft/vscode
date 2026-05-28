@@ -827,16 +827,20 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
-					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
+				calloutText.textContent = isEnterpriseUser
+					? localize('quotaAdditionalUsageActiveEnterprise', "You've used your included credits. Your organization covers additional usage, so you can keep working.")
+					: isUsageBasedBilling
+						? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
+						: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
 			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
-					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
+				calloutText.textContent = isEnterpriseUser
+					? localize('quotaAdditionalUsageApproachingEnterprise', "You're approaching your included credits. Your organization covers additional usage, so there's no interruption.")
+					: isUsageBasedBilling
+						? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
+						: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
 			} else if ((maxUsedPercentage >= 100 || isPooledQuotaExhausted) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';

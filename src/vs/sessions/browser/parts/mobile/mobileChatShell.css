@@ -230,8 +230,8 @@
 	height: 100% !important;
 }
 
-/* Hide the session composite bar (Copilot CLI / Approvals / Branch) on phone */
-.agent-sessions-workbench.phone-layout .session-composite-bar {
+/* Hide the desktop chat tab strip on phone. */
+.agent-sessions-workbench.phone-layout .chat-composite-bar {
 	display: none;
 }
 

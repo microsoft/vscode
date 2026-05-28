@@ -62,6 +62,8 @@ function createEntitlementService(opts: {
 		anonymous: false,
 		onDidChangeAnonymous: Event.None,
 		anonymousObs: observableValue({}, false),
+		acceptQuotas: () => { },
+		clearQuotas: () => { },
 		markAnonymousRateLimited: () => { },
 		markSetupCompleted: () => { },
 		setForceHidden: () => { },
@@ -593,6 +595,40 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
+	});
+
+	test('Callout: Enterprise — shows org-specific wording when approaching limit with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'You\'re approaching your included credits. Your organization covers additional usage, so there\'s no interruption.');
+	});
+
+	test('Callout: Business — shows org-specific wording when approaching limit with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'You\'re approaching your included credits. Your organization covers additional usage, so there\'s no interruption.');
+	});
+
+	test('Callout: Enterprise — shows org-specific wording when quota exhausted with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'You\'ve used your included credits. Your organization covers additional usage, so you can keep working.');
 	});
 
 	// --- LIVE UPDATES ---
