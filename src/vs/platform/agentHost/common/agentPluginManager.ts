@@ -53,4 +53,3 @@ export interface IAgentPluginManager {
 	 */
 	syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], progress?: (status: Customization) => void): Promise<ISyncedCustomization[]>;
 }
-
