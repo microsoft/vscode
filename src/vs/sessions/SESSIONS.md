@@ -144,6 +144,13 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → isNewChatSession context → false
+
+4. User sends a follow-up from the active session chat widget
+   → ChatView loads the chat model for the active IChat resource
+   → For contributed chat-session resources (anything other than local chat),
+     ChatView locks the embedded ChatWidget to the session contribution
+   → ChatWidget sends follow-ups with agentIdSilent set to that contribution,
+     preserving provider routing (for example agent-host-codex) across turns
 ```
 
 ### Session Change Propagation

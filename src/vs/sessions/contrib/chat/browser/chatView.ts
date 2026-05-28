@@ -14,7 +14,9 @@ import { inputBackground } from '../../../../platform/theme/common/colorRegistry
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -91,6 +93,7 @@ export class ChatView extends AbstractChatView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -150,12 +153,17 @@ export class ChatView extends AbstractChatView {
 		this._loadCts.value = cts;
 		const token = cts.token;
 
-		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
+		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(async ref => {
 			if (token.isCancellationRequested || !ref) {
 				ref?.dispose();
 				return;
 			}
 			this._modelRef.value = ref;
+			await this.updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			if (token.isCancellationRequested) {
+				this._modelRef.value = undefined;
+				return;
+			}
 			this._widget.setModel(ref.object);
 		}, err => {
 			if (!token.isCancellationRequested) {
@@ -165,6 +173,32 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+	}
+
+	private async updateWidgetLockState(sessionType: string): Promise<void> {
+		if (sessionType === localChatSessionType) {
+			this._widget.unlockFromCodingAgent();
+			return;
+		}
+
+		let canResolve = false;
+		try {
+			canResolve = await this.chatSessionsService.canResolveChatSession(sessionType);
+		} catch (error) {
+			this.logService.warn(`Failed to resolve chat session type '${sessionType}' for locking`, error);
+		}
+
+		if (!canResolve) {
+			this._widget.unlockFromCodingAgent();
+			return;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+		if (contribution) {
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+		} else {
+			this._widget.unlockFromCodingAgent();
+		}
 	}
 
 	override toJSON(): object {
