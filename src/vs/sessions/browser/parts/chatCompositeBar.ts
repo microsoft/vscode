@@ -29,6 +29,8 @@ import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -76,6 +78,7 @@ export class ChatCompositeBar extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -225,6 +228,13 @@ export class ChatCompositeBar extends Disposable {
 			labelEl.textContent = title;
 		}));
 		tab.appendChild(labelEl);
+
+		// Delayed hover showing the full chat title (useful when the title is truncated)
+		this._tabDisposables.add(this._hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			tab,
+			() => chat.title.get(),
+		));
 
 		// Track untitled state for styling (dirty dot + close button)
 		this._tabDisposables.add(autorun(reader => {

@@ -287,7 +287,7 @@ export function modelPickerStorageKey(sessionType: string): string {
 
 export function shouldShowSessionManageModelsAction(sessionsManagementService: ISessionsManagementService): boolean {
 	const session = sessionsManagementService.activeSession.get();
-	return session?.providerId === COPILOT_PROVIDER_ID && session.sessionType === SessionType.Local;
+	return session?.sessionType === SessionType.Local;
 }
 
 function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {

@@ -24,7 +24,7 @@ import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -39,6 +39,7 @@ import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey,
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { dirname } from '../../../base/common/resources.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -872,7 +873,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * the customization, but should not need to write them. Grants are
 	 * deduped per connection and revoked when the connection closes.
 	 */
-	private _grantImplicitReadsForCustomizations(refs: readonly CustomizationRef[]): void {
+	private _grantImplicitReadsForCustomizations(refs: readonly ClientPluginCustomization[]): void {
 		for (const ref of refs) {
 			let uri: URI;
 			try {
@@ -880,14 +881,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} catch {
 				continue;
 			}
-			const key = uri.toString();
+			const grantUri = dirname(uri);
+			const key = grantUri.toString();
 			if (this._grantedCustomizationUris.has(key)) {
 				continue;
 			}
 			this._grantedCustomizationUris.add(key);
 			// Disposable is owned by the permission service; cleared on
 			// connectionClosed.
-			this._permissionService.grantImplicitRead(this._address, uri);
+			this._permissionService.grantImplicitRead(this._address, grantUri);
 		}
 	}
 

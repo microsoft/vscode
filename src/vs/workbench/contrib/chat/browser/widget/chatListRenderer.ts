@@ -90,7 +90,7 @@ import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
-import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getEffectiveThinkingDisplayMode } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
@@ -356,8 +356,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const originalStoredHeight = template.currentElement.currentRenderedHeight;
 		template.currentElement.currentRenderedHeight = normalizedHeight;
-		if (template.currentElement !== this._elementBeingRendered && typeof originalStoredHeight === 'number') {
+		if (template.currentElement === this._elementBeingRendered) {
+			return;
+		}
+
+		if (typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
+		} else {
+			const element = template.currentElement;
+			const scheduledHeight = normalizedHeight;
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
+				if (template.currentElement !== element || element.currentRenderedHeight !== scheduledHeight) {
+					return;
+				}
+				this._onDidChangeItemHeight.fire({ element, height: scheduledHeight });
+			});
 		}
 	}
 
@@ -2174,7 +2187,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!lastThinking) {
 			return;
 		}
-		const style = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
 			lastThinking.collapseContent();
 		}

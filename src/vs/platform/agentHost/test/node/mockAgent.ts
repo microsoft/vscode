@@ -14,7 +14,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -55,13 +55,13 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
-	readonly setClientCustomizationsCalls: { clientId: string; customizations: CustomizationRef[] }[] = [];
-	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
+	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
+	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
-	customizations: CustomizationRef[] = [];
+	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
-	getSessionCustomizations?: (session: URI) => Promise<readonly SessionCustomization[]>;
+	getSessionCustomizations?: (session: URI) => Promise<readonly Customization[]>;
 
 	/**
 	 * Configurable session history. Tests construct {@link IHistoryRecord}
@@ -165,17 +165,16 @@ export class MockAgent implements IAgent {
 		return true;
 	}
 
-	getCustomizations(): CustomizationRef[] {
+	getCustomizations(): Customization[] {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
-				customization: c,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
+				...c,
+				load: { kind: CustomizationLoadStatus.Loaded },
 			},
 		}));
 		this._onDidSessionProgress.fire({
@@ -189,8 +188,8 @@ export class MockAgent implements IAgent {
 		return results;
 	}
 
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
-		this.setCustomizationEnabledCalls.push({ uri, enabled });
+	setCustomizationEnabled(id: string, enabled: boolean): void {
+		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
 	setClientTools(): void { }

@@ -325,7 +325,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.triggerSetupForceSignIn',
-					title: localize2('forceSignIn', "Sign in to use AI features")
+					title: localize2('forceSignIn', "Sign in to use GitHub Copilot")
 				});
 			}
 

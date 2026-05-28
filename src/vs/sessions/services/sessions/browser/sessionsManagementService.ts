@@ -24,6 +24,7 @@ import { SessionsNavigation } from './sessionNavigation.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { SessionsTelemetryReporter } from './sessionsTelemetryReporter.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -72,6 +73,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	private readonly _navigation: SessionsNavigation;
+	private readonly _telemetryReporter: SessionsTelemetryReporter;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -83,6 +85,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._telemetryReporter = this._register(this.instantiationService.createInstance(SessionsTelemetryReporter));
 
 		// Bind context key to active session state.
 		// isNewSession is false when there are any established sessions in the model.
@@ -135,7 +139,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _handleActiveSessionContextKeys(session: IActiveSession | undefined): void {
 		// Update context keys from session data
-		this._isNewChatSessionContext.set(session === undefined);
+		// IsNewChatSessionContext is true when no active session exists, OR when the
+		// active session is still pending (created but not yet sent for the first time).
+		// Scoping to the active session avoids flipping into "new chat" mode while
+		// viewing a different established session.
+		this._isNewChatSessionContext.set(session === undefined || session.sessionId === this._pendingNewSession?.sessionId);
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
@@ -453,8 +461,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
+	private _logRequestSent(session: ISession, chat: IChat, isNewSession: boolean, options: ISendRequestOptions): void {
+		const visibleSessionsCount = this._visibility.visibleSessions.get().filter(s => s !== undefined).length;
+		this._telemetryReporter.logRequestSent(session, chat, isNewSession, options, this.getSessions(), visibleSessionsCount);
+	}
+
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		this._pendingNewSession = undefined;
+		this._isNewChatSessionContext.set(false);
+
+		// Kick off the workspace file-count fetch now so it has time to resolve
+		// while the provider creates the chat and sends the request. The reporter
+		// will pick the in-flight result up under the updated session id when
+		// _logRequestSent runs below.
+		this._telemetryReporter.prewarmWorkspaceFileCount(session.workspace.get());
 
 		const setActiveChatToLast = () => {
 			const activeSession = this._visibility.activeSession.get();
@@ -492,8 +512,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this._visibility.updateSession(tmpSession, updatedSession);
 				setActiveChatToLast();
 			}
-		} catch (error) {
-			this.logService.error(`[SessionsManagement] sendNewChatRequest: ${error}`);
+
+			this._logRequestSent(updatedSession, session.mainChat.get(), true, options);
 		} finally {
 			chatsListener.dispose();
 		}
@@ -501,6 +521,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
 		this._pendingNewSession = undefined;
+
+		// Kick off the workspace file-count fetch now so it has time to resolve
+		// while the provider sends the request.
+		this._telemetryReporter.prewarmWorkspaceFileCount(session.workspace.get());
 
 		// Keep the sent chat as the active chat
 		this._visibility.setActiveChat(session, chat);
@@ -515,6 +539,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 			this._visibility.updateSession(session, updatedSession);
 		}
+
+		this._logRequestSent(updatedSession, chat, false, options);
 	}
 
 	openNewSessionView(): void {
@@ -576,8 +602,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._visibility.toggleStickiness(session);
 	}
 
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void {
-		this._visibility.insertAt(session, targetSessionId, side);
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
+		this._visibility.insertAt(session, targetSessionId, side, activate);
 	}
 
 	closeSession(session: ISession): void {
@@ -816,22 +842,27 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
+		this._telemetryReporter.logSessionArchived(session);
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
+		this._telemetryReporter.logSessionUnarchived(session);
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
 	}
 
 	async deleteSession(session: ISession): Promise<void> {
+		this._telemetryReporter.logSessionDeleted(session);
 		await this._getProvider(session)?.deleteSession(session.sessionId);
 	}
 
 	async deleteChat(session: ISession, chatUri: URI): Promise<void> {
+		this._telemetryReporter.logChatDeleted(session);
 		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri);
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
+		this._telemetryReporter.logChatRenamed(session);
 		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
 	}
 }

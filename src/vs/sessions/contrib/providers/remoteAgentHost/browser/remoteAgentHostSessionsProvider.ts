@@ -36,6 +36,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
@@ -192,11 +193,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 */
 	private _unpublished = false;
 
+
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -208,8 +210,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
