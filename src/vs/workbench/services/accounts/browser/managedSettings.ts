@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtraKnownMarketplaceEntry, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { IExtraKnownMarketplaceEntry } from '../../../../base/common/managedSettings.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 
 /**

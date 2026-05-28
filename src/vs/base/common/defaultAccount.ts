@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IExtraKnownMarketplaceEntry } from './managedSettings.js';
+
 export interface IQuotaSnapshotData {
 	readonly overage_count: number;
 	readonly overage_permitted: boolean;
@@ -79,14 +81,6 @@ export interface IPolicyData {
 	 */
 	readonly strictKnownMarketplaces?: boolean;
 }
-
-/**
- * A single enterprise-managed marketplace entry, preserving the marketplace
- * name (used as `displayLabel`) and the original `source` discriminator.
- */
-export type IExtraKnownMarketplaceEntry =
-	| { readonly name: string; readonly source: { readonly source: 'github'; readonly repo: string; readonly ref?: string } }
-	| { readonly name: string; readonly source: { readonly source: 'git'; readonly url: string; readonly ref?: string } };
 
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
