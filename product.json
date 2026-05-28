@@ -296,8 +296,7 @@
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"test-tech.skillhub",
 		"test-tech.testagent",
-		"cweijan.vscode-office",
-		"ms-ceintl.vscode-language-pack-zh-hans"
+		"cweijan.vscode-office"
 	],
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",

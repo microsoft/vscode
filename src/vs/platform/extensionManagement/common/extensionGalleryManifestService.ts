@@ -47,7 +47,7 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 				type: ExtensionGalleryResourceType.ExtensionQueryService
 			},
 			{
-				id: `${extensionsGallery.serviceUrl}/vscode/{publisher}/{name}/latest`,
+				id: `${extensionsGallery.serviceUrl}/{publisher}/{name}/latest`, //test_workbench_change - remove vscode path
 				type: ExtensionGalleryResourceType.ExtensionLatestVersionUri
 			},
 			{
