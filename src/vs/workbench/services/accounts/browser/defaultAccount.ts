@@ -865,6 +865,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		try {
 			const data = await asJson<IManagedSettingsResponse>(response);
+			this.logService.trace('[DefaultAccount] Managed settings raw response:', JSON.stringify(data ?? null));
 			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
 			// An empty response (`{}`) is a successful "no policy file present" signal.
 			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
