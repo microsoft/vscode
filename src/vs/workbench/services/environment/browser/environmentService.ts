@@ -266,8 +266,10 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
 
+	private _editSessionId: string | undefined;
 	@memoize
-	get editSessionId(): string | undefined { return this.options.editSessionId; }
+	get editSessionId(): string | undefined { return this._editSessionId ?? this.options.editSessionId; }
+	set editSessionId(value: string | undefined) { this._editSessionId = value; }
 
 	private payload: Map<string, string> | undefined;
 
