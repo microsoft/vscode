@@ -313,5 +313,10 @@
 		"nlsBaseUrl": "",
 		"publisherUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/publisher"
 	},
-	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes"
+	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes",
+	"extensionsAutoInstall": [
+		"test-tech.test-task-manager",
+		"ms-python.python",
+		"ms-python.debugpy"
+	]
 }
