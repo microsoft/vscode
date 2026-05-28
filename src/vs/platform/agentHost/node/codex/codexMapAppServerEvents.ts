@@ -9,6 +9,9 @@ import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, Tu
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
+import type { ReasoningSummaryPartAddedNotification } from './protocol/generated/v2/ReasoningSummaryPartAddedNotification.js';
+import type { ReasoningSummaryTextDeltaNotification } from './protocol/generated/v2/ReasoningSummaryTextDeltaNotification.js';
+import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/ReasoningTextDeltaNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 
@@ -29,6 +32,8 @@ export interface ICodexSessionMapState {
 	 * the right toolCallId/turnId for each item.
 	 */
 	readonly itemToToolCall: Map<string, ICodexToolCallEntry>;
+	/** Stable codex reasoning item/index → our reasoning response part id. */
+	readonly itemToReasoningPartId: Map<string, string>;
 	/** Current turn id (per `turn/started`). */
 	currentTurnId: string | undefined;
 }
@@ -43,7 +48,29 @@ export function createCodexSessionMapState(): ICodexSessionMapState {
 	return {
 		itemToPartId: new Map(),
 		itemToToolCall: new Map(),
+		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
+	};
+}
+
+function reasoningKey(itemId: string, kind: 'summary' | 'text', index: number): string {
+	return `${itemId}:${kind}:${index}`;
+}
+
+function ensureReasoningPart(state: ICodexSessionMapState, turnId: string, key: string): { readonly partId: string; readonly actions: SessionAction[] } {
+	const existing = state.itemToReasoningPartId.get(key);
+	if (existing) {
+		return { partId: existing, actions: [] };
+	}
+	const partId = generateUuid();
+	state.itemToReasoningPartId.set(key, partId);
+	return {
+		partId,
+		actions: [{
+			type: ActionType.SessionResponsePart,
+			turnId,
+			part: { kind: ResponsePartKind.Reasoning, id: partId, content: '' },
+		}],
 	};
 }
 
@@ -65,6 +92,7 @@ export function mapTurnStarted(
 	state.currentTurnId = params.turn.id;
 	state.itemToPartId.clear();
 	state.itemToToolCall.clear();
+	state.itemToReasoningPartId.clear();
 	let userText = fallbackUserText;
 	const first = params.turn.items?.[0];
 	if (first && first.type === 'userMessage') {
@@ -85,6 +113,43 @@ export function mapTurnStarted(
 			userMessage: { text: userText },
 		},
 	];
+}
+
+export function mapReasoningSummaryPartAdded(
+	state: ICodexSessionMapState,
+	params: ReasoningSummaryPartAddedNotification,
+): SessionAction[] {
+	return ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'summary', params.summaryIndex)).actions;
+}
+
+export function mapReasoningSummaryTextDelta(
+	state: ICodexSessionMapState,
+	params: ReasoningSummaryTextDeltaNotification,
+): SessionAction[] {
+	const ensured = ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'summary', params.summaryIndex));
+	return [
+		...ensured.actions,
+		{ type: ActionType.SessionReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
+	];
+}
+
+export function mapReasoningTextDelta(
+	state: ICodexSessionMapState,
+	params: ReasoningTextDeltaNotification,
+): SessionAction[] {
+	const ensured = ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'text', params.contentIndex));
+	return [
+		...ensured.actions,
+		{ type: ActionType.SessionReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
+	];
+}
+
+export function clearReasoningForItem(state: ICodexSessionMapState, itemId: string): void {
+	for (const key of [...state.itemToReasoningPartId.keys()]) {
+		if (key.startsWith(`${itemId}:`)) {
+			state.itemToReasoningPartId.delete(key);
+		}
+	}
 }
 
 /**
@@ -185,6 +250,10 @@ export function mapItemCompleted(
 		state.itemToPartId.delete(params.item.id);
 		return [];
 	}
+	if (params.item.type === 'reasoning') {
+		clearReasoningForItem(state, params.item.id);
+		return [];
+	}
 	if (params.item.type === 'commandExecution') {
 		const entry = state.itemToToolCall.get(params.item.id);
 		if (!entry) {
@@ -240,6 +309,7 @@ export function mapTurnCompleted(
 ): SessionAction[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
+	state.itemToReasoningPartId.clear();
 	const turnId = params.turn.id;
 	const status = params.turn.status;
 	if (status === 'failed' && params.turn.error) {

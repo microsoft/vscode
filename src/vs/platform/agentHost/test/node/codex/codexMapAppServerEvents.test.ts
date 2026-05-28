@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapTurnCompleted, mapTurnStarted } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTurnCompleted, mapTurnStarted } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 import { turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
@@ -116,6 +116,43 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', itemId: 'unknown', delta: 'orphan',
 		});
 		assert.deepStrictEqual(actions, []);
+	});
+
+	test('item/reasoning summary events seed a reasoning part and stream deltas', () => {
+		const state = createCodexSessionMapState();
+		const start = mapReasoningSummaryPartAdded(state, {
+			threadId: 'thr_1', turnId: 'turn_a', itemId: 'rs_1', summaryIndex: 0,
+		});
+		const partId = state.itemToReasoningPartId.get('rs_1:summary:0');
+		const delta = mapReasoningSummaryTextDelta(state, {
+			threadId: 'thr_1', turnId: 'turn_a', itemId: 'rs_1', summaryIndex: 0, delta: 'thinking',
+		});
+		assert.deepStrictEqual({
+			start: start.map(action => action.type),
+			partKind: start[0]?.type === ActionType.SessionResponsePart ? start[0].part.kind : undefined,
+			delta,
+		}, {
+			start: [ActionType.SessionResponsePart],
+			partKind: ResponsePartKind.Reasoning,
+			delta: [{ type: ActionType.SessionReasoning, turnId: 'turn_a', partId, content: 'thinking' }],
+		});
+	});
+
+	test('item/reasoning text delta creates a reasoning part when start was missed', () => {
+		const state = createCodexSessionMapState();
+		const actions = mapReasoningTextDelta(state, {
+			threadId: 'thr_1', turnId: 'turn_a', itemId: 'rs_2', contentIndex: 1, delta: 'raw thought',
+		});
+		const partId = state.itemToReasoningPartId.get('rs_2:text:1');
+		assert.deepStrictEqual({
+			types: actions.map(action => action.type),
+			partKind: actions[0]?.type === ActionType.SessionResponsePart ? actions[0].part.kind : undefined,
+			delta: actions[1],
+		}, {
+			types: [ActionType.SessionResponsePart, ActionType.SessionReasoning],
+			partKind: ResponsePartKind.Reasoning,
+			delta: { type: ActionType.SessionReasoning, turnId: 'turn_a', partId, content: 'raw thought' },
+		});
 	});
 
 	test('item/completed for agentMessage clears the mapping', () => {

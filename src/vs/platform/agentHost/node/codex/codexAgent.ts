@@ -29,7 +29,7 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, mapAgentMessageDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
@@ -532,6 +532,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => mapTurnStarted(s.mapState, params, s.lastPromptText))));
 		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => mapItemStarted(s.mapState, params))));
 		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, params))));
+		this._register(client.onNotification('item/reasoning/summaryPartAdded', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryPartAdded(s.mapState, params))));
+		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, params))));
+		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, params))));
 		this._register(client.onNotification('item/completed', params => this._dispatchByThread(params.threadId, s => mapItemCompleted(s.mapState, params))));
 		this._register(client.onNotification('turn/completed', params => this._dispatchByThread(params.threadId, s => {
 			const out = mapTurnCompleted(s.mapState, params);
