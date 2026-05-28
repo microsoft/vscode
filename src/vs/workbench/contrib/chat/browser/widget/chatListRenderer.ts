@@ -12,6 +12,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -115,6 +116,7 @@ const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 50;
+const WORKING_PROGRESS_SHOW_DEBOUNCE_MS = 500;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -205,6 +207,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
 	private readonly _notifiedQuestionCarousels = new Set<string>();
 	private readonly workingProgressConfirmationEndListeners = new WeakSet<IChatToolInvocation>();
+	private readonly workingProgressShowStartTimes = new Map<string, number>();
+	private readonly workingProgressShowTimers = this._register(new DisposableMap<string>());
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
@@ -416,6 +420,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.focusedFileTreesByResponseId.clear();
 		this.responseTemplateDataByRequestId.clear();
 		this.templateDataByRequestId.clear();
+		this.workingProgressShowStartTimes.clear();
+		this.workingProgressShowTimers.clearAndDisposeAll();
 
 		// Fire the viewModel update first so template listeners can dispose
 		// their rendered content parts and release pool items back. Only then
@@ -684,6 +690,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * so they can be reused when a new render is started.
 	 */
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
+		if (isResponseVM(templateData.currentElement)) {
+			this.resetWorkingProgressShowDebounce(templateData.currentElement);
+		}
+
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
@@ -1059,7 +1069,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(fileChangesSummaryPart);
 		}
 
-		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
+		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData, index);
 		if (workingProgress) {
 			content.push(workingProgress);
 		}
@@ -1082,7 +1092,69 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.finalizeAllSubagentParts(templateData);
 	}
 
-	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
+	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate, elementIndex: number): IChatWorkingProgress | undefined {
+		const workingProgress = this.getWorkingProgressCandidate(element, partsToRender, moreContentAvailable, templateData);
+		if (!workingProgress) {
+			this.resetWorkingProgressShowDebounce(element);
+			return undefined;
+		}
+
+		if (this.getWorkingProgressContentPart(templateData)) {
+			this.resetWorkingProgressShowDebounce(element);
+			return workingProgress;
+		}
+
+		const now = Date.now();
+		let showStartTime = this.workingProgressShowStartTimes.get(element.id);
+		if (typeof showStartTime !== 'number') {
+			showStartTime = now;
+			this.workingProgressShowStartTimes.set(element.id, showStartTime);
+		}
+
+		const remainingDelay = WORKING_PROGRESS_SHOW_DEBOUNCE_MS - (now - showStartTime);
+		if (remainingDelay > 0) {
+			this.scheduleWorkingProgressReveal(element, templateData, elementIndex, remainingDelay);
+			return undefined;
+		}
+
+		this.resetWorkingProgressShowDebounce(element);
+		return workingProgress;
+	}
+
+	private scheduleWorkingProgressReveal(element: IChatResponseViewModel, templateData: IChatListItemTemplate, _elementIndex: number, delay: number): void {
+		if (this.workingProgressShowTimers.has(element.id)) {
+			return;
+		}
+
+		this.workingProgressShowTimers.set(element.id, disposableTimeout(() => {
+			this.workingProgressShowTimers.deleteAndDispose(element.id);
+			if (templateData.currentElement !== element || !templateData.rowContainer.isConnected || element.isComplete || element.isCanceled) {
+				return;
+			}
+
+			// Re-resolve the index at fire time: list contents may have changed during the debounce window.
+			const elementIndex = this.viewModel?.getItems().indexOf(element) ?? -1;
+			if (elementIndex === -1) {
+				return;
+			}
+
+			const isLast = elementIndex === this.delegate.getListLength() - 1;
+			if (this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true && isLast && (!element.isComplete || element.renderData)) {
+				this.doIncrementalRender(element, elementIndex, templateData);
+			} else if (isLast && (!element.isComplete || element.renderData)) {
+				this.doNextProgressiveRender(element, elementIndex, templateData, false);
+			} else {
+				this.renderChatResponseBasic(element, elementIndex, templateData);
+			}
+		}, delay));
+	}
+
+	private resetWorkingProgressShowDebounce(element: IChatResponseViewModel): void {
+		this.workingProgressShowStartTimes.delete(element.id);
+		this.workingProgressShowTimers.deleteAndDispose(element.id);
+	}
+
+	private getWorkingProgressCandidate(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
 		if (element.agentOrSlashCommandDetected || this.rendererOptions.renderStyle === 'minimal') {
 			return undefined;
 		}
@@ -1537,7 +1609,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 
-		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData, index);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
 		if (!contentIsAlreadyRendered) {
@@ -1600,7 +1672,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
-		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData, index);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
@@ -1762,7 +1834,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	/**
 	 * Returns all content parts that should be rendered, and trimmed markdown content. We will diff this with the current rendered set.
 	 */
-	private getNextProgressiveRenderContent(element: IChatResponseViewModel, templateData: IChatListItemTemplate): { content: IChatRendererContent[]; moreContentAvailable: boolean } {
+	private getNextProgressiveRenderContent(element: IChatResponseViewModel, templateData: IChatListItemTemplate, elementIndex: number): { content: IChatRendererContent[]; moreContentAvailable: boolean } {
 		const data = this.getDataForProgressiveRender(element);
 
 		// An unregistered setting for development- skip the word counting and smoothing, just render content as it comes in
@@ -1829,7 +1901,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		const workingProgress = this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData);
+		const workingProgress = this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData, elementIndex);
 		if (workingProgress) {
 			partsToRender.push(workingProgress);
 		}
@@ -3361,6 +3433,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+		if (isResponseVM(node.element)) {
+			this.resetWorkingProgressShowDebounce(node.element);
+		}
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);

@@ -437,7 +437,7 @@
 }
 
 .chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
-	padding-bottom: 37px;
+	padding-bottom: 38px;
 }
 
 .interactive-item-container .value > :last-child,
