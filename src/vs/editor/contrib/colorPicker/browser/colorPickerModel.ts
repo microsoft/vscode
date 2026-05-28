@@ -11,6 +11,7 @@ import { IColorPresentation } from '../../../common/languages.js';
 export class ColorPickerModel extends Disposable {
 
 	readonly originalColor: Color;
+	originalPresentationIndex: number;
 	private _color: Color;
 
 	get color(): Color {
@@ -54,8 +55,16 @@ export class ColorPickerModel extends Disposable {
 	constructor(color: Color, availableColorPresentations: IColorPresentation[], private presentationIndex: number) {
 		super();
 		this.originalColor = color;
+		this.originalPresentationIndex = presentationIndex;
 		this._color = color;
 		this._colorPresentations = availableColorPresentations;
+	}
+
+	revertPresentation(): void {
+		if (this.presentationIndex !== this.originalPresentationIndex) {
+			this.presentationIndex = this.originalPresentationIndex;
+			this._onDidChangePresentation.fire(this.presentation);
+		}
 	}
 
 	selectNextColorPresentation(): void {
@@ -65,29 +74,35 @@ export class ColorPickerModel extends Disposable {
 	}
 
 	guessColorPresentation(color: Color, originalText: string): void {
-		let presentationIndex = -1;
-		for (let i = 0; i < this.colorPresentations.length; i++) {
-			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
-				presentationIndex = i;
-				break;
-			}
-		}
+		let presentationIndex = this._findExactMatch(originalText);
 
 		if (presentationIndex === -1) {
-			// check which color presentation text has same prefix as original text's prefix
-			const originalTextPrefix = originalText.split('(')[0].toLowerCase();
-			for (let i = 0; i < this.colorPresentations.length; i++) {
-				if (this.colorPresentations[i].label.toLowerCase().startsWith(originalTextPrefix)) {
-					presentationIndex = i;
-					break;
-				}
-			}
+			presentationIndex = this._findPrefixMatch(originalText);
 		}
 
-		if (presentationIndex !== -1 && presentationIndex !== this.presentationIndex) {
-			this.presentationIndex = presentationIndex;
-			this._onDidChangePresentation.fire(this.presentation);
+		if (this._isValidNewPresentationIndex(presentationIndex)) {
+			this._applyNewPresentationIndex(presentationIndex);
 		}
+
+		this.originalPresentationIndex = this.presentationIndex;
+	}
+
+	private _findExactMatch(originalText: string): number {
+		return this.colorPresentations.findIndex(p => p.label === originalText.toLowerCase());
+	}
+
+	private _findPrefixMatch(originalText: string): number {
+		const originalTextPrefix = originalText.split('(')[0].toLowerCase();
+		return this.colorPresentations.findIndex(p => p.label.toLowerCase().startsWith(originalTextPrefix));
+	}
+
+	private _isValidNewPresentationIndex(presentationIndex: number): boolean {
+		return presentationIndex !== -1 && presentationIndex !== this.presentationIndex;
+	}
+
+	private _applyNewPresentationIndex(presentationIndex: number): void {
+		this.presentationIndex = presentationIndex;
+		this._onDidChangePresentation.fire(this.presentation);
 	}
 
 	flushColor(): void {
