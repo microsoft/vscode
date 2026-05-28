@@ -26,14 +26,14 @@ export interface IMarketplaceReference {
 }
 
 /**
- * Reads the effective set of plugin marketplaces — the union of the user-facing
- * {@link ChatConfiguration.PluginMarketplaces} (default + user) and the
- * enterprise policy-only {@link ChatConfiguration.ExtraMarketplaces}. Callers
- * that write back update `PluginMarketplaces` directly; the policy entries are
- * read-only.
+ * The two configuration layers behind plugin marketplaces:
+ * - `userValues` — what's stored at {@link ChatConfiguration.PluginMarketplaces}
+ *   (default + user). Writable by the user.
+ * - `extraValues` — what's delivered via the `ChatExtraMarketplaces` enterprise
+ *   policy into {@link ChatConfiguration.ExtraMarketplaces}. Read-only.
  *
- * Entries may be strings (`<owner>/<repo>` or git URIs) or objects (policy
- * payloads); both shapes flow through {@link parseMarketplaceReferences}.
+ * Entries may be strings (`<owner>/<repo>` or git URIs) or, in the policy case,
+ * arbitrary JSON values — both shapes flow through {@link parseMarketplaceReferences}.
  */
 export interface IConfiguredMarketplaces {
 	readonly userValues: readonly unknown[];

@@ -787,14 +787,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '| Property | Value |\n';
 			content += '|----------|-------|\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
-			let fetchStatusDisplay: string;
-			if (fetchStatus === null) {
-				fetchStatusDisplay = '*not yet fetched*';
-			} else if (fetchStatus === 'ok') {
-				fetchStatusDisplay = '`ok`';
-			} else {
-				fetchStatusDisplay = `\`${fetchStatus}\``;
-			}
+			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
 			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
 			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;

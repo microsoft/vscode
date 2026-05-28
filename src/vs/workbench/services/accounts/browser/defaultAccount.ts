@@ -103,8 +103,8 @@ export interface IManagedSettingsResponse {
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
 	let extraKnownMarketplaces: readonly string[] | undefined;
 	if (isObject(response.extraKnownMarketplaces)) {
-		const seen = new Set<string>();
-		const flattened: string[] = [];
+		// Set preserves insertion order and dedups for free.
+		const flattened = new Set<string>();
 		for (const [id, entry] of Object.entries(response.extraKnownMarketplaces)) {
 			if (!isObject(entry) || !isObject(entry.source)) {
 				onWarn?.(`[DefaultAccount] Skipping malformed extraKnownMarketplaces entry "${id}": expected { source: { source, repo|url } }`);
@@ -112,21 +112,15 @@ export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?
 			}
 			const src = entry.source as { source?: string; repo?: string; url?: string; ref?: string };
 			const suffix = src.ref ? `#${src.ref}` : '';
-			let ref: string | undefined;
 			if (src.source === 'github' && isString(src.repo)) {
-				ref = `${src.repo}${suffix}`;
+				flattened.add(`${src.repo}${suffix}`);
 			} else if (src.source === 'git' && isString(src.url)) {
-				ref = `${src.url}${suffix}`;
+				flattened.add(`${src.url}${suffix}`);
 			} else {
 				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${id}": unknown source type "${src.source}"`);
-				continue;
-			}
-			if (!seen.has(ref)) {
-				seen.add(ref);
-				flattened.push(ref);
 			}
 		}
-		extraKnownMarketplaces = flattened;
+		extraKnownMarketplaces = [...flattened];
 	}
 
 	return {
@@ -667,11 +661,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				}
 			}
 			if (managedSettingsResult?.data) {
-				const managedData = managedSettingsResult.data;
-				policyData = policyData ?? {};
-				policyData.enabledPlugins = managedData.enabledPlugins;
-				policyData.extraKnownMarketplaces = managedData.extraKnownMarketplaces;
-				policyData.strictKnownMarketplaces = managedData.strictKnownMarketplaces;
+				policyData = { ...(policyData ?? {}), ...managedSettingsResult.data };
 			}
 
 			const defaultAccount: IDefaultAccount = {

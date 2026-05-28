@@ -411,19 +411,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
-		// Effective set is user-facing `chat.plugins.marketplaces` (default + user)
+		// Effective set: user-facing `chat.plugins.marketplaces` (default + user)
 		// unioned with the enterprise policy-only `chat.plugins.extraMarketplaces`.
-		const seen = new Set<string>();
-		const configuredRefs: unknown[] = [];
-		for (const entry of readConfiguredMarketplaces(this._configurationService).effectiveValues) {
-			const key = typeof entry === 'string' ? entry : JSON.stringify(entry);
-			if (seen.has(key)) {
-				continue;
-			}
-			seen.add(key);
-			configuredRefs.push(entry);
-		}
-		const configRefs = parseMarketplaceReferences(configuredRefs);
+		// `parseMarketplaceReferences` dedupes by canonical id.
+		const { effectiveValues } = readConfiguredMarketplaces(this._configurationService);
+		const configRefs = parseMarketplaceReferences(effectiveValues);
 
 		// Merge marketplace references from Claude workspace settings.
 		// Workspace-defined refs take precedence (are primary) so that their
@@ -437,7 +429,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			allRefs = configRefs;
 		}
 
-		for (const value of configuredRefs) {
+		for (const value of effectiveValues) {
 			if (typeof value !== 'string' || !parseMarketplaceReference(value)) {
 				this._logService.debug(`[PluginMarketplaceService] Ignoring invalid marketplace entry: ${String(value)}`);
 			}
