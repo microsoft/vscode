@@ -184,12 +184,12 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 		}
 
-		const { effectiveValues, editableValues } = readConfiguredMarketplaces(this._configurationService);
+		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
 		const existingRefs = parseMarketplaceReferences(effectiveValues);
 		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
 			await this._configurationService.updateValue(
 				ChatConfiguration.PluginMarketplaces,
-				[...editableValues, refValue],
+				[...userValues, refValue],
 				ConfigurationTarget.USER,
 			);
 		}

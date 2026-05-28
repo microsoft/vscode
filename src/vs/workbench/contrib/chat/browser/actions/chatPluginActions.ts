@@ -176,8 +176,9 @@ class ManagePluginMarketplacesAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
 
-		const { effectiveValues, editableValues, policyCanonicalIds } = readConfiguredMarketplaces(configurationService);
+		const { userValues, extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
 		const refs = parseMarketplaceReferences(effectiveValues);
+		const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(r => r.canonicalId));
 
 		if (refs.length === 0) {
 			quickInputService.pick([], { placeHolder: localize('noMarketplaces', "No plugin marketplaces configured") });
@@ -244,7 +245,7 @@ class ManagePluginMarketplacesAction extends Action2 {
 					return;
 				}
 
-				const updated = editableValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
+				const updated = userValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
 				await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
 				break;
 			}

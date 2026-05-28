@@ -411,10 +411,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
-		// Read default + user + policy values together so enterprise policy
-		// entries (via the `ChatPluginMarketplaces` policy) are added alongside
-		// user-configured entries AND the built-in marketplace defaults.
-		// `getValue()` alone would surface only the policy value when set.
+		// Effective set is user-facing `chat.plugins.marketplaces` (default + user)
+		// unioned with the enterprise policy-only `chat.plugins.extraMarketplaces`.
 		const seen = new Set<string>();
 		const configuredRefs: unknown[] = [];
 		for (const entry of readConfiguredMarketplaces(this._configurationService).effectiveValues) {
@@ -619,11 +617,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
-		// In strict mode (enterprise policy `ChatStrictMarketplaces` or
-		// user-set `chat.plugins.strictMarketplaces`), trust is derived from
-		// the configured marketplace list rather than from user-stored trust.
-		// Only marketplaces present in `chat.plugins.marketplaces` (merged
-		// user + policy) are considered trusted.
+		// In strict mode (enterprise policy `ChatStrictMarketplaces` or user-set
+		// `chat.plugins.strictMarketplaces`), trust is derived from the configured
+		// marketplace list rather than from user-stored trust. Only marketplaces
+		// present in the effective set (user `chat.plugins.marketplaces` unioned
+		// with policy-only `chat.plugins.extraMarketplaces`) are considered trusted.
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.StrictMarketplaces)) {
 			const refs = parseMarketplaceReferences(readConfiguredMarketplaces(this._configurationService).effectiveValues);
 			return refs.some(r => r.canonicalId === ref.canonicalId);

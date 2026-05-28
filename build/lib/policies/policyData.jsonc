@@ -238,22 +238,19 @@
             "included": true
         },
         {
-            "key": "chat.plugins.marketplaces",
-            "name": "ChatPluginMarketplaces",
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
             "category": "InteractiveSession",
             "minimumVersion": "1.122",
             "localization": {
                 "description": {
-                    "key": "chat.plugins.marketplaces.policy",
-                    "value": "Plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
                 }
             },
             "type": "array",
-            "default": [
-                "github/copilot-plugins",
-                "github/awesome-copilot#marketplace"
-            ],
-            "included": true
+            "default": [],
+            "included": false
         },
         {
             "key": "chat.plugins.strictMarketplaces",

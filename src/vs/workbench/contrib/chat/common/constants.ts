@@ -15,6 +15,7 @@ export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
+	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',

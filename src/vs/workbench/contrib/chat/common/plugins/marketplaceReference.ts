@@ -26,33 +26,28 @@ export interface IMarketplaceReference {
 }
 
 /**
- * Reads {@link ChatConfiguration.PluginMarketplaces} broken into its three
- * configuration layers so callers can:
- * - apply default + user + policy when computing the effective set (read paths,
- *   trust checks);
- * - apply default + user when writing back (so we don't persist policy entries
- *   into user settings); and
- * - recognise which canonical IDs are policy-supplied (so they can be marked
- *   read-only in management UI).
+ * Reads the effective set of plugin marketplaces — the union of the user-facing
+ * {@link ChatConfiguration.PluginMarketplaces} (default + user) and the
+ * enterprise policy-only {@link ChatConfiguration.ExtraMarketplaces}. Callers
+ * that write back update `PluginMarketplaces` directly; the policy entries are
+ * read-only.
  *
  * Entries may be strings (`<owner>/<repo>` or git URIs) or objects (policy
  * payloads); both shapes flow through {@link parseMarketplaceReferences}.
  */
 export interface IConfiguredMarketplaces {
+	readonly userValues: readonly unknown[];
+	readonly extraValues: readonly unknown[];
 	readonly effectiveValues: readonly unknown[];
-	readonly editableValues: readonly unknown[];
-	readonly policyCanonicalIds: ReadonlySet<string>;
 }
 
 export function readConfiguredMarketplaces(configurationService: IConfigurationService): IConfiguredMarketplaces {
-	const inspected = configurationService.inspect<(string | object)[]>(ChatConfiguration.PluginMarketplaces);
-	const defaultValues = inspected.defaultValue ?? [];
-	const userValues = inspected.userValue ?? [];
-	const policyValues = inspected.policyValue ?? [];
+	const userValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.PluginMarketplaces) ?? [];
+	const extraValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.ExtraMarketplaces) ?? [];
 	return {
-		effectiveValues: [...defaultValues, ...userValues, ...policyValues],
-		editableValues: [...defaultValues, ...userValues],
-		policyCanonicalIds: new Set(parseMarketplaceReferences(policyValues).map(r => r.canonicalId)),
+		userValues,
+		extraValues,
+		effectiveValues: [...userValues, ...extraValues],
 	};
 }
 

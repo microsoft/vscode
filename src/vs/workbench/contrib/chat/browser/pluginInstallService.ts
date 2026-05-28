@@ -233,12 +233,12 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	private _addMarketplaceToConfig(reference: IMarketplaceReference) {
-		const { effectiveValues, editableValues } = readConfiguredMarketplaces(this._configurationService);
+		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
 		const existingRefs = parseMarketplaceReferences(effectiveValues);
 		if (existingRefs.some(r => r.canonicalId === reference.canonicalId)) {
 			return;
 		}
-		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...editableValues, reference.rawValue]);
+		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...userValues, reference.rawValue]);
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

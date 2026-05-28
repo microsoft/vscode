@@ -939,15 +939,27 @@ configurationRegistry.registerConfiguration({
 			default: ['github/copilot-plugins', 'github/awesome-copilot#marketplace'],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.ExtraMarketplaces]: {
+			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
+			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
+			// Hidden from the Settings UI via `included: false` — users edit
+			// `chat.plugins.marketplaces`, the enterprise edits this.
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
 			policy: {
-				name: 'ChatPluginMarketplaces',
+				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
 				value: (policyData) => policyData.extraKnownMarketplaces ? JSON.stringify(policyData.extraKnownMarketplaces) : undefined,
 				localization: {
 					description: {
-						key: 'chat.plugins.marketplaces.policy',
-						value: nls.localize('chat.plugins.marketplaces.policy', "Plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+						key: 'chat.plugins.extraMarketplaces.policy',
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
 					}
 				},
 			},
