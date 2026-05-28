@@ -19,7 +19,6 @@ import { CopilotChatSessionsProvider, ICopilotChatSession } from '../../browser/
 import { ClaudePermissionModePicker } from '../../browser/claudePermissionModePicker.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 interface IPermissionModeItem {
 	readonly id: string;
@@ -78,7 +77,6 @@ function createPicker(
 	} as unknown as ISessionsProvidersService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IChatEntitlementService, { previewFeaturesDisabled: false } as IChatEntitlementService);
 
 	const picker = disposables.add(instantiationService.createInstance(ClaudePermissionModePicker));
 
