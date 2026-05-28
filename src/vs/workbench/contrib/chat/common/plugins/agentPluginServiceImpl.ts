@@ -54,6 +54,7 @@ import { HookType } from '../promptSyntax/hookTypes.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
+import { type IMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
 export { shellQuotePluginRootInCommand, resolveMcpServersMap, convertBareEnvVarsToVsCodeSyntax } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -142,9 +143,12 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			const policy = enabledPluginsPolicy.read(reader);
 			const strict = strictMarketplaces.read(reader);
 			extraMarketplacesChanged.read(reader);
+			const trustedExtras = strict
+				? parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).extraValues)
+				: [];
 			transaction(tx => {
 				for (const plugin of plugins) {
-					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, strict, pluginMarketplaceService, logService), tx);
+					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, strict, trustedExtras, pluginMarketplaceService, logService), tx);
 				}
 			});
 		}));
@@ -159,30 +163,38 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	 *
 	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
 	 * paths from `chat.pluginLocations`) are never blocked — they are user-side
-	 * concerns outside the enterprise enforcement boundary.
+	 * concerns outside the enterprise enforcement boundary. Copilot-CLI-installed
+	 * plugins under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` are
+	 * gated using their install-path identity even when they lack rich
+	 * marketplace metadata.
 	 */
 	private _isBlockedByPolicy(
 		plugin: IAgentPlugin,
 		enabledPluginsPolicy: Record<string, boolean> | undefined,
 		strictMarketplaces: boolean,
+		trustedExtras: readonly IMarketplaceReference[],
 		pluginMarketplaceService: IPluginMarketplaceService,
 		logService: ILogService,
 	): boolean {
-		const m = plugin.fromMarketplace;
-		// Plugins not from a marketplace (filesystem entries) are not gated.
-		if (!m) {
+		const identity = getPolicyIdentity(plugin);
+		if (!identity) {
 			return false;
 		}
+		const pluginId = `${identity.name}@${identity.marketplace}`;
 		if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
-			const pluginId = `${m.name}@${m.marketplace}`;
 			if (enabledPluginsPolicy[pluginId] !== true) {
 				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
 				return true;
 			}
 		}
-		if (strictMarketplaces && !pluginMarketplaceService.isMarketplaceTrusted(m.marketplaceReference)) {
-			logService.debug(`[AgentPluginService] Plugin '${m.name}@${m.marketplace}' blocked — marketplace not trusted under strict mode`);
-			return true;
+		if (strictMarketplaces) {
+			const trusted = identity.marketplaceReference
+				? pluginMarketplaceService.isMarketplaceTrusted(identity.marketplaceReference)
+				: isCliBucketTrusted(identity.marketplace, trustedExtras);
+			if (!trusted) {
+				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — marketplace not trusted under strict mode`);
+				return true;
+			}
 		}
 		return false;
 	}
@@ -224,6 +236,70 @@ function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransacti
 	if (obs && typeof obs.set === 'function') {
 		obs.set(blocked, tx);
 	}
+}
+
+/**
+ * The policy-relevant identity of a plugin, used to gate against
+ * `chat.plugins.enabledPlugins` and `chat.plugins.strictMarketplaces`. Returns
+ * `undefined` for plugins that aren't subject to enterprise policy (e.g.
+ * user-configured filesystem entries, extension-contributed plugins).
+ */
+interface IPolicyIdentity {
+	readonly name: string;
+	readonly marketplace: string;
+	readonly marketplaceReference?: IMarketplaceReference;
+}
+
+/** Path fragment that identifies a Copilot-CLI-installed plugin (see `COPILOT_CLI_INSTALLED_PLUGINS_DIR` below). */
+const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
+
+function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
+	const m = plugin.fromMarketplace;
+	if (m) {
+		return { name: m.name, marketplace: m.marketplace, marketplaceReference: m.marketplaceReference };
+	}
+	// Copilot-CLI-installed plugins live at `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
+	// We honor enterprise policy for those by deriving the identity from the install path,
+	// using the same convention as `_resolveEnterprisePluginId`. The reserved `_direct` bucket
+	// means "not from a marketplace" and is therefore not gated.
+	if (plugin.uri.scheme !== 'file') {
+		return undefined;
+	}
+	const idx = plugin.uri.path.indexOf(COPILOT_CLI_INSTALL_PATH_FRAGMENT);
+	if (idx === -1) {
+		return undefined;
+	}
+	const segments = plugin.uri.path.slice(idx + COPILOT_CLI_INSTALL_PATH_FRAGMENT.length).split('/').filter(s => s.length > 0);
+	if (segments.length !== 2) {
+		return undefined;
+	}
+	const [marketplace, name] = segments;
+	if (marketplace === '_direct') {
+		return undefined;
+	}
+	return { name, marketplace };
+}
+
+/**
+ * Under strict mode, decide whether a Copilot-CLI-installed plugin's bucket
+ * name (the `<marketplace>` segment of its install path) corresponds to a
+ * trusted marketplace listed in `chat.plugins.extraMarketplaces`. Uses
+ * heuristics covering common CLI bucket-naming conventions (GitHub repo name,
+ * shorthand `owner/repo`, raw reference value, canonical id tail).
+ */
+function isCliBucketTrusted(bucket: string, trustedExtras: readonly IMarketplaceReference[]): boolean {
+	return trustedExtras.some(ref => {
+		if (ref.githubRepo && ref.githubRepo.split('/').pop() === bucket) {
+			return true;
+		}
+		if (ref.displayLabel === bucket || ref.displayLabel.endsWith(`/${bucket}`)) {
+			return true;
+		}
+		if (ref.canonicalId.endsWith(`/${bucket}`) || ref.canonicalId.endsWith(`/${bucket}.git`)) {
+			return true;
+		}
+		return false;
+	});
 }
 
 /**
