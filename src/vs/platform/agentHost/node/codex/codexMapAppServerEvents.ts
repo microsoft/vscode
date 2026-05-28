@@ -13,6 +13,8 @@ import type { FileChangePatchUpdatedNotification } from './protocol/generated/v2
 import type { FileUpdateChange } from './protocol/generated/v2/FileUpdateChange.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
+import type { McpToolCallProgressNotification } from './protocol/generated/v2/McpToolCallProgressNotification.js';
+import type { McpToolCallResult } from './protocol/generated/v2/McpToolCallResult.js';
 import type { ReasoningSummaryPartAddedNotification } from './protocol/generated/v2/ReasoningSummaryPartAddedNotification.js';
 import type { ReasoningSummaryTextDeltaNotification } from './protocol/generated/v2/ReasoningSummaryTextDeltaNotification.js';
 import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/ReasoningTextDeltaNotification.js';
@@ -20,6 +22,8 @@ import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
+import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
+import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 
 /**
  * Per-session mutable state held by the mapper. Carries the bookkeeping
@@ -105,6 +109,30 @@ function describeFileChange(changes: readonly FileUpdateChange[]): string {
 
 function fileChangeOutput(changes: readonly FileUpdateChange[]): string {
 	return changes.map(change => `${describeFileChange([change])}\n${change.diff}`.trim()).join('\n\n');
+}
+
+function jsonValueToText(value: JsonValue): string {
+	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+
+function toolInputText(value: JsonValue): string {
+	return JSON.stringify(value, null, 2);
+}
+
+function dynamicToolOutput(contentItems: readonly DynamicToolCallOutputContentItem[] | null): string {
+	return contentItems?.map(item => item.type === 'inputText' ? item.text : item.imageUrl).join('\n') ?? '';
+}
+
+function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string): string {
+	if (errorMessage) {
+		return errorMessage;
+	}
+	if (!result) {
+		return '';
+	}
+	const content = result.content.map(jsonValueToText).join('\n');
+	const structuredContent = result.structuredContent !== null ? jsonValueToText(result.structuredContent) : '';
+	return [content, structuredContent].filter(Boolean).join('\n');
 }
 
 /**
@@ -342,6 +370,81 @@ export function mapItemStarted(
 			} satisfies SessionAction] : []),
 		];
 	}
+	if (params.item.type === 'mcpToolCall') {
+		const toolCallId = generateUuid();
+		const toolName = `${params.item.server}.${params.item.tool}`;
+		const toolInput = toolInputText(params.item.arguments);
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName,
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.SessionToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName,
+				displayName: params.item.tool,
+			},
+			{
+				type: ActionType.SessionToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: toolInput,
+			},
+			{
+				type: ActionType.SessionToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: `Calling ${toolName}`,
+				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		];
+	}
+	if (params.item.type === 'dynamicToolCall') {
+		const toolCallId = generateUuid();
+		const toolName = params.item.namespace ? `${params.item.namespace}.${params.item.tool}` : params.item.tool;
+		const toolInput = toolInputText(params.item.arguments);
+		const output = dynamicToolOutput(params.item.contentItems);
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName,
+			output,
+		});
+		return [
+			{
+				type: ActionType.SessionToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName,
+				displayName: params.item.tool,
+			},
+			{
+				type: ActionType.SessionToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: toolInput,
+			},
+			{
+				type: ActionType.SessionToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: `Calling ${toolName}`,
+				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+			...(output ? [{
+				type: ActionType.SessionToolCallContentChanged,
+				turnId: params.turnId,
+				toolCallId,
+				content: [{ type: ToolResultContentType.Text, text: output }],
+			} satisfies SessionAction] : []),
+		];
+	}
 	return [];
 }
 
@@ -388,6 +491,23 @@ export function mapFileChangeOutputDelta(
 		return [];
 	}
 	entry.output += params.delta;
+	return [{
+		type: ActionType.SessionToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+	}];
+}
+
+export function mapMcpToolCallProgress(
+	state: ICodexSessionMapState,
+	params: McpToolCallProgressNotification,
+): SessionAction[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output = [entry.output, params.message].filter(Boolean).join('\n');
 	return [{
 		type: ActionType.SessionToolCallContentChanged,
 		turnId: entry.turnId,
@@ -511,6 +631,48 @@ export function mapItemCompleted(
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result,
+		}];
+	}
+	if (params.item.type === 'mcpToolCall') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const success = params.item.status === 'completed' && !params.item.error;
+		const output = mcpToolOutput(params.item.result, params.item.error?.message) || entry.output;
+		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		return [{
+			type: ActionType.SessionToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`,
+				content,
+				...(success ? {} : { error: { message: params.item.error?.message ?? `MCP tool ${params.item.status}` } }),
+			},
+		}];
+	}
+	if (params.item.type === 'dynamicToolCall') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const success = params.item.success === true || params.item.status === 'completed';
+		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
+		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		return [{
+			type: ActionType.SessionToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`,
+				content,
+				...(success ? {} : { error: { message: `Dynamic tool ${params.item.status}` } }),
+			},
 		}];
 	}
 	return [];
