@@ -6,8 +6,6 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, Dimension, EventType, IDomPosition } from '../../../../base/browser/dom.js';
-import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -21,19 +19,17 @@ import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNavigationEvent, IBrowserViewCertificateError } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { SiteInfoWidget } from './siteInfoWidget.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
@@ -82,17 +78,20 @@ export abstract class BrowserEditorContribution extends Disposable {
 	onModelDetached(): void { }
 
 	/**
-	 * Optional widgets to display inside the URL bar (on the right side of the URL input,
-	 * before the actions toolbar).
-	 * Contributions can override this getter to provide widgets.
+	 * Widgets contributed by this feature. Each widget declares its target
+	 * {@link BrowserWidgetLocation}; the editor groups widgets by location
+	 * and stacks them in {@link IBrowserEditorWidget.order} order.
 	 */
-	get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] { return []; }
+	get widgets(): readonly IBrowserEditorWidget[] { return []; }
 
 	/**
-	 * Optional toolbar-like elements to insert into the editor root between the navbar and the
-	 * browser container.  Contributions can override this getter to provide elements.
+	 * Optional renderers for the URL displayed in the navbar. Each renderer is
+	 * given the URL and a container; the first to return `true` claims the
+	 * render. If none claim it, the navbar falls back to plain text. Used to
+	 * decorate URLs for special conditions (e.g. red strikethrough on the
+	 * `https:` prefix when a certificate error is active).
 	 */
-	get toolbarElements(): readonly HTMLElement[] { return []; }
+	get urlRenderers(): readonly IBrowserUrlRenderer[] { return []; }
 
 	/**
 	 * Called when the editor is laid out with a new dimension.
@@ -137,14 +136,6 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * and centers the viewport, then pixel-snap aligns it).
 	 */
 	beforeContainerLayout(): IContainerLayoutOverride | undefined { return undefined; }
-
-	/**
-	 * Content elements to mount inside the browser container's placeholder
-	 * area (welcome screen, error page, overlay-pause message, etc.). The
-	 * editor stacks them in {@link IBrowserContainerContent.order} order;
-	 * each content manages its own visibility.
-	 */
-	get containerContents(): readonly IBrowserContainerContent[] { return []; }
 }
 
 /** Customization returned by {@link BrowserEditorContribution.beforeContainerLayout}. */
@@ -206,29 +197,55 @@ export interface IContainerLayout {
 	};
 }
 
-/** A widget that can be contributed to the browser editor URL bar. */
-export interface IBrowserEditorWidgetContribution {
+/** Where a contributed widget mounts within the browser editor. */
+export const enum BrowserWidgetLocation {
+	/** Inside the navbar, before the URL input (e.g. site/security indicators). */
+	PreUrl = 'preUrl',
+	/** Inside the navbar, after the URL input (e.g. zoom pill, share toggle). */
+	PostUrl = 'postUrl',
+	/** Between the navbar and the browser container (e.g. find / emulation toolbars). */
+	Toolbar = 'toolbar',
+	/** Inside the browser container (placeholder screenshot, error overlay, etc.). */
+	ContentArea = 'contentArea',
+}
+
+/**
+ * A widget contributed by a {@link BrowserEditorContribution}. The editor
+ * groups widgets by {@link location} and mounts each group sorted by
+ * {@link order}.
+ */
+export interface IBrowserEditorWidget {
+	readonly location: BrowserWidgetLocation;
 	readonly element: HTMLElement;
-	/** Ordering value — lower numbers appear first (left). */
+	/** Stacking order within the location. Lower numbers render first. */
 	readonly order: number;
 }
 
 /**
- * Content that sits inside the browser container's placeholder area (welcome
- * screen, error page, overlay-pause message, etc.). Each content owns its own
- * visibility — the editor only stacks elements by {@link order}.
+ * Customizes how the URL is rendered into the navbar's URL display element.
+ * The navbar iterates contributed renderers in registration order; the first
+ * one to return `true` from {@link render} claims the render. If no renderer
+ * claims it, the navbar falls back to plain text.
  */
-export interface IBrowserContainerContent {
-	readonly element: HTMLElement;
-	/** Stacking order — lower numbers are farther back (rendered first). */
-	readonly order: number;
+export interface IBrowserUrlRenderer {
+	/**
+	 * Render the URL into the given (already-emptied) container. Return true if
+	 * the URL was rendered; false to fall through to subsequent renderers.
+	 */
+	render(url: string, container: HTMLElement): boolean;
+	/**
+	 * Fires when {@link render} would produce a different result for the same
+	 * URL (e.g. underlying state changed). The navbar re-renders on this.
+	 */
+	readonly onDidChange: Event<void>;
 }
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
 	private readonly _urlDisplay: HTMLElement;
-	private readonly _siteInfoWidget: SiteInfoWidget;
+	private readonly _preUrlWidgetsContainer: HTMLElement;
 	private readonly _urlBarWidgetsContainer: HTMLElement;
+	private readonly _urlRenderers: IBrowserUrlRenderer[] = [];
 
 	constructor(
 		editor: BrowserEditor,
@@ -266,16 +283,11 @@ class BrowserNavigationBar extends Disposable {
 			}
 		));
 
-		// URL input container (wraps input + share toggle)
+		// URL input container (wraps pre-url widgets + input + post-url widgets)
 		const urlContainer = $('.browser-url-container');
 
-		// Site info widget (inside URL bar, left side, hidden by default)
-		const siteInfoContainer = $('.browser-site-info-slot');
-		this._siteInfoWidget = this._register(instantiationService.createInstance(
-			SiteInfoWidget,
-			siteInfoContainer,
-			editor
-		));
+		// Pre-URL widgets slot (e.g. site/security indicators contributed by features)
+		this._preUrlWidgetsContainer = $('.browser-site-info-slot');
 
 		// URL input (hidden by default; shown when user clicks the display)
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
@@ -292,7 +304,7 @@ class BrowserNavigationBar extends Disposable {
 
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
-		urlContainer.appendChild(siteInfoContainer);
+		urlContainer.appendChild(this._preUrlWidgetsContainer);
 		urlContainer.appendChild(urlInputWrapper);
 		urlContainer.appendChild(this._urlBarWidgetsContainer);
 
@@ -347,7 +359,7 @@ class BrowserNavigationBar extends Disposable {
 	 */
 	updateFromNavigationEvent(event: IBrowserViewNavigationEvent): void {
 		this._urlInput.value = event.url;
-		this._updateDisplay();
+		this._renderUrl();
 	}
 
 	/**
@@ -355,15 +367,6 @@ class BrowserNavigationBar extends Disposable {
 	 */
 	focusUrlInput(): void {
 		this._showInput();
-	}
-
-	/**
-	 * Show or hide the site info indicator
-	 */
-	setCertificateError(certError: IBrowserViewCertificateError | undefined): void {
-		this._siteInfoWidget.setCertificateError(certError);
-		this._urlInput.classList.toggle('cert-error', !!certError);
-		this._updateDisplay();
 	}
 
 	/**
@@ -377,13 +380,35 @@ class BrowserNavigationBar extends Disposable {
 	}
 
 	/**
-	 * Add widget elements inside the URL bar, sorted by order.
+	 * Add widget elements to the pre-URL slot (left of the URL input), sorted by order.
 	 */
-	addUrlBarWidgets(widgets: readonly IBrowserEditorWidgetContribution[]): void {
+	addPreUrlWidgets(widgets: readonly IBrowserEditorWidget[]): void {
+		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
+		for (const widget of sorted) {
+			this._preUrlWidgetsContainer.appendChild(widget.element);
+		}
+	}
+
+	/**
+	 * Add widget elements to the post-URL slot (right of the URL input), sorted by order.
+	 */
+	addUrlBarWidgets(widgets: readonly IBrowserEditorWidget[]): void {
 		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
 		for (const widget of sorted) {
 			this._urlBarWidgetsContainer.appendChild(widget.element);
 		}
+	}
+
+	/**
+	 * Register URL renderers. The navbar re-renders when any renderer's
+	 * `onDidChange` fires.
+	 */
+	addUrlRenderers(renderers: readonly IBrowserUrlRenderer[]): void {
+		for (const renderer of renderers) {
+			this._urlRenderers.push(renderer);
+			this._register(renderer.onDidChange(() => this._renderUrl()));
+		}
+		this._renderUrl();
 	}
 
 	/**
@@ -392,41 +417,31 @@ class BrowserNavigationBar extends Disposable {
 	private _showDisplay(): void {
 		this._urlInput.style.display = 'none';
 		this._urlDisplay.style.display = '';
-		this._updateDisplay();
+		this._renderUrl();
 	}
 
 	/**
-	 * Rebuild the display element's content.  When there is a cert error
-	 * and the URL starts with "https://", the protocol is rendered with
-	 * a red strikethrough; otherwise the full URL is shown plainly.
+	 * Rebuild the display element's content. Tries each contributed URL renderer
+	 * in order; falls back to plain text if none claims the URL.
 	 */
-	private _updateDisplay(): void {
+	private _renderUrl(): void {
 		const url = this._urlInput.value;
-		const hasCertError = this._urlInput.classList.contains('cert-error');
-		const httpsPrefix = 'https:';
 
-		// Clear previous content
 		this._urlDisplay.textContent = '';
 		this._urlDisplay.classList.toggle('placeholder', !url);
 
-		if (hasCertError && url.startsWith(httpsPrefix)) {
-			const protocol = document.createElement('span');
-			protocol.className = 'browser-url-display-protocol-bad';
-			protocol.textContent = httpsPrefix;
-			this._urlDisplay.appendChild(protocol);
-
-			const rest = document.createElement('span');
-			rest.textContent = url.slice(httpsPrefix.length);
-			this._urlDisplay.appendChild(rest);
-		} else {
-			this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
+		for (const renderer of this._urlRenderers) {
+			if (renderer.render(url, this._urlDisplay)) {
+				return;
+			}
 		}
+
+		this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
 	}
 
 	clear(): void {
 		this._urlInput.value = '';
-		this._siteInfoWidget.setCertificateError(undefined);
-		this._updateDisplay();
+		this._renderUrl();
 	}
 }
 
@@ -460,15 +475,12 @@ export class BrowserEditor extends EditorPane {
 	private _browserContainerWrapper!: HTMLElement;
 	private _browserContainer!: HTMLElement;
 	get browserContainer(): HTMLElement { return this._browserContainer; }
-	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _hasUrlContext!: IContextKey<boolean>;
-	private _hasErrorContext!: IContextKey<boolean>;
 
 	private readonly _inputDisposables = this._register(new DisposableStore());
-	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 0, bottom: 0, left: 0 };
 
 	constructor(
@@ -491,7 +503,6 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
-		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -518,20 +529,35 @@ export class BrowserEditor extends EditorPane {
 		// Create navigation bar widget with scoped context
 		this._navigationBar = this._register(new BrowserNavigationBar(this, navbar, this.instantiationService, contextKeyService));
 
-		// Inject URL bar widgets from contributions
-		const allWidgets: IBrowserEditorWidgetContribution[] = [];
+		// Collect widgets from all contributions, grouped by location.
+		const widgetsByLocation = new Map<BrowserWidgetLocation, IBrowserEditorWidget[]>();
+		const urlRenderers: IBrowserUrlRenderer[] = [];
 		for (const contribution of this._contributionInstances.values()) {
-			allWidgets.push(...contribution.urlBarWidgets);
+			for (const widget of contribution.widgets) {
+				let bucket = widgetsByLocation.get(widget.location);
+				if (!bucket) {
+					bucket = [];
+					widgetsByLocation.set(widget.location, bucket);
+				}
+				bucket.push(widget);
+			}
+			urlRenderers.push(...contribution.urlRenderers);
 		}
-		this._navigationBar.addUrlBarWidgets(allWidgets);
+		for (const bucket of widgetsByLocation.values()) {
+			bucket.sort((a, b) => a.order - b.order);
+		}
+		const widgetsAt = (location: BrowserWidgetLocation): readonly IBrowserEditorWidget[] =>
+			widgetsByLocation.get(location) ?? [];
+
+		this._navigationBar.addPreUrlWidgets(widgetsAt(BrowserWidgetLocation.PreUrl));
+		this._navigationBar.addUrlBarWidgets(widgetsAt(BrowserWidgetLocation.PostUrl));
+		this._navigationBar.addUrlRenderers(urlRenderers);
 
 		root.appendChild(navbar);
 
-		// Collect toolbar elements from contributions (e.g. find widget container)
-		for (const contribution of this._contributionInstances.values()) {
-			for (const element of contribution.toolbarElements) {
-				root.appendChild(element);
-			}
+		// Toolbar widgets — appended between the navbar and the container.
+		for (const widget of widgetsAt(BrowserWidgetLocation.Toolbar)) {
+			root.appendChild(widget.element);
 		}
 
 		// Create browser container wrapper (flex item that fills remaining space)
@@ -551,24 +577,14 @@ export class BrowserEditor extends EditorPane {
 
 		// Wrapper around placeholder contents for border radius clipping. Holds
 		// contribution-provided content (placeholder screenshot, overlay-pause)
-		// plus the editor-owned error and welcome layers.
+		// plus the editor-owned welcome layer.
 		const placeholderContents = $('.browser-placeholder-contents');
 		this._browserContainer.appendChild(placeholderContents);
 
-		// Collect and stack container contents from contributions.
-		const contents: IBrowserContainerContent[] = [];
-		for (const contribution of this._contributionInstances.values()) {
-			contents.push(...contribution.containerContents);
+		// Container widgets — stacked inside the placeholder area.
+		for (const widget of widgetsAt(BrowserWidgetLocation.ContentArea)) {
+			placeholderContents.appendChild(widget.element);
 		}
-		contents.sort((a, b) => a.order - b.order);
-		for (const content of contents) {
-			placeholderContents.appendChild(content.element);
-		}
-
-		// Create error container (hidden by default)
-		this._errorContainer = $('.browser-error-container');
-		this._errorContainer.style.display = 'none';
-		placeholderContents.appendChild(this._errorContainer);
 
 		// Create welcome container (shown when no URL is loaded)
 		this._welcomeContainer = this.createWelcomeContainer();
@@ -638,10 +654,6 @@ export class BrowserEditor extends EditorPane {
 			this.updateNavigationState(navEvent);
 		}));
 
-		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
-			this.updateErrorDisplay();
-		}));
-
 		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
@@ -654,7 +666,6 @@ export class BrowserEditor extends EditorPane {
 			}
 		}));
 
-		this.updateErrorDisplay();
 		this.layout();
 		this.updateVisibility();
 	}
@@ -686,138 +697,13 @@ export class BrowserEditor extends EditorPane {
 	private updateVisibility(): void {
 		// Welcome container: shown when no URL is loaded
 		this._welcomeContainer.style.display = this._model?.url ? 'none' : '';
-
-		// Error container: shown when there's a load error
-		this._errorContainer.style.display = this._model?.error ? '' : 'none';
 	}
 
-	private updateErrorDisplay(): void {
-		if (!this._model) {
-			return;
-		}
-
-		const error: IBrowserViewLoadError | undefined = this._model.error;
-		this._hasErrorContext.set(!!error);
-
-		this._navigationBar.setCertificateError(
-			this._model.certificateError ?? error?.certificateError
-		);
-
-		if (error) {
-			// Update error content
-			this._certActionButton.clear();
-
-			while (this._errorContainer.firstChild) {
-				this._errorContainer.removeChild(this._errorContainer.firstChild);
-			}
-
-			const errorContent = $('.browser-error-content');
-			const isCertError = !!error.certificateError;
-
-			const errorIcon = $('.browser-error-icon');
-			errorIcon.classList.toggle('cert-error', isCertError);
-			errorIcon.appendChild(renderIcon(isCertError ? Codicon.workspaceUntrusted : Codicon.globe));
-
-			const errorTitle = $('.browser-error-title');
-			errorTitle.textContent = isCertError
-				? localize('browser.certErrorLabel', "Certificate Error")
-				: localize('browser.loadErrorLabel', "Failed to Load Page");
-
-			const errorMessage = $('.browser-error-detail');
-			const errorText = $('span');
-			errorText.textContent = isCertError
-				? localize('browser.certErrorDescription', "This site's security certificate could not be verified.")
-				: `${error.errorDescription} (${error.errorCode})`;
-			errorMessage.appendChild(errorText);
-
-			const errorUrl = $('.browser-error-detail');
-			const urlLabel = $('strong');
-			urlLabel.textContent = localize('browser.errorUrlLabel', "URL:");
-			const urlValue = $('code');
-			urlValue.textContent = error.url;
-			errorUrl.appendChild(urlLabel);
-			errorUrl.appendChild(document.createTextNode(' '));
-			errorUrl.appendChild(urlValue);
-
-			errorContent.appendChild(errorIcon);
-			errorContent.appendChild(errorTitle);
-			errorContent.appendChild(errorMessage);
-
-			// Show cert error name below description, above URL
-			if (error.certificateError) {
-				const extraWarning = $('b.browser-error-detail');
-				extraWarning.textContent = localize('browser.certErrorExtraWarning', " Your connection is not private.");
-				errorMessage.appendChild(extraWarning);
-			}
-
-			errorContent.appendChild(errorUrl);
-
-			// Show certificate details table and actions
-			if (error.certificateError) {
-				const certError = error.certificateError;
-
-				const certDetailsTable = $('.browser-cert-details-table');
-
-				const heading = $('.browser-cert-details-heading');
-				heading.textContent = localize('browser.certDetailsHeading', "Certificate Details");
-				certDetailsTable.appendChild(heading);
-
-				const addRow = (label: string, value: string) => {
-					const row = $('.browser-cert-details-row');
-					const labelEl = $('.browser-cert-details-label');
-					labelEl.textContent = label;
-					const valueEl = $('.browser-cert-details-value');
-					valueEl.textContent = value;
-					row.appendChild(labelEl);
-					row.appendChild(valueEl);
-					certDetailsTable.appendChild(row);
-				};
-
-				addRow(localize('browser.certError', "Error"), certError.error);
-				addRow(localize('browser.certIssuer', "Issuer"), certError.issuerName);
-				addRow(localize('browser.certSubject', "Subject"), certError.subjectName);
-
-				const formatDate = (epoch: number) => new Date(epoch * 1000).toLocaleDateString();
-				addRow(
-					localize('browser.certValid', "Valid"),
-					`${formatDate(certError.validStart)} - ${formatDate(certError.validExpiry)}`
-				);
-
-				addRow(localize('browser.certFingerprint', "Fingerprint"), certError.fingerprint);
-
-				errorContent.appendChild(certDetailsTable);
-
-				const actionContainer = $('.browser-cert-action');
-				actionContainer.classList.toggle('reverse', isMacintosh || isLinux);
-				const canGoBack = this._model.canGoBack;
-				const buttonBar = new ButtonBar(actionContainer);
-				this._certActionButton.value = buttonBar;
-
-				const primaryButton = buttonBar.addButton({ ...defaultButtonStyles });
-				primaryButton.label = canGoBack
-					? localize('browser.certGoBack', "Go Back")
-					: localize('browser.certCloseTab', "Close Tab");
-				primaryButton.onDidClick(() => {
-					if (canGoBack) {
-						this.goBack();
-					} else {
-						this.group?.closeEditor(this.input);
-					}
-				});
-
-				const secondaryButton = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
-				secondaryButton.label = localize('browser.certProceed', "Proceed anyway (unsafe)");
-				secondaryButton.onDidClick(() => {
-					this._model?.trustCertificate(certError.host, certError.fingerprint);
-				});
-
-				errorContent.appendChild(actionContainer);
-			}
-
-			this._errorContainer.appendChild(errorContent);
-		}
-
-		this.updateVisibility();
+	/**
+	 * Close this editor tab (i.e. the editor input owning the current page).
+	 */
+	closeTab(): void {
+		this.group?.closeEditor(this.input);
 	}
 
 	getUrl(): string | undefined {
@@ -883,7 +769,6 @@ export class BrowserEditor extends EditorPane {
 	private updateNavigationState(event: IBrowserViewNavigationEvent): void {
 		// Update navigation bar UI
 		this._navigationBar.updateFromNavigationEvent(event);
-		this._navigationBar.setCertificateError(event.certificateError);
 
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
@@ -1042,7 +927,6 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
 		this._hasUrlContext.reset();
-		this._hasErrorContext.reset();
 
 		this._navigationBar.clear();
 

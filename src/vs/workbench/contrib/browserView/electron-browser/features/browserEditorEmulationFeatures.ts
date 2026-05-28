@@ -29,7 +29,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
 import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
@@ -394,8 +394,8 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	// -- BrowserEditorContribution hooks ------------------------------------
 
-	override get toolbarElements(): readonly HTMLElement[] {
-		return [this._toolbar.element];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.Toolbar, element: this._toolbar.element, order: 0 }];
 	}
 
 	override onContainerCreated(container: HTMLElement): void {
