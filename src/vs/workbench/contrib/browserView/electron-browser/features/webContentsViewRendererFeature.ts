@@ -124,8 +124,8 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			// When the browser container gets focus, make sure the browser view also gets focused —
 			// but only if focus was already in the workbench (and not e.g. clicking back into the
 			// workbench from the browser view itself).
-			if (event.relatedTarget && this._model && this._shouldShowPage()) {
-				this.focusPage();
+			if (event.relatedTarget) {
+				this.tryFocus();
 			}
 		}));
 		this._register(addDisposableListener(container, EventType.BLUR, () => this._cancelFocusTimeout()));
@@ -157,10 +157,13 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		this._refreshOverlayObscured();
 	}
 
-	override focusPage(): void {
+	override tryFocus(): boolean {
+		if (!this._shouldShowPage()) {
+			return false;
+		}
 		this.editor.ensureBrowserFocus();
 		if (this._focusTimeout || !this._model) {
-			return;
+			return true;
 		}
 		this._focusTimeout = setTimeout(() => {
 			this._focusTimeout = undefined;
@@ -168,6 +171,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 				void this._model.focus();
 			}
 		}, 0);
+		return true;
 	}
 
 	// -- Model lifecycle ----------------------------------------------------
@@ -178,14 +182,6 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 		store.add(model.onDidChangeVisibility(() => void this._doScreenshot()));
 		store.add(model.onDidKeyCommand(keyEvent => void this._handleKeyEvent(keyEvent)));
-		store.add(model.onDidChangeFocus(({ focused }) => {
-			if (focused) {
-				// The WCV lives outside the DOM focus tracker, so the editor
-				// pane won't otherwise observe page focus. Notify it directly.
-				this.editor.notifyPageFocused();
-				this.editor.ensureBrowserFocus();
-			}
-		}));
 		store.add(model.onDidNavigate(() => this._refresh()));
 		store.add(model.onDidChangeLoadingState(() => this._refresh()));
 
@@ -244,7 +240,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			// If the editor container is focused, ensure the WCV gets focus too.
 			const ownerDoc = this._container?.ownerDocument;
 			if (ownerDoc?.hasFocus() && ownerDoc.activeElement === this._container) {
-				this.focusPage();
+				this.tryFocus();
 			}
 		} else {
 			void this._doScreenshot();

@@ -12,7 +12,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -22,7 +21,6 @@ import {
 	BrowserEditor,
 	BrowserEditorContribution,
 	BrowserWidgetLocation,
-	CONTEXT_BROWSER_HAS_ERROR,
 	IBrowserEditorWidget,
 	IBrowserUrlRenderer,
 } from '../browserEditor.js';
@@ -43,7 +41,6 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 
 	private readonly _element = $('.browser-error-container');
 	private readonly _certActionButton = this._register(new MutableDisposable<ButtonBar>());
-	private readonly _hasErrorContext: IContextKey<boolean>;
 	private readonly _content: IBrowserEditorWidget;
 
 	private readonly _siteInfoSlot = $('.browser-site-info-slot-wrapper');
@@ -53,11 +50,9 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 
 	constructor(
 		editor: BrowserEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(editor);
-		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 		this._element.style.display = 'none';
 		// Sit above the placeholder screenshot and overlay-pause (orders 100/200).
 		this._content = { location: BrowserWidgetLocation.ContentArea, element: this._element, order: 300 };
@@ -81,7 +76,6 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 	}
 
 	override onModelDetached(): void {
-		this._hasErrorContext.reset();
 		this._clearContent();
 		this._element.style.display = 'none';
 		this._siteInfoWidget.setCertificateError(undefined);
@@ -94,7 +88,6 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 			return;
 		}
 		const error = model.error;
-		this._hasErrorContext.set(!!error);
 		this._updateCertState();
 
 		if (!error) {
@@ -220,7 +213,7 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 			: localize('browser.certCloseTab', "Close Tab");
 		primaryButton.onDidClick(() => {
 			if (canGoBack) {
-				this.editor.goBack();
+				this.editor.model?.goBack();
 			} else {
 				this.editor.closeTab();
 			}
@@ -362,13 +355,15 @@ class SiteInfoWidget extends Disposable {
 			revokeLink.tabIndex = 0;
 			revokeLink.addEventListener('click', () => {
 				hover?.dispose();
-				this._editor.revokeAndClose(certError);
+				// This automatically closes the browser view.
+				this._editor.model?.untrustCertificate(certError.host, certError.fingerprint);
 			});
 			revokeLink.addEventListener('keydown', (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					hover?.dispose();
-					this._editor.revokeAndClose(certError);
+					// This automatically closes the browser view.
+					this._editor.model?.untrustCertificate(certError.host, certError.fingerprint);
 				}
 			});
 			content.appendChild(revokeLink);
