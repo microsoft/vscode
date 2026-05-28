@@ -5,10 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapItemCompleted, mapItemStarted, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
-import { turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 
 suite('codexMapAppServerEvents', () => {
 
@@ -297,6 +296,40 @@ suite('codexMapAppServerEvents', () => {
 		const complete = actions[0] as { result: { success: boolean; error?: { message: string } } };
 		assert.strictEqual(complete.result.success, false);
 		assert.strictEqual(complete.result.error?.message, 'Exit code 1');
+	});
+
+	test('webSearch item maps to search tool call lifecycle', () => {
+		const state = createCodexSessionMapState();
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'webSearch', id: 'web_1', query: 'vscode tests',
+				action: { type: 'search', query: 'vscode tests', queries: null },
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('web_1')!.toolCallId;
+		const completeActions = mapItemCompleted(state, {
+			item: {
+				type: 'webSearch', id: 'web_1', query: 'vscode tests',
+				action: { type: 'search', query: 'vscode tests', queries: null },
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			startTypes: startActions.map(action => action.type),
+			startMeta: startActions[0]?.type === ActionType.SessionToolCallStart ? startActions[0]._meta : undefined,
+			delta: startActions[1],
+			ready: startActions[2],
+			complete: completeActions,
+			remainingToolCalls: state.itemToToolCall.size,
+		}, {
+			startTypes: [ActionType.SessionToolCallStart, ActionType.SessionToolCallDelta, ActionType.SessionToolCallReady],
+			startMeta: { toolKind: 'search' },
+			delta: { type: ActionType.SessionToolCallDelta, turnId: 'turn_a', toolCallId, content: 'vscode tests' },
+			ready: { type: ActionType.SessionToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'vscode tests', toolInput: 'vscode tests', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'search' } },
+			complete: [{ type: ActionType.SessionToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Searched vscode tests' } }],
+			remainingToolCalls: 0,
+		});
 	});
 
 	test('turn/completed with status=completed emits SessionTurnComplete', () => {

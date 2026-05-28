@@ -16,6 +16,7 @@ import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/Rea
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
+import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
 
 /**
  * Per-session mutable state held by the mapper. Carries the bookkeeping
@@ -75,6 +76,19 @@ function ensureReasoningPart(state: ICodexSessionMapState, turnId: string, key: 
 			part: { kind: ResponsePartKind.Reasoning, id: partId, content: '' },
 		}],
 	};
+}
+
+function describeWebSearch(query: string, action: WebSearchAction | null): string {
+	if (action?.type === 'search') {
+		return action.queries?.join(', ') ?? action.query ?? query;
+	}
+	if (action?.type === 'openPage') {
+		return action.url ?? query;
+	}
+	if (action?.type === 'findInPage') {
+		return [action.pattern, action.url].filter(Boolean).join(' in ') || query;
+	}
+	return query;
 }
 
 /**
@@ -237,6 +251,41 @@ export function mapItemStarted(
 			},
 		];
 	}
+	if (params.item.type === 'webSearch') {
+		const toolCallId = generateUuid();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'web_search',
+			output: '',
+		});
+		const query = describeWebSearch(params.item.query, params.item.action);
+		return [
+			{
+				type: ActionType.SessionToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'web_search',
+				displayName: 'Web search',
+				_meta: { toolKind: 'search' },
+			},
+			{
+				type: ActionType.SessionToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: query,
+			},
+			{
+				type: ActionType.SessionToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: query,
+				toolInput: query,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { toolKind: 'search' },
+			},
+		];
+	}
 	return [];
 }
 
@@ -334,6 +383,23 @@ export function mapItemCompleted(
 				},
 			},
 		];
+	}
+	if (params.item.type === 'webSearch') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const query = describeWebSearch(params.item.query, params.item.action);
+		return [{
+			type: ActionType.SessionToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: `Searched ${query}`,
+			},
+		}];
 	}
 	return [];
 }
