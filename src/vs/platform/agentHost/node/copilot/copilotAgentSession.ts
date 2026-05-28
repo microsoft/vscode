@@ -800,6 +800,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			return;
 		}
+		if (slashCommand?.command === 'research') {
+			prompt = slashCommand.rest ? `/research ${slashCommand.rest}` : '/research';
+		}
 		if (slashCommand?.command === 'plan') {
 			mode = 'plan';
 			prompt = slashCommand.rest;
