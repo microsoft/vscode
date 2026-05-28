@@ -6,7 +6,7 @@
 import { Delayer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
@@ -24,9 +24,10 @@ export const enum DiscoveredType {
 	Instruction = 'instruction',
 }
 
-export interface IDiscoveredFile {
+export interface IDiscoveredDirectory {
 	readonly uri: URI;
 	readonly type: DiscoveredType;
+	readonly files: readonly URI[];
 }
 
 /**
@@ -38,7 +39,7 @@ const AGENT_FILE_SUFFIX = '.agent.md';
 const MARKDOWN_SUFFIX = '.md';
 const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 const SKILL_FILENAME = 'SKILL.md';
-const README_FILENAME_LOWER = 'readme.md';
+const README_FILENAME = 'README.md';
 
 interface ISearchRoot {
 	readonly path: readonly string[];
@@ -77,7 +78,7 @@ const REFRESH_DEBOUNCE_MS = 100;
  * user's home, and emits {@link onDidChange} when any of those directories
  * change on disk.
  *
- * The first call to {@link files} performs the scan; subsequent calls return
+ * The first call to {@link directories} performs the scan; subsequent calls return
  * the cached result until a watcher fires (or until {@link refresh} is
  * invoked). Watchers are recreated on each scan so directories that did not
  * exist initially get picked up once they appear.
@@ -94,7 +95,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
 	private readonly _rootUris: readonly URI[];
 
-	private _cached: Promise<readonly IDiscoveredFile[]> | undefined;
+	private _cached: Promise<readonly IDiscoveredDirectory[]> | undefined;
 
 	constructor(
 		private readonly _workingDirectory: URI,
@@ -115,7 +116,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}));
 	}
 
-	files(): Promise<readonly IDiscoveredFile[]> {
+	directories(): Promise<readonly IDiscoveredDirectory[]> {
 		if (!this._cached) {
 			this._cached = this._scan();
 		}
@@ -123,7 +124,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	/**
-	 * Forces the next call to {@link files} to re-scan and re-attach watchers.
+	 * Forces the next call to {@link directories} to re-scan and re-attach watchers.
 	 * Does not emit {@link onDidChange} on its own — callers that explicitly
 	 * refresh own that responsibility.
 	 */
@@ -139,21 +140,22 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}).catch(() => { /* delayer cancelled on dispose */ });
 	}
 
-	private async _scan(): Promise<readonly IDiscoveredFile[]> {
+	private async _scan(): Promise<readonly IDiscoveredDirectory[]> {
 		this._watchers.clear();
-		const seen = new ResourceMap<IDiscoveredFile>();
+		const seen = new ResourceSet();
+		const result: IDiscoveredDirectory[] = [];
 		const { workspace, user } = getSearchRoots(this._workingDirectory, this._userHome);
 
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
-			...workspace.map(root => this._scanRoot(this._workingDirectory, root, seen)),
-			...user.map(root => this._scanRoot(this._userHome, root, seen)),
+			...workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result)),
+			...user.map(root => this._scanRoot(this._userHome, root, seen, result)),
 		]);
 
-		return [...seen.values()];
+		return result;
 	}
 
-	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceMap<IDiscoveredFile>): Promise<void> {
+	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
 		const rootUri = joinPath(base, ...root.path);
 		let stat: IFileStatWithMetadata;
 		try {
@@ -175,46 +177,54 @@ export class SessionCustomizationDiscovery extends Disposable {
 			this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
 		}
 
+
 		if (root.type === DiscoveredType.Skill) {
+			const files = [];
 			for (const child of stat.children) {
 				if (child.isDirectory) {
 					const skillFile = joinPath(child.resource, SKILL_FILENAME);
 					try {
 						const skillStat = await this._fileService.resolve(skillFile, { resolveMetadata: false });
 						if (skillStat.isFile && !seen.has(skillFile)) {
-							seen.set(skillFile, { uri: skillFile, type: DiscoveredType.Skill });
+							seen.add(skillFile);
+							files.push(skillFile);
 						}
 					} catch {
 						// SKILL.md missing — skip this skill directory.
 					}
 				}
 			}
+			result.push({ uri: rootUri, type: root.type, files });
 		} else if (root.type === DiscoveredType.Agent) {
-			// agents are all .md files (excpet README.md) directly under the root (no subdirectory scanning)
+			const files: URI[] = [];
+			// agents are markdown files directly under the root (no subdirectory scanning),
+			// excluding only exact-case README.md.
 			for (const child of stat.children) {
 				if (child.isFile) {
-					const name = child.name.toLowerCase();
-					if (!name.endsWith(MARKDOWN_SUFFIX) || name === README_FILENAME_LOWER || seen.has(child.resource)) {
-						continue;
+					const filename = child.name;
+					if (filename.endsWith(MARKDOWN_SUFFIX) && filename !== README_FILENAME && !seen.has(child.resource)) {
+						seen.add(child.resource);
+						files.push(child.resource);
 					}
-					seen.set(child.resource, { uri: child.resource, type: DiscoveredType.Agent });
 				}
 			}
+			result.push({ uri: rootUri, type: root.type, files });
+
 		} else if (root.type === DiscoveredType.Instruction) {
+			const files: URI[] = [];
 			// instructions are all .instructions.md files directly under the root or in a subdirectory
 			const findInstructions = async (stat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
 				for (const child of stat.children ?? []) {
 					if (child.isFile) {
 						const name = child.name.toLowerCase();
-						if (!name.endsWith(INSTRUCTION_FILE_SUFFIX) || seen.has(child.resource)) {
-							continue;
+						if (name.endsWith(INSTRUCTION_FILE_SUFFIX) && !seen.has(child.resource)) {
+							seen.add(child.resource);
+							files.push(child.resource);
 						}
-						seen.set(child.resource, { uri: child.resource, type: DiscoveredType.Instruction });
 					} else if (child.isDirectory && recursionLevel < MAX_INSTRUCTIONS_RECURSION_DEPTH) {
 						let childStat: IFileStatWithMetadata | undefined = undefined;
 						try {
 							childStat = await this._fileService.resolve(child.resource, { resolveMetadata: true });
-
 						} catch {
 							// Ignore unreadable subdirectories.
 						}
@@ -225,9 +235,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 				}
 			};
 			await findInstructions(stat, 0);
+			result.push({ uri: rootUri, type: root.type, files });
 		} else {
 			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}
+
 	}
 }
 

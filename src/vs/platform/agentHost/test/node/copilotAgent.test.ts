@@ -731,6 +731,64 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('getSessionCustomizations publishes discovered files as Directory customizations', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			await fileService.createFolder(URI.joinPath(workspace, '.github', 'agents'));
+			await fileService.createFolder(URI.joinPath(workspace, '.github', 'instructions', 'team'));
+			const agentFile = URI.joinPath(workspace, '.github', 'agents', 'helper.agent.md');
+			const instructionFile = URI.joinPath(workspace, '.github', 'instructions', 'team', 'nested.instructions.md');
+			await fileService.writeFile(agentFile, VSBuffer.fromString('agent body'));
+			await fileService.writeFile(instructionFile, VSBuffer.fromString('instruction body'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-directories');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				const customizations = await agent.getSessionCustomizations(session);
+				const discoveredDirectories = customizations.filter(customization => customization.type === CustomizationType.Directory);
+
+				assert.strictEqual(discoveredDirectories.length, 2);
+				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), [
+					URI.joinPath(workspace, '.github', 'agents').toString(),
+					URI.joinPath(workspace, '.github', 'instructions').toString(),
+				].sort());
+
+				const agentDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'agents').toString());
+				assert.ok(agentDirectory);
+				assert.strictEqual(agentDirectory.contents, CustomizationType.Agent);
+				assert.deepStrictEqual(agentDirectory.children, [{
+					type: CustomizationType.Agent,
+					id: customizationId(agentFile.toString()),
+					uri: agentFile.toString(),
+					name: 'helper.agent.md',
+				}]);
+
+				const instructionDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'instructions').toString());
+				assert.ok(instructionDirectory);
+				assert.strictEqual(instructionDirectory.contents, CustomizationType.Rule);
+				assert.deepStrictEqual(instructionDirectory.children, [{
+					type: CustomizationType.Rule,
+					id: customizationId(instructionFile.toString()),
+					uri: instructionFile.toString(),
+					name: 'nested.instructions.md',
+				}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('provisional sessions', () => {
