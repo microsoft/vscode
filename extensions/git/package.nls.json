@@ -264,6 +264,7 @@
 	"config.showProgress": "Controls whether Git actions should show progress.",
 	"config.rebaseWhenSync": "Force Git to use rebase when running the sync command.",
 	"config.confirmEmptyCommits": "Always confirm the creation of empty commits for the 'Git: Commit Empty' command.",
+	"config.experimental.retainCommitMessageAfterCommit": "Controls whether the commit message is retained in the input box after a successful commit, instead of clearing it.",
 	"config.fetchOnPull": "When enabled, fetch all branches when pulling. Otherwise, fetch just the current one.",
 	"config.pullBeforeCheckout": "Controls whether a branch that does not have outgoing commits is fast-forwarded before it is checked out.",
 	"config.pullTags": "Fetch all tags when pulling.",
