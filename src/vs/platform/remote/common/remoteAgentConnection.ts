@@ -718,10 +718,10 @@ export abstract class PersistentConnection extends Disposable {
 					continue;
 				}
 				if (err instanceof RemoteAuthorityResolverError) {
-					this._options.logService.error(`${logPrefix} A RemoteAuthorityResolverError occurred while trying to reconnect. Will give up now! Error:`);
+					this._options.logService.error(`${logPrefix} A RemoteAuthorityResolverError occurred while trying to reconnect. Error:`);
 					this._options.logService.error(err);
-					this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, RemoteAuthorityResolverError.isHandled(err));
-					break;
+					// try again!
+					continue;
 				}
 				this._options.logService.error(`${logPrefix} An unknown error occurred while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
 				this._options.logService.error(err);
