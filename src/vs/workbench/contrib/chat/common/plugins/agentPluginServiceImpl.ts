@@ -505,18 +505,11 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@ILogService logService: ILogService,
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
-		// Filesystem path entries (user-configured). `getValue()` alone would surface
-		// only the policy value when a policy is set; use `inspect()` so that user
-		// entries survive. `defaultValue` is folded in for symmetry.
-		this._pluginLocationsConfig = observableFromEvent(this,
-			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.PluginLocations)),
-			() => {
-				const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginLocations);
-				return { ...inspected.defaultValue, ...inspected.userValue };
-			},
-		);
-		// Enterprise-managed plugin-ID entries (delivered via `ChatEnabledPlugins` policy).
+		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
+		// Enterprise-managed plugin-ID entries (delivered via the `ChatEnabledPlugins` policy).
 		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
+		// Read via `inspect()` so user-set entries survive when the policy is also set —
+		// `getValue()` alone would surface only the policy value.
 		this._enterpriseEnabledPluginsConfig = observableFromEvent(this,
 			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
 			() => {
