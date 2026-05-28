@@ -957,6 +957,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Delivered exclusively via the `ChatExtraMarketplaces` policy and unioned with {0}. Entries are either GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or objects of the form `name: <label>, source: <github or git source>` (the `name` is the marketplace label used to match `<plugin>@<marketplace>` IDs in {1}).", `\`#${ChatConfiguration.PluginMarketplaces}#\``, `\`#${ChatConfiguration.EnabledPlugins}#\``),
 			policy: {
 				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
@@ -965,7 +966,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or `{ name, source }` objects."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or `{ name, source: { source: 'github'|'git', repo|url, ref? } }` objects."),
 					}
 				},
 			},
