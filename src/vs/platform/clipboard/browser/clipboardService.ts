@@ -11,7 +11,7 @@ import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IClipboardService } from '../common/clipboardService.js';
+import { ClipboardType, IClipboardService } from '../common/clipboardService.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -125,7 +125,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		this.clearResourcesState();
 
 		// With type (except 'clipboard'): only in-memory is supported
-		if (type && type !== 'clipboard') {
+		if (type && type !== ClipboardType.Clipboard) {
 			this.mapTextToType.set(type, text);
 			this.logService.trace('BrowserClipboardService#writeText');
 			return;
@@ -178,7 +178,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	async readText(type?: string): Promise<string> {
 		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		// With type: only in-memory is supported
-		if (type && type !== 'clipboard') {
+		if (type && type !== ClipboardType.Clipboard) {
 			const readText = this.mapTextToType.get(type) || '';
 			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
 			return readText;
