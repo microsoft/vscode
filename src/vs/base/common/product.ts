@@ -241,6 +241,8 @@ export interface IProductConfiguration {
 	readonly onboardingExtensions?: readonly IProductOnboardingExtension[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
 
+	readonly extensionsAutoInstall?: readonly string[]; // test-workbench_change
+
 	readonly tsCodeAuthMockEnabled?: boolean; // test-workbench_change
 	readonly defaultColorTheme?: string; // test-workbench_change
 	readonly defaultIconTheme?: string; // test-workbench_change
