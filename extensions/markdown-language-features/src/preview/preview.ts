@@ -487,7 +487,13 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 				try {
 					const doc = await vscode.workspace.openTextDocument(vscode.Uri.from(resolved.uri));
 					if (isMarkdownFile(doc)) {
-						return this.#delegate.openPreviewLinkToMarkdownFile(doc.uri, resolved.fragment ? decodeURIComponent(resolved.fragment) : undefined);
+						const fragment = resolved.fragment ? decodeURIComponent(resolved.fragment) : undefined;
+						// Line-number anchors (e.g. #L44, #L10-L20) are not supported by the preview's
+						// fragment-based scrolling, which only handles heading anchors. Fall through to
+						// openDocumentLink so that the editor can apply the correct line selection.
+						if (!fragment || !/^L?\d+(?:,\d+)?(?:-L?\d+(?:,\d+)?)?$/i.test(fragment)) {
+							return this.#delegate.openPreviewLinkToMarkdownFile(doc.uri, fragment);
+						}
 					}
 				} catch {
 					// Noop
