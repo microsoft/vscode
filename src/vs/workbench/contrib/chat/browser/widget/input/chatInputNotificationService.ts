@@ -70,8 +70,10 @@ export interface IChatInputNotificationService {
 	/**
 	 * Get the single active notification to display. Returns the highest-severity
 	 * notification that has not been dismissed. Ties are broken by most-recent insertion.
+	 * An optional `filter` can be provided to restrict the set of notifications considered,
+	 * so a non-matching higher-priority notification doesn't mask other eligible ones.
 	 */
-	getActiveNotification(): IChatInputNotification | undefined;
+	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined;
 
 	/**
 	 * Called when the user sends a chat message. Auto-dismisses all notifications
@@ -126,12 +128,15 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		}
 	}
 
-	getActiveNotification(): IChatInputNotification | undefined {
+	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
 		let best: IChatInputNotification | undefined;
 		let bestOrder = -1;
 
 		for (const notification of this._notifications.values()) {
 			if (this._dismissed.has(notification.id)) {
+				continue;
+			}
+			if (filter && !filter(notification)) {
 				continue;
 			}
 

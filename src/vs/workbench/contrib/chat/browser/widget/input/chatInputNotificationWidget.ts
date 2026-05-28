@@ -76,8 +76,8 @@ export class ChatInputNotificationWidget extends Disposable {
 		this._contentDisposables.clear();
 		dom.clearNode(this.domNode);
 
-		const notification = this._notificationService.getActiveNotification();
-		if (!notification || !this._matchesSession(notification)) {
+		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			return;
 		}
