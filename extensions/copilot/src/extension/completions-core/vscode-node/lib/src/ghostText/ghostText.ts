@@ -646,6 +646,11 @@ export class GhostTextComputer {
 				this.currentGhostText.setGhostText(prefix, prompt.prompt.suffix, postProcessedChoicesArray, resultType);
 			}
 
+			// Overwrite the early fallback `headerRequestId` (set to `id` at the top) with the
+			// winning choice's actual `headerRequestId`. They differ when the result came from
+			// a local cache hit or an in-flight async request produced by a different invocation.
+			telemetryBuilder.setHeaderRequestId(postProcessedChoicesArray[0]?.requestId.headerRequestId ?? ourRequestId);
+
 			recordPerformance('complete');
 			logger.trace(`Ghost text computation complete, returning ${results.length} results`);
 
