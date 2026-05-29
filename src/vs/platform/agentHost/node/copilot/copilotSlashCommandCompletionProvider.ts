@@ -48,9 +48,10 @@ export interface IParsedLeadingSlashCommand {
 /**
  * Parses a Copilot CLI slash command at the very start of `prompt`.
  *
- * The command must be `/plan` or `/compact`, followed either by end-of-input
- * or by at least one whitespace character. `/compact-hello`, `/plans`, or a
- * leading-space `/compact` all return `undefined`. Match is case-sensitive.
+ * The command must be `/plan`, `/compact`, or `/research`, followed either by
+ * end-of-input or by at least one whitespace character. `/compact-hello`,
+ * `/plans`, or a leading-space `/compact` all return `undefined`. Match is
+ * case-sensitive.
  */
 export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
 	const match = /^\/(plan|compact|research)(?:$|\s+([\s\S]*))/.exec(prompt);
