@@ -180,6 +180,10 @@ describe('CopilotCLI SDK Upgrade', function () {
 			'tree-sitter-scala.wasm',
 		].map(p => path.join(copilotSDKPath, p)));
 
+		const optionalKnownBinaries = new Set([
+			path.join(copilotSDKPath, 'mxc-bin', 'x64', 'mxc-exec-mac'),
+		]);
+
 		// Exclude ripgrep files that we copy over in src/extension/chatSessions/copilotcli/node/ripgrepShim.ts (until we get better API/solution from SDK)
 		const ripgrepFilesWeCopy = path.join(copilotSDKPath, 'sdk', 'ripgrep', 'bin');
 
@@ -193,7 +197,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 			if (binaryName.startsWith('keytar') || binaryName.startsWith('clipboard')) {
 				continue;
 			}
-			if (!knownBinaries.has(binary)) {
+			if (!knownBinaries.has(binary) && !optionalKnownBinaries.has(binary)) {
 				errors.push(`Unexpected native binary found in Copilot CLI SDK: ${path.relative(copilotSDKPath, binary)}`);
 			}
 		}
