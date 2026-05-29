@@ -20,6 +20,7 @@ import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORA
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -156,6 +157,7 @@ suite('AICustomizationItemsModel', () => {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
 				label: name,
+				format: PluginFormat.Copilot,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
 				remove: () => { },
 				hooks: observableValue('pluginHooks', []),
@@ -604,6 +606,7 @@ suite('AICustomizationItemsModel', () => {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
 				label: name,
+				format: PluginFormat.Copilot,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
 				remove: () => { },
 				hooks: observableValue('pluginHooks', []),

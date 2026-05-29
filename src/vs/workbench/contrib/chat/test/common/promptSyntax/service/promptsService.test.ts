@@ -41,7 +41,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, ICustomAgent, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -54,6 +54,7 @@ import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
@@ -4319,6 +4320,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
 				label: 'my-plugin',
+				format: PluginFormat.Copilot,
 				enablement,
 				remove: () => { },
 				hooks: observableValue('testPluginHooks', []),
@@ -4364,6 +4366,7 @@ suite('PromptsService', () => {
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
 				label: 'devtools',
+				format: PluginFormat.Copilot,
 				enablement,
 				remove: () => { },
 				hooks: observableValue('testPluginHooks', []),
@@ -4408,6 +4411,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					label: basename(URI.file(path)),
+					format: PluginFormat.Copilot,
 					enablement,
 					remove: () => { },
 					hooks,
@@ -4656,6 +4660,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					label: basename(URI.file(path)),
+					format: PluginFormat.Copilot,
 					enablement,
 					remove: () => { },
 					hooks,
@@ -4742,6 +4747,141 @@ suite('PromptsService', () => {
 			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
 			assert.ok(pluginInstruction, 'Plugin instruction should be listed');
 			assert.strictEqual(pluginInstruction!.name, 'deploy-tools:lint-check');
+		});
+	});
+
+	suite('plugin Claude format propagation', () => {
+		function createPlugin(
+			path: string,
+			format: PluginFormat,
+			options: {
+				agents?: readonly IAgentPluginAgent[];
+				instructions?: readonly IAgentPluginInstruction[];
+			} = {},
+		): IAgentPlugin {
+			return {
+				uri: URI.file(path),
+				label: basename(URI.file(path)),
+				format,
+				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				remove: () => { },
+				hooks: observableValue<readonly IAgentPluginHook[]>('testPluginHooks', []),
+				commands: observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', options.agents ?? []),
+				instructions: observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', options.instructions ?? []),
+				mcpServerDefinitions: observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []),
+			};
+		}
+
+		test('Claude-format plugin agent resolves Target.Claude and maps tools/model', async () => {
+			// Plugin installed via marketplace lands outside any .claude/agents folder,
+			// so the Claude target must come from the detected plugin format, not the path.
+			const agentUri = URI.file('/plugins/claude-plugin/agents/deployer.md');
+			await mockFiles(fileService, [
+				{
+					path: agentUri.path,
+					contents: [
+						'---',
+						'description: \'Claude plugin agent.\'',
+						'tools: [ Read, Edit, Bash ]',
+						'model: opus',
+						'---',
+						'I am a Claude plugin agent.',
+					],
+				},
+			]);
+
+			const plugin = createPlugin('/plugins/claude-plugin', PluginFormat.Claude, {
+				agents: [{ uri: agentUri, name: 'deployer' }],
+			});
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			const deployer = agents.find(a => a.uri.toString() === agentUri.toString());
+
+			assert.ok(deployer, 'Claude plugin agent should be discovered');
+			assert.strictEqual(deployer!.target, Target.Claude, 'plugin format should drive Claude target');
+			assert.deepStrictEqual(
+				deployer!.tools,
+				['read/readFile', 'read/getNotebookSummary', 'edit/editNotebook', 'edit/editFiles', 'execute'],
+				'Claude tools must be mapped to VS Code equivalents for plugin agents',
+			);
+			assert.deepStrictEqual(
+				deployer!.model,
+				['Claude Opus 4.6 (copilot)'],
+				'Claude model must be mapped to VS Code equivalent for plugin agents',
+			);
+
+			testPluginsObservable.set([], undefined);
+		});
+
+		test('Copilot-format plugin agent does not map tools/model', async () => {
+			const agentUri = URI.file('/plugins/copilot-plugin/agents/helper.agent.md');
+			await mockFiles(fileService, [
+				{
+					path: agentUri.path,
+					contents: [
+						'---',
+						'description: \'Copilot plugin agent.\'',
+						'tools: [ Read, Edit ]',
+						'model: gpt-4',
+						'---',
+						'I am a Copilot plugin agent.',
+					],
+				},
+			]);
+
+			const plugin = createPlugin('/plugins/copilot-plugin', PluginFormat.Copilot, {
+				agents: [{ uri: agentUri, name: 'helper' }],
+			});
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			const helper = agents.find(a => a.uri.toString() === agentUri.toString());
+
+			assert.ok(helper, 'Copilot plugin agent should be discovered');
+			assert.notStrictEqual(helper!.target, Target.Claude, 'Copilot plugin must not resolve Claude target');
+			assert.deepStrictEqual(helper!.tools, ['Read', 'Edit'], 'Copilot plugin tools must stay unmapped');
+			assert.deepStrictEqual(helper!.model, ['gpt-4'], 'Copilot plugin model must stay unmapped');
+
+			testPluginsObservable.set([], undefined);
+		});
+
+		test('Claude-format plugin rule with paths (no applyTo) is applied', async () => {
+			// Claude rules express scope via `paths`; without Claude semantics the rule
+			// would be skipped for lacking `applyTo`.
+			const ruleUri = URI.file('/plugins/claude-plugin/rules/ts-style.md');
+			await mockFiles(fileService, [
+				{
+					path: ruleUri.path,
+					contents: [
+						'---',
+						'description: \'TypeScript style rule.\'',
+						'paths: [ "**/*.ts" ]',
+						'---',
+						'Prefer const.',
+					],
+				},
+			]);
+
+			const plugin = createPlugin('/plugins/claude-plugin', PluginFormat.Claude, {
+				instructions: [{ uri: ruleUri, name: 'ts-style' }],
+			});
+			testPluginsObservable.set([plugin], undefined);
+
+			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.instructions, CancellationToken.None) as IInstructionDiscoveryInfo;
+			const rule = discoveryInfo.files.find(f => f.promptPath.uri.toString() === ruleUri.toString());
+
+			assert.ok(rule, 'Claude plugin rule should be discovered');
+			assert.strictEqual(rule!.status, 'loaded', 'Claude plugin rule should load');
+			assert.strictEqual(
+				(rule as IInstructionDiscoveryResult).pattern,
+				'**/*.ts',
+				'Claude `paths` must map to applyTo for plugin rules instead of being dropped',
+			);
+
+			testPluginsObservable.set([], undefined);
 		});
 	});
 });

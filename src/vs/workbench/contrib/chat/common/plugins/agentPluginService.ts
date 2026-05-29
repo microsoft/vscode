@@ -9,7 +9,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
@@ -34,6 +34,8 @@ export interface IAgentPlugin {
 	readonly uri: URI;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;
+	/** Detected on-disk format of the plugin (Copilot, Claude, or Open Plugin). */
+	readonly format: PluginFormat;
 	readonly enablement: IObservable<ContributionEnablementState>;
 	/** Removes this plugin from its discovery source (config or installed storage). */
 	remove(): void;
