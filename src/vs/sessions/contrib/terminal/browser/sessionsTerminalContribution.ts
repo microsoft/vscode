@@ -261,14 +261,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				const info = getSessionTerminalInfo(session);
 				if (info && !liveCwdKeys.has(info.cwd.fsPath.toLowerCase())) {
 					this._logService.info(`[SessionsTerminal] Closing terminals for ${info.cwd.fsPath} (session ${session.sessionId} removed; no live session owns this cwd)`);
-					this._closeTerminalsForPath(info.cwd.fsPath, `session removed (${session.sessionId})`);
+					void this._closeTerminalsForPath(info.cwd.fsPath, `session removed (${session.sessionId})`);
 				}
 			}
 			for (const session of justArchived) {
 				const info = getSessionTerminalInfo(session);
 				if (info && !liveCwdKeys.has(info.cwd.fsPath.toLowerCase())) {
 					this._logService.info(`[SessionsTerminal] Hiding terminals for ${info.cwd.fsPath} (session ${session.sessionId} archived; no live session owns this cwd)`);
-					this._hideTerminalsForPath(info.cwd.fsPath, `session archived (${session.sessionId})`);
+					void this._hideTerminalsForPath(info.cwd.fsPath, `session archived (${session.sessionId})`);
 				}
 			}
 		}));
@@ -484,20 +484,21 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				continue;
 			}
-			if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
-				this._logService.info(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for ${fsPath} (user is working in it)`);
-				continue;
-			}
 			try {
 				const cwd = (await instance.getInitialCwd()).toLowerCase();
-				if (cwd === key) {
-					const availableInstance = this._getAvailableTerminal(instance, `close removed session terminal for ${fsPath}`);
-					if (!availableInstance) {
-						continue;
-					}
-					this._logService.info(`[SessionsTerminal] Killing terminal ${availableInstance.instanceId} (cwd: ${fsPath}, reason: ${reason})`);
-					this._terminalService.safeDisposeTerminal(availableInstance);
+				if (cwd !== key) {
+					continue;
 				}
+				if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
+					this._logService.info(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for ${fsPath} (user is working in it)`);
+					continue;
+				}
+				const availableInstance = this._getAvailableTerminal(instance, `close removed session terminal for ${fsPath}`);
+				if (!availableInstance) {
+					continue;
+				}
+				this._logService.info(`[SessionsTerminal] Killing terminal ${availableInstance.instanceId} (cwd: ${fsPath}, reason: ${reason})`);
+				await this._terminalService.safeDisposeTerminal(availableInstance);
 			} catch {
 				// ignore
 			}
@@ -528,20 +529,21 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				continue;
 			}
-			if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
-				this._logService.info(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for ${fsPath} (user is working in it)`);
-				continue;
-			}
 			try {
 				const cwd = (await instance.getInitialCwd()).toLowerCase();
-				if (cwd === key) {
-					const availableInstance = this._getAvailableTerminal(instance, `hide archived terminal for ${fsPath}`);
-					if (!availableInstance) {
-						continue;
-					}
-					this._logService.info(`[SessionsTerminal] Hiding terminal ${availableInstance.instanceId} (cwd: ${fsPath}, reason: ${reason})`);
-					this._terminalService.moveToBackground(availableInstance);
+				if (cwd !== key) {
+					continue;
 				}
+				if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
+					this._logService.info(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for ${fsPath} (user is working in it)`);
+					continue;
+				}
+				const availableInstance = this._getAvailableTerminal(instance, `hide archived terminal for ${fsPath}`);
+				if (!availableInstance) {
+					continue;
+				}
+				this._logService.info(`[SessionsTerminal] Hiding terminal ${availableInstance.instanceId} (cwd: ${fsPath}, reason: ${reason})`);
+				this._terminalService.moveToBackground(availableInstance);
 			} catch {
 				// ignore
 			}
