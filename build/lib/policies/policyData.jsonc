@@ -84,6 +84,21 @@
             "included": false
         },
         {
+            "key": "extensions.gallery.serviceUrl",
+            "name": "ExtensionGalleryServiceUrl",
+            "category": "Extensions",
+            "minimumVersion": "1.99",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.serviceUrl",
+                    "value": "Configure the Marketplace service URL to connect to"
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",
@@ -295,6 +310,40 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "extensions.autoUpdate",
+            "name": "ExtensionsAutoUpdate",
+            "category": "Extensions",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdate",
+                    "value": "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.autoUpdate.on",
+                        "value": "Enabled extensions are updated automatically."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.delayed",
+                        "value": "Enabled extensions are updated automatically, but only 6 hours after a new version has been published."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.off",
+                        "value": "Extensions are not updated automatically."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "on",
+            "enum": [
+                "on",
+                "delayed",
+                "off"
+            ],
             "included": true
         },
         {
