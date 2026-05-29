@@ -2540,6 +2540,52 @@ suite('CopilotAgentSession', () => {
 			// Text content should be extracted
 			assert.strictEqual(result.textResultForLlm, 'text part');
 		});
+
+		test('handleClientToolCallComplete with image-only result uses a non-empty text fallback', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-image-only');
+
+			session.handleClientToolCallComplete('tc-image-only', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
+				],
+			});
+
+			const result = await handlerPromise;
+			assert.deepStrictEqual(result, {
+				resultType: 'success',
+				textResultForLlm: 'See attached image(s).',
+				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
+			});
+		});
+
+		test('handleClientToolCallComplete with image-only failure prefers the error message over the image fallback', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-image-fail');
+
+			session.handleClientToolCallComplete('tc-image-fail', {
+				success: false,
+				pastTenseMessage: 'failed',
+				error: { message: 'capture failed' },
+				content: [
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
+				],
+			});
+
+			const result = await handlerPromise;
+			assert.deepStrictEqual(result, {
+				resultType: 'failure',
+				error: 'capture failed',
+				textResultForLlm: 'capture failed',
+				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
+			});
+		});
 	});
 
 	// ---- Plan mode ----------------------------------------------------------
