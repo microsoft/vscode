@@ -919,14 +919,11 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	}
 	const enriched = await Promise.all(files.map(async file => {
 		try {
-			const content = await fileService.readFile(file.uri);
-			const frontmatter = parseFrontMatter(content.value.toString());
-			const fmName = frontmatter?.getStringValue('name')?.trim();
-			const fmDescription = frontmatter?.getStringValue('description')?.trim();
+			const { name, description } = await parseAgentFile(file.uri, fileService);
 			return {
 				uri: file.uri,
-				name: fmName || file.name,
-				...(fmDescription ? { description: fmDescription } : {}),
+				name: name || file.name,
+				...(description ? { description } : {}),
 			} satisfies INamedPluginResource;
 		} catch {
 			return file;
@@ -944,6 +941,20 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	}
 	result.sort((a, b) => a.name.localeCompare(b.name));
 	return result;
+}
+
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string }> {
+	// Use regex to strip the trailing `.agent.md` before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
+	const nameFromFile = basename(uri).replace(/\.agent\.md$/i, '');
+	try {
+		const content = await fileService.readFile(uri);
+		const frontmatter = parseFrontMatter(content.value.toString());
+		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
+		const description = frontmatter?.getStringValue('description')?.trim();
+		return { name, ...(description ? { description } : {}) };
+	} catch {
+		return { name: nameFromFile };
+	}
 }
 
 async function readHooks(

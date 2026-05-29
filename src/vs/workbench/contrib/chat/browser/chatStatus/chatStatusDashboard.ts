@@ -140,7 +140,7 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
-		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
+		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
@@ -821,7 +821,14 @@ export class ChatStatusDashboard extends DomWidget {
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
 			const isPooledQuotaExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
-			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
+			// Business/Enterprise: hasQuota === false is the authoritative signal
+			// that the org has blocked usage, regardless of overages or remaining quota.
+			if (isEnterpriseUser && isPooledQuotaExhausted) {
+				quotaCallout.style.display = '';
+				quotaCallout.className = 'quota-callout info';
+				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				calloutText.textContent = localize('quotaBudgetExceededEnterprise', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.");
+			} else if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
