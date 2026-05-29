@@ -2500,7 +2500,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Check for subagent grouping before creating tool part - subagent part handles lazy creation
 		const subagentId = getSubagentId(toolInvocation);
 		if (subagentId && isResponseVM(context.element) && !IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
-			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
+			// If the parent subagent tool is waiting for confirmation (e.g. expensive model approval),
+			// render it as a regular tool part so the confirmation buttons are visible. Once confirmed,
+			// a re-render will route it to the subagent content part.
+			const isWaitingForOwnConfirmation = isParentSubagentTool(toolInvocation)
+				&& toolInvocation.kind === 'toolInvocation'
+				&& toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation;
+			if (!isWaitingForOwnConfirmation) {
+				return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
+			}
 		}
 
 		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
