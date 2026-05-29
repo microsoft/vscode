@@ -140,9 +140,9 @@ export function getClassName(obj: object): string | undefined {
 
 export function getFunctionName(fn: Function): string | undefined {
 	const fnSrc = fn.toString();
-	// Pattern: /** @description ... */
-	const regexp = /\/\*\*\s*@description\s*([^*]*)\*\//;
+	// Pattern: /** @description \.\.\.  */
+	const regexp = /\/\*\*\s*@description\s*(?<description>[^*]*)\*\//;
 	const match = regexp.exec(fnSrc);
-	const result = match ? match[1] : undefined;
+	const result = match ? match.groups?.description : undefined;
 	return result?.trim();
 }
