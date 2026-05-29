@@ -235,6 +235,18 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
+function createPolicyRestrictedConfigurationService(): TestConfigurationService {
+	return new class extends TestConfigurationService {
+		override inspect<T>(key: string) {
+			const base = super.inspect<T>(key);
+			if (key === 'chat.tools.global.autoApprove') {
+				return { ...base, policyValue: false as unknown as T };
+			}
+			return base;
+		}
+	}();
+}
+
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
 ], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService }): LocalAgentHostSessionsProvider {
@@ -1065,15 +1077,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
-		const config = new class extends TestConfigurationService {
-			override inspect<T>(key: string) {
-				const base = super.inspect<T>(key);
-				if (key === 'chat.tools.global.autoApprove') {
-					return { ...base, policyValue: false as unknown as T };
-				}
-				return base;
-			}
-		}();
+		const config = createPolicyRestrictedConfigurationService();
 		await config.setUserConfiguration('chat.permissions.default', 'autopilot');
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
@@ -1101,6 +1105,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
+	test('setSessionConfigValue clamps autoApprove to default when policy disables global auto-approve', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const config = createPolicyRestrictedConfigurationService();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'autopilot');
+
+		assert.deepStrictEqual({
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			remembered: { [SessionConfigKey.AutoApprove]: 'default' },
+			forwardedToAgentHost: 'default',
+		});
+	});
+
 	test('createNewSession seeds remembered values and skips unsafe remembered keys', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, `{"${SessionConfigKey.Isolation}":"folder","${SessionConfigKey.Branch}":"main","__proto__":"polluted"}`, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -1116,41 +1138,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession gives chat.permissions.default precedence over remembered autoApprove while normalizing by policy and feature flags', async () => {
+	test('createNewSession gives chat.permissions.default precedence over remembered autoApprove while normalizing by policy', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.AutoApprove]: 'autopilot',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		// Case 1: policy restricts auto-approve — setting 'autoApprove' is clamped to 'default'
-		const policyRestrictedConfig = new class extends TestConfigurationService {
-			override inspect<T>(key: string) {
-				const base = super.inspect<T>(key);
-				if (key === 'chat.tools.global.autoApprove') {
-					return { ...base, policyValue: false as unknown as T };
-				}
-				return base;
-			}
-		}();
+		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
 		await policyRestrictedConfig.setUserConfiguration('chat.permissions.default', 'autoApprove');
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
 		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 
-		// Case 2: autopilot disabled — setting 'default' wins over remembered 'autopilot'
-		const autopilotDisabledConfig = new TestConfigurationService();
-		await autopilotDisabledConfig.setUserConfiguration('chat.permissions.default', 'default');
-		await autopilotDisabledConfig.setUserConfiguration('chat.autopilot.enabled', false);
-		const autopilotDisabledProvider = createProvider(disposables, agentHost, undefined, { configurationService: autopilotDisabledConfig, storageService });
-		autopilotDisabledProvider.createNewSession(URI.parse('file:///home/user/project'), autopilotDisabledProvider.sessionTypes[0].id);
+		// Case 2: configured 'default' wins over remembered 'autopilot'
+		const configuredDefaultConfig = new TestConfigurationService();
+		await configuredDefaultConfig.setUserConfiguration('chat.permissions.default', 'default');
+		const configuredDefaultProvider = createProvider(disposables, agentHost, undefined, { configurationService: configuredDefaultConfig, storageService });
+		configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
 
 		// The forwarded config proves the setting took precedence over the
 		// remembered value and was properly normalized.
 		assert.deepStrictEqual({
 			policyRestricted: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
-			autopilotDisabled: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			configuredDefault: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
 		}, {
 			policyRestricted: 'default',
-			autopilotDisabled: 'default',
+			configuredDefault: 'default',
 		});
 	});
 
@@ -1713,6 +1726,63 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const latest = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' });
+	}));
+
+	test('running session config writes clamp autoApprove to default when policy disables global auto-approve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('policy-write', { summary: 'Policy Write Session' }));
+		const configService = createPolicyRestrictedConfigurationService();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Policy Write Session');
+		assert.ok(session);
+
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove', 'autopilot'], sessionMutable: true },
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+				},
+			},
+			values: { autoApprove: 'default', isolation: 'worktree' },
+		};
+		const fakeState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'policy-write').toString(), provider: 'copilotcli', title: 'Policy Write Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		agentHost.setSessionState('policy-write', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+
+		await provider.setSessionConfigValue(session!.sessionId, SessionConfigKey.AutoApprove, 'autopilot');
+		const sessionUri = AgentSession.uri('copilotcli', 'policy-write').toString();
+		const setConfigChanged = agentHost.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged && d.channel === sessionUri);
+
+		agentHost.dispatchedActions.length = 0;
+		await provider.replaceSessionConfig(session!.sessionId, {
+			autoApprove: 'autoApprove',
+			isolation: 'folder',
+		});
+		const replaceConfigChanged = agentHost.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged && d.channel === sessionUri);
+
+		assert.deepStrictEqual({
+			setAction: setConfigChanged?.action,
+			replaceAction: replaceConfigChanged?.action,
+			latestValues: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			setAction: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default' },
+			},
+			replaceAction: {
+				type: ActionType.SessionConfigChanged,
+				config: { autoApprove: 'default', isolation: 'folder' },
+				replace: true,
+			},
+			latestValues: { autoApprove: 'default', isolation: 'folder' },
+		});
 	}));
 
 	test('replaceSessionConfig is a no-op when nothing editable actually changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

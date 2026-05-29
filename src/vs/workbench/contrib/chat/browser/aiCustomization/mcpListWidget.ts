@@ -1087,7 +1087,7 @@ export class McpListWidget extends Disposable {
 						type: 'question',
 					});
 					if (result.confirmed) {
-						plugin.remove();
+						plugin.remove?.();
 					}
 				}
 			));

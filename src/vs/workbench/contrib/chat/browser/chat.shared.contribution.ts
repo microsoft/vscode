@@ -166,7 +166,7 @@ import { ToolResultCompressorService } from './tools/toolResultCompressorService
 import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { extraKnownMarketplacesToConfigDict, IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
@@ -448,12 +448,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental', 'advanced'],
 		},
-		[ChatConfiguration.AutopilotEnabled]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.autopilot.enabled', "Controls whether the Autopilot mode is available in the permissions picker. When enabled, Autopilot auto-approves all tool calls and continues until the task is done."),
-			default: true,
-			tags: ['experimental'],
-		},
 		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.planReview.inlineEditor.enabled', "When enabled, the plan review widget mounts an editor inline, as opposed to in a separate editor tab."),
@@ -474,7 +468,6 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
-			tags: ['experimental'],
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -924,6 +917,25 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.EnabledPlugins]: {
+			type: 'object',
+			additionalProperties: { type: 'boolean' },
+			markdownDescription: nls.localize('chat.plugins.enabledPlugins', "Enterprise-managed plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form (resolved to Copilot CLI install paths); values enable (`true`) or disable (`false`) the plugin. Discovered alongside the path-keyed entries in {0}. When set by policy, also restricts which marketplace-discovered plugins are allowed to load (only IDs mapped to `true` here pass the gate).", `\`#${ChatConfiguration.PluginLocations}#\``),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			policy: {
+				name: 'ChatEnabledPlugins',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.enabledPlugins ? JSON.stringify(policyData.enabledPlugins) : undefined,
+				localization: {
+					description: {
+						key: 'chat.plugins.enabledPlugins.policy',
+						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."),
+					}
+				},
+			},
+		},
 		[ChatConfiguration.PluginMarketplaces]: {
 			type: 'array',
 			items: {
@@ -933,6 +945,62 @@ configurationRegistry.registerConfiguration({
 			default: ['github/copilot-plugins', 'github/awesome-copilot#marketplace'],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.ExtraMarketplaces]: {
+			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
+			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
+			//
+			// Stored as a `{ [name]: url-or-shorthand }` object so that:
+			//   - The Settings Editor (ComplexObject renderer) can display entries inline when
+			//     managed by policy, rather than only showing "Edit in settings.json".
+			//   - Marketplace names are preserved for `enabledPlugins["plugin@<name>"]` resolution.
+			//
+			// `additionalProperties: { type: ['string'] }` uses the single-element array form of
+			// JSON Schema's `type` keyword (equivalent to `type: 'string'`) to trigger VS Code's
+			// ComplexObject renderer, which shows key-value rows inline and hides the
+			// "Edit in settings.json" link when the value is managed by policy.
+			type: 'object',
+			additionalProperties: { type: ['string'] as ['string'] },
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Unioned with {0}.", `\`#${ChatConfiguration.PluginMarketplaces}#\``),
+			policy: {
+				name: 'ChatExtraMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => {
+					const obj = extraKnownMarketplacesToConfigDict(policyData.extraKnownMarketplaces);
+					return obj ? JSON.stringify(obj) : undefined;
+				},
+				localization: {
+					description: {
+						key: 'chat.plugins.extraMarketplaces.policy',
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+					}
+				},
+			},
+		},
+		[ChatConfiguration.StrictMarketplaces]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "When enabled, only marketplaces supplied via enterprise policy are trusted. Plugins from any other marketplace will not load."),
+			default: false,
+			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			policy: {
+				name: 'ChatStrictMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.strictKnownMarketplaces,
+				localization: {
+					description: {
+						key: 'chat.plugins.strictMarketplaces.policy',
+						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."),
+					}
+				},
+			},
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',
@@ -1067,8 +1135,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolConfirmationCarousel]: {
 			type: 'boolean',
 			description: nls.localize('chat.tools.confirmationCarousel', "When enabled, multiple tool confirmations are batched into a carousel above the input."),
-			default: product.quality !== 'stable',
-			tags: ['experimental'],
+			default: true,
 		},
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',

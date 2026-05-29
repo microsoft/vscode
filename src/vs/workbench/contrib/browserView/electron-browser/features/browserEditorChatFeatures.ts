@@ -537,7 +537,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		try {
-			const screenshotBuffer = await model.captureScreenshot({ quality: 80, fullPage: true });
+			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
 
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
 				return;
@@ -549,7 +549,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				fullName: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
 				kind: 'image',
 				value: screenshotBuffer.buffer,
-				mimeType: 'image/jpeg',
+				mimeType: 'image/png',
 			}];
 
 			if (!await this._attachToChat(toAttach)) {
