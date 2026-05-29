@@ -647,8 +647,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		let linkedSource: CancellationTokenSource | undefined;
 		if (!CancellationToken.isCancellationToken(token)) {
 			linkedSource = new CancellationTokenSource();
-			if (typeof token.onCancellationRequested === 'function') {
-				token.onCancellationRequested(() => linkedSource!.cancel());
+			const foreignToken = token as unknown as Partial<CancellationToken>;
+			if (typeof foreignToken.onCancellationRequested === 'function') {
+				foreignToken.onCancellationRequested(() => linkedSource!.cancel());
 			}
 			tokenToUse = linkedSource.token;
 		}
