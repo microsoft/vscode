@@ -359,15 +359,19 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		const folderUri = workspace?.folders[0]?.root;
 		const providerId = session.providerId;
 
+		const newSession = sessionsManagementService.activeSession.get();
 		if (folderUri) {
-			sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, providerId);
+			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, providerId);
 		}
+
 		// On mobile web, the sidebar drawer covers the viewport; close it so
 		// the new session view becomes visible after creation. Routes through
 		// the drawer-close command to keep the mobile nav/history stack in sync.
 		if (isWeb && isMobile) {
 			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
+
+		sessionsPartService.focusSession(newSession);
 	}
 });
 

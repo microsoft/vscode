@@ -45,6 +45,7 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -107,6 +108,7 @@ export class SessionsView extends ViewPane {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -337,6 +339,7 @@ export class SessionsView extends ViewPane {
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
 			this.sessionsManagementService.openNewSessionView();
+			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
 		}));
 
 		const newSessionLabel = localize('newCompact', "New");
