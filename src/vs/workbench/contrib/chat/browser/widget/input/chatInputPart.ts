@@ -2248,7 +2248,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const newSessionType = this.getCurrentSessionType();
 			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
 				this._currentSessionType = newSessionType;
-				this.initSelectedModel();
+				// Only fall back to the per-type global preference when the loaded session
+				// does not already carry its own model selection. If it does (from
+				// storedMetadata or history-derived initialData), let _syncFromModel apply
+				// that session-owned value instead of clobbering it with the application-
+				// scoped "last picker choice".
+				const sessionHasSelectedModel = !!this._inputModel?.state.get()?.selectedModel;
+				if (!sessionHasSelectedModel) {
+					this.initSelectedModel();
+				}
 				this.checkModelInSessionPool();
 				this.checkModeInSessionPool();
 				this._notificationWidget.value?.rerender();
