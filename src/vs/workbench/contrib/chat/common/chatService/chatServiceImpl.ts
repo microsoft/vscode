@@ -608,7 +608,6 @@ export class ChatService extends Disposable implements IChatService {
 		{
 			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
-				providedSession.dispose();
 				return existingRef;
 			}
 		}
