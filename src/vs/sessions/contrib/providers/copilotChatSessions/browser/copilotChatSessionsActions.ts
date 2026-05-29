@@ -7,11 +7,12 @@ import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/act
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IReader, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
@@ -537,6 +538,48 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		for (const session of sessions) {
 			await sessionsManagementService.deleteSession(session);
+		}
+	}
+});
+
+registerAction2(class RenameCopilotLocalSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.copilot.renameLocalSession',
+			title: localize2('renameSession', "Rename..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+					ContextKeyExpr.equals('chatSessionType', LocalSessionType.id),
+				),
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const session = Array.isArray(context) ? context[0] : context;
+		if (!session) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const newTitle = await quickInputService.input({
+			value: session.title.get(),
+			prompt: localize('renameCopilotLocalSession.prompt', "New session title"),
+			validateInput: async value => {
+				if (!value.trim()) {
+					return localize('renameCopilotLocalSession.empty', "Title cannot be empty");
+				}
+				return undefined;
+			}
+		});
+		if (newTitle) {
+			const trimmedTitle = newTitle.trim();
+			if (trimmedTitle) {
+				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
+			}
 		}
 	}
 });

@@ -1659,6 +1659,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			await this.commandService.executeCommand('github.copilot.claude.sessions.rename', { resource: chatUri }, title);
 			return;
 		}
+		if (agentSession?.providerType === AgentSessionProviders.Local) {
+			await this.chatService.setChatSessionTitle(chatUri, title);
+			return;
+		}
 		throw new Error('Renaming is not supported for this session type');
 	}
 
