@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IStatusbarViewModelEntry, StatusbarViewModel } from '../../../../browser/parts/statusbar/statusbarModel.js';
+import { statusBarRainbowHue } from '../../../../browser/parts/statusbar/statusbarPart.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -24,13 +25,13 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		const entry1: IStatusbarViewModelEntry = { id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const entry1: IStatusbarViewModelEntry = { id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry1);
-		const entry2: IStatusbarViewModelEntry = { id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const entry2: IStatusbarViewModelEntry = { id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry2);
-		const entry3: IStatusbarViewModelEntry = { id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const entry3: IStatusbarViewModelEntry = { id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry3);
-		const entry4: IStatusbarViewModelEntry = { id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const entry4: IStatusbarViewModelEntry = { id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry4);
 
 		assert.strictEqual(model.entries.length, 4);
@@ -84,11 +85,11 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: Number.MAX_VALUE, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: Number.MIN_VALUE, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: Number.POSITIVE_INFINITY, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '0', alignment: StatusbarAlignment.LEFT, name: '0', priority: { primary: Number.NEGATIVE_INFINITY, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '4', alignment: StatusbarAlignment.LEFT, name: '4', priority: { primary: 100, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: Number.MAX_VALUE, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: Number.MIN_VALUE, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: Number.POSITIVE_INFINITY, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '0', alignment: StatusbarAlignment.LEFT, name: '0', priority: { primary: Number.NEGATIVE_INFINITY, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '4', alignment: StatusbarAlignment.LEFT, name: '4', priority: { primary: 100, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		const entries = model.entries;
 		assert.strictEqual(entries[0].id, '1');
@@ -104,9 +105,9 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		const entries = model.entries;
 		assert.strictEqual(entries[0].id, '3');
@@ -120,9 +121,9 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		const entries = model.entries;
 		assert.strictEqual(entries[0].id, '1');
@@ -135,10 +136,10 @@ suite('Workbench status bar model', () => {
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		// Existing reference, Alignment: left
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
-		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'a', priority: 2 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'a', priority: 2 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry);
 
 		let entries = model.entries;
@@ -150,7 +151,7 @@ suite('Workbench status bar model', () => {
 		model.remove(entry);
 
 		// Existing reference, Alignment: right
-		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'a', priority: 2 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'a', priority: 2 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry);
 
 		entries = model.entries;
@@ -165,10 +166,10 @@ suite('Workbench status bar model', () => {
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
 		// Nonexistent reference, Alignment: left
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
-		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 0 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 0 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry);
 
 		let entries = model.entries;
@@ -180,7 +181,7 @@ suite('Workbench status bar model', () => {
 		model.remove(entry);
 
 		// Nonexistent reference, Alignment: different fallback priority
-		entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 3 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 3 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry);
 
 		entries = model.entries;
@@ -192,7 +193,7 @@ suite('Workbench status bar model', () => {
 		model.remove(entry);
 
 		// Nonexistent reference, Alignment: right
-		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 3 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 3 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry);
 
 		entries = model.entries;
@@ -206,9 +207,9 @@ suite('Workbench status bar model', () => {
 		const container = document.createElement('div');
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 0 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { location: { id: 'not-existing', priority: 0 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		let entries = model.entries;
 		assert.strictEqual(entries.length, 3);
@@ -216,7 +217,7 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(entries[1].id, 'b');
 		assert.strictEqual(entries[2].id, 'c');
 
-		const entry = { id: 'not-existing', alignment: StatusbarAlignment.LEFT, name: 'not-existing', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const entry = { id: 'not-existing', alignment: StatusbarAlignment.LEFT, name: 'not-existing', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(entry);
 
 		entries = model.entries;
@@ -239,16 +240,16 @@ suite('Workbench status bar model', () => {
 		const container = document.createElement('div');
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
-		model.add({ id: '1-left', alignment: StatusbarAlignment.LEFT, name: '1-left', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '2-left', alignment: StatusbarAlignment.LEFT, name: '2-left', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '1-left', alignment: StatusbarAlignment.LEFT, name: '1-left', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '2-left', alignment: StatusbarAlignment.LEFT, name: '2-left', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
-		model.add({ id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: '2-right', alignment: StatusbarAlignment.RIGHT, name: '2-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: '2-right', alignment: StatusbarAlignment.RIGHT, name: '2-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);
 		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 2);
 
-		const relativeEntryLeft = { id: 'relative', alignment: StatusbarAlignment.LEFT, name: 'relative', priority: { primary: { location: { id: '1-right', priority: 2 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const relativeEntryLeft = { id: 'relative', alignment: StatusbarAlignment.LEFT, name: 'relative', priority: { primary: { location: { id: '1-right', priority: 2 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(relativeEntryLeft);
 
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 3);
@@ -257,7 +258,7 @@ suite('Workbench status bar model', () => {
 
 		model.remove(relativeEntryLeft);
 
-		const relativeEntryRight = { id: 'relative', alignment: StatusbarAlignment.RIGHT, name: 'relative', priority: { primary: { location: { id: '1-right', priority: 2 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined };
+		const relativeEntryRight = { id: 'relative', alignment: StatusbarAlignment.RIGHT, name: 'relative', priority: { primary: { location: { id: '1-right', priority: 2 }, alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' };
 		model.add(relativeEntryRight);
 
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);
@@ -268,10 +269,10 @@ suite('Workbench status bar model', () => {
 		const container = document.createElement('div');
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
-		model.add({ id: 'ref', alignment: StatusbarAlignment.LEFT, name: 'ref', priority: { primary: 0, secondary: 0 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'entry2', alignment: StatusbarAlignment.RIGHT, name: '2', priority: { primary: { location: { id: 'ref', priority: 0 }, alignment: StatusbarAlignment.RIGHT }, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'entry1', alignment: StatusbarAlignment.RIGHT, name: '1', priority: { primary: { location: { id: 'ref', priority: 0 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'entry3', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'ref', priority: 0 }, alignment: StatusbarAlignment.RIGHT }, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'ref', alignment: StatusbarAlignment.LEFT, name: 'ref', priority: { primary: 0, secondary: 0 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'entry2', alignment: StatusbarAlignment.RIGHT, name: '2', priority: { primary: { location: { id: 'ref', priority: 0 }, alignment: StatusbarAlignment.RIGHT }, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'entry1', alignment: StatusbarAlignment.RIGHT, name: '1', priority: { primary: { location: { id: 'ref', priority: 0 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'entry3', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'ref', priority: 0 }, alignment: StatusbarAlignment.RIGHT }, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		const entries = model.entries;
 		assert.strictEqual(entries.length, 4);
@@ -285,15 +286,53 @@ suite('Workbench status bar model', () => {
 		const container = document.createElement('div');
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 
-		model.add({ id: 'entry2', alignment: StatusbarAlignment.RIGHT, name: '2', priority: { primary: { location: { id: 'ref', priority: 1 }, alignment: StatusbarAlignment.RIGHT }, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'entry1', alignment: StatusbarAlignment.RIGHT, name: '1', priority: { primary: { location: { id: 'ref', priority: 1 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
-		model.add({ id: 'entry3', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'ref', priority: 1 }, alignment: StatusbarAlignment.RIGHT }, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'entry2', alignment: StatusbarAlignment.RIGHT, name: '2', priority: { primary: { location: { id: 'ref', priority: 1 }, alignment: StatusbarAlignment.RIGHT }, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'entry1', alignment: StatusbarAlignment.RIGHT, name: '1', priority: { primary: { location: { id: 'ref', priority: 1 }, alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
+		model.add({ id: 'entry3', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { location: { id: 'ref', priority: 1 }, alignment: StatusbarAlignment.RIGHT }, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined, kind: 'standard' });
 
 		const entries = model.entries;
 		assert.strictEqual(entries.length, 3);
 		assert.strictEqual(entries[0].id, 'entry3');
 		assert.strictEqual(entries[1].id, 'entry2');
 		assert.strictEqual(entries[2].id, 'entry1');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('Workbench status bar rainbow colors', () => {
+
+	test('single entry defaults to hue 120', () => {
+		assert.strictEqual(statusBarRainbowHue(0, 1), 120);
+	});
+
+	test('two entries get hues 0 and 300', () => {
+		assert.deepStrictEqual(
+			[statusBarRainbowHue(0, 2), statusBarRainbowHue(1, 2)],
+			[0, 300]
+		);
+	});
+
+	test('three entries spread evenly across 0-300', () => {
+		assert.deepStrictEqual(
+			[statusBarRainbowHue(0, 3), statusBarRainbowHue(1, 3), statusBarRainbowHue(2, 3)],
+			[0, 150, 300]
+		);
+	});
+
+	test('five entries spread evenly across 0-300', () => {
+		assert.deepStrictEqual(
+			[0, 1, 2, 3, 4].map(i => statusBarRainbowHue(i, 5)),
+			[0, 75, 150, 225, 300]
+		);
+	});
+
+	test('intermediate values are rounded to nearest integer', () => {
+		// 4 entries: step = 300/3 = 100 — all exact
+		assert.deepStrictEqual(
+			[0, 1, 2, 3].map(i => statusBarRainbowHue(i, 4)),
+			[0, 100, 200, 300]
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

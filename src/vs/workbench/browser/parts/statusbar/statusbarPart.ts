@@ -26,6 +26,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ToggleStatusbarVisibilityAction } from '../../actions/layoutActions.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
@@ -116,6 +117,28 @@ interface IPendingStatusbarEntry {
 	accessor?: IStatusbarEntryAccessor;
 }
 
+/**
+ * Computes the HSL hue for a rainbow-colored status bar entry.
+ * Hues range from 0 to 300 degrees (avoiding the red wrap-around) spread evenly across all categories.
+ * A single entry defaults to hue 120 (green).
+ */
+export function statusBarRainbowHue(index: number, total: number): number {
+	return total > 1 ? Math.round((index / (total - 1)) * 300) : 120;
+}
+
+const RAINBOW_ITEM_SATURATION = 70;
+const RAINBOW_ITEM_LIGHTNESS = 27;
+const RAINBOW_ITEM_CLASS = 'rainbow-color';
+
+/**
+ * Returns a stable per-entry category key for rainbow coloring. Prefers identifiers that are
+ * not user-visible or localized so that the same logical entry receives the same hue across
+ * languages and across providers that happen to share a display name.
+ */
+function rainbowCategoryKey(entry: IStatusbarViewModelEntry): string {
+	return entry.extensionId ?? entry.id;
+}
+
 class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	static readonly HEIGHT = 22;
@@ -151,6 +174,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
+	private rainbowApplied = false;
+
 	constructor(
 		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -160,6 +185,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -205,6 +231,13 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+
+		// Color mode setting changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.statusBar.colorMode')) {
+				this.updateStyles();
+			}
+		}));
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -292,6 +325,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			readonly labelContainer = item.labelContainer;
 
 			get name() { return item.name; }
+			get kind() { return item.kind; }
 			get hasCommand() { return item.hasCommand; }
 		};
 
@@ -304,10 +338,23 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		}
 
 		let lastEntry = entry;
+		let lastWasAlert = item.kind === 'warning' || item.kind === 'error';
 		const accessor: IStatusbarEntryAccessor = {
 			update: entry => {
 				lastEntry = entry;
 				item.update(this.withEntryOverride(entry, id));
+
+				// Only re-evaluate rainbow coloring when the entry's alert state actually flips:
+				// non-alert entries always show their rainbow hue, alert entries always show their
+				// kind colors. Other property changes (text, tooltip, command, ...) don't affect
+				// the rainbow layout, so we can skip the O(N) DOM update.
+				if (this.rainbowApplied) {
+					const isAlert = item.kind === 'warning' || item.kind === 'error';
+					if (isAlert !== lastWasAlert) {
+						lastWasAlert = isAlert;
+						this.updateRainbowColors();
+					}
+				}
 			},
 			dispose: () => {
 				const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, false);
@@ -569,6 +616,63 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 			}
 		}
+
+		this.updateRainbowColors();
+	}
+
+	private updateRainbowColors(): void {
+		const isRainbow = this.configurationService.getValue<string>('workbench.statusBar.colorMode') === 'rainbow';
+
+		if (!isRainbow) {
+			if (this.rainbowApplied) {
+				// Tear down previously applied rainbow styles only on the entries we touched.
+				for (const entry of this.viewModel.entries) {
+					if (entry.container.classList.contains(RAINBOW_ITEM_CLASS)) {
+						entry.container.style.backgroundColor = '';
+						entry.container.classList.remove(RAINBOW_ITEM_CLASS);
+					}
+				}
+
+				this.rainbowApplied = false;
+			}
+
+			return;
+		}
+
+		const leftEntries = this.viewModel.getEntries(StatusbarAlignment.LEFT)
+			.filter(e => !this.viewModel.isHidden(e.id));
+		const rightEntries = this.viewModel.getEntries(StatusbarAlignment.RIGHT)
+			.filter(e => !this.viewModel.isHidden(e.id));
+		const visibleEntries = [...leftEntries, ...rightEntries];
+
+		// Assign each unique category a left-to-right position index. Alert entries still
+		// participate in the indexing so that surrounding entries keep stable hues.
+		const categoryIndex = new Map<string, number>();
+		for (const entry of visibleEntries) {
+			const key = rainbowCategoryKey(entry);
+			if (!categoryIndex.has(key)) {
+				categoryIndex.set(key, categoryIndex.size);
+			}
+		}
+
+		const total = categoryIndex.size;
+		for (const entry of visibleEntries) {
+			// Skip entries showing a warning or error kind: let their theme colors win
+			// and visibly break the rainbow so users can spot them.
+			if (entry.kind === 'warning' || entry.kind === 'error') {
+				if (entry.container.classList.contains(RAINBOW_ITEM_CLASS)) {
+					entry.container.style.backgroundColor = '';
+					entry.container.classList.remove(RAINBOW_ITEM_CLASS);
+				}
+				continue;
+			}
+
+			const hue = statusBarRainbowHue(categoryIndex.get(rainbowCategoryKey(entry))!, total);
+			entry.container.style.backgroundColor = `hsl(${hue}deg ${RAINBOW_ITEM_SATURATION}% ${RAINBOW_ITEM_LIGHTNESS}%)`;
+			entry.container.classList.add(RAINBOW_ITEM_CLASS);
+		}
+
+		this.rainbowApplied = true;
 	}
 
 	private showContextMenu(e: MouseEvent | GestureEvent): void {
@@ -724,8 +828,9 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 
@@ -749,9 +854,10 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 
