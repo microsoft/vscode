@@ -19,6 +19,7 @@ import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackR
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 
 const TOTAL_REQUESTS_KEY = 'agentSessions.telemetry.totalRequests';
 const WORKSPACE_REQUESTS_KEY = 'agentSessions.telemetry.workspaceRequests';
@@ -50,6 +51,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
+		@ISessionsPartService sessionsPartService: ISessionsPartService,
 	) {
 		super();
 
@@ -66,6 +68,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._logSessionDeleted(session)));
 		this._register(this._sessionsManagementService.onDidDeleteChat(session => this._logChatDeleted(session)));
 		this._register(this._sessionsManagementService.onDidRenameChat(session => this._logChatRenamed(session)));
+		this._register(this._sessionsManagementService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));
+		this._register(sessionsPartService.onDidToggleMaximizeSession(e => this._logSessionMaximizeToggled(e.session, e.maximized)));
 
 		this._register(commandService.onDidExecuteCommand(e => {
 			// Commands fire very frequently. Match on the command id first
@@ -101,9 +105,6 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 				case 'github.copilot.sessions.commitAndSync':
 				case 'github.copilot.claude.sessions.commitAndSync':
 					log = session => this._logCommitAndSync(session);
-					break;
-				case 'agentSession.markAsDone':
-					log = session => this._logSessionMarkedAsDone(session);
 					break;
 				case 'agentSession.restore':
 					log = session => this._logSessionRestored(session);
@@ -199,6 +200,24 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		});
 	}
 
+	private _logSessionStickinessToggled(session: ISession, sticky: boolean): void {
+		void this._getSessionActionPayload(session).then(payload => {
+			this._telemetryService.publicLog2<SessionStickinessToggledEvent, SessionStickinessToggledClassification>('agents/sessionStickinessToggled', {
+				...payload,
+				sticky,
+			});
+		});
+	}
+
+	private _logSessionMaximizeToggled(session: ISession, maximized: boolean): void {
+		void this._getSessionActionPayload(session).then(payload => {
+			this._telemetryService.publicLog2<SessionMaximizeToggledEvent, SessionMaximizeToggledClassification>('agents/sessionMaximizeToggled', {
+				...payload,
+				maximized,
+			});
+		});
+	}
+
 	private _logCreatePullRequest(session: ISession): void {
 		void this._getSessionActionPayload(session).then(payload => {
 			this._telemetryService.publicLog2<SessionActionEvent, CreatePullRequestClassification>('agents/createPullRequest', payload);
@@ -244,12 +263,6 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	private _logCommitAndSync(session: ISession): void {
 		void this._getSessionActionPayload(session).then(payload => {
 			this._telemetryService.publicLog2<SessionActionEvent, CommitAndSyncClassification>('agents/commitAndSync', payload);
-		});
-	}
-
-	private _logSessionMarkedAsDone(session: ISession): void {
-		void this._getSessionActionPayload(session).then(payload => {
-			this._telemetryService.publicLog2<SessionActionEvent, SessionMarkedAsDoneClassification>('agents/sessionMarkedAsDone', payload);
 		});
 	}
 
@@ -958,23 +971,6 @@ type CommitAndSyncClassification = {
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
-type SessionMarkedAsDoneClassification = {
-	owner: 'benibenj';
-	comment: 'Reports when the user marks a session as done in the Agents window.';
-	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Globally unique session id (providerId:resourceUri), used to correlate events for the same session.' };
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sessions provider identifier (e.g., remote agent host or local).' };
-	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
-	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
-	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
-	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
-	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
-	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
-	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
-	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
-	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
-};
-
 type SessionRestoredClassification = {
 	owner: 'benibenj';
 	comment: 'Reports when the user restores a session in the Agents window.';
@@ -1161,4 +1157,74 @@ type FeedbackSubmittedClassification = {
 	codeReviewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of feedback items being submitted that originated as code review comments.' };
 	prReviewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of feedback items being submitted that originated as PR review comments.' };
 	replyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of replies across all feedback items being submitted.' };
+};
+
+// --- Events: sticky toggle / maximize toggle ---
+
+type SessionStickinessToggledEvent = {
+	agentSessionId: string;
+	providerId: string;
+	providerType: string;
+	chatCount: number;
+	isolationKind: SessionIsolationKind;
+	workspaceHash: string;
+	hasGitRepository: boolean;
+	isVirtualWorkspace: boolean;
+	workspaceFileCount: number;
+	sessionFilesChanged: number;
+	sessionLinesAdded: number;
+	sessionLinesDeleted: number;
+	sticky: boolean;
+};
+
+type SessionStickinessToggledClassification = {
+	owner: 'benibenj';
+	comment: 'Reports when the user toggles a session\'s stickiness in the sessions grid in the Agents window.';
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Globally unique session id (providerId:resourceUri), used to correlate events for the same session.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sessions provider identifier (e.g., remote agent host or local).' };
+	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
+	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
+	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
+	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
+	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
+	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
+	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
+	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
+	sticky: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session\'s stickiness state after the toggle: true when the session is now sticky, false when it was unstuck.' };
+};
+
+type SessionMaximizeToggledEvent = {
+	agentSessionId: string;
+	providerId: string;
+	providerType: string;
+	chatCount: number;
+	isolationKind: SessionIsolationKind;
+	workspaceHash: string;
+	hasGitRepository: boolean;
+	isVirtualWorkspace: boolean;
+	workspaceFileCount: number;
+	sessionFilesChanged: number;
+	sessionLinesAdded: number;
+	sessionLinesDeleted: number;
+	maximized: boolean;
+};
+
+type SessionMaximizeToggledClassification = {
+	owner: 'benibenj';
+	comment: 'Reports when the user toggles the maximized state of a session view in the sessions grid in the Agents window.';
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Globally unique session id (providerId:resourceUri), used to correlate events for the same session.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sessions provider identifier (e.g., remote agent host or local).' };
+	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
+	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
+	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
+	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
+	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
+	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
+	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
+	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
+	maximized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session view\'s maximized state after the toggle: true when the view is now maximized, false when it was restored.' };
 };

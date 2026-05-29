@@ -63,6 +63,15 @@ export interface ISendRequestSentEvent {
 }
 
 /**
+ * Payload for {@link ISessionsManagementService.onDidToggleSessionStickiness}.
+ */
+export interface IToggleSessionStickinessEvent {
+	readonly session: ISession;
+	/** The session's stickiness state after the toggle. */
+	readonly sticky: boolean;
+}
+
+/**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
@@ -153,6 +162,8 @@ export interface ISessionsManagementService {
 	readonly onDidDeleteChat: Event<ISession>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
+	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
+	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
 
 	// -- Active Session --
 
