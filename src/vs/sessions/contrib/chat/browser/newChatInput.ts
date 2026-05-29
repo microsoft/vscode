@@ -535,7 +535,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private async _send(): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim() ?? '';
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
-		if ((!query && !hasSendableAttachment) || this._sending) {
+		if ((!query && !hasSendableAttachment) || this._sending || !this.options.canSendRequest.get()) {
 			return;
 		}
 
