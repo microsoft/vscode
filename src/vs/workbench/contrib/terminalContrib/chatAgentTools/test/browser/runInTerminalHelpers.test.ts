@@ -612,24 +612,24 @@ suite('buildCompletionNotificationCommand', () => {
 		strictEqual(buildCompletionNotificationCommand('echo hello'), 'echo hello');
 	});
 
-	test('keeps only the first line and appends an ellipsis for multi-line commands', () => {
-		strictEqual(buildCompletionNotificationCommand('echo a\necho b'), 'echo a...');
-		strictEqual(buildCompletionNotificationCommand('echo a\n\necho b'), 'echo a...');
-		strictEqual(buildCompletionNotificationCommand('echo a\r\necho b'), 'echo a...');
-		strictEqual(buildCompletionNotificationCommand('echo a\recho b'), 'echo a...');
+	test('keeps only the first line and appends a horizontal ellipsis for multi-line commands', () => {
+		strictEqual(buildCompletionNotificationCommand('echo a\necho b'), 'echo a…');
+		strictEqual(buildCompletionNotificationCommand('echo a\n\necho b'), 'echo a…');
+		strictEqual(buildCompletionNotificationCommand('echo a\r\necho b'), 'echo a…');
+		strictEqual(buildCompletionNotificationCommand('echo a\recho b'), 'echo a…');
 	});
 
-	test('truncates a long first line to 80 characters and does not add a second ellipsis', () => {
+	test('truncates a long first line to 80 characters using a single horizontal ellipsis', () => {
 		const longFirstLine = 'a'.repeat(200);
 		const multiLine = longFirstLine + '\nignored';
 		const result = buildCompletionNotificationCommand(multiLine);
 		strictEqual(result.length, 80);
-		ok(result.endsWith('...'), `expected ellipsis suffix, got: ${result}`);
-		ok(!result.endsWith('......'), `expected single ellipsis suffix, got: ${result}`);
+		ok(result.endsWith('…'), `expected ellipsis suffix, got: ${result}`);
+		ok(!result.endsWith('……'), `expected single ellipsis suffix, got: ${result}`);
 	});
 
 	test('strips escape artifacts from the first line', () => {
-		strictEqual(buildCompletionNotificationCommand('echo \\"hi\\"\necho ignored'), 'echo "hi"...');
+		strictEqual(buildCompletionNotificationCommand('echo \\"hi\\"\necho ignored'), 'echo "hi"…');
 	});
 
 	// Regression test for #318601: the final label must render as inline code
