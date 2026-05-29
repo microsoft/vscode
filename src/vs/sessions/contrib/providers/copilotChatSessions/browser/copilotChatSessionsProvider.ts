@@ -492,14 +492,16 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService);
-		this._workspaceData.set(session.workspace.get(), undefined);
-		this._title.set(session.title.get(), undefined);
-		this._status.set(session.status.get(), undefined);
-		this._updatedAt.set(session.updatedAt.get(), undefined);
-		this._changes.set(session.changes.get(), undefined);
-		this._checkpoints.set(session.checkpoints.get(), undefined);
-		this._description.set(session.description.get(), undefined);
+		transaction((tx) => {
+			const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService);
+			this._workspaceData.set(session.workspace.get(), tx);
+			this._title.set(session.title.get(), tx);
+			this._status.set(session.status.get(), tx);
+			this._updatedAt.set(session.updatedAt.get(), tx);
+			this._changes.set(session.changes.get(), tx);
+			this._checkpoints.set(session.checkpoints.get(), tx);
+			this._description.set(session.description.get(), tx);
+		});
 	}
 }
 

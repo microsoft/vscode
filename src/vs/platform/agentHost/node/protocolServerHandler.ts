@@ -34,7 +34,7 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationTargetKind, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationTargetKind, isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -104,6 +104,13 @@ const enum ChannelKind {
 	 */
 	State = 'state',
 	/**
+	 * Resource-watch channels (`ahp-resource-watch:/<id>`). Tracked
+	 * separately so subscribe/unsubscribe routes through the agent
+	 * service's per-watch refcount + grace timer rather than the
+	 * session-shaped {@link IAgentService.subscribe} path.
+	 */
+	ResourceWatch = 'resource-watch',
+	/**
 	 * Subscribed against the OTLP logs channel template advertised in
 	 * {@link InitializeResult.telemetry}. Stateless — no snapshot, no
 	 * agent-service refcount. The `level` field records the minimum
@@ -123,6 +130,7 @@ const enum ChannelKind {
  */
 type ChannelSubscription =
 	| { readonly kind: ChannelKind.State; readonly uri: string }
+	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
 /**
@@ -160,6 +168,9 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
 			return undefined;
 		}
 		return { kind: ChannelKind.OtlpLogs, uri: buildOtlpLogsChannelUri(level), level };
+	}
+	if (isAhpResourceWatchChannel(channel)) {
+		return { kind: ChannelKind.ResourceWatch, uri: channel };
 	}
 	return { kind: ChannelKind.State, uri: channel };
 }
@@ -343,6 +354,8 @@ export class ProtocolServerHandler extends Disposable {
 				for (const sub of client.subscriptions.values()) {
 					if (sub.kind === ChannelKind.State) {
 						this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+					} else if (sub.kind === ChannelKind.ResourceWatch) {
+						this._agentService.onResourceWatchUnsubscribed(sub.uri);
 					}
 				}
 				client.subscriptions.clear();
@@ -538,9 +551,12 @@ export class ProtocolServerHandler extends Disposable {
 			resourceList: (uri) => this._sendReverseRequest(clientId, 'resourceList', { uri: uri.toString() }),
 			resourceRead: (uri) => this._sendReverseRequest(clientId, 'resourceRead', { uri: uri.toString() }),
 			resourceWrite: (params_) => this._sendReverseRequest(clientId, 'resourceWrite', params_),
+			resourceCopy: (params_) => this._sendReverseRequest(clientId, 'resourceCopy', params_),
 			resourceDelete: (params_) => this._sendReverseRequest(clientId, 'resourceDelete', params_),
 			resourceMove: (params_) => this._sendReverseRequest(clientId, 'resourceMove', params_),
 			resourceRequest: (params_) => this._sendReverseRequest(clientId, 'resourceRequest', params_),
+			resourceResolve: (params_) => this._sendReverseRequest(clientId, 'resourceResolve', params_),
+			resourceMkdir: (params_) => this._sendReverseRequest(clientId, 'resourceMkdir', params_),
 		}));
 	}
 
@@ -572,6 +588,20 @@ export class ProtocolServerHandler extends Disposable {
 				// Stateless: re-install without going through the agent service.
 				client.subscriptions.set(classified.uri, classified);
 				return undefined;
+			}
+			if (classified.kind === ChannelKind.ResourceWatch) {
+				const descriptor = this._agentService.onResourceWatchSubscribed(classified.uri);
+				if (!descriptor) {
+					this._logService.info(`[ProtocolServer] Reconnect: resource watch ${key} no longer parses`);
+					missing.push(sub);
+					return undefined;
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {
+					resource: classified.uri,
+					state: descriptor,
+					fromSeq: this._stateManager.serverSeq,
+				};
 			}
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
@@ -713,6 +743,20 @@ export class ProtocolServerHandler extends Disposable {
 				}
 				client.subscriptions.set(classified.uri, classified);
 				return {};
+			}
+			if (classified.kind === ChannelKind.ResourceWatch) {
+				const descriptor = this._agentService.onResourceWatchSubscribed(classified.uri);
+				if (!descriptor) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource watch not found: ${params.channel}`);
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {
+					snapshot: {
+						resource: classified.uri,
+						state: descriptor,
+						fromSeq: this._stateManager.serverSeq,
+					},
+				};
 			}
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
@@ -863,6 +907,15 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
+		},
+		resourceResolve: async (_client, params) => {
+			return this._agentService.resourceResolve(params);
+		},
+		resourceMkdir: async (_client, params) => {
+			return this._agentService.resourceMkdir(params);
+		},
+		createResourceWatch: async (_client, params) => {
+			return this._agentService.createResourceWatch(params);
 		},
 		resourceRequest: async (_client, _params) => {
 			// The local agent host does not yet enforce per-resource grants
@@ -1035,6 +1088,8 @@ export class ProtocolServerHandler extends Disposable {
 		client.subscriptions.delete(classified.uri);
 		if (sub.kind === ChannelKind.State) {
 			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+		} else if (sub.kind === ChannelKind.ResourceWatch) {
+			this._agentService.onResourceWatchUnsubscribed(sub.uri);
 		}
 	}
 
@@ -1080,7 +1135,7 @@ export class ProtocolServerHandler extends Disposable {
 			return false;
 		}
 		const sub = client.subscriptions.get(envelope.channel);
-		return sub?.kind === ChannelKind.State;
+		return sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch;
 	}
 
 	override dispose(): void {

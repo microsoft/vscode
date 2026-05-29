@@ -682,6 +682,19 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
 		},
+		[ChatConfiguration.AgentsHandoffTipMode]: {
+			type: 'string',
+			enum: ['hidden', 'default', 'custom'],
+			enumDescriptions: [
+				nls.localize('chat.agentsHandoffTip.mode.hidden', "Never show the handoff tip."),
+				nls.localize('chat.agentsHandoffTip.mode.default', "Show the handoff tip with the default description."),
+				nls.localize('chat.agentsHandoffTip.mode.custom', "Show the handoff tip with an alternate description."),
+			],
+			default: 'hidden',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			description: nls.localize('chat.agentsHandoffTip.mode', "Controls the tip shown above the chat input offering to continue eligible agent sessions in the Agents Window."),
+		},
 		[ChatConfiguration.ChatContextUsageEnabled]: {
 			type: 'boolean',
 			default: true,
