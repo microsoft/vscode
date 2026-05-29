@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, ITokenPriceTier } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -31,7 +31,8 @@ import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
 import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
-import { CustomModel, IChatModelInformation, IModelTokenPriceTier, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
@@ -112,60 +113,6 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
-const TOKENS_PER_MILLION = 1_000_000;
-
-/**
- * Normalizes a single raw price tier into AICs per million tokens.
- *
- * Prices in the tiered structure (`default` / `long_context`) are already
- * denominated in AIUs, so no nano-AIU conversion is needed — only the
- * batch_size scaling is applied.
- */
-function normalizePriceTier(tier: IModelTokenPriceTier, scale: number): ITokenPriceTier {
-	return {
-		inputPrice: tier.input_price * scale,
-		outputPrice: tier.output_price * scale,
-		cacheReadTokenPrice: tier.cache_price * scale,
-		contextMax: tier.context_max,
-	};
-}
-
-function areTierPricesEqual(a: ITokenPriceTier, b: ITokenPriceTier): boolean {
-	return a.inputPrice === b.inputPrice
-		&& a.outputPrice === b.outputPrice
-		&& a.cacheReadTokenPrice === b.cacheReadTokenPrice;
-}
-
-/**
- * Converts raw billing token prices into normalized AICs per million tokens.
- *
- * The tiered pricing structure (`default` / `long_context`) uses AIU values
- * directly, scaled to per-million-token rates based on batch_size.
- *
- * The optional `long_context` tier is included only when its rates differ
- * from the `default` tier.
- */
-function normalizeTokenPricing(tokenPrices: IModelTokenPrices | undefined): IChatEndpointTokenPricing | undefined {
-	if (!tokenPrices) {
-		return undefined;
-	}
-	const scale = TOKENS_PER_MILLION / tokenPrices.batch_size;
-	const defaultTier = normalizePriceTier(tokenPrices.default, scale);
-
-	let longContext: ITokenPriceTier | undefined;
-	if (tokenPrices.long_context) {
-		const lcTier = normalizePriceTier(tokenPrices.long_context, scale);
-		if (!areTierPricesEqual(defaultTier, lcTier)) {
-			longContext = lcTier;
-		}
-	}
-
-	return {
-		default: defaultTier,
-		longContext,
-	};
-}
-
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
@@ -222,7 +169,11 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
-		this.tokenPricing = normalizeTokenPricing(modelMetadata.billing?.token_prices);
+		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
+		this.tokenPricing = normalized ? {
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice ?? 0, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice ?? 0, contextMax: normalized.longContext.contextMax } : undefined,
+		} : undefined;
 		this.priceCategory = modelMetadata.model_picker_price_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
