@@ -402,7 +402,7 @@ class PlaywrightSession extends Disposable {
 					pageMethodsCalled: Object.fromEntries(pageMethodsCalled),
 				};
 			}
-			const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []);
+			const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, pageMethodsCalled), args);
 			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, pageMethodsCalled);
 		}
 
@@ -412,7 +412,7 @@ class PlaywrightSession extends Disposable {
 			// returned as { error, summary } like other execution failures rather
 			// than thrown to callers.
 			const fn = await this._compileFunction(fnDef);
-			result = await this._runAgainstPage(pageId, async (page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []));
+			result = await this._runAgainstPage(pageId, async (page) => fn(createPageApiProxy(page, pageMethodsCalled), args));
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : String(err);
 		}
