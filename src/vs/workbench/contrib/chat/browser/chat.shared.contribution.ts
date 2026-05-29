@@ -166,7 +166,7 @@ import { ToolResultCompressorService } from './tools/toolResultCompressorService
 import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { extraKnownMarketplacesToConfigDict, IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
@@ -965,21 +965,8 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
 				value: (policyData) => {
-					if (!policyData.extraKnownMarketplaces?.length) {
-						return undefined;
-					}
-					const obj: Record<string, string> = {};
-					for (const entry of policyData.extraKnownMarketplaces) {
-						if (typeof entry === 'string') {
-							// Plain string entries have no name — use the value as both key and value.
-							obj[entry] = entry;
-						} else {
-							const s = entry.source;
-							const base = s.source === 'github' ? s.repo : s.url;
-							obj[entry.name] = s.ref ? `${base}#${s.ref}` : base;
-						}
-					}
-					return JSON.stringify(obj);
+					const obj = extraKnownMarketplacesToConfigDict(policyData.extraKnownMarketplaces);
+					return obj ? JSON.stringify(obj) : undefined;
 				},
 				localization: {
 					description: {

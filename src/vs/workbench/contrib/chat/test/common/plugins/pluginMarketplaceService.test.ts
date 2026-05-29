@@ -22,7 +22,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
@@ -190,6 +190,106 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(refs[2].kind, MarketplaceReferenceKind.GitHubShorthand);
 		// Effective values union user + extra
 		assert.strictEqual(effectiveValues.length, extraValues.length);
+	});
+
+	test('extraKnownMarketplacesToConfigDict: returns undefined for empty/missing input', () => {
+		assert.strictEqual(extraKnownMarketplacesToConfigDict(undefined), undefined);
+		assert.strictEqual(extraKnownMarketplacesToConfigDict([]), undefined);
+	});
+
+	test('extraKnownMarketplacesToConfigDict: github source becomes owner/repo shorthand', () => {
+		const dict = extraKnownMarketplacesToConfigDict([
+			{ name: 'vscode-team-kit', source: { source: 'github', repo: 'microsoft/vscode-team-kit' } },
+		]);
+		assert.deepStrictEqual(dict, { 'vscode-team-kit': 'microsoft/vscode-team-kit' });
+	});
+
+	test('extraKnownMarketplacesToConfigDict: github source with ref appends #ref', () => {
+		const dict = extraKnownMarketplacesToConfigDict([
+			{ name: 'team-kit-beta', source: { source: 'github', repo: 'microsoft/vscode-team-kit', ref: 'beta' } },
+		]);
+		assert.deepStrictEqual(dict, { 'team-kit-beta': 'microsoft/vscode-team-kit#beta' });
+	});
+
+	test('extraKnownMarketplacesToConfigDict: git source becomes raw URL (with optional #ref)', () => {
+		const dict = extraKnownMarketplacesToConfigDict([
+			{ name: 'acme-internal', source: { source: 'git', url: 'https://plugins.internal.acme.com' } },
+			{ name: 'acme-tagged', source: { source: 'git', url: 'https://git.acme.com/plugins.git', ref: 'v1' } },
+		]);
+		assert.deepStrictEqual(dict, {
+			'acme-internal': 'https://plugins.internal.acme.com',
+			'acme-tagged': 'https://git.acme.com/plugins.git#v1',
+		});
+	});
+
+	test('extraKnownMarketplacesToConfigDict: end-to-end policy → config dict → readConfiguredMarketplaces → parseMarketplaceReferences', () => {
+		// Simulates the full ChatExtraMarketplaces policy delivery pipeline:
+		//  1. managed_settings response is adapted into IExtraKnownMarketplaceEntry[]
+		//  2. extraKnownMarketplacesToConfigDict converts to the dict shape the
+		//     `chat.plugins.extraMarketplaces` setting stores
+		//  3. The policy framework serializes/deserializes that as JSON
+		//  4. readConfiguredMarketplaces reverses it back to nested entry shape
+		//  5. parseMarketplaceReferences resolves marketplace references that
+		//     preserve `displayLabel = name` (required for `plugin@<name>` keys)
+		const policyEntries = [
+			{ name: 'acme-internal', source: { source: 'git' as const, url: 'https://plugins.internal.acme.com' } },
+			{ name: 'acme-public', source: { source: 'git' as const, url: 'https://copilot-plugins.acme.io' } },
+			{ name: 'vscode-team-kit', source: { source: 'github' as const, repo: 'microsoft/vscode-team-kit' } },
+		];
+
+		const dict = extraKnownMarketplacesToConfigDict(policyEntries);
+		assert.ok(dict);
+
+		// JSON round-trip mirrors what AccountPolicyService / PolicyConfiguration do.
+		const roundTripped = JSON.parse(JSON.stringify(dict));
+
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.ExtraMarketplaces]: roundTripped,
+		});
+		const { extraValues } = readConfiguredMarketplaces(configService as unknown as IConfigurationService);
+		const refs = parseMarketplaceReferences(extraValues);
+
+		assert.strictEqual(refs.length, 3, 'all three policy entries are surfaced as marketplace references');
+		assert.deepStrictEqual(
+			refs.map(r => r.displayLabel),
+			['acme-internal', 'acme-public', 'vscode-team-kit'],
+			'displayLabel must equal the policy `name` so enabledPlugins["plugin@<name>"] keys resolve',
+		);
+		assert.strictEqual(refs[0].kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(refs[1].kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(refs[2].kind, MarketplaceReferenceKind.GitHubShorthand);
+	});
+
+	test('chat.plugins.extraMarketplaces schema: setting is registered as an object with single-element-array additionalProperties.type so Settings Editor renders it as ComplexObject', async () => {
+		// Guards the schema shape the Settings Editor relies on to render the
+		// policy-managed extra marketplaces inline (key/value rows) instead of
+		// just an "Edit in settings.json" link.
+		//
+		// Settings Editor logic (`getObjectSettingSchemaType` /
+		// `getObjectRenderableSchemaType` in `settingsTreeModels.ts`):
+		//   - requires `type === 'object'`
+		//   - requires `additionalProperties` to be an object (not `true`/undefined)
+		//   - if `additionalProperties.type` is a single-element array of a simple
+		//     type, falls into the "complex" branch → ComplexObject renderer.
+		//
+		// Lazy-imported because the contribution module is heavy; we only want
+		// to register it for this single assertion.
+		const { Extensions: ConfigurationExtensions } = await import('../../../../../../platform/configuration/common/configurationRegistry.js');
+		const { Registry } = await import('../../../../../../platform/registry/common/platform.js');
+		await import('../../../browser/chat.shared.contribution.js');
+
+		const registry = Registry.as<import('../../../../../../platform/configuration/common/configurationRegistry.js').IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const allProps = { ...registry.getConfigurationProperties(), ...registry.getExcludedConfigurationProperties() };
+		const schema = allProps[ChatConfiguration.ExtraMarketplaces];
+		assert.ok(schema, `expected ${ChatConfiguration.ExtraMarketplaces} to be registered`);
+		assert.strictEqual(schema.type, 'object', 'type must be "object" so the Settings Editor renders inline rows');
+		assert.ok(schema.additionalProperties && typeof schema.additionalProperties === 'object',
+			'additionalProperties must be a schema object so getObjectSettingSchemaType does not early-return');
+		const apType = (schema.additionalProperties as { type?: unknown }).type;
+		assert.ok(Array.isArray(apType),
+			'additionalProperties.type must be an array form (e.g. ["string"]) to land in the ComplexObject branch');
+		assert.ok((apType as unknown[]).every(t => t === 'string' || t === 'boolean' || t === 'integer' || t === 'number'),
+			'all entries in additionalProperties.type must be simple types so getObjectRenderableSchemaType returns "complex"');
 	});
 
 	test('parses Azure DevOps HTTPS clone URLs without .git suffix', () => {
