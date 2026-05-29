@@ -278,6 +278,34 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parsed[0].canonicalId, 'git:dev.azure.com/org/project/_git/repo.git');
 	});
 
+	test('github.com URI form and GitHub shorthand form share the same canonicalId (policy trust comparisons must match)', () => {
+		// Regression: under strictMarketplaces, isMarketplaceTrusted compares
+		// canonicalId. A plugin discovered from `https://github.com/microsoft/vscode-team-kit.git`
+		// was being blocked even though `microsoft/vscode-team-kit` was in the
+		// trusted list, because the URI parser produced a `git:` canonicalId
+		// while the shorthand parser produced a `github:` one.
+		const shorthand = parseMarketplaceReference('microsoft/vscode-team-kit');
+		const httpsWithGit = parseMarketplaceReference('https://github.com/microsoft/vscode-team-kit.git');
+		const httpsWithoutGit = parseMarketplaceReference('https://github.com/microsoft/vscode-team-kit');
+		const scp = parseMarketplaceReference('git@github.com:microsoft/vscode-team-kit.git');
+		assert.ok(shorthand);
+		assert.ok(httpsWithGit);
+		assert.ok(httpsWithoutGit);
+		assert.ok(scp);
+		assert.strictEqual(httpsWithGit!.canonicalId, shorthand!.canonicalId);
+		assert.strictEqual(httpsWithoutGit!.canonicalId, shorthand!.canonicalId);
+		assert.strictEqual(scp!.canonicalId, shorthand!.canonicalId);
+
+		// All four forms should collapse to a single entry when deduplicated.
+		const deduped = parseMarketplaceReferences([
+			'microsoft/vscode-team-kit',
+			'https://github.com/microsoft/vscode-team-kit.git',
+			'https://github.com/microsoft/vscode-team-kit',
+			'git@github.com:microsoft/vscode-team-kit.git',
+		]);
+		assert.strictEqual(deduped.length, 1);
+	});
+
 	test('parses HTTPS URI with trailing slash after .git', () => {
 		const parsed = parseMarketplaceReference('https://example.com/org/repo.git/');
 		assert.ok(parsed);
@@ -289,17 +317,17 @@ suite('PluginMarketplaceService', () => {
 		assert.deepStrictEqual(parsed.cacheSegments, ['example.com', 'org', 'repo']);
 	});
 
-	test('deduplicates equivalent Git URI forms but keeps shorthand distinct', () => {
+	test('deduplicates github.com URI, SSH, and shorthand to the same canonical id', () => {
+		// All three forms refer to the same marketplace, so policy trust
+		// comparisons (which match by canonicalId) must collapse them.
 		const parsed = parseMarketplaceReferences([
 			'microsoft/vscode',
 			'https://github.com/microsoft/vscode.git',
 			'git@github.com:microsoft/vscode.git',
 		]);
 
-		assert.deepStrictEqual(parsed.map(r => r.canonicalId), [
-			'github:microsoft/vscode',
-			'git:github.com/microsoft/vscode.git',
-		]);
+		assert.strictEqual(parsed.length, 1);
+		assert.strictEqual(parsed[0].canonicalId, 'github:microsoft/vscode');
 	});
 
 	test('parseMarketplaceReferences ignores invalid entries (null, numbers, malformed objects)', () => {
@@ -327,10 +355,11 @@ suite('PluginMarketplaceService', () => {
 			'https://github.com/microsoft/vscode.git#marketplace',
 		]);
 
+		// `https://github.com/...#marketplace` collapses with the shorthand
+		// (same canonical id), so we expect 2 distinct refs not 3.
 		assert.deepStrictEqual(parsed.map(r => r.canonicalId), [
 			'github:microsoft/vscode#main',
 			'github:microsoft/vscode#marketplace',
-			'git:github.com/microsoft/vscode.git#marketplace',
 		]);
 	});
 });

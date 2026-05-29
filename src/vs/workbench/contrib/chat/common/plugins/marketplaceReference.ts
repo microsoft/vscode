@@ -290,11 +290,22 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	// Extract githubRepo for GitHub URLs so the editor can render a clickable link
 	const githubRepo = extractGitHubRepo(uri.authority, pathWithoutGit);
 
+	// Normalize github.com/<owner>/<repo>[.git] URLs to the same canonical id
+	// the shorthand parser emits, so policy trust comparisons (which match by
+	// canonicalId) treat both forms as the same marketplace.
+	let canonicalId: string;
+	if (githubRepo) {
+		const [owner, repo] = githubRepo.split('/');
+		canonicalId = getGitHubCanonicalId(owner, repo, ref);
+	} else {
+		canonicalId = appendRefSuffix(`git:${uri.authority.toLowerCase()}/${canonicalPath}`, ref);
+	}
+
 	return {
 		rawValue,
 		displayLabel: rawValue,
 		cloneUrl: cloneUri.toString(),
-		canonicalId: appendRefSuffix(`git:${uri.authority.toLowerCase()}/${canonicalPath}`, ref),
+		canonicalId,
 		cacheSegments: [sanitizedAuthority, ...pathSegments, ...getRefCacheSegments(ref)],
 		kind: MarketplaceReferenceKind.GitUri,
 		ref,
@@ -320,11 +331,21 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	const githubRepo = extractGitHubRepo(authority, pathWithoutGit);
 
+	// Normalize git@github.com:<owner>/<repo>.git to the same canonical id the
+	// shorthand parser emits (see parseUriMarketplaceReference for rationale).
+	let canonicalId: string;
+	if (githubRepo) {
+		const [owner, repo] = githubRepo.split('/');
+		canonicalId = getGitHubCanonicalId(owner, repo, ref);
+	} else {
+		canonicalId = appendRefSuffix(`git:${authority.toLowerCase()}/${pathWithGit.toLowerCase()}`, ref);
+	}
+
 	return {
 		rawValue,
 		displayLabel: rawValue,
 		cloneUrl: `${match[1]}@${authority}:${pathWithGit}`,
-		canonicalId: appendRefSuffix(`git:${authority.toLowerCase()}/${pathWithGit.toLowerCase()}`, ref),
+		canonicalId,
 		cacheSegments: [sanitizePathSegment(authority.toLowerCase()), ...pathSegments, ...getRefCacheSegments(ref)],
 		kind: MarketplaceReferenceKind.GitUri,
 		ref,
