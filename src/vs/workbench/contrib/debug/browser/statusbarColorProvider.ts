@@ -8,7 +8,7 @@ import { asCssVariable, asCssVariableName, registerColor, transparent } from '..
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IDebugService, State, IDebugSession, IDebugConfiguration } from '../common/debug.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from '../../../common/theme.js';
+import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND, COMMAND_CENTER_ACTIVEBACKGROUND } from '../../../common/theme.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -36,7 +36,14 @@ export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBor
 export const COMMAND_CENTER_DEBUGGING_BACKGROUND = registerColor(
 	'commandCenter.debuggingBackground',
 	transparent(STATUS_BAR_DEBUGGING_BACKGROUND, 0.258),
-	localize('commandCenter-activeBackground', "Command center background color when a program is being debugged"),
+	localize('commandCenter-debuggingBackground', "Command center background color when a program is being debugged"),
+	true
+);
+
+export const COMMAND_CENTER_DEBUGGING_ACTIVE_BACKGROUND = registerColor(
+	'commandCenter.debuggingActiveBackground',
+	transparent(STATUS_BAR_DEBUGGING_BACKGROUND, 0.36),
+	localize('commandCenter-debuggingActiveBackground', "Command center active background color when a program is being debugged"),
 	true
 );
 
@@ -95,6 +102,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 		this.styleSheet.textContent = isInCommandCenter && isInDebugMode ? `
 			.monaco-workbench {
 				${asCssVariableName(COMMAND_CENTER_BACKGROUND)}: ${asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)};
+				${asCssVariableName(COMMAND_CENTER_ACTIVEBACKGROUND)}: ${asCssVariable(COMMAND_CENTER_DEBUGGING_ACTIVE_BACKGROUND)};
 			}
 		` : '';
 	}
