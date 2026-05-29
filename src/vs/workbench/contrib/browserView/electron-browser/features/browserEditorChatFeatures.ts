@@ -549,7 +549,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				fullName: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
 				kind: 'image',
 				value: screenshotBuffer.buffer,
-				mimeType: 'image/jpeg',
+				mimeType: 'image/png',
 			}];
 
 			if (!await this._attachToChat(toAttach)) {

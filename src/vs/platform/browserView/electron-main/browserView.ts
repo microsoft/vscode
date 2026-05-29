@@ -668,8 +668,11 @@ export class BrowserView extends Disposable {
 		// is an upper bound on the final image pixel size (not just the CSS-pixel clip size).
 		// We read the DPR from the display hosting the view's window (rather than evaluating
 		// `window.devicePixelRatio` in the page) so this works without a renderer round-trip and
-		// while the page is paused at a breakpoint.
-		const devicePixelRatio = screen.getDisplayMatching(this._hostWindow.getBounds()).scaleFactor;
+		// while the page is paused at a breakpoint. Fall back to the primary display if no host
+		// window can be resolved (e.g. during teardown).
+		const hostWindow = this._hostWindow;
+		const display = hostWindow ? screen.getDisplayMatching(hostWindow.getBounds()) : screen.getPrimaryDisplay();
+		const devicePixelRatio = display.scaleFactor;
 		const maxClipDimension = BrowserView.MAX_FULL_PAGE_SCREENSHOT_DIMENSION / Math.max(devicePixelRatio, 1);
 		const scale = Math.min(1, maxClipDimension / Math.max(clipWidth, clipHeight));
 		try {
@@ -805,11 +808,12 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
-	 * The Electron window that currently hosts this view. Before `layout()` is first called,
-	 * this is the owner window; after that it's whichever window the view was last moved to.
+	 * The Electron window that currently hosts this view, if any. Before `layout()` is first
+	 * called this is the owner window; after that it's whichever window the view was last moved
+	 * to. Returns `undefined` if no host window can be resolved (e.g. during teardown).
 	 */
-	private get _hostWindow(): Electron.BrowserWindow {
-		return this._currentWindow?.win ?? this._ownerWindow.win!;
+	private get _hostWindow(): Electron.BrowserWindow | undefined {
+		return this._currentWindow?.win ?? this._ownerWindow.win ?? undefined;
 	}
 
 	override dispose(): void {
