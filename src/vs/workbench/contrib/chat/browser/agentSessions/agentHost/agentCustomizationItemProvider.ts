@@ -37,7 +37,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	constructor(
 		private readonly _connectionAuthority: string,
-		private readonly _getItemActions: ((customization: Customization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		private readonly _getItemActions: ((customization: PluginCustomization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
