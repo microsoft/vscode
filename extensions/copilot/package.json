@@ -4614,7 +4614,7 @@
 		  },
 		  "github.copilot.chat.agent.longToolCallCachePreservation.maxProbes": {
 			"type": "number",
-			"default": 3,
+			"default": 1,
 			"markdownDescription": "%github.copilot.config.agent.longToolCallCachePreservation.maxProbes%",
 			"tags": [
 				"advanced",
