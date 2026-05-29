@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
@@ -2489,6 +2489,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
+		// Build a single-line, safely-fenced inline code representation of the
+		// command for use in system notification labels. The command may span
+		// multiple lines (and contain blank lines or backticks), which would
+		// break a naive `` `${command}` `` inline code span and render the
+		// backticks literally (#318601).
+		const commandDisplay = appendEscapedMarkdownInlineCode(buildCommandDisplayText(commandName));
+
 		// Acquire a reference to the ChatModel so it stays alive while we wait
 		// for the background terminal to complete. Without this, the model can
 		// be disposed if the user navigates away, and sendRequest would throw.
@@ -2630,7 +2637,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalAssessingOutput', "`{0}` may need input", commandName),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
@@ -2684,7 +2691,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
-				systemInitiatedLabel: localize('terminalCommandCompleted', "`{0}` completed", commandName),
+				systemInitiatedLabel: localize('terminalCommandCompleted', "{0} completed", commandDisplay),
 				terminalExecutionId: termId,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
@@ -2752,7 +2759,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
-				systemInitiatedLabel: localize('terminalProcessExited', "`{0}` terminal exited", commandName),
+				systemInitiatedLabel: localize('terminalProcessExited', "{0} terminal exited", commandDisplay),
 				terminalExecutionId: termId,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send terminal-exited notification for terminal ${termId}`, e);

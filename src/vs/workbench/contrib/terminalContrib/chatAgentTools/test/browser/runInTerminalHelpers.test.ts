@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay, normalizeCommandForExecution, isMultilineCommand } from '../../browser/runInTerminalHelpers.js';
+import * as marked from '../../../../../../base/common/marked/marked.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../../../base/common/htmlContent.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay, normalizeCommandForExecution, isMultilineCommand, buildCommandDisplayText } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -569,3 +571,35 @@ suite('isMultilineCommand', () => {
 	});
 });
 
+suite('buildCommandDisplayText', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should collapse newlines (including blank lines) to spaces', () => {
+		strictEqual(buildCommandDisplayText('echo a\n\necho b'), 'echo a  echo b');
+		strictEqual(buildCommandDisplayText('echo a\r\necho b'), 'echo a echo b');
+	});
+
+	test('should truncate long commands to 80 characters', () => {
+		const long = 'a'.repeat(200);
+		const result = buildCommandDisplayText(long);
+		strictEqual(result.length, 80);
+		ok(result.endsWith('...'));
+	});
+
+	// Regression test for #318601: system notification labels used to wrap the
+	// raw command in a single-backtick inline code span. Multi-line commands
+	// (which contain blank lines) broke the code span and rendered the leading
+	// backtick literally. The command must be collapsed to a single line and
+	// safely fenced so it always renders as inline code.
+	test('multi-line command renders as inline code (not a literal backtick)', () => {
+		const opts: marked.MarkedOptions = { gfm: true, breaks: true };
+		const render = (value: string) => marked.parser(marked.lexer(value, opts), opts);
+
+		const multilineCommand = 'rm -rf .playwright-cli/\n\nmore text';
+		const label = appendEscapedMarkdownInlineCode(buildCommandDisplayText(multilineCommand)) + ' completed';
+		const html = render(label);
+
+		ok(html.includes('<code>'), `expected a code span, got: ${html}`);
+		ok(!/<p>`/.test(html), `expected no literal leading backtick, got: ${html}`);
+	});
+});
