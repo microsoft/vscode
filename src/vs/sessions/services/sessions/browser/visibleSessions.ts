@@ -148,7 +148,7 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
-	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, []);
+	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._visibleSessions;
 
 	private readonly _wrappers = this._register(new DisposableMap<string, VisibleSession>());
