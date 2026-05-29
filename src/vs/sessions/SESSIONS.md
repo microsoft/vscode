@@ -141,14 +141,13 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Calls provider.createNewChat(sessionId)
    → Provider creates the backend chat model and returns an IChat
    → Management service opens the chat widget with that chat's resource
+  → ChatView locks the embedded ChatWidget to the contributed chat session type
+    (for example agent-host-codex) before setting the model, so follow-up turns
+    keep routing to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management service fires onDidStartSession(committedSession)
    → isNewChatSession context → false
-
-Agent-host providers seed new-session config from the last values picked in the
-session-config UI (stored in profile storage), while `chat.permissions.default`
-takes precedence for `autoApprove` (with policy-safe normalization).
 ```
 
 ### Session Change Propagation

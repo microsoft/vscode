@@ -9,7 +9,7 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
 import { changesetReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
@@ -278,9 +278,27 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 				this._confirmedApply(envelope.action);
 			}
 		} else {
+			this._promotePendingTurnStartIfTerminal(envelope.action);
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
+	}
+
+	private _promotePendingTurnStartIfTerminal(action: StateAction): void {
+		if (!isSessionAction(action)) {
+			return;
+		}
+		if (action.type !== ActionType.SessionTurnComplete && action.type !== ActionType.SessionTurnCancelled && action.type !== ActionType.SessionError) {
+			return;
+		}
+		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.SessionTurnStarted && p.action.turnId === action.turnId);
+		if (index === -1) {
+			return;
+		}
+		const [{ action: pendingAction }] = this._pendingActions.splice(index, 1);
+		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== action.turnId)) {
+			this._confirmedState = this._applyReducer(this._confirmedState, pendingAction);
+		}
 	}
 
 	private _confirmedApply(action: StateAction): void {
@@ -401,6 +419,9 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ManagedSubscriptionEntry = { sub: BaseAgentSubscription<any>; refCount: number };
+
 // --- Subscription Manager ----------------------------------------------------
 
 /**
@@ -415,8 +436,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
  */
 export class AgentSubscriptionManager extends Disposable {
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private readonly _subscriptions = new ResourceMap<{ sub: BaseAgentSubscription<any>; refCount: number }>();
+	private readonly _subscriptions = new ResourceMap<ManagedSubscriptionEntry>();
 	private readonly _rootState: RootStateSubscription;
 	private readonly _clientId: string;
 	private readonly _seqAllocator: () => number;
@@ -470,11 +490,16 @@ export class AgentSubscriptionManager extends Disposable {
 	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const existing = this._subscriptions.get(resource);
 		if (existing) {
-			existing.refCount++;
-			return {
-				object: existing.sub,
-				dispose: () => this._releaseSubscription(resource),
-			};
+			if (existing.sub.value instanceof Error) {
+				this._subscriptions.delete(resource);
+				this._disposeSubscriptionEntry(resource, existing);
+			} else {
+				existing.refCount++;
+				return {
+					object: existing.sub,
+					dispose: () => this._releaseSubscription(resource, existing),
+				};
+			}
 		}
 
 		// Create new subscription based on caller-specified kind
@@ -498,8 +523,16 @@ export class AgentSubscriptionManager extends Disposable {
 
 		return {
 			object: sub,
-			dispose: () => this._releaseSubscription(resource),
+			dispose: () => this._releaseSubscription(resource, entry),
 		};
+	}
+
+	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
+		try { this._unsubscribe(resource); } catch { /* best-effort */ }
+		if (entry.sub instanceof SessionStateSubscription) {
+			entry.sub.clearPending();
+		}
+		entry.sub.dispose();
 	}
 
 	/**
@@ -631,19 +664,15 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	private _releaseSubscription(resource: URI): void {
+	private _releaseSubscription(resource: URI, expected?: ManagedSubscriptionEntry): void {
 		const entry = this._subscriptions.get(resource);
-		if (!entry) {
+		if (!entry || (expected && entry !== expected)) {
 			return;
 		}
 		entry.refCount--;
 		if (entry.refCount <= 0) {
 			this._subscriptions.delete(resource);
-			try { this._unsubscribe(resource); } catch { /* best-effort */ }
-			if (entry.sub instanceof SessionStateSubscription) {
-				entry.sub.clearPending();
-			}
-			entry.sub.dispose();
+			this._disposeSubscriptionEntry(resource, entry);
 		}
 	}
 

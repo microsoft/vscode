@@ -1516,20 +1516,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.loading.get(), false);
 	});
 
-	test('new session loading reflects authenticationPending until config resolves', async () => {
+	test('new session starts backend after authentication settles', async () => {
 		agentHost.setAuthenticationPending(true);
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		// Wait for the resolved config (the mock returns `values.isolation: 'worktree'`)
-		// so that the per-session loading flag has been turned off.
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
-		// Even though config has resolved (per-session loading is false), the
-		// auth-pending flag keeps the session in the loading state.
-		assert.strictEqual(session.loading.get(), true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 0,
+			resolveRequests: 0,
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
 
 		agentHost.setAuthenticationPending(false);
-		assert.strictEqual(session.loading.get(), false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: false,
+			createdSessions: 1,
+			resolveRequests: 1,
+			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+		});
 	});
 
 	// ---- sendRequest -------
@@ -1849,11 +1868,12 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeActive(rawId: string, sessionType: string = 'copilotcli'): IActiveSession {
+	function makeActive(rawId: string, sessionType: string = 'copilotcli', status: SessionStatus = SessionStatus.Completed): IActiveSession {
 		return {
 			// providerId: 'unused',
 			sessionType,
 			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
+			status: constObservable(status),
 		} as unknown as IActiveSession;
 	}
 
@@ -1933,6 +1953,15 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			0,
 			'no branch changeset subscription should open while a different session is active',
 		);
+	});
+
+	test('does NOT subscribe to uncommitted changes for an untitled active session', () => {
+		createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-new', 'copilotcli', SessionStatus.Untitled), undefined);
+
+		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
+		assert.deepStrictEqual(subKeys, [], 'new-session composer should not restore the backend session just to refresh changes');
 	});
 
 	test('releases the subscription when no session is active', () => {
