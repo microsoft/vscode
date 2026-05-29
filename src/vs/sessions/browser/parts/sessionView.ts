@@ -60,6 +60,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	private _currentSession: IActiveSession | undefined;
+	private _hasOpenedSession = false;
 
 	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
 	private readonly _sessionIsStickyKey: IContextKey<boolean>;
@@ -102,9 +103,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	openSession(session: IActiveSession | undefined): void {
-		if (this._currentSession === session) {
+		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
+		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._openSessionDisposables.clear();
 

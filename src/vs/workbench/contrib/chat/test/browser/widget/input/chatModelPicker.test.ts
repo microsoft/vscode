@@ -1081,8 +1081,12 @@ suite('formatTokenCount', () => {
 	test('returns M for counts above 900K', () => {
 		assert.strictEqual(formatTokenCount(1_000_000), '1M');
 		assert.strictEqual(formatTokenCount(935_997), '1M');
-		assert.strictEqual(formatTokenCount(1_500_000), '2M');
+		assert.strictEqual(formatTokenCount(1_050_000), '1M');
+		assert.strictEqual(formatTokenCount(1_100_000), '1.1M');
+		assert.strictEqual(formatTokenCount(1_500_000), '1.5M');
+		assert.strictEqual(formatTokenCount(1_990_000), '1.9M');
 		assert.strictEqual(formatTokenCount(2_000_000), '2M');
+		assert.strictEqual(formatTokenCount(2_500_000), '2.5M');
 	});
 
 	test('returns K for counts between 1000 and 900K', () => {
