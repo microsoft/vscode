@@ -28,7 +28,7 @@ import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../..
 import { MockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { NullAgentHostCustomAgentsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';
+import { IAgentHostCustomizationService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 	declare readonly _serviceBrand: undefined;
@@ -118,6 +118,41 @@ function createAgentInfo(customizations: readonly Customization[]): AgentInfo {
 	};
 }
 
+function createTestCustomAgentsService(connection: MockAgentConnection, rootCustomizations: readonly Customization[]): IAgentHostCustomizationService {
+	const onDidChangeCustomizations = Event.map(
+		Event.filter(connection.onDidAction, envelope =>
+			envelope.action.type === ActionType.SessionCustomizationsChanged
+			|| envelope.action.type === ActionType.SessionCustomizationUpdated
+		),
+		() => undefined,
+	);
+
+	const onDidChangeCustomAgents = Event.map(
+		Event.filter(connection.onDidAction, envelope =>
+			envelope.action.type === ActionType.SessionCustomizationsChanged
+			|| envelope.action.type === ActionType.SessionCustomizationUpdated
+			|| envelope.action.type === ActionType.SessionAgentChanged
+		),
+		() => undefined,
+	);
+
+	return {
+		_serviceBrand: undefined,
+		onDidChangeCustomAgents,
+		onDidChangeCustomizations,
+		getCustomAgents: () => [],
+		getCustomizations: (sessionResource: URI) => {
+			const provider = sessionResource.scheme.replace(/^agent-host-/, '');
+			const sessionChannel = `${provider}:${sessionResource.path}`;
+			const sessionState = connection.getSubscriptionUnmanaged(StateComponents.Session, URI.parse(sessionChannel))?.value;
+			if (!sessionState || sessionState instanceof Error) {
+				return [...rootCustomizations];
+			}
+			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
+		},
+	};
+}
+
 
 
 suite('RemoteAgentHostCustomizationHarness', () => {
@@ -185,13 +220,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([pluginA, pluginB]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [pluginA, pluginB]),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -225,13 +258,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([hostScoped]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [hostScoped]),
 		));
 
 		connection.fireAction({
@@ -276,13 +307,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([hostPlugin]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [hostPlugin]),
 		));
 
 		connection.fireAction({
@@ -373,13 +402,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, []),
 		));
 
 		connection.fireAction({
@@ -427,13 +454,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, []),
 		));
 
 		connection.fireAction({
@@ -481,13 +506,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([pluginRef]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [pluginRef]),
 		));
 
 		connection.fireAction({
@@ -508,7 +531,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.strictEqual(sessionItem.statusMessage, 'something went wrong');
 	});
 
-	test('provider fires change event on SessionCustomizationsChanged action', async () => {
+	test('provider fires one change event on SessionCustomizationsChanged action', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const controller = disposables.add(new RemoteAgentPluginController(
 			'Test Host',
@@ -528,13 +551,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([pluginRef]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [pluginRef]),
 		));
 
 		let changeCount = 0;
@@ -550,7 +571,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			},
 		});
 
-		assert.strictEqual(changeCount, 1, 'should fire change event on session customization action');
+		assert.strictEqual(changeCount, 1, 'should fire one change event from customization service');
 	});
 
 	test('provider does not show remove action for client-synced plugins', async () => {
@@ -575,13 +596,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([hostPlugin]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [hostPlugin]),
 		));
 
 		connection.fireAction({
@@ -673,13 +692,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, []),
 		));
 
 		connection.fireAction({
@@ -750,13 +767,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([plugin]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [plugin]),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -819,13 +834,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([plugin]),
-			connection,
 			'test-authority',
 			controller,
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [plugin]),
 		));
 
 		const harnessId = 'remote-agent-host-test';
