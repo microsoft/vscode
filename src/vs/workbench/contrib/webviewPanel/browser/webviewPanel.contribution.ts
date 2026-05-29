@@ -14,7 +14,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands.js';
+import { CloseWebviewEditorAction, HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands.js';
 import { WebviewEditor } from './webviewEditor.js';
 import { WebviewInput } from './webviewEditorInput.js';
 import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer.js';
@@ -87,3 +87,4 @@ registerAction2(HideWebViewEditorFindCommand);
 registerAction2(WebViewEditorFindNextCommand);
 registerAction2(WebViewEditorFindPreviousCommand);
 registerAction2(ReloadWebviewAction);
+registerAction2(CloseWebviewEditorAction);
