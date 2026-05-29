@@ -14,6 +14,9 @@
 	height: 16px;
 	color: currentColor;
 	pointer-events: none;
+	contain: strict;
+	isolation: isolate;
+	transform: translateZ(0);
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot {
@@ -25,6 +28,7 @@
 	opacity: 0;
 	transform: translateY(-4px);
 	animation: monaco-pixel-spinner-dot-cycle 1820ms linear infinite;
+	will-change: transform, opacity;
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(1) {
@@ -152,5 +156,6 @@
 		animation: none;
 		opacity: 1;
 		transform: translateY(0);
+		will-change: auto;
 	}
 }
