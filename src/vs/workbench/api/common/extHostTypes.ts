@@ -2592,7 +2592,7 @@ export class FileDecoration {
 				throw new Error(`The 'badge'-property is not a valid ThemeIcon`);
 			}
 		}
-		if (!d.color && !d.badge && !d.tooltip) {
+		if (!d.color && !d.backgroundColor && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
 		}
 		return true;
@@ -2601,12 +2601,14 @@ export class FileDecoration {
 	badge?: string | vscode.ThemeIcon;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
+	backgroundColor?: vscode.ThemeColor;
 	propagate?: boolean;
 
-	constructor(badge?: string | ThemeIcon, tooltip?: string, color?: ThemeColor) {
+	constructor(badge?: string | ThemeIcon, tooltip?: string, color?: ThemeColor, backgroundColor?: ThemeColor) {
 		this.badge = badge;
 		this.tooltip = tooltip;
 		this.color = color;
+		this.backgroundColor = backgroundColor;
 	}
 }
 
