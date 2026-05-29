@@ -183,6 +183,44 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 	});
 });
 
+suite('AgentHostFileSystemProvider - authority registrations', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class NamedConnection implements IRemoteFilesystemConnection {
+		readonly listCalls: URI[] = [];
+
+		constructor(private readonly name: string) { }
+
+		async resourceList(uri: URI): Promise<ResourceListResult> {
+			this.listCalls.push(uri);
+			return { entries: [{ name: `${this.name}.txt`, type: 'file' }] };
+		}
+
+		async resourceRead(): Promise<ResourceReadResult> { return { data: '', encoding: ContentEncoding.Utf8 }; }
+		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceDelete(): Promise<{}> { return {}; }
+		async resourceMove(): Promise<{}> { return {}; }
+	}
+
+	test('disposing a stale registration does not remove a newer registration for the same authority', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		const firstRegistration = disposables.add(provider.registerAuthority('client', first));
+		disposables.add(provider.registerAuthority('client', second));
+
+		firstRegistration.dispose();
+		const entries = await provider.readdir(agentHostUri('client', '/workspace'));
+
+		assert.deepStrictEqual({ entries, firstCalls: first.listCalls, secondCalls: second.listCalls.map(uri => uri.toString()) }, {
+			entries: [['second.txt', FileType.File]],
+			firstCalls: [],
+			secondCalls: [URI.file('/workspace').toString()],
+		});
+	});
+});
+
 suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
