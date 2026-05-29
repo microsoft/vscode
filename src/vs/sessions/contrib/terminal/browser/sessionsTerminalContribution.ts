@@ -81,6 +81,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 	private _activeKey: string | undefined;
 
+	/**
+	 * Session ids already processed as archived. The archive cleanup runs only
+	 * on the not-archived → archived transition: the provider keeps archived
+	 * sessions cached and re-emits them in `changed` on every sync, so acting on
+	 * the current archived state would re-run the cwd cleanup each time and sweep
+	 * terminals the user opened afterwards. See #313510, #318645.
+	 */
+	private readonly _archivedSessionIds = new Set<string>();
+
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -177,12 +186,39 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// live session still owns that cwd. Terminals are reused across sessions
 		// at the same cwd, so a plain cwd match would kill a terminal still in use
 		// (e.g. the committed session from `onDidReplaceSession`).
-		// TODO: Consider removing the logic for trying to "delete/clean-up" terminal.
-		// Or consider tag terminals by sessionId + refcount instead of guarding here.
+		//
+		// The archive cleanup runs only on the not-archived → archived transition.
+		// The provider keeps archived sessions cached and re-emits them in
+		// `changed` on every sync; acting on the current archived state would
+		// re-run the cwd cleanup each time and sweep terminals the user opened
+		// after archiving.
+		//
+		// Archiving is also asynchronous (the event can land after the active
+		// session has already flipped to a new/pending one and the user has opened
+		// a terminal). On the archive path we therefore never dispose the terminal
+		// the user is currently focused on — see `_closeTerminalsForPath` and
+		// #313510, #318645. Removal is an explicit user action, so it cleans up
+		// the terminal regardless.
+		// TODO: tag terminals by sessionId (1:1) instead of guarding by cwd here.
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			const archivedChanged = e.changed.filter(s => s.isArchived.get());
-			if (e.removed.length === 0 && archivedChanged.length === 0) {
+			// Only act on the not-archived → archived transition; ignore re-emits
+			// of sessions already known to be archived.
+			const justArchived: ISession[] = [];
+			for (const session of e.changed) {
+				if (session.isArchived.get()) {
+					if (!this._archivedSessionIds.has(session.sessionId)) {
+						this._archivedSessionIds.add(session.sessionId);
+						justArchived.push(session);
+					}
+				} else {
+					this._archivedSessionIds.delete(session.sessionId);
+				}
+			}
+			for (const session of e.removed) {
+				this._archivedSessionIds.delete(session.sessionId);
+			}
+			if (e.removed.length === 0 && justArchived.length === 0) {
 				return;
 			}
 			const removedIds = new Set(e.removed.map(s => s.sessionId));
@@ -196,10 +232,19 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 					liveCwdKeys.add(info.cwd.fsPath.toLowerCase());
 				}
 			}
-			for (const session of [...e.removed, ...archivedChanged]) {
+			this._logService.debug(`[SessionsTerminal] onDidChangeSessions cleanup (removed: ${e.removed.length}, justArchived: ${justArchived.length}, liveCwdKeys: [${[...liveCwdKeys].join(', ')}], activeKey: ${this._activeKey ?? '<none>'})`);
+			for (const session of e.removed) {
 				const info = getSessionTerminalInfo(session);
 				if (info && !liveCwdKeys.has(info.cwd.fsPath.toLowerCase())) {
-					this._closeTerminalsForPath(info.cwd.fsPath);
+					this._logService.debug(`[SessionsTerminal] Closing terminals for ${info.cwd.fsPath} (session ${session.sessionId} removed; no live session owns this cwd)`);
+					this._closeTerminalsForPath(info.cwd.fsPath, false);
+				}
+			}
+			for (const session of justArchived) {
+				const info = getSessionTerminalInfo(session);
+				if (info && !liveCwdKeys.has(info.cwd.fsPath.toLowerCase())) {
+					this._logService.debug(`[SessionsTerminal] Closing terminals for ${info.cwd.fsPath} (session ${session.sessionId} archived; no live session owns this cwd)`);
+					this._closeTerminalsForPath(info.cwd.fsPath, true);
 				}
 			}
 		}));
@@ -368,6 +413,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		for (const instance of toHide) {
 			const availableInstance = this._getAvailableTerminal(instance, 'move terminal to background');
 			if (availableInstance) {
+				this._logService.debug(`[SessionsTerminal] Hiding terminal ${availableInstance.instanceId} (does not belong to active key ${activeKey})`);
 				this._terminalService.moveToBackground(availableInstance);
 			}
 		}
@@ -389,13 +435,23 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	private async _closeTerminalsForPath(fsPath: string): Promise<void> {
+	private async _closeTerminalsForPath(fsPath: string, protectActiveInstance: boolean): Promise<void> {
 		const key = fsPath.toLowerCase();
+		// On the archive path we must never kill the terminal the user is
+		// currently typing in: archiving is asynchronous and can land while the
+		// user is working in a just-opened terminal at this cwd. The focused
+		// (active) instance is protected; removal still disposes everything since
+		// it is an explicit user action. See #313510, #318645.
+		const protectedInstanceId = protectActiveInstance ? this._terminalService.activeInstance?.instanceId : undefined;
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals (e.g. run_in_terminal) — those are
 			// managed by the chat tool lifecycle, not the session terminal
 			// contribution.
 			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
+			if (protectedInstanceId !== undefined && instance.instanceId === protectedInstanceId) {
+				this._logService.debug(`[SessionsTerminal] Skipping active terminal ${instance.instanceId} for ${fsPath} (user is working in it)`);
 				continue;
 			}
 			try {
@@ -405,6 +461,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 					if (!availableInstance) {
 						continue;
 					}
+					this._logService.debug(`[SessionsTerminal] Disposing terminal ${availableInstance.instanceId} for ${fsPath}`);
 					this._terminalService.safeDisposeTerminal(availableInstance);
 					this._logService.trace(`[SessionsTerminal] Closed archived terminal ${availableInstance.instanceId}`);
 				}

@@ -217,6 +217,7 @@ suite('SessionsTerminalContribution', () => {
 
 	let createdTerminals: { cwd: URI }[];
 	let activeInstanceSet: number[];
+	let activeInstanceId: number | undefined;
 	let focusCalls: number;
 	let disposedInstances: ITerminalInstance[];
 	let nextInstanceId: number;
@@ -232,6 +233,7 @@ suite('SessionsTerminalContribution', () => {
 	setup(() => {
 		createdTerminals = [];
 		activeInstanceSet = [];
+		activeInstanceId = undefined;
 		focusCalls = 0;
 		disposedInstances = [];
 		nextInstanceId = 1;
@@ -266,6 +268,9 @@ suite('SessionsTerminalContribution', () => {
 			override get foregroundInstances(): readonly ITerminalInstance[] {
 				return [...terminalInstances.values()].filter(i => !backgroundedInstances.has(i.instanceId));
 			}
+			override get activeInstance(): ITerminalInstance | undefined {
+				return activeInstanceId !== undefined ? terminalInstances.get(activeInstanceId) : undefined;
+			}
 			override async createTerminal(opts?: any): Promise<ITerminalInstance> {
 				const id = nextInstanceId++;
 				const cwdUri: URI | undefined = opts?.config?.cwd;
@@ -284,6 +289,7 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override setActiveInstance(instance: ITerminalInstance): void {
 				activeInstanceSet.push(instance.instanceId);
+				activeInstanceId = instance.instanceId;
 			}
 			override async focusActiveInstance(): Promise<void> {
 				focusCalls++;
@@ -293,6 +299,9 @@ suite('SessionsTerminalContribution', () => {
 				(instance as TestTerminalInstance)._testSetDisposed(true);
 				terminalInstances.delete(instance.instanceId);
 				backgroundedInstances.delete(instance.instanceId);
+				if (activeInstanceId === instance.instanceId) {
+					activeInstanceId = undefined;
+				}
 			}
 			override moveToBackground(instance: ITerminalInstance): void {
 				backgroundedInstances.add(instance.instanceId);
@@ -539,6 +548,12 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 1);
 
+		// Archiving flips the active session away from the archived one, so the
+		// archived session's terminal is no longer the focused (active) terminal.
+		const otherSession = makeAgentSession({ worktree: URI.file('/other'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(otherSession, undefined);
+		await tick();
+
 		const session = makeAgentSession({
 			isArchived: true,
 			worktree: worktreeUri,
@@ -584,11 +599,64 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 
+		// Switch the active session to a different cwd so the repo cwd is no longer
+		// the protected active cwd (mirrors archiving flipping the active session
+		// to a new one), then archive the repo-only session.
+		const otherSession = makeAgentSession({ worktree: URI.file('/other'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(otherSession, undefined);
+		await tick();
+
 		const archivedSession = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Background, isArchived: true });
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
+	});
+
+	test('does not close the terminal at the active session cwd when archiving (just-opened terminal is protected)', async () => {
+		// Mirrors the "archive all sessions, then open a terminal" repro (#313510):
+		// a late archive event must not dispose the terminal the user is currently
+		// working in at the active session's cwd.
+		const worktreeUri = URI.file('/worktree');
+		const activeSession = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(activeSession, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
+
+		// A different, now-archived session that happens to share the active cwd.
+		const archivedSession = makeAgentSession({ sessionId: 'test:archived', worktree: worktreeUri, providerType: AgentSessionProviders.Background, isArchived: true });
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 0, 'terminal at the active session cwd must not be disposed');
+	});
+
+	test('does not re-close a newly-opened terminal when an already-archived session is re-emitted', async () => {
+		// Mirrors the "every new terminal keeps dying" repro (#313510, #318645):
+		// the provider keeps archived sessions cached and re-emits them in `changed`
+		// on every sync. The archive cleanup must only run on the first archived
+		// transition, not on each re-emit.
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false); // terminal 1 at /worktree
+		await contribution.ensureTerminal(URI.file('/other'), false); // terminal 2 at /other, now active
+
+		const archivedSession = makeAgentSession({ sessionId: 'test:archived', worktree: worktreeUri, providerType: AgentSessionProviders.Background, isArchived: true });
+
+		// First archive event closes the terminal at the archived cwd (not active).
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
+		await tick();
+		assert.strictEqual(disposedInstances.length, 1);
+
+		// The user opens a new terminal at the same cwd, then moves focus elsewhere.
+		await contribution.ensureTerminal(worktreeUri, false); // terminal 3 at /worktree, active
+		await contribution.ensureTerminal(URI.file('/other'), false); // reuse terminal 2, active again
+
+		// The provider re-emits the still-archived session on a later sync. The
+		// transition guard makes this a no-op so the newly-opened terminal survives.
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
+		await tick();
+		assert.strictEqual(disposedInstances.length, 1, 're-emitted archived session must not close the newly-opened terminal');
 	});
 
 	test('closes terminals when session is removed', async () => {
@@ -872,6 +940,12 @@ suite('SessionsTerminalContribution', () => {
 		const toolTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
 		toolTerminal._testSetShellLaunchConfig({ hideFromUser: true } as ITerminalInstance['shellLaunchConfig']);
 		terminalInstances.set(toolTerminal.instanceId, toolTerminal);
+
+		// Archiving flips the active session away, so the archived session's
+		// regular terminal is no longer the focused (active) terminal.
+		const otherSession = makeAgentSession({ worktree: URI.file('/other'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(otherSession, undefined);
+		await tick();
 
 		const session = makeAgentSession({
 			isArchived: true,
