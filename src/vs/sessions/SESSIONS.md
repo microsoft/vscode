@@ -103,7 +103,7 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
 
-Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning; untitled placeholders are deferred until they become committed worktree sessions.
+Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
 
 ### Session Types
 
@@ -143,7 +143,12 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Management service opens the chat widget with that chat's resource
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
+   → Management service fires onDidStartSession(committedSession)
    → isNewChatSession context → false
+
+Agent-host providers seed new-session config from the last values picked in the
+session-config UI (stored in profile storage), while `chat.permissions.default`
+takes precedence for `autoApprove` (with policy-safe normalization).
 ```
 
 ### Session Change Propagation
@@ -203,4 +208,3 @@ The **agents window core workbench** is defined as all sessions code *outside* `
 When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
 
 **Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.
-

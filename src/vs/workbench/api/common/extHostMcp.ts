@@ -707,6 +707,7 @@ export class McpHTTPHandle extends Disposable {
 					resourceMetadata: this._authMetadata.resourceMetadata,
 					scopes: this._authMetadata.scopes,
 					clientId: this._launch.oauth?.clientId,
+					enterpriseManaged: this._launch.oauth?.enterpriseManaged,
 				};
 				const token = await this._proxy.$getTokenFromServerMetadata(
 					this._id,

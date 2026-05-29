@@ -466,6 +466,27 @@ export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IIm
 	return obj.kind === 'image';
 }
 
+export function isExplicitFileOrImageVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry | IChatRequestDirectoryEntry | IImageVariableEntry {
+	return obj.kind === 'file' || obj.kind === 'directory' || obj.kind === 'image';
+}
+
+export function getExplicitFileOrImageAttachmentSummary(entries: readonly IChatRequestVariableEntry[]): string | undefined {
+	const fileOrImageEntries = entries.filter(isExplicitFileOrImageVariableEntry);
+	if (!fileOrImageEntries.length) {
+		return undefined;
+	}
+
+	if (fileOrImageEntries.every(isImageVariableEntry)) {
+		return fileOrImageEntries.length === 1
+			? localize('chat.attachmentSummary.image.one', "Attached 1 image")
+			: localize('chat.attachmentSummary.image.many', "Attached {0} images", fileOrImageEntries.length);
+	}
+
+	return fileOrImageEntries.length === 1
+		? localize('chat.attachmentSummary.file.one', "Attached 1 file")
+		: localize('chat.attachmentSummary.file.many', "Attached {0} files", fileOrImageEntries.length);
+}
+
 export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
 	return obj.kind === 'notebookOutput';
 }
