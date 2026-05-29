@@ -390,15 +390,20 @@
 
 .sessions-list-control {
 
-	/* Workspace headers use label color changes instead of row background fills for hover/focus/selection. */
+	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
 	.monaco-list-row:has(.session-section):hover,
+	.monaco-list-row:has(.session-show-more-folders):hover,
 	.monaco-list-row.focused:has(.session-section),
-	.monaco-list-row.selected:has(.session-section) {
+	.monaco-list-row.focused:has(.session-show-more-folders),
+	.monaco-list-row.selected:has(.session-section),
+	.monaco-list-row.selected:has(.session-show-more-folders) {
 		background: transparent !important;
 	}
 
 	.monaco-list-row:hover .session-section .session-section-label,
-	.monaco-list-row.focused .session-section .session-section-label {
+	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
+	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
 	}
 
