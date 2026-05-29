@@ -179,6 +179,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.selectWorkspace(folderUri, providerId);
 	}
 
+	prefillInput(text: string): void {
+		this._currentView.value?.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		this._currentView.value?.sendQuery(text);
+	}
+
 	/**
 	 * Updates the view's maximized context key so toolbars hosted within can react.
 	 * Called by the owning {@link SessionsPart} when the grid's maximized view changes.
