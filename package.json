@@ -23,6 +23,7 @@
     "compile-client": "npm run gulp compile",
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
     "watchd": "deemon npm run watch",
     "watch-webd": "deemon npm run watch-web",
@@ -155,6 +156,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.128",
+    "@openai/codex": "^0.134.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
