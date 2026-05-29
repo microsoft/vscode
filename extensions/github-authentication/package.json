@@ -84,7 +84,7 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "@nevware21/ts-utils": "^0.14.0",
+    "@nevware21/ts-utils": "0.14.0",
     "@vscode/extension-telemetry": "^0.9.8",
     "node-fetch": "2.6.7",
     "vscode-tas-client": "^0.1.84"
