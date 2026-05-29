@@ -210,7 +210,8 @@ function convertLinkTags(
 }
 
 function escapeMarkdownSyntaxTokensForCode(text: string): string {
-	return text.replace(/`/g, '\\$&'); // CodeQL [SM02383] This is only meant to escape backticks. The Markdown is fully sanitized after being rendered.
+	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&'); // CodeQL [SM02383] Backslash is escaped in the character class
 }
 
 export function tagsToMarkdown(
