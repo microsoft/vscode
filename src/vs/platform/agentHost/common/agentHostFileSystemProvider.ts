@@ -175,7 +175,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	/** Decode a provider URI back to the original URI for the remote endpoint. */
 	protected abstract _decodeUri(resource: URI): URI;
 
-	/** Decode a provider URI back to the original URI for the remote endpoint. */
+	/** Encode a remote URI back into a provider URI with the given authority. */
 	protected abstract _encodeUri(resource: URI, authority: string): URI;
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {

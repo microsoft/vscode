@@ -1781,7 +1781,7 @@ export class AgentService extends Disposable implements IAgentService {
 			descriptor,
 			subscribers: 1,
 			disposables,
-			pendingGc: new MutableDisposable(),
+			pendingGc: disposables.add(new MutableDisposable()),
 			dispose: () => disposables.dispose(),
 		});
 		return descriptor;

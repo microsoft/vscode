@@ -588,10 +588,14 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(connection.watchCalls[0].recursive, true);
 		assert.deepStrictEqual(connection.watchCalls[0].excludes, { items: ['**/node_modules/**'] });
 
-		const change: IFileChange = { resource: URI.parse('file:///watched/a.txt'), type: FileChangeType.UPDATED };
-		onDidChange.fire([change]);
+		// When watchResource reports changes from the underlying filesystem,
+		// they come back with file:// URIs. The provider re-encodes them with
+		// the agent host authority.
+		const incomingChange: IFileChange = { resource: URI.parse('file:///watched/a.txt'), type: FileChangeType.UPDATED };
+		const expectedChange: IFileChange = { resource: toAgentHostUri(URI.parse('file:///watched/a.txt'), 'remote'), type: FileChangeType.UPDATED };
+		onDidChange.fire([incomingChange]);
 
-		assert.deepStrictEqual(received, [[change]]);
+		assert.deepStrictEqual(received, [[expectedChange]]);
 
 		watchDisposable.dispose();
 		assert.strictEqual(handleDisposed, true, 'underlying handle should be disposed when wrapper is disposed');

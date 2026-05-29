@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -145,11 +145,11 @@ class MockAgentService implements IAgentService {
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> {
 		throw new Error('Not implemented');
 	}
-	async resourceCopy(): Promise<{}> { return {}; }
+	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
-	async resourceResolve(): Promise<any> { throw new Error('Not implemented'); }
-	async resourceMkdir(): Promise<{}> { return {}; }
+	async resourceResolve(_params: ResourceResolveParams): Promise<ResourceResolveResult> { throw new Error('Not implemented'); }
+	async resourceMkdir(_params: ResourceMkdirParams): Promise<ResourceMkdirResult> { return {}; }
 	readonly watchSubscribeCalls: string[] = [];
 	readonly watchUnsubscribeCalls: string[] = [];
 	/** Channels for which `onResourceWatchSubscribed` should return a descriptor. */
