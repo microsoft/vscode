@@ -38,9 +38,12 @@ const CHIP_ORDER = new Map<string, number>([
 	['codex.sandboxMode', 0],
 	['codex.approvalPolicy', 1],
 	['codex.webSearchMode', 2],
-	['codex.modelReasoningEffort', 3],
 	['codex.additionalDirectories', 4],
 	['codex.networkAccessEnabled', 5],
+]);
+
+const MODEL_PICKER_CONFIG_PROPERTIES = new Set<string>([
+	'codex.modelReasoningEffort',
 ]);
 
 /**
@@ -200,6 +203,9 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const desired = new Set<string>();
 		if (entries) {
 			for (const [property, schema] of this._orderedEntries(entries)) {
+				if (MODEL_PICKER_CONFIG_PROPERTIES.has(property)) {
+					continue;
+				}
 				if (isClaimedByDedicatedPicker(property, schema)) {
 					continue;
 				}

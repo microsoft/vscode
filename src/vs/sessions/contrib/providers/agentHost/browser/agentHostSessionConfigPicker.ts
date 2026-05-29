@@ -59,9 +59,12 @@ const CHIP_ORDER = new Map<string, number>([
 	['codex.sandboxMode', 2],
 	['codex.approvalPolicy', 3],
 	['codex.webSearchMode', 4],
-	['codex.modelReasoningEffort', 5],
 	['codex.additionalDirectories', 6],
 	['codex.networkAccessEnabled', 7],
+]);
+
+const MODEL_PICKER_CONFIG_PROPERTIES = new Set<string>([
+	'codex.modelReasoningEffort',
 ]);
 
 registerAction2(class extends Action2 {
@@ -323,6 +326,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
 		for (const [property, schema] of properties) {
+			if (MODEL_PICKER_CONFIG_PROPERTIES.has(property)) {
+				continue;
+			}
 			if (!this._isPickable(schema) || this._isHiddenByDependency(resolvedConfig.values, property)) {
 				continue;
 			}
