@@ -93,8 +93,11 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		}
 
 		const wasDeferred = !!params.deferredResultId;
-		const codeLength = params.code?.length ?? 0;
-		const codeLineCount = params.code ? params.code.split('\n').length : 0;
+		// Resumed deferred calls don't carry the original code; its size was
+		// already logged by the initial invocation, so report 0 here to match
+		// the documented telemetry schema.
+		const codeLength = wasDeferred ? 0 : (params.code?.length ?? 0);
+		const codeLineCount = wasDeferred ? 0 : (params.code ? params.code.split('\n').length : 0);
 		const startedAt = Date.now();
 
 		// Resume waiting for a deferred execution.

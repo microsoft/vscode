@@ -386,17 +386,21 @@ class PlaywrightSession extends Disposable {
 	async invokeFunction(pageId: string, fnDef: string, args: unknown[] = [], timeoutMs?: number): Promise<IInvokeFunctionResult> {
 		this.logService.info(`[PlaywrightSession] Invoking function on view ${pageId}`);
 
-		const fn = await this._compileFunction(fnDef);
 		const pageMethodsCalled = new Map<string, number>();
-		const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []);
 
 		if (timeoutMs !== undefined) {
+			const fn = await this._compileFunction(fnDef);
+			const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []);
 			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, pageMethodsCalled);
 		}
 
 		let result, error;
 		try {
-			result = await this._runAgainstPage(pageId, wrappedCallback);
+			// Compile inside the error-handled path so syntax/compile errors are
+			// returned as { error, summary } like other execution failures rather
+			// than thrown to callers.
+			const fn = await this._compileFunction(fnDef);
+			result = await this._runAgainstPage(pageId, async (page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []));
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : String(err);
 		}
@@ -689,14 +693,77 @@ const PAGE_PROXY_IGNORED_PROPS = new Set<string>([
 const PAGE_PROXY_MAX_DEPTH = 3;
 
 /**
+ * Bucket name used by {@link createPageApiProxy} for any invoked method whose
+ * dotted name is not in {@link PAGE_API_ALLOWLIST}. Keeping unknown names out
+ * of telemetry guarantees we never emit user-controlled strings and bounds
+ * cardinality, while a non-zero count signals Playwright API drift (new or
+ * renamed methods) worth investigating.
+ */
+const PAGE_API_OTHER = 'other';
+
+/**
+ * Allowlist of fully-qualified Playwright `page` method names (dotted for
+ * namespace methods) that may be reported by name in telemetry. Anything not
+ * listed here is counted under {@link PAGE_API_OTHER}. Generated from the
+ * `playwright-core` 1.59 `Page` surface (and its namespace accessors); update
+ * when intentionally tracking new API after a Playwright upgrade.
+ */
+const PAGE_API_ALLOWLIST = new Set<string>([
+	// page.*
+	'$', '$$', '$$eval', '$eval', 'addInitScript', 'addListener', 'addLocatorHandler',
+	'addScriptTag', 'addStyleTag', 'ariaSnapshot', 'bringToFront', 'cancelPickLocator',
+	'check', 'clearConsoleMessages', 'clearPageErrors', 'click', 'close', 'consoleMessages',
+	'content', 'context', 'dblclick', 'dispatchEvent', 'dragAndDrop', 'emulateMedia',
+	'evaluate', 'evaluateHandle', 'exposeBinding', 'exposeFunction', 'fill', 'focus',
+	'frame', 'frameLocator', 'frames', 'getAttribute', 'getByAltText', 'getByLabel',
+	'getByPlaceholder', 'getByRole', 'getByTestId', 'getByText', 'getByTitle', 'goBack',
+	'goForward', 'goto', 'hover', 'innerHTML', 'innerText', 'inputValue', 'isChecked',
+	'isClosed', 'isDisabled', 'isEditable', 'isEnabled', 'isHidden', 'isVisible', 'locator',
+	'mainFrame', 'off', 'on', 'once', 'opener', 'pageErrors', 'pause', 'pdf', 'pickLocator',
+	'prependListener', 'press', 'reload', 'removeAllListeners', 'removeListener',
+	'removeLocatorHandler', 'requestGC', 'requests', 'route', 'routeFromHAR', 'routeWebSocket',
+	'screenshot', 'selectOption', 'setChecked', 'setContent', 'setDefaultNavigationTimeout',
+	'setDefaultTimeout', 'setExtraHTTPHeaders', 'setInputFiles', 'setViewportSize', 'tap',
+	'textContent', 'title', 'type', 'uncheck', 'unroute', 'unrouteAll', 'url', 'video',
+	'viewportSize', 'waitForEvent', 'waitForFunction', 'waitForLoadState', 'waitForNavigation',
+	'waitForRequest', 'waitForResponse', 'waitForSelector', 'waitForTimeout', 'waitForURL',
+	'workers',
+	// page.keyboard.*
+	'keyboard.down', 'keyboard.insertText', 'keyboard.press', 'keyboard.type', 'keyboard.up',
+	// page.mouse.*
+	'mouse.click', 'mouse.dblclick', 'mouse.down', 'mouse.move', 'mouse.up', 'mouse.wheel',
+	// page.touchscreen.*
+	'touchscreen.tap',
+	// page.request.* (APIRequestContext)
+	'request.delete', 'request.dispose', 'request.fetch', 'request.get', 'request.head',
+	'request.patch', 'request.post', 'request.put', 'request.storageState',
+	// page.coverage.* (Chromium only)
+	'coverage.startCSSCoverage', 'coverage.startJSCoverage', 'coverage.stopCSSCoverage',
+	'coverage.stopJSCoverage',
+	// page.clock.*
+	'clock.fastForward', 'clock.install', 'clock.pauseAt', 'clock.resume', 'clock.runFor',
+	'clock.setFixedTime', 'clock.setSystemTime',
+	// page.screencast.*
+	'screencast.hideActions', 'screencast.hideOverlays', 'screencast.showActions',
+	'screencast.showChapter', 'screencast.showOverlay', 'screencast.showOverlays',
+	'screencast.start', 'screencast.stop',
+]);
+
+/**
  * Wrap a Playwright `page` so that every function call routed through the
  * proxy increments a counter in {@link methodCalls}, keyed by the dotted path
  * from `page` (e.g. `click`, `evaluate`, `keyboard.press`, `mouse.move`).
+ * Names not in {@link PAGE_API_ALLOWLIST} are counted under
+ * {@link PAGE_API_OTHER} so telemetry never carries user-controlled strings.
  *
  * Non-function object properties are themselves proxied recursively so that
  * downstream calls on namespaces such as `keyboard`, `mouse`, `request`,
  * `coverage`, and `accessibility` are visible. Recursion is capped at
  * {@link PAGE_PROXY_MAX_DEPTH} levels.
+ *
+ * Method wrappers and nested proxies are cached per property so repeated reads
+ * return the same value, preserving Playwright's object identity (e.g.
+ * `page.keyboard === page.keyboard` and `page.click === page.click`).
  *
  * Symbol keys, `_`-prefixed internals, and a small denylist of JS protocol
  * properties are ignored to avoid recording noise.
@@ -705,21 +772,31 @@ function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string
 	if (depth >= PAGE_PROXY_MAX_DEPTH) {
 		return target;
 	}
+	const cache = new Map<string, unknown>();
 	return new Proxy(target, {
 		get(t, prop, receiver) {
 			const value = Reflect.get(t, prop, receiver);
 			if (typeof prop !== 'string' || prop.startsWith('_') || PAGE_PROXY_IGNORED_PROPS.has(prop)) {
 				return value;
 			}
+			const cached = cache.get(prop);
+			if (cached !== undefined) {
+				return cached;
+			}
 			if (typeof value === 'function') {
-				const name = prefix + prop;
-				return function (this: unknown, ...args: unknown[]) {
+				const fullName = prefix + prop;
+				const name = PAGE_API_ALLOWLIST.has(fullName) ? fullName : PAGE_API_OTHER;
+				const wrapper = function (this: unknown, ...args: unknown[]) {
 					methodCalls.set(name, (methodCalls.get(name) ?? 0) + 1);
 					return Reflect.apply(value as Function, t, args);
 				};
+				cache.set(prop, wrapper);
+				return wrapper;
 			}
 			if (value !== null && typeof value === 'object') {
-				return createPageApiProxy(value as object, methodCalls, `${prefix}${prop}.`, depth + 1);
+				const nested = createPageApiProxy(value as object, methodCalls, `${prefix}${prop}.`, depth + 1);
+				cache.set(prop, nested);
+				return nested;
 			}
 			return value;
 		},
