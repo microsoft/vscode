@@ -148,6 +148,7 @@ export class GhostTextComputer {
 		parentLogger: ILogger,
 	): Promise<GhostTextResultWithTelemetry<[CompletionResult[], ResultType]>> {
 		const id = generateUuid();
+		telemetryBuilder.setHeaderRequestId(id);
 		const logger = parentLogger.createSubLogger(['GhostTextComputer#getGhostText']);
 		this.currentGhostText.currentRequestId = id;
 		const telemetryData = await this.instantiationService.invokeFunction(createTelemetryWithExp, completionState.textDocument, id, options);
