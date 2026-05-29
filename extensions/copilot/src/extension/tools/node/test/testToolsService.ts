@@ -17,7 +17,7 @@ import { autorunIterableDelta } from '../../../../util/vs/base/common/observable
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolInformation, LanguageModelToolResult2 } from '../../../../vscodeTypes';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../../common/toolNames';
-import { ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../../common/toolsRegistry';
+import { ICopilotTool, ICopilotToolCtor, modelSpecificToolApplies, ToolRegistry } from '../../common/toolsRegistry';
 import { BaseToolsService, IToolsService } from '../../common/toolsService';
 
 export class TestToolsService extends BaseToolsService implements IToolsService {
@@ -177,11 +177,23 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 	}
 
 	getEnabledTools(request: vscode.ChatRequest, endpoint: IChatEndpoint, filter?: (tool: LanguageModelToolInformation) => boolean | undefined): LanguageModelToolInformation[] {
-		const toolMap = new Map(this.tools.map(t => [t.name, t]));
+		const tools = [
+			...this.tools,
+			...Array.from(this.getModelSpecificTools().values())
+				.filter(({ definition }) => modelSpecificToolApplies(definition, endpoint))
+				.map(({ definition }) => ({
+					name: definition.name,
+					description: definition.description,
+					inputSchema: definition.inputSchema,
+					tags: definition.tags ?? [],
+					source: definition.source,
+				} satisfies LanguageModelToolInformation)),
+		];
+		const toolMap = new Map(tools.map(t => [t.name, t]));
 		const requestToolsByName = new Map(Iterable.map(request.tools, ([t, enabled]) => [t.name, enabled]));
 
 		const packageJsonTools = getPackagejsonToolsForTest();
-		return this.tools
+		return tools
 			.map(tool => {
 				// Apply model-specific alternative if available via alternativeDefinition
 				const owned = this._copilotTools.get(getToolName(tool.name) as ToolName);
