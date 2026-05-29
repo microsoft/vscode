@@ -202,6 +202,12 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 		async resourceWrite(): Promise<{}> { return {}; }
 		async resourceDelete(): Promise<{}> { return {}; }
 		async resourceMove(): Promise<{}> { return {}; }
+		async resourceCopy(): Promise<{}> { return {}; }
+		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+			const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri)!;
+			return { uri: uri.toString(), type: ResourceType.File };
+		}
+		async resourceMkdir(): Promise<{}> { return {}; }
 	}
 
 	test('disposing a stale registration does not remove a newer registration for the same authority', async () => {
