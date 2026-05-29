@@ -182,6 +182,10 @@
 	min-width: 48px;
 }
 
+.models-widget .models-table-container .monaco-table-td .model-token-limits .token-limit-item.token-limit-max {
+	min-width: 0;
+}
+
 .models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
 	font-size: 12px;
 }
