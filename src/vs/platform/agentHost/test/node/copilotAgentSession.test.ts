@@ -1961,7 +1961,7 @@ suite('CopilotAgentSession', () => {
 
 			const turns = await session.getMessages();
 			assert.deepStrictEqual(
-				turns.map(t => ({ id: t.id, text: t.userMessage.text })),
+				turns.map(t => ({ id: t.id, text: t.message.text })),
 				[
 					{ id: 'sdk-evt-user-1', text: 'first prompt' },
 					{ id: 'sdk-evt-user-2', text: 'second prompt' },
