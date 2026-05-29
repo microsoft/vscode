@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -2544,19 +2545,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {
-			// Wait for the subscription to hydrate. Attach the listener
-			// before re-checking the value to close a race where another
-			// consumer (e.g. the chat-input picker) acquires the same
-			// subscription concurrently and triggers `handleSnapshot`
-			// between our `_getSessionState` check and the listener
-			// attachment.
-			await new Promise<void>(resolve => {
-				const d = newSub.onDidChange(() => { d.dispose(); resolve(); });
-				if (this._getSessionState(session.toString())) {
-					d.dispose();
-					resolve();
-				}
-			});
+			await this._waitForSessionState(session.toString(), newSub, 'createAndSubscribe');
 		}
 
 		// Start syncing the chat model's pending requests to the protocol
@@ -2566,6 +2555,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._watchForServerInitiatedTurns(session, sessionResource);
 
 		return session;
+	}
+
+	private async _waitForSessionState(sessionKey: string, sub: IAgentSubscription<SessionState>, reason: string): Promise<boolean> {
+		if (this._getSessionState(sessionKey)) {
+			return true;
+		}
+
+		const hydrated = await raceTimeout(new Promise<boolean>(resolve => {
+			const disposable = sub.onDidChange(() => {
+				disposable.dispose();
+				resolve(!!this._getSessionState(sessionKey));
+			});
+			if (this._getSessionState(sessionKey)) {
+				disposable.dispose();
+				resolve(true);
+			}
+		}), 5000);
+		if (!hydrated) {
+			this._logService.warn(`[AgentHost] Timed out waiting for session state hydration (${reason}): ${sessionKey}`);
+		}
+		return hydrated === true;
 	}
 
 	/**

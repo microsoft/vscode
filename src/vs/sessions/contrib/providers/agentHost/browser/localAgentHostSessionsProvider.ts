@@ -95,6 +95,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				return;
 			}
 			this._refreshSessions();
+			this._resumeNewSessionAfterAuthenticationSettles();
 		}));
 	}
 
