@@ -1221,6 +1221,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	getAutoUpdateDelayRemaining(extension: IExtension): number {
+		// Extensions from publishers trusted by the product are auto updated without delay.
+		if (this.isFromTrustedPublisher(extension)) {
+			return 0;
+		}
 		const lastUpdated = extension.gallery?.lastUpdated;
 		if (!Number.isFinite(lastUpdated) || !lastUpdated) {
 			return 0;
@@ -1231,6 +1235,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return 0;
 		}
 		return Math.max(0, DELAYED_AUTO_UPDATE_PERIOD - elapsed);
+	}
+
+	private isFromTrustedPublisher(extension: IExtension): boolean {
+		const trustedPublishers = this.productService.trustedExtensionPublishers;
+		if (!trustedPublishers?.length) {
+			return false;
+		}
+		const publisher = extension.publisher?.toLowerCase();
+		return (!!publisher && trustedPublishers.includes(publisher))
+			|| (!!extension.publisherDisplayName && trustedPublishers.includes(extension.publisherDisplayName.toLowerCase()));
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
