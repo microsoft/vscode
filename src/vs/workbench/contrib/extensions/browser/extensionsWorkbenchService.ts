@@ -1242,9 +1242,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!trustedPublishers?.length) {
 			return false;
 		}
-		const publisher = extension.publisher?.toLowerCase();
-		return (!!publisher && trustedPublishers.includes(publisher))
-			|| (!!extension.publisherDisplayName && trustedPublishers.includes(extension.publisherDisplayName.toLowerCase()));
+		const publisher = extension.publisher.toLowerCase();
+		return trustedPublishers.includes(publisher)
+			|| trustedPublishers.includes(extension.publisherDisplayName.toLowerCase());
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
