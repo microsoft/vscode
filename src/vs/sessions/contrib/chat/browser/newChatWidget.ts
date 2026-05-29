@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, observableValue } from '../../../../base/common/observable.js';
+import { derived } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,9 +22,6 @@ import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Menus } from '../../../browser/menus.js';
-import { IChat } from '../../../services/sessions/common/session.js';
 
 // #region --- New Chat Widget ---
 
@@ -33,16 +30,6 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
-	private _toolbar: MenuWorkbenchToolBar | undefined;
-
-	/**
-	 * The session this widget currently represents. Driven by
-	 * {@link setSession} from the hosting view; the input's derived
-	 * `canSendRequest` / `loading` observables read from this so they refresh
-	 * whenever the session swaps.
-	 */
-	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
-	private readonly _session;
 
 	/** Tracks an in-flight wait for a provider's session types to become available. */
 	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
@@ -56,7 +43,6 @@ export class NewChatWidget extends Disposable {
 	private _activeEmptyState: NoAgentHostEmptyState | undefined;
 
 	constructor(
-		initialChat: IChat | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -65,16 +51,6 @@ export class NewChatWidget extends Disposable {
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
-
-		this._chat.set(initialChat, undefined);
-		this._session = this._chat.map(chat => {
-			const resource = chat?.resource;
-			if (!resource) {
-				return undefined;
-			}
-			return this.sessionsManagementService.getSession(resource);
-		});
-
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
@@ -84,7 +60,7 @@ export class NewChatWidget extends Disposable {
 		this._register(this._pendingSessionTypeWait);
 
 		const canSendRequest = derived(reader => {
-			const session = this._session.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (!session) {
 				return false;
 			}
@@ -92,7 +68,7 @@ export class NewChatWidget extends Disposable {
 		});
 
 		const loading = derived(reader => {
-			const session = this._session.read(reader);
+			const session = this.sessionsManagementService.activeSession.read(reader);
 			return session?.loading.read(reader) ?? false;
 		});
 
@@ -134,15 +110,7 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
 
-		const topRight = dom.append(element, dom.$('.sessions-chat-widget-top-right'));
-		this._aquariumToggle = this._register(this.aquariumService.mountToggle(topRight));
-		const toolbarContainer = dom.append(topRight, dom.$('.sessions-chat-widget-top-right-toolbar'));
-		this._toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-		}));
-		this._toolbar.context = this._session.get();
+		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
@@ -181,34 +149,18 @@ export class NewChatWidget extends Disposable {
 	 * @returns `true` if an active session was found and the picker was synced.
 	 */
 	private _syncWorkspacePickerFromActiveSession(): boolean {
-		const session = this._session.get();
-		if (!session) {
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (!activeSession) {
 			return false;
 		}
 
-		const sessionWorkspace = session.workspace.get();
+		const sessionWorkspace = activeSession.workspace.get();
 		const folderUri = sessionWorkspace?.folders[0]?.root;
 		if (folderUri) {
 			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
 		}
 
 		return true;
-	}
-
-	/**
-	 * Tells the widget which session it currently represents. Updates the
-	 * toolbar's `context` so action handlers receive the session as their
-	 * argument, and refreshes the input's send/loading state via the
-	 * {@link _chat} observable.
-	 */
-	setChat(chat: IChat | undefined): void {
-		if (this._chat.get() === chat) {
-			return;
-		}
-		this._chat.set(chat, undefined);
-		if (this._toolbar) {
-			this._toolbar.context = this._session.get();
-		}
 	}
 
 	private _createNewSession(folderUri: URI, pick: IPreferredSessionType | undefined): void {
@@ -378,7 +330,7 @@ export class NewChatWidget extends Disposable {
 	// --- Send ---
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[]): Promise<void> {
-		const session = this._session.get();
+		const session = this.sessionsManagementService.activeSession.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return;
