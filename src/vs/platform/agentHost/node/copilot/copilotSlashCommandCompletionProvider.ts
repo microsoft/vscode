@@ -15,13 +15,14 @@ import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
  * Slash-command name and the token we surface to the user / round-trip on
  * the {@link MessageAttachmentKind.Simple} attachment's `_meta`.
  */
-export type CopilotSlashCommandName = 'plan' | 'compact';
+export type CopilotSlashCommandName = 'plan' | 'compact' | 'research';
 
-const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact'];
+const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact', 'research'];
 function getCommandDescription(command: CopilotSlashCommandName): string {
 	switch (command) {
 		case 'plan': return localize('copilotSlashCommand.plan.description', "Create an implementation plan before coding");
 		case 'compact': return localize('copilotSlashCommand.compact.description', "Free up context by compacting the conversation history");
+		case 'research': return localize('copilotSlashCommand.research.description', "Run deep research on a topic using search and web sources");
 	}
 }
 /**
@@ -47,12 +48,13 @@ export interface IParsedLeadingSlashCommand {
 /**
  * Parses a Copilot CLI slash command at the very start of `prompt`.
  *
- * The command must be `/plan` or `/compact`, followed either by end-of-input
- * or by at least one whitespace character. `/compact-hello`, `/plans`, or a
- * leading-space `/compact` all return `undefined`. Match is case-sensitive.
+ * The command must be `/plan`, `/compact`, or `/research`, followed either by
+ * end-of-input or by at least one whitespace character. `/compact-hello`,
+ * `/plans`, or a leading-space `/compact` all return `undefined`. Match is
+ * case-sensitive.
  */
 export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
-	const match = /^\/(plan|compact)(?:$|\s+([\s\S]*))/.exec(prompt);
+	const match = /^\/(plan|compact|research)(?:$|\s+([\s\S]*))/.exec(prompt);
 	if (!match) {
 		return undefined;
 	}
@@ -104,7 +106,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			items.push({
-				insertText: command === 'plan' ? '/' + command + ' ' : '/' + command,
+				insertText: command === 'compact' ? '/' + command : '/' + command + ' ',
 				rangeStart: 0,
 				rangeEnd: leading.rangeEnd,
 				attachment: {
