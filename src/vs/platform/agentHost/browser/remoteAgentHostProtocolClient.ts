@@ -1253,11 +1253,27 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (!p.destination) { sendError(new Error('Missing destination')); return; }
 				const sourceUri = URI.parse(p.source as string);
 				const destinationUri = URI.parse(p.destination as string);
-				// Gate both source (read) and destination (write)
-				return void gateAndHandle(sourceUri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: sourceUri.toString(), read: true }, async () => {
-					await this._fileService.copy(sourceUri, destinationUri, !p.failIfExists);
-					return {};
-				});
+				return void (async () => {
+					try {
+						// Gate both source (read) and destination (write).
+						const [sourceOk, destOk] = await Promise.all([
+							this._permissionService.check(this._address, sourceUri, AgentHostPermissionMode.Read),
+							this._permissionService.check(this._address, destinationUri, AgentHostPermissionMode.Write),
+						]);
+						if (!sourceOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: sourceUri.toString(), read: true });
+							return;
+						}
+						if (!destOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: destinationUri.toString(), write: true });
+							return;
+						}
+						await this._fileService.copy(sourceUri, destinationUri, !p.failIfExists);
+						sendResult({});
+					} catch (err) {
+						sendError(err);
+					}
+				})();
 			}
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
