@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 

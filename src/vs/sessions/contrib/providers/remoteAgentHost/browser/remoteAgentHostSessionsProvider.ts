@@ -35,6 +35,8 @@ import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../ag
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
@@ -191,11 +193,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 */
 	private _unpublished = false;
 
+
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -206,8 +209,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -373,6 +378,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			return;
 		}
 
+		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
@@ -394,7 +400,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 		// Always refresh sessions when a connection is (re)established
 		this._cacheInitialized = true;
-		this._refreshSessions();
+		this._refreshSessions(wasUnpublished);
 	}
 
 	/**
@@ -448,9 +454,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			return;
 		}
 		this._unpublished = true;
-		const removed: ISession[] = Array.from(this._sessionCache.values());
-		if (removed.length > 0) {
-			this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
+		if (this._sessionCache.size > 0) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 		}
 	}
 

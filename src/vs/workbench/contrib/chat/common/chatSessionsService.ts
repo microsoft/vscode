@@ -31,6 +31,30 @@ export interface IChatSessionCommandContribution {
 	readonly when?: string;
 }
 
+export interface IChatSessionProviderOptionModelMetadata {
+	readonly name: string;
+	readonly id: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tooltip?: string;
+	readonly pricing?: string;
+	readonly multiplierNumeric?: number;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly priceCategory?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+	};
+}
+
 export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
@@ -40,6 +64,8 @@ export interface IChatSessionProviderOptionItem {
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
 	readonly slashCommand?: string;
+	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 	// [key: string]: any;
 }
 
@@ -134,6 +160,13 @@ export interface IChatSessionItem {
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
 	readonly metadata?: IChatSessionItemMetadata;
+	/**
+	 * Resource identifier the item was previously known by. When set, host-stored
+	 * per-resource state (archive, pin, read) recorded under that URI is adopted
+	 * forward onto {@link resource} on first state read, and the legacy entry is
+	 * removed. Scheme must match {@link resource}'s scheme; otherwise ignored.
+	 */
+	readonly legacyResource?: URI;
 }
 
 export interface IChatSessionItemMetadata {
@@ -204,7 +237,7 @@ export namespace SessionType {
 	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
-	export const AgentHostCopilot = 'agent-host-copilot';
+	export const AgentHostCopilot = 'agent-host-copilotcli';
 }
 
 /**

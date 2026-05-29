@@ -225,6 +225,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					inputCost: m.inputCost,
 					outputCost: m.outputCost,
 					cacheCost: m.cacheCost,
+					longContextInputCost: m.longContextInputCost,
+					longContextOutputCost: m.longContextOutputCost,
+					longContextCacheCost: m.longContextCacheCost,
 					priceCategory: m.priceCategory,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
@@ -420,6 +423,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				inputCost: model.metadata.inputCost,
 				outputCost: model.metadata.outputCost,
 				cacheCost: model.metadata.cacheCost,
+				longContextInputCost: model.metadata.longContextInputCost,
+				longContextOutputCost: model.metadata.longContextOutputCost,
+				longContextCacheCost: model.metadata.longContextCacheCost,
 				priceCategory: model.metadata.priceCategory,
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
@@ -517,6 +523,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (data) {
 			data.res.handleResponsePart(chunk.value);
 		}
+	}
+
+	$onChatModelsChange(): void {
+		this._onDidChangeProviders.fire();
 	}
 
 	async $acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void> {

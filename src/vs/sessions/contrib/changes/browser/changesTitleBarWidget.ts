@@ -99,8 +99,9 @@ registerAction2(class extends Action2 {
 			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
 		} else {
-			layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			// hiding must happen in opposite order than showing
 			layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		}
 
 		logChangesViewToggle(telemetryService, isVisible);

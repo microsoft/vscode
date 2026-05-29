@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as pathLib from 'path';
+import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
+import { ILogService } from '../../../platform/log/common/logService';
+import { findLast } from '../../../util/vs/base/common/arraysFind';
+import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage } from '../common/sessionEventRenderer';
+import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
 import { getAuthorDisplayName } from '../vscode/copilotCodingAgentUtils';
 
 export interface SessionResponseLogChunk {
@@ -98,7 +104,8 @@ export interface ParsedToolCallDetails {
 export class ChatSessionContentBuilder {
 	constructor(
 		private type: string,
-		@IGitService private readonly _gitService: IGitService
+		@IGitService private readonly _gitService: IGitService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 	}
 
@@ -156,6 +163,92 @@ export class ChatSessionContentBuilder {
 			.forEach(result => history.push(...result.turns));
 
 		return history;
+	}
+
+	/**
+	 * Render a Task API task as chat history. Each entry in `task.sessions[]` is one turn
+	 * (request = the turn prompt; response = a markdown summary derived from events scoped
+	 * to that turn). This does NOT call the SSE log parser — events are typed.
+	 *
+	 * `pullArtifact` is shown as a header card only when the task happens to have a PR.
+	 */
+	public buildTaskHistory(
+		task: AgentTaskGetResponse,
+		events: readonly AgentTaskSessionEvent[],
+		pullRequest: PullRequestSearchItem | undefined,
+		initialReferences: Promise<vscode.ChatPromptReference[]>,
+	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
+		return (async () => {
+			const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
+			const turnSessions = task.sessions ?? [];
+			const references = Array.from(await initialReferences);
+
+			// Group events by their owning turn session id; events without a session id (or
+			// with an unknown one) fall into the first turn's bucket.
+			const turnIds = new Set(turnSessions.map(s => s.id));
+			const fallbackKey = turnSessions[0]?.id ?? '';
+			const eventsByTurnId = new Map<string, AgentTaskSessionEvent[]>();
+			for (const event of events) {
+				const sessionId = (event as { session_id?: string }).session_id;
+				const key = sessionId && turnIds.has(sessionId) ? sessionId : fallbackKey;
+				const bucket = eventsByTurnId.get(key) ?? [];
+				bucket.push(event);
+				eventsByTurnId.set(key, bucket);
+			}
+
+			turnSessions.forEach((turn, index) => {
+				const turnReferences = index === 0 ? references : [];
+				history.push(new ChatRequestTurn2(
+					turn.prompt ?? task.name ?? '',
+					undefined,
+					turnReferences,
+					this.type,
+					[],
+					[],
+					undefined,
+					undefined,
+					undefined,
+				));
+
+				// PR card after the first request, if a PR is attached.
+				if (index === 0 && pullRequest && pullRequest.author && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+					const card = new vscode.ChatResponsePullRequestPart(
+						{ command: 'github.copilot.chat.openPullRequestReroute', title: vscode.l10n.t('View Pull Request {0}', `#${pullRequest.number}`), arguments: [pullRequest.number] },
+						pullRequest.title,
+						pullRequest.body,
+						getAuthorDisplayName(pullRequest.author),
+						`#${pullRequest.number}`,
+					);
+					history.push(new vscode.ChatResponseTurn2([card], {}, this.type));
+				}
+
+				history.push(...this.buildTaskResponseTurn(turn, eventsByTurnId.get(turn.id) ?? []));
+			});
+
+			return history;
+		})();
+	}
+
+	private buildTaskResponseTurn(turn: AgentTaskSession, events: readonly AgentTaskSessionEvent[]): ChatResponseTurn2[] {
+		const lastFinalMessage = findLast(events, e => !e.dismissed && e.type === 'assistant.message' && !!e.data.content && !e.data.parentToolCallId);
+
+		const ctx = createResponseEventRenderContext(this._logService, CLI_TOOL_EVENT_HANDLERS);
+		for (const event of events) {
+			if (event.dismissed || (event.type === 'assistant.message' && event !== lastFinalMessage)) {
+				continue;
+			}
+			// CMC Task API uses `custom_agent.*`; the SDK helper expects `subagent.*`.
+			// Payload shapes match per the CMC OpenAPI spec, so a name swap is enough.
+			appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
+		}
+		flushPendingAssistantMessage(ctx);
+
+		const parts = [...ctx.currentResponseParts];
+		if (turn.state === 'in_progress' || turn.state === 'queued') {
+			// TODO: Handle in-progress sessions correctly
+			parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is in progress...')));
+		}
+		return [new ChatResponseTurn2(parts, {}, this.type)];
 	}
 
 	private async createResponseTurn(pullRequest: PullRequestSearchItem, logs: string, session: SessionInfo): Promise<ChatResponseTurn2 | undefined> {
@@ -608,5 +701,26 @@ export class ChatSessionContentBuilder {
 			default:
 				return { toolName: name || 'unknown', invocationMessage: content || name || 'unknown' };
 		}
+	}
+}
+
+/**
+ * Translates CMC Task API `custom_agent.*` event types into the equivalent
+ * `subagent.*` names used by the CLI SDK so {@link appendResponsePartsForEvent}
+ * can handle both producers. Data payloads are identical per the CMC OpenAPI
+ * spec, so a name swap is sufficient.
+ */
+function remapCustomAgentEventType(event: AgentTaskSessionEvent): { type: string; data: unknown } {
+	switch (event.type) {
+		case 'custom_agent.started':
+			return { ...event, type: 'subagent.started' };
+		case 'custom_agent.completed':
+			return { ...event, type: 'subagent.completed' };
+		case 'custom_agent.failed':
+			return { ...event, type: 'subagent.failed' };
+		case 'custom_agent.selected':
+			return { ...event, type: 'subagent.selected' };
+		default:
+			return event;
 	}
 }

@@ -7,7 +7,7 @@ import { $, clearNode, DisposableResizeObserver, getWindow, hide, scheduleAtNext
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
-import { IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../common/constants.js';
@@ -15,6 +15,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
@@ -29,7 +30,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -42,6 +43,22 @@ import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResour
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 
+
+// Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
+// Inlined as a string because `vs/workbench` must not import from `vs/sessions`.
+const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
+
+/**
+ * Resolves the effective thinking display mode. On phone layout we always force
+ * {@link ThinkingDisplayMode.CollapsedPreview} so streaming reasoning takes less
+ * room and auto-collapses on completion regardless of the user's setting.
+ */
+export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): ThinkingDisplayMode {
+	if (contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
+		return ThinkingDisplayMode.CollapsedPreview;
+	}
+	return configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
+}
 
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
@@ -87,7 +104,8 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 		lowerToolId.includes('list') ||
 		lowerToolId.includes('semantic') ||
 		lowerToolId.includes('changes') ||
-		lowerToolId.includes('codebase')
+		lowerToolId.includes('codebase') ||
+		lowerToolId.includes('checked')
 	) {
 		return Codicon.search;
 	}
@@ -125,11 +143,24 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
+/**
+ * Metadata passed to {@link ChatThinkingContentPart.appendItem} to drive
+ * title / icon extraction. The `kind` discriminates which payload is
+ * available; the thinking part inspects it to compute a label like
+ * "Edited foo.ts" without rendering the actual content itself (the
+ * factory provides the DOM).
+ */
+export type ChatThinkingItemMetadata =
+	| IChatToolInvocation
+	| IChatToolInvocationSerialized
+	| IChatMarkdownContent
+	| IChatExternalEdit;
+
 interface ILazyToolItem {
 	kind: 'tool';
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
 	toolInvocationId?: string;
-	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
+	toolInvocationOrMarkdown?: ChatThinkingItemMetadata;
 	originalParent?: HTMLElement;
 	isHook?: boolean;
 }
@@ -192,10 +223,31 @@ const funWorkingMessages = [
 
 const FUN_WORKING_MESSAGE_RATE = 100;
 
+type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
+
+function getCustomThinkingPhrases(configurationService: IConfigurationService): { customPhrases: string[]; replaceDefaults: boolean } {
+	const config = configurationService.getValue<ThinkingPhrasesConfiguration>(ChatConfiguration.ThinkingPhrases);
+	const customPhrases = Array.isArray(config?.phrases)
+		? config.phrases
+			.filter((phrase): phrase is string => typeof phrase === 'string')
+			.map(phrase => phrase.trim())
+			.filter(phrase => phrase.length > 0)
+		: [];
+
+	return {
+		customPhrases,
+		replaceDefaults: config?.mode === 'replace' && customPhrases.length > 0,
+	};
+}
+
 /** Returns an easter-egg message ~1 in {@link FUN_WORKING_MESSAGE_RATE}, else `undefined`. */
-export function maybePickFunWorkingMessage(): string | undefined {
-	if (Math.floor(Math.random() * FUN_WORKING_MESSAGE_RATE) === 0) {
-		return funWorkingMessages[Math.floor(Math.random() * funWorkingMessages.length)];
+export function maybePickFunWorkingMessage(configurationService: IConfigurationService, random = Math.random): string | undefined {
+	if (getCustomThinkingPhrases(configurationService).replaceDefaults) {
+		return undefined;
+	}
+
+	if (Math.floor(random() * FUN_WORKING_MESSAGE_RATE) === 0) {
+		return funWorkingMessages[Math.floor(random() * funWorkingMessages.length)];
 	}
 	return undefined;
 }
@@ -206,16 +258,10 @@ export function maybePickFunWorkingMessage(): string | undefined {
  * custom phrases are added to the defaults.
  */
 export function buildPhrasePool(defaults: string[], configurationService: IConfigurationService): string[] {
-	const config = configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
-	const customPhrases = Array.isArray(config?.phrases)
-		? config.phrases
-			.filter((phrase): phrase is string => typeof phrase === 'string')
-			.map(phrase => phrase.trim())
-			.filter(phrase => phrase.length > 0)
-		: [];
+	const { customPhrases, replaceDefaults } = getCustomThinkingPhrases(configurationService);
 
 	if (customPhrases.length > 0) {
-		return config?.mode === 'replace' ? [...customPhrases] : [...defaults, ...customPhrases];
+		return replaceDefaults ? [...customPhrases] : [...defaults, ...customPhrases];
 	}
 	return [...defaults];
 }
@@ -285,7 +331,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
-		const fun = maybePickFunWorkingMessage();
+		const fun = maybePickFunWorkingMessage(this.configurationService);
 		if (fun) {
 			return fun;
 		}
@@ -326,6 +372,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -338,7 +385,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.allThinkingParts.push(content);
 		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
 			&& (this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || accessibilityService.isMotionReduced());
-		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
+		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
@@ -510,6 +557,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage(WorkingMessageCategory.Thinking);
 			this.workingSpinnerElement.appendChild(this.workingSpinnerLabel);
 			this.wrapper.appendChild(this.workingSpinnerElement);
+			this.updateWorkingSpinnerVisibility();
 		}
 
 		// wrap content in scrollable element for fixed scrolling mode
@@ -873,6 +921,30 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.insertBefore(element, this.workingSpinnerElement);
 		} else {
 			this.wrapper.appendChild(element);
+		}
+	}
+
+	private updateWorkingSpinnerVisibility(reader?: IReader): void {
+		if (!this.wrapper || !this.workingSpinnerElement) {
+			return;
+		}
+
+		const hasRunningTerminalTool = this.toolInvocations.some(toolInvocation => {
+			const terminalData = toolInvocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+			if (terminalData?.kind !== 'terminal' || terminalData.terminalCommandState?.exitCode !== undefined) {
+				return false;
+			}
+
+			return !IChatToolInvocation.isComplete(toolInvocation, reader);
+		});
+
+		const isAttached = this.workingSpinnerElement.parentNode === this.wrapper;
+		if (hasRunningTerminalTool && isAttached) {
+			this.workingSpinnerElement.remove();
+			this._onDidChangeHeight.fire();
+		} else if (!hasRunningTerminalTool && !isAttached && !this.streamingCompleted && !this.element.isComplete) {
+			this.wrapper.appendChild(this.workingSpinnerElement);
+			this._onDidChangeHeight.fire();
 		}
 	}
 
@@ -1419,7 +1491,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	public appendItem(
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		toolInvocationId?: string,
-		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
+		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
 		originalParent?: HTMLElement,
 		onDidChangeDiff?: Event<IEditSessionDiffStats>,
 		eagerDisposable?: IDisposable,
@@ -1428,6 +1500,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
+		this.updateWorkingSpinnerVisibility();
 		this.appendedItemCount++;
 
 		// Listen for diff changes from edit pills
@@ -1511,6 +1584,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
 
+		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1585,6 +1659,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		this.updateDropdownClickability();
+		this.updateWorkingSpinnerVisibility();
 		return true;
 	}
 
@@ -1662,13 +1737,14 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.toolLabelsByCallId.delete(toolCallId);
 		this._externalResourceWidget.removeToolInvocation(toolCallId);
+		this.updateWorkingSpinnerVisibility();
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
 
 	private trackToolMetadata(
 		toolInvocationId?: string,
-		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
+		toolInvocationOrMarkdown?: ChatThinkingItemMetadata
 	): void {
 		if (!toolInvocationId) {
 			return;
@@ -1760,6 +1836,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					}
 
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
+					this.updateWorkingSpinnerVisibility(reader);
 
 					// queue item to be removed if it was streaming and presentation is hidden
 					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
@@ -1845,6 +1922,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			} else {
 				toolCallLabel = localize('chat.thinking.editingFile', 'Edited file');
 			}
+		} else if (toolInvocationOrMarkdown?.kind === 'externalEdit') {
+			const filename = basename(toolInvocationOrMarkdown.uri);
+			switch (toolInvocationOrMarkdown.editKind) {
+				case 'create':
+					toolCallLabel = localize('chat.thinking.createdFile', 'Created {0}', filename);
+					break;
+				case 'delete':
+					toolCallLabel = localize('chat.thinking.deletedFile', 'Deleted {0}', filename);
+					break;
+				case 'rename':
+					toolCallLabel = localize('chat.thinking.renamedFile', 'Renamed {0}', filename);
+					break;
+				case 'edit':
+					toolCallLabel = localize('chat.thinking.editedFile', 'Edited {0}', filename);
+					break;
+			}
 		} else {
 			toolCallLabel = toolInvocationId;
 		}
@@ -1880,7 +1973,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	private appendItemToDOM(
 		content: HTMLElement,
 		toolInvocationId?: string,
-		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
+		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
 		originalParent?: HTMLElement
 	): void {
 		if (!content.hasChildNodes() || content.textContent?.trim() === '') {
@@ -1902,12 +1995,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
+		const isExternalEdit = toolInvocationOrMarkdown?.kind === 'externalEdit';
 		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
 		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
-		if (isMarkdownEdit) {
+		if (isMarkdownEdit || isExternalEdit) {
 			icon = Codicon.pencil;
 		} else if (isSearchTool) {
 			icon = Codicon.search;

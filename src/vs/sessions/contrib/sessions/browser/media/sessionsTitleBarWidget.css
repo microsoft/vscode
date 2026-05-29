@@ -52,7 +52,7 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	min-width: 0;
-	max-width: 600px;
+	max-width: 100%;
 	cursor: pointer;
 	touch-action: manipulation;
 }
@@ -88,21 +88,22 @@
 	color: var(--vscode-icon-foreground);
 }
 
-/* Label (title) */
+/* Label (title) — shrinks first so folder/branch/diff stats stay visible. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
-	flex: 0 1 auto;
+	flex: 0 999 auto;
 	min-width: 0;
+	max-width: 400px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-weight: 500;
 }
 
-/* Repository/worktree metadata shrinks before the primary title. */
+/* Repository/worktree metadata shrinks after the primary title. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
 	display: flex;
 	align-items: center;
-	flex: 0 999 auto;
+	flex: 0 1 auto;
 	gap: 6px;
 	min-width: 0;
 	overflow: hidden;
@@ -127,6 +128,8 @@
 	display: flex;
 	align-items: center;
 	gap: 2px;
+	flex-shrink: 0;
+	white-space: nowrap;
 
 	.codicon {
 		font-size: 13px;
@@ -135,12 +138,22 @@
 	}
 }
 
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+/* Diff stats (+insertions -deletions) shown for sessions with pending changes. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff {
 	display: flex;
 	align-items: center;
+	gap: 2px;
 	flex-shrink: 0;
-	opacity: 0.7;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Sidebar toggle unread badge */

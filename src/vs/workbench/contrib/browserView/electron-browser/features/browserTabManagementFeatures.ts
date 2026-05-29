@@ -19,9 +19,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -37,7 +35,8 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, IBrowserEditorWidget, IBrowserUrlSuggestion, IBrowserUrlSuggestionProvider } from '../browserEditor.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -671,11 +670,11 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}));
 	}
 
-	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._pill, order: 100 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PostUrl, element: this._pill, order: 100 }];
 	}
 
-	protected override subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
+	protected override onModelAttached(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
 		if (IsSessionsWindowContext.getValue(this.contextKeyService)) {
 			this._setVisible(false);
 			return;
@@ -693,7 +692,7 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._attentionTimeout.clear();
 		this._setVisible(false);
 	}
@@ -726,6 +725,80 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 }
 
 BrowserEditor.registerContribution(LinkOpenedHintPill);
+
+/**
+ * Contributes URL-bar suggestions for the user's other open browser tabs.
+ * Picking one swaps the navbar's editor input for the tab's input (moving
+ * the target into our slot, then closing the previously-active input) so
+ * picking from the URL bar feels like "replace this tab with that one".
+ */
+class BrowserTabUrlSuggestions extends BrowserEditorContribution {
+
+	private readonly _provider: IBrowserUrlSuggestionProvider;
+
+	constructor(
+		editor: BrowserEditor,
+		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+	) {
+		super(editor);
+		this._provider = {
+			label: localize('browser.openTabs', "Open Tabs"),
+			description: localize('browser.openTabsDescription', "Select a tab to switch"),
+			order: 100,
+			getSuggestions: async ({ input }) => {
+				// Only surface tab suggestions on a new / empty tab.
+				if (input.url) {
+					return [];
+				}
+				const suggestions: IBrowserUrlSuggestion[] = [];
+				for (const tab of this._browserViewService.getKnownBrowserViews().values()) {
+					if (tab === input) {
+						continue;
+					}
+					const rawIcon = tab.getIcon();
+					suggestions.push({
+						id: tab.id,
+						label: tab.getName(),
+						description: tab.getDescription(),
+						icon: rawIcon instanceof URI ? undefined : rawIcon,
+						iconPath: rawIcon instanceof URI ? { dark: rawIcon } : undefined,
+						apply: source => this._switchToTab(source, tab),
+					});
+				}
+				return suggestions;
+			},
+		};
+	}
+
+	override get urlSuggestionProviders(): readonly IBrowserUrlSuggestionProvider[] {
+		return [this._provider];
+	}
+
+	/**
+	 * Close {@link source} and focus {@link target} where it already lives.
+	 *
+	 * The navbar's picker-hide handler synchronously calls
+	 * `ensureBrowserFocus()` on the source editor before any of our awaits
+	 * resolve, so we have to explicitly refocus the target group after the
+	 * editor service operations complete — otherwise focus snaps back to
+	 * the (about-to-close) source's window.
+	 */
+	private async _switchToTab(source: BrowserEditorInput, target: BrowserEditorInput): Promise<void> {
+		if (source === target) {
+			await this._editorService.openEditor(target);
+			return;
+		}
+		const sourceGroup = this._editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.contains(source));
+		if (sourceGroup) {
+			await sourceGroup.closeEditor(source, { preserveFocus: true });
+		}
+		await this._editorService.openEditor(target);
+	}
+}
+
+BrowserEditor.registerContribution(BrowserTabUrlSuggestions);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

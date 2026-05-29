@@ -46,7 +46,7 @@ import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessio
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
@@ -289,6 +289,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Only persist local sessions from chat that are not imported.
 	 */
 	private shouldStoreSession(session: ChatModel): boolean {
+		if (session.isDeleted) {
+			return false;
+		}
 		if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 			return false;
 		}
@@ -437,11 +440,15 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private shouldBeInHistory(entry: ChatModel): boolean {
-		return !entry.isImported && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
+		return !entry.isImported && !entry.isDeleted && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
 		await this._chatSessionStore.deleteSession(this.toLocalSessionId(sessionResource));
+		const model = this._sessionModels.get(sessionResource);
+		if (model) {
+			model.markDeleted();
+		}
 		this._onDidDisposeSession.fire({ sessionResources: [sessionResource], reason: 'cleared' });
 	}
 
@@ -601,7 +608,6 @@ export class ChatService extends Disposable implements IChatService {
 		{
 			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
-				providedSession.dispose();
 				return existingRef;
 			}
 		}
@@ -902,7 +908,8 @@ export class ChatService extends Disposable implements IChatService {
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
+		const hasExplicitFileOrImageAttachment = [...(options?.attachedContext ?? []), ...(options?.resolvedVariables ?? [])].some(isExplicitFileOrImageVariableEntry);
+		if (!request.trim() && !hasExplicitFileOrImageAttachment && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return { kind: 'rejected', reason: 'Empty message' };
 		}
