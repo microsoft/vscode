@@ -670,12 +670,14 @@ suite('SessionsTerminalContribution', () => {
 
 		// The user opens a new terminal at the same cwd, then moves focus elsewhere.
 		await contribution.ensureTerminal(worktreeUri, false); // terminal 3 at /worktree, active
-		await contribution.ensureTerminal(URI.file('/other'), false); // reuse terminal 2, active again
+		await contribution.ensureTerminal(URI.file('/other'), false); // reuse terminal 2
+		activeInstanceId = 2; // simulate the user refocusing terminal 2 at /other
 
 		moveToBackgroundCalls.length = 0;
 
-		// The provider re-emits the still-archived session on a later sync. The
-		// transition guard makes this a no-op so the newly-opened terminal survives.
+		// The provider re-emits the still-archived session on a later sync. Terminal 3
+		// at /worktree is no longer the active terminal, so only the transition guard
+		// keeps it alive: the re-emit must be a no-op so the newly-opened terminal survives.
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
 		await tick();
 		assert.strictEqual(disposedInstances.length, 0, 're-emitted archived session must not dispose any terminal');
