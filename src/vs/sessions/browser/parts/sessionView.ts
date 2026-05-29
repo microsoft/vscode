@@ -15,7 +15,7 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, ChatViewKind } from './chatView.js';
-import { ChatCompositeBar } from './chatCompositeBar.js';
+import { ChatCompositeBar, SessionViewFloatingToolbar } from './chatCompositeBar.js';
 import { autorun } from '../../../base/common/observable.js';
 import { SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
@@ -52,6 +52,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	private readonly _compositeBar: ChatCompositeBar;
+	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _contentContainer: HTMLElement;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
@@ -89,6 +90,10 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
+
+		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
+		this.element.appendChild(this._floatingToolbar.element);
+
 		this._applyActiveSessionStyles();
 
 		// Re-layout children when the composite bar becomes visible/hidden
@@ -126,6 +131,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			}
 
 			this._compositeBar.setSession(session);
+			this._floatingToolbar.setSession(session);
 			this._layoutChildren();
 		}));
 	}

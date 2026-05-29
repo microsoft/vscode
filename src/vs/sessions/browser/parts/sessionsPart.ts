@@ -15,7 +15,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableListener, EventType, isAncestor } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -236,7 +236,7 @@ export class SessionsPart extends Part {
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
 		for (const [key, slot] of this._views) {
-			const isActive = key === activeId;
+			const isActive = key === activeId || this._views.size === 1;
 			slot.view.element.classList.toggle('is-active', isActive);
 			slot.view.setActive(isActive);
 		}
@@ -267,11 +267,12 @@ export class SessionsPart extends Part {
 	 * If the view is already maximized, exits maximized state. Otherwise maximizes
 	 * it (no-op if fewer than two non-placeholder views are present).
 	 */
-	toggleMaximizeSession(sessionId: string): void {
+	toggleMaximizeSession(sessionId: string | undefined): void {
 		if (!this._gridWidget) {
 			return;
 		}
-		const slot = this._views.get(sessionId);
+		const key = sessionId ?? PLACEHOLDER_KEY;
+		const slot = this._views.get(key);
 		if (!slot) {
 			return;
 		}
@@ -319,9 +320,15 @@ export class SessionsPart extends Part {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
 		// Promote a visible session to the active session when its view receives
-		// focus. The placeholder slot has no session to activate.
+		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
+		// (e.g. the new chat widget's workspace picker area) where focus would
+		// not otherwise move into the view. The placeholder slot has no session
+		// to activate.
 		if (key !== PLACEHOLDER_KEY) {
 			disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, () => {
+				this._onDidFocusSession.fire(key);
+			}, true));
+			disposables.add(addDisposableGenericMouseDownListener(view.element, () => {
 				this._onDidFocusSession.fire(key);
 			}, true));
 		}

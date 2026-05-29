@@ -263,8 +263,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Clean removed sessions out of the visibility model (drops their grid slot
 		// and disposes their wrapper). If the active session is among the removed,
-		// removeMany also clears the active observable; the new-session view is
-		// then surfaced below.
+		// removeMany picks a fallback active session (or clears it when no slot
+		// remains); drive the open flow below so the fallback is fully opened.
 		if (e.removed.length) {
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
 		}
@@ -273,10 +273,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return;
 		}
 
-		if (e.removed.length) {
-			if (e.removed.some(r => r.sessionId === currentActive.sessionId)) {
+		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
+			const fallback = this._visibility.activeSession.get();
+			if (fallback) {
+				this.openSession(fallback.resource);
+			} else {
 				this.openNewSessionView();
-				return;
 			}
 		}
 	}
@@ -606,34 +608,34 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._visibility.insertAt(session, targetSessionId, side, activate);
 	}
 
-	closeSession(session: ISession): void {
+	closeSession(session: ISession | undefined): void {
+		const sessionId = session?.sessionId;
 		const visible = this._visibility.visibleSessions.get();
-		const idx = visible.findIndex(s => s?.sessionId === session.sessionId);
-		if (idx < 0) {
+		if (!visible.some(s => s?.sessionId === sessionId)) {
 			return;
 		}
 
-		const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
-		if (this._pendingNewSession?.sessionId === session.sessionId) {
+		// The empty/new-session slot has no sessionId; both it and "no active
+		// session" are reported by activeSession as undefined. Since we already
+		// confirmed the slot is present in `visible`, undefined === undefined
+		// here means the empty slot is active.
+		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
+		const wasActive = activeSessionId === sessionId;
+
+		if (sessionId === undefined || this._pendingNewSession?.sessionId === sessionId) {
 			this._pendingNewSession = undefined;
 		}
 
-		this._visibility.removeMany([session.sessionId]);
+		this._visibility.removeMany([sessionId]);
 
 		if (!wasActive) {
 			return;
 		}
 
-		const remaining = this._visibility.visibleSessions.get();
-		if (remaining.length === 0) {
-			this.openNewSessionView();
-			return;
-		}
-
-		const fallback = remaining[Math.max(0, Math.min(idx - 1, remaining.length - 1))];
-		if (fallback) {
-			this.openSession(fallback.resource);
-		} else {
+		// removeMany already picked a fallback active session (or cleared the
+		// active observable when no slot remains); drive the full open flow.
+		const fallback = this._visibility.activeSession.get();
+		if (fallback === undefined) {
 			this.openNewSessionView();
 		}
 	}

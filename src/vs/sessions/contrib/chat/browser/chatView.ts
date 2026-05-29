@@ -20,7 +20,7 @@ import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatViewPane.js';
-import { NewChatInSessionWidget } from './newChatInSessionViewPane.js';
+import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
