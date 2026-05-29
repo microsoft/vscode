@@ -9,6 +9,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import {
+	buildAgentHostBaseCommand,
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
 	buildFindFallbackCLICommand,
@@ -17,6 +18,7 @@ import {
 	getAgentHostLockfile,
 	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
+	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	isValidFallbackCLIPath,
 	redactToken,
@@ -105,6 +107,24 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.throws(() => getRemoteCLIInstallRoot('foo bar'), /Unsafe server data folder name/);
 			assert.throws(() => getRemoteCLIInstallRoot('foo/bar'), /Unsafe server data folder name/);
 			assert.throws(() => getRemoteCLIInstallRoot('$(whoami)'), /Unsafe server data folder name/);
+		});
+	});
+
+	suite('getRemoteCLIDataDir', () => {
+		test('returns the `cli` subdir under the install root', () => {
+			assert.strictEqual(getRemoteCLIDataDir('.vscode-server'), '~/.vscode-server/cli');
+			assert.strictEqual(getRemoteCLIDataDir('.vscode-server-insiders'), '~/.vscode-server-insiders/cli');
+		});
+
+		test('rejects unsafe server data folder names', () => {
+			assert.throws(() => getRemoteCLIDataDir('foo;rm'), /Unsafe server data folder name/);
+		});
+	});
+
+	suite('buildAgentHostBaseCommand', () => {
+		test('includes --cli-data-dir before the agent host subcommand', () => {
+			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli');
+			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli agent host --port 0');
 		});
 	});
 

@@ -252,7 +252,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _startRemoteAgentHost(
-		_client: unknown, _cliBin: string | undefined, _commandOverride?: string,
+		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string,
 	) {
 		this.startCalled++;
 		return { ...this.startResult, stream: new MockSSHChannel() as never };

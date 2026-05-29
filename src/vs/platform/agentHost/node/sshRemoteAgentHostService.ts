@@ -30,12 +30,14 @@ import {
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
 import {
+	buildAgentHostBaseCommand,
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
 	buildFindFallbackCLICommand,
 	cleanupRemoteAgentHost,
 	findRunningAgentHost,
 	getRemoteCLIBin,
+	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	isValidFallbackCLIPath,
 	redactToken,
@@ -311,14 +313,15 @@ function startRemoteAgentHost(
 	client: SSHClient,
 	logService: ILogService,
 	cliBin: string | undefined,
+	cliDataDir: string | undefined,
 	commandOverride?: string,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		if (!commandOverride && !cliBin) {
-			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin path or a commandOverride`));
+		if (!commandOverride && (!cliBin || !cliDataDir)) {
+			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
 			return;
 		}
-		const baseCmd = commandOverride ?? `${cliBin} agent host --port 0`;
+		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!);
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
@@ -757,7 +760,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 				// 4. Start agent-host and capture port/token
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, cliBin, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, cliBin, getRemoteCLIDataDir(this._serverDataFolderName), config.remoteAgentHostCommand);
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
@@ -789,7 +792,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				await ensureCliResolved();
 
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, cliBin, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, cliBin, getRemoteCLIDataDir(this._serverDataFolderName), config.remoteAgentHostCommand);
 				remoteHost = '127.0.0.1';
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
@@ -1362,9 +1365,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	protected _startRemoteAgentHost(
-		client: SSHClient, cliBin: string | undefined, commandOverride?: string,
+		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, cliBin, commandOverride);
+		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride);
 	}
 
 	protected async _createWebSocketRelay(

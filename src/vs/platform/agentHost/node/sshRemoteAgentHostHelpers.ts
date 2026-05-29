@@ -47,6 +47,23 @@ export function getRemoteCLIInstallRoot(serverDataFolderName: string): string {
 }
 
 /**
+ * Per-machine launcher data dir for `code agent host` (and the embedded
+ * CLI machinery it inherits). Passed as `--cli-data-dir` so the CLI's
+ * downloads cache, unpacked server installs, supervisor logs, and other
+ * launcher state land under the same root Remote-SSH's `command-shell`
+ * uses (e.g. `~/.vscode-server/cli`). Without this flag the CLI would
+ * default to `~/.vscode-cli{,-<quality>}/` and split state across two
+ * roots.
+ *
+ * The lockfile is unaffected: the Rust CLI anchors it on
+ * `serverDataFolderName` regardless of `--cli-data-dir` (see
+ * `cli/src/state.rs::agent_host_root`).
+ */
+export function getRemoteCLIDataDir(serverDataFolderName: string): string {
+	return `${getRemoteCLIInstallRoot(serverDataFolderName)}/cli`;
+}
+
+/**
  * Full path to the installed CLI binary on the remote.
  *
  * When `commit` is provided, the path is keyed on commit (e.g.
@@ -74,6 +91,24 @@ export function shellEscape(s: string): string {
 	// Wrap in single quotes; escape embedded single quotes as: '\''
 	const escaped = s.replace(/'/g, '\'\\\'\'');
 	return `'${escaped}'`;
+}
+
+/**
+ * Construct the bare command that launches the agent host on the remote.
+ *
+ * `--cli-data-dir` is passed up-front so the embedded CLI's launcher
+ * state (downloads cache, unpacked server installs, supervisor log) lands
+ * under `<cliDataDir>` — the same root Remote-SSH uses. The supervisor
+ * propagates this flag to its detached child (see
+ * `cli/src/commands/agent_host.rs`), so the entire AH process tree
+ * agrees on one launcher root.
+ *
+ * Inputs must already be safe for unquoted shell interpolation; callers
+ * build them via {@link getRemoteCLIBin} / {@link getRemoteCLIDataDir}
+ * which validate their components.
+ */
+export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string): string {
+	return `${cliBin} --cli-data-dir ${cliDataDir} agent host --port 0`;
 }
 
 export function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
