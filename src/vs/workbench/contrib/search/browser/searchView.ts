@@ -58,6 +58,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { NotebookEditor } from '../../notebook/browser/notebookEditor.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from './patternInputWidget.js';
 import { IFindInFilesArgs } from './searchActionsBase.js';
+import { mergeSearchPatternsIfNotExist } from './searchPatternMerge.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
@@ -1582,8 +1583,13 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true);
 		}
 
-		(include ? this.inputPatternIncludes : this.inputPatternExcludes).setValue(folderPaths.join(', '));
+		if (include) {
+			this.inputPatternIncludes.setValue(folderPaths.join(', '));
+		} else {
+			this.inputPatternExcludes.setValue(mergeSearchPatternsIfNotExist(this.inputPatternExcludes.getValue(), folderPaths));
+		}
 		this.searchWidget.focus(false);
+		this.triggerQueryChange({ preserveFocus: true });
 	}
 
 	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean; shouldUpdateAISearch?: boolean }): void {
