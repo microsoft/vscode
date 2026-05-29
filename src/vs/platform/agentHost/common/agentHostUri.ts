@@ -45,6 +45,8 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
 		path: `/${originalUri.scheme}/${originalAuthority || '-'}${originalUri.path}`,
+		query: originalUri.query,
+		fragment: originalUri.fragment,
 	});
 }
 
@@ -65,7 +67,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	const schemeEnd = path.indexOf('/', 1);
 	if (schemeEnd === -1) {
 		// Malformed — treat whole path as file scheme
-		return URI.from({ scheme: 'file', path });
+		return URI.from({ scheme: 'file', path, query: agentHostUri.query, fragment: agentHostUri.fragment });
 	}
 
 	const originalScheme = path.substring(1, schemeEnd);
@@ -75,7 +77,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	if (authorityEnd === -1) {
 		// No path after authority
 		const originalAuthority = path.substring(schemeEnd + 1);
-		return URI.from({ scheme: originalScheme, authority: originalAuthority, path: '/' });
+		return URI.from({ scheme: originalScheme, authority: originalAuthority, path: '/', query: agentHostUri.query, fragment: agentHostUri.fragment });
 	}
 
 	let originalAuthority = path.substring(schemeEnd + 1, authorityEnd);
@@ -89,6 +91,8 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		scheme: originalScheme,
 		authority: originalAuthority || undefined,
 		path: originalPath,
+		query: agentHostUri.query,
+		fragment: agentHostUri.fragment,
 	});
 }
 

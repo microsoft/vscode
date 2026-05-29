@@ -122,6 +122,28 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.path, '/snap/before');
 	});
 
+	test('round-trips query and fragment for synthetic content URIs', () => {
+		const original = URI.from({
+			scheme: 'git-blob',
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
+			fragment: 'L1',
+		});
+
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		const unwrapped = fromAgentHostUri(wrapped);
+
+		assert.deepStrictEqual({
+			wrappedQuery: wrapped.query,
+			wrappedFragment: wrapped.fragment,
+			unwrapped: unwrapped.toString(),
+		}, {
+			wrappedQuery: original.query,
+			wrappedFragment: original.fragment,
+			unwrapped: original.toString(),
+		});
+	});
+
 	test('local authority returns original URI unchanged', () => {
 		const original = URI.file('/workspace/test.ts');
 		const result = toAgentHostUri(original, 'local');
@@ -181,6 +203,18 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 
 		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
 		assert.strictEqual(stripped, '/snap/before');
+	});
+
+	test('stripPathSegments preserves label-friendly git-blob paths', () => {
+		const originalUri = URI.from({
+			scheme: 'git-blob',
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
+		});
+		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
+
+		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
+		assert.strictEqual(stripped, '/src/app.ts');
 	});
 });
 

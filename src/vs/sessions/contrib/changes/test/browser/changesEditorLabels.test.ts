@@ -58,4 +58,21 @@ suite('ChangesEditorLabels', () => {
 		});
 	});
 
+	test('root-level wrapped git blob URIs do not expose the empty-authority placeholder', () => {
+		const labelService = createLabelService();
+		const wrappedGitBlobUri = toAgentHostUri(URI.from({
+			scheme: 'git-blob',
+			path: '/hello_count.txt',
+			query: JSON.stringify({
+				sessionUri: 'copilotcli:/62a7348d-686c-4c62-9019-dab388e8868f',
+				sha: 'e911392f5dc4ea151cc013f47c9b7c8bd7a14ea6',
+			}),
+		}), 'local');
+
+		assert.deepStrictEqual(getChangesEditorLabels(wrappedGitBlobUri, labelService), {
+			label: 'hello_count.txt',
+			description: '',
+		});
+	});
+
 });

@@ -205,7 +205,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		const kept = findByBasename('kept.txt');
 		assert.ok(kept?.before && kept.after, `modified file should have before+after; result=${JSON.stringify(result.map(d => ({ a: d.after?.uri, b: d.before?.uri })))}`);
 		assert.deepStrictEqual(kept!.diff, { added: 1, removed: 0 });
-		assert.ok(kept!.before!.content.uri.startsWith('git-blob://'), 'before content should be a git-blob: URI');
+		assert.strictEqual(URI.parse(kept!.before!.content.uri).scheme, 'git-blob', 'before content should be a git-blob: URI');
 
 		const fresh = findByBasename('fresh.txt');
 		assert.ok(fresh?.after && !fresh.before, 'untracked file should have only after');
