@@ -1262,6 +1262,18 @@
             "description": {
               "type": "string",
               "description": "A 2-5 word summary of what this call does (e.g. 'Recent sessions overview', 'Generate standup', 'Reindex sessions')."
+            },
+            "subcommand": {
+              "type": "string",
+              "enum": [
+                "standup",
+                "tips",
+                "cost-tips",
+                "search",
+                "improve",
+                "reindex"
+              ],
+              "description": "The chronicle subcommand that triggered this call (e.g. 'tips' for /chronicle tips). Used for telemetry attribution only — pass this whenever the call originates from a /chronicle slash command."
             }
           },
           "required": [
