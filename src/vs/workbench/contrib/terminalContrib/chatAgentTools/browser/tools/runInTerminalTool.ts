@@ -474,6 +474,28 @@ const telemetryIgnoredSequences = [
 
 const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
 
+/**
+ * Builds the short, single-line command string used in the SYSTEM NOTIFICATION
+ * label for background terminal completion (#318601). Keeps only the first line
+ * of the command and appends an ellipsis if more lines were dropped, then runs
+ * the result through {@link buildCommandDisplayText} so escape artifacts are
+ * stripped and the text is truncated to 80 characters.
+ *
+ * Multi-line commands (with blank lines) used to break the surrounding inline
+ * code span; callers must additionally wrap the result with
+ * {@link appendEscapedMarkdownInlineCode} when interpolating into markdown.
+ */
+export function buildCompletionNotificationCommand(command: string): string {
+	const firstNewline = command.search(/\r|\n/);
+	const hasMoreLines = firstNewline !== -1;
+	const firstLine = hasMoreLines ? command.substring(0, firstNewline) : command;
+	const displayText = buildCommandDisplayText(firstLine);
+	if (hasMoreLines && !displayText.endsWith('...')) {
+		return displayText + '...';
+	}
+	return displayText;
+}
+
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
@@ -2490,17 +2512,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Build a single-line, safely-fenced inline code representation of the
-		// command for use in system notification labels. The command may span
-		// multiple lines (and contain blank lines or backticks), which would
-		// break a naive `` `${command}` `` inline code span and render the
-		// backticks literally (#318601). Truncate to the first line + ellipsis
-		// rather than collapsing newlines, since the label is shown on a single
-		// line of UI chrome where additional lines are not useful.
-		const firstNewline = commandName.search(/\r|\n/);
-		const truncatedCommand = firstNewline === -1
-			? commandName
-			: commandName.substring(0, firstNewline) + '...';
-		const commandDisplay = appendEscapedMarkdownInlineCode(truncatedCommand);
+		// command for use in the system notification label (#318601).
+		const commandDisplay = appendEscapedMarkdownInlineCode(buildCompletionNotificationCommand(commandName));
 
 		// Acquire a reference to the ChatModel so it stays alive while we wait
 		// for the background terminal to complete. Without this, the model can

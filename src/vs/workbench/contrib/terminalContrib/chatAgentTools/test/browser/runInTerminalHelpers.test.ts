@@ -7,6 +7,7 @@ import { ok, strictEqual } from 'assert';
 import * as marked from '../../../../../../base/common/marked/marked.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../../../base/common/htmlContent.js';
 import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay, normalizeCommandForExecution, isMultilineCommand, buildCommandDisplayText } from '../../browser/runInTerminalHelpers.js';
+import { buildCompletionNotificationCommand } from '../../browser/tools/runInTerminalTool.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -597,6 +598,49 @@ suite('buildCommandDisplayText', () => {
 
 		const multilineCommand = 'rm -rf .playwright-cli/\n\nmore text';
 		const label = appendEscapedMarkdownInlineCode(buildCommandDisplayText(multilineCommand)) + ' completed';
+		const html = render(label);
+
+		ok(html.includes('<code>'), `expected a code span, got: ${html}`);
+		ok(!/<p>`/.test(html), `expected no literal leading backtick, got: ${html}`);
+	});
+});
+
+suite('buildCompletionNotificationCommand', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('leaves single-line commands unchanged', () => {
+		strictEqual(buildCompletionNotificationCommand('echo hello'), 'echo hello');
+	});
+
+	test('keeps only the first line and appends an ellipsis for multi-line commands', () => {
+		strictEqual(buildCompletionNotificationCommand('echo a\necho b'), 'echo a...');
+		strictEqual(buildCompletionNotificationCommand('echo a\n\necho b'), 'echo a...');
+		strictEqual(buildCompletionNotificationCommand('echo a\r\necho b'), 'echo a...');
+		strictEqual(buildCompletionNotificationCommand('echo a\recho b'), 'echo a...');
+	});
+
+	test('truncates a long first line to 80 characters and does not add a second ellipsis', () => {
+		const longFirstLine = 'a'.repeat(200);
+		const multiLine = longFirstLine + '\nignored';
+		const result = buildCompletionNotificationCommand(multiLine);
+		strictEqual(result.length, 80);
+		ok(result.endsWith('...'), `expected ellipsis suffix, got: ${result}`);
+		ok(!result.endsWith('......'), `expected single ellipsis suffix, got: ${result}`);
+	});
+
+	test('strips escape artifacts from the first line', () => {
+		strictEqual(buildCompletionNotificationCommand('echo \\"hi\\"\necho ignored'), 'echo "hi"...');
+	});
+
+	// Regression test for #318601: the final label must render as inline code
+	// (no literal backticks) when fed to the markdown renderer wrapped with
+	// `appendEscapedMarkdownInlineCode`.
+	test('result renders as inline code when wrapped with appendEscapedMarkdownInlineCode', () => {
+		const opts: marked.MarkedOptions = { gfm: true, breaks: true };
+		const render = (value: string) => marked.parser(marked.lexer(value, opts), opts);
+
+		const multilineCommand = 'rm -rf .playwright-cli/\n\nmore text';
+		const label = appendEscapedMarkdownInlineCode(buildCompletionNotificationCommand(multilineCommand)) + ' completed';
 		const html = render(label);
 
 		ok(html.includes('<code>'), `expected a code span, got: ${html}`);
