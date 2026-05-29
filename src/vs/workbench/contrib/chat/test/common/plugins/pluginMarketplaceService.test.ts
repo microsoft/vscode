@@ -20,6 +20,7 @@ import { IRequestService } from '../../../../../../platform/request/common/reque
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -257,6 +258,9 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			isWorkspaceTrusted: () => true,
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -293,6 +297,9 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			isWorkspaceTrusted: () => true,
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -369,6 +376,9 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			isWorkspaceTrusted: () => true,
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -586,6 +596,9 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			isWorkspaceTrusted: () => true,
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'on',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 
@@ -636,6 +649,9 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				isWorkspaceTrusted: () => true,
 				onDidChangeTrust: Event.None,
 			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+			instantiationService.stub(IExtensionsWorkbenchService, {
+				getAutoUpdateValue: () => 'on',
+			} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 			return store.add(instantiationService.createInstance(PluginMarketplaceService));
 		}
 
