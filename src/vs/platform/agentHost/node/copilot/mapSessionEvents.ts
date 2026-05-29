@@ -55,6 +55,13 @@ export interface ISessionEventToolComplete {
 
 export interface ISessionEventMessage {
 	type: 'assistant.message' | 'user.message';
+	/**
+	 * SDK envelope-level event id. This is the same id `setTurnEventId`
+	 * persists into `turns.event_id`, so using it as the protocol turn id
+	 * keeps the live and restored ids aligned with what the SDK fork /
+	 * truncate RPCs need.
+	 */
+	id?: string;
 	data?: {
 		messageId?: string;
 		interactionId?: string;
@@ -353,10 +360,15 @@ export async function mapSessionEvents(
 					}
 				} else {
 					// A new top-level user message starts a new parent turn.
+					// Use the SDK envelope id (the same value
+					// `setTurnEventId` records as `event_id`) so the restored
+					// turn id round-trips back to the SDK boundary id that
+					// fork / truncate RPCs operate on.
 					if (parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
 					}
-					parentBuilder = newTurnBuilder(messageId, content, attachments);
+					const turnId = (e as ISessionEventMessage).id ?? messageId;
+					parentBuilder = newTurnBuilder(turnId, content, attachments);
 				}
 				break;
 			}
@@ -366,8 +378,14 @@ export async function mapSessionEvents(
 				const content = d?.content ?? '';
 				const reasoningText = d?.reasoningText;
 				const hasToolRequests = !!d?.toolRequests && d.toolRequests.length > 0;
+				// When this is the first event in a turn (no parent builder
+				// yet), seed the builder with the SDK envelope id so the
+				// turn id matches `turns.event_id` for fork/truncate
+				// lookups. See the matching note in the `user.message`
+				// branch above.
+				const fallbackTurnId = (e as ISessionEventMessage).id ?? messageId;
 				const builder = targetBuilderFor(d?.parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(messageId, ''));
+					?? (parentBuilder = newTurnBuilder(fallbackTurnId, ''));
 				if (reasoningText) {
 					builder.responseParts.push({
 						kind: ResponsePartKind.Reasoning,

@@ -15,6 +15,7 @@ import { observableValue } from '../../../base/common/observable.js';
 import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
@@ -492,7 +493,16 @@ export class AgentService extends Disposable implements IAgentService {
 					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
-			const summary = this._buildInitialSummary(provider, session, config, created, sourceState?.summary.title ?? 'Forked Session');
+			// Prefix the forked session's title so consumers (sidebar, chat
+			// model) can distinguish it from the source without each surface
+			// reinventing the convention. Avoid double-prefixing when a user
+			// forks an already-forked session.
+			const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
+			const sourceTitle = sourceState?.summary.title;
+			const forkedTitle = sourceTitle
+				? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
+				: localize('agentHost.forkedSessionFallback', "Forked Session");
+			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			state.turns = sourceTurns;

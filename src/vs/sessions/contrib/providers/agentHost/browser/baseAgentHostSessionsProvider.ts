@@ -1698,6 +1698,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.customizations ?? [];
 	}
 
+	getWorkingDirectory(sessionId: string): string | undefined {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.summary.workingDirectory;
+	}
+
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
