@@ -16,7 +16,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
-import { SimpleFindWidget } from '../../../codeEditor/browser/find/simpleFindWidget.js';
+import { SimpleWebFindWidget } from '../../../codeEditor/browser/find/simpleWebFindWidget.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -32,7 +32,7 @@ const CONTEXT_BROWSER_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('browserF
  * Uses the SimpleFindWidget base class and communicates with the browser view model
  * to perform find operations in the rendered web page.
  */
-class BrowserFindWidget extends SimpleFindWidget {
+class BrowserFindWidget extends SimpleWebFindWidget {
 	private _model: IBrowserViewModel | undefined;
 	private readonly _modelDisposables = this._register(new DisposableStore());
 	private readonly _findWidgetVisible: IContextKey<boolean>;
@@ -190,6 +190,7 @@ class BrowserFindWidget extends SimpleFindWidget {
 	protected _onFindInputFocusTrackerBlur(): void {
 		// No-op
 	}
+
 }
 
 /**
