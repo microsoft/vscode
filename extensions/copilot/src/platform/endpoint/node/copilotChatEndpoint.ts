@@ -75,8 +75,15 @@ export class CopilotUtilitySmallChatEndpoint {
 	static readonly capiFamily: string = CHAT_MODEL.GPT4OMINI;
 
 	static async resolve(modelFetcher: IModelMetadataFetcher, instantiationService: IInstantiationService): Promise<IChatEndpoint> {
-		const modelMetadata = await modelFetcher.getChatModelFromCapiFamily(CopilotUtilitySmallChatEndpoint.capiFamily);
-		return instantiationService.createInstance(CopilotChatEndpoint, modelMetadata);
+		const allChatModels = await modelFetcher.getAllChatModels();
+		const primaryModel = allChatModels.find(m => m.capabilities.family === CopilotUtilitySmallChatEndpoint.capiFamily);
+		if (primaryModel) {
+			return instantiationService.createInstance(CopilotChatEndpoint, primaryModel);
+		}
+		// Primary family not available from server — fall back to the
+		// server-marked utility model (is_chat_fallback === true).
+		const fallbackModel = await modelFetcher.getCopilotUtilityModel();
+		return instantiationService.createInstance(CopilotChatEndpoint, fallbackModel);
 	}
 }
 
