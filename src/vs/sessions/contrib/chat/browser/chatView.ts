@@ -66,6 +66,18 @@ export class NewChatView extends AbstractChatView {
 			this._widget.selectWorkspace(folderUri, providerId);
 		}
 	}
+
+	override prefillInput(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.prefillInput(text);
+		}
+	}
+
+	override sendQuery(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.sendQuery(text);
+		}
+	}
 }
 
 /**

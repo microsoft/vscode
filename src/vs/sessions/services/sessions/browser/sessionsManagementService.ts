@@ -48,6 +48,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
+	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -512,6 +514,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this._visibility.updateSession(tmpSession, updatedSession);
 				setActiveChatToLast();
 			}
+			this._onDidStartSession.fire(updatedSession);
 
 			this._logRequestSent(updatedSession, session.mainChat.get(), true, options);
 		} finally {
