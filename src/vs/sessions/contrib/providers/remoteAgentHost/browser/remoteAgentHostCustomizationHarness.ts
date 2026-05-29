@@ -12,8 +12,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostConfigKey, getAgentHostConfiguredCustomizations } from '../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -21,10 +19,9 @@ import { ROOT_STATE_URI, customizationId, type Customization } from '../../../..
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, type IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItem, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
-import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 function customizationKey(customization: Customization): string {
@@ -131,44 +128,6 @@ export class RemoteAgentPluginController extends Disposable {
 
 		this.dispatchCustomizations([...current, newCustomization]);
 	}
-}
-
-/**
- * Creates a {@link AgentCustomizationItemProvider} that exposes a
- * remote agent's configured plugins as {@link ICustomizationItem}
- * entries for the plugin management widget.
- *
- * Each plugin is also **expanded** into its individual customization
- * files (agents, skills, instructions, prompts) by reading the plugin
- * directory through the agent-host filesystem provider. The expanded
- * children appear in per-type sections (Skills, Agents, etc.) while
- * the parent plugin item appears in the Plugins section.
- */
-export function createRemoteAgentCustomizationItemProvider(
-	connectionAuthority: string,
-	controller: RemoteAgentPluginController,
-	fileService: IFileService,
-	logService: ILogService,
-	agentHostCustomAgentsService: IAgentHostCustomizationService,
-): AgentCustomizationItemProvider {
-	return new AgentCustomizationItemProvider(
-		connectionAuthority,
-		fileService,
-		logService,
-		(customization, clientId) => {
-			if (clientId !== undefined) {
-				// Customization came from the client; we don't allow actions on these since they're read-only reflections of client state.
-				return undefined;
-			}
-			return [{
-				id: 'remoteAgentHost.removeConfiguredPlugin',
-				label: localize('remoteAgentHost.removeConfiguredPlugin', "Remove from Remote Host"),
-				icon: Codicon.trash,
-				run: () => controller.removeConfiguredPlugin(customization),
-			}];
-		},
-		agentHostCustomAgentsService,
-	);
 }
 
 /**

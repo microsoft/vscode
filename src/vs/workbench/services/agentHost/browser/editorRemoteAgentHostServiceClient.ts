@@ -22,7 +22,8 @@ import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/br
 import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
@@ -237,5 +238,21 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._requireClient().resourceMove(params);
+	}
+
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		return this._requireClient().resourceResolve(params);
+	}
+
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		return this._requireClient().resourceMkdir(params);
+	}
+
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return this._requireClient().createResourceWatch(params);
+	}
+
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> {
+		return this._requireClient().watchResource(params);
 	}
 }
