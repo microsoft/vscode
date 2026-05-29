@@ -349,7 +349,7 @@ export interface IBrowserUrlSuggestionProvider {
 	readonly order?: number;
 	/**
 	 * Fires when the set of suggestions or any suggestion's state has changed.
-	 * and refreshes them when a provider fires navbar re-requests suggestions when this fires.
+	 * The navbar re-requests suggestions when this fires.
 	 */
 	readonly onDidChange?: Event<void>;
 	getSuggestions(context: IBrowserUrlSuggestionContext, token: CancellationToken): Promise<readonly IBrowserUrlSuggestion[]>;

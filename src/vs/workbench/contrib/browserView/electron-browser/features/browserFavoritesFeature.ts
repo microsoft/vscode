@@ -76,7 +76,7 @@ class FavoriteIndicator extends Disposable {
 		this._button.element.setAttribute('aria-label', localize('browser.removeFavorite', "Remove from Favorites"));
 		this._register(this._button.onDidClick(() => this._onDidClick.fire()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
-			this._button.element.title = this._tooltip();
+			this._button.setTitle(this._tooltip());
 		}));
 	}
 
@@ -151,7 +151,7 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 						id: 'browser.favorites.delete',
 						iconClass: ThemeIcon.asClassName(Codicon.trash),
 						tooltip: localize('browser.removeFavorite', "Remove from Favorites"),
-						run: () => this._toggle(url),
+						run: () => this._remove(url),
 					};
 					suggestions.push({
 						id: 'favorite:' + url,
@@ -261,6 +261,23 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 		} else {
 			this._urls.add(url);
 		}
+		this._storageService.store(
+			BrowserFavoritesFeature.STORAGE_KEY,
+			JSON.stringify([...this._urls]),
+			StorageScope.WORKSPACE,
+			StorageTarget.USER,
+		);
+		this._refresh();
+		this._onDidChangeState.fire();
+	}
+
+	// Idempotent: callers that should never re-add a favorite (e.g. the per-item
+	// delete button on suggestions) must use this rather than `_toggle`.
+	private _remove(url: string): void {
+		if (!this._urls.has(url)) {
+			return;
+		}
+		this._urls.delete(url);
 		this._storageService.store(
 			BrowserFavoritesFeature.STORAGE_KEY,
 			JSON.stringify([...this._urls]),
