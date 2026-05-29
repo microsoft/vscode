@@ -107,6 +107,33 @@ export class InlineCodeSymbolLinkifier implements IContributedLinkifier {
 			return;
 		}
 
+		// Skip text that looks like a natural language sentence rather than a
+		// code identifier. Test names like "should handle mixed string and regex
+		// patterns" often appear in backticks but shouldn't be linkified.
+		if (isLikelyNaturalLanguage(symbolText)) {
+			return;
+		}
+
 		return this.resolver.resolve(symbolText, context.references, token);
 	}
+}
+
+/**
+ * Returns true when text looks like a natural language sentence rather than
+ * a code identifier. Natural language has many space-separated words without
+ * code-specific punctuation such as parentheses, brackets, or operators.
+ */
+export function isLikelyNaturalLanguage(text: string): boolean {
+	const words = text.trim().split(/\s+/);
+	if (words.length <= 3) {
+		return false;
+	}
+
+	// Code expressions with many tokens typically contain punctuation like
+	// parentheses, brackets, operators, etc. that natural language lacks.
+	if (/[()[\]{}<>=:;@#.&|*+/%^~]/.test(text)) {
+		return false;
+	}
+
+	return true;
 }
