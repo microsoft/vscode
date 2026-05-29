@@ -83,7 +83,11 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 */
 	registerAuthority(authority: string, connection: IRemoteFilesystemConnection): IDisposable {
 		this._authorityToConnection.set(authority, connection);
-		return toDisposable(() => this._authorityToConnection.delete(authority));
+		return toDisposable(() => {
+			if (this._authorityToConnection.get(authority) === connection) {
+				this._authorityToConnection.delete(authority);
+			}
+		});
 	}
 
 	/** Decode a provider URI back to the original URI for the remote endpoint. */
