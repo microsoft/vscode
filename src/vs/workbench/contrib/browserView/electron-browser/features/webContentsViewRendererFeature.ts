@@ -184,20 +184,18 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		store.add(model.onDidKeyCommand(keyEvent => void this._handleKeyEvent(keyEvent)));
 		store.add(model.onDidNavigate(() => this._refresh()));
 		store.add(model.onDidChangeLoadingState(() => this._refresh()));
+		store.add(model.onWillDispose(() => this._clearModel()));
 
 		this._refresh();
 		void this._doScreenshot();
 	}
 
 	override onModelDetached(): void {
-		if (this._model) {
-			void this._model.setVisible(false);
+		const model = this._model;
+		this._clearModel();
+		if (model) {
+			void model.setVisible(false);
 		}
-		this._model = undefined;
-		this._screenshotHandle.clear();
-		this._cancelFocusTimeout();
-		this._setBackgroundImage(undefined);
-		this._refresh();
 	}
 
 	override dispose(): void {
@@ -288,6 +286,14 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		} else {
 			this._placeholderScreenshot.style.backgroundImage = '';
 		}
+	}
+
+	private _clearModel(): void {
+		this._model = undefined;
+		this._screenshotHandle.clear();
+		this._cancelFocusTimeout();
+		this._setBackgroundImage(undefined);
+		this._refresh();
 	}
 
 	private async _handleKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {

@@ -6,15 +6,69 @@
 import * as assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import type { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import type { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { BrowserViewStorageScope, browserZoomDefaultIndex, type IBrowserViewService, type IBrowserViewState } from '../../../../../platform/browserView/common/browserView.js';
-import { BrowserViewModel } from '../../common/browserView.js';
+import type { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { BrowserViewModel, type IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import type { IBrowserZoomService } from '../../common/browserZoomService.js';
 
 suite('BrowserViewModel', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not send visibility updates after dispose is called', async () => {
+	test('fires onWillDispose before late visibility teardown runs', async () => {
 		let setVisibleCalls = 0;
 		let destroyCalls = 0;
+		let destroySawClearedReference = false;
+		let currentModel: BrowserViewModel | undefined;
+		const storageService = disposables.add(new InMemoryStorageService());
+		const logService = new NullLogService();
+
+		const browserViewWorkbenchService: IBrowserViewWorkbenchService = {
+			_serviceBrand: undefined,
+			isSharingAvailable: true,
+			onDidChangeSharingAvailable: Event.None,
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+			getOrCreateLazy: () => { throw new Error('Not implemented in test'); },
+			clearGlobalStorage: async () => { },
+			clearWorkspaceStorage: async () => { }
+		};
+
+		const playwrightService: IPlaywrightService = {
+			_serviceBrand: undefined,
+			onDidChangeTrackedPages: Event.None,
+			startTrackingPage: async () => { },
+			stopTrackingPage: async () => { },
+			isPageTracked: async () => false,
+			getTrackedPages: async () => [],
+			openPage: async () => ({ pageId: '', summary: '' }),
+			getSummary: async () => '',
+			invokeFunctionRaw: async () => undefined as never,
+			invokeFunction: async () => ({ summary: '' }),
+			waitForDeferredResult: async () => ({ summary: '' }),
+			replyToFileChooser: async () => ({ summary: '' }),
+			replyToDialog: async () => ({ summary: '' }),
+			disposeSession: async () => { }
+		};
+
+		const zoomService: IBrowserZoomService = {
+			_serviceBrand: undefined,
+			onDidChangeZoom: Event.None,
+			getEffectiveZoomIndex: () => browserZoomDefaultIndex,
+			setHostZoomIndex() { },
+			notifyWindowZoomChanged() { }
+		};
+
+		const agentNetworkFilterService: IAgentNetworkFilterService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			isUriAllowed: () => true,
+			formatError: () => ''
+		};
 
 		const browserViewService: Partial<IBrowserViewService> = {
 			onDynamicDidNavigate: () => Event.None,
@@ -33,7 +87,10 @@ suite('BrowserViewModel', () => {
 			onDynamicDidChangeAreaSelectionActive: () => Event.None,
 			onDynamicDidChangeDeviceEmulation: () => Event.None,
 			setVisible: async () => { setVisibleCalls++; },
-			destroyBrowserView: async () => { destroyCalls++; }
+			destroyBrowserView: async () => {
+				destroyCalls++;
+				destroySawClearedReference = currentModel === undefined;
+			}
 		};
 
 		const initialState: IBrowserViewState = {
@@ -61,20 +118,28 @@ suite('BrowserViewModel', () => {
 			{ mainWindowId: 1 },
 			initialState,
 			browserViewService as IBrowserViewService,
-			{ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None } as any,
-			{ publicLog2() { } } as any,
-			{ isPageTracked: async () => false, onDidChangeTrackedPages: Event.None } as any,
-			{} as any,
-			{} as any,
-			{ getEffectiveZoomIndex: () => browserZoomDefaultIndex, onDidChangeZoom: Event.None, setHostZoomIndex() { } } as any,
-			{ isUriAllowed: () => true, formatError: () => '' } as any,
-			{ warn() { } } as any,
+			browserViewWorkbenchService,
+			NullTelemetryService,
+			playwrightService,
+			{} as IDialogService,
+			storageService,
+			zoomService,
+			agentNetworkFilterService,
+			logService,
 		));
 
+		currentModel = model;
+		disposables.add(model.onWillDispose(() => {
+			currentModel = undefined;
+		}));
+
 		model.dispose();
-		await model.setVisible(false);
+		if (currentModel) {
+			await currentModel.setVisible(false);
+		}
 
 		assert.strictEqual(destroyCalls, 1);
 		assert.strictEqual(setVisibleCalls, 0);
+		assert.strictEqual(destroySawClearedReference, true);
 	});
 });
