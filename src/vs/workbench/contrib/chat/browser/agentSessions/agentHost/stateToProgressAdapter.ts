@@ -156,7 +156,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority, { supportHtml: true }) });
+						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority) });
 					}
 					break;
 				case ResponsePartKind.ToolCall: {
@@ -369,7 +369,14 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 }
 function getTerminalOutput(tc: ToolCallState) {
 	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === 'text')?.text : undefined;
-	return text ? { text } : undefined;
+	if (!text) {
+		return undefined;
+	}
+	// The detached xterm used to render this output treats input as a raw TTY stream,
+	// so a lone `\n` only advances the row without resetting the column (producing a
+	// staircase). SDK terminal tools return plain text with `\n` line endings, so
+	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
+	return { text: text.replace(/\r?\n/g, '\r\n') };
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -717,9 +724,9 @@ function isSkillFileUri(uri: URI): boolean {
  * link URIs through {@link rewriteMarkdownLinks} when a connection authority
  * is provided.
  */
-export function rawMarkdownToString(content: string, connectionAuthority: string | undefined, options?: { supportHtml?: boolean }): MarkdownString {
+export function rawMarkdownToString(content: string, connectionAuthority: string | undefined): MarkdownString {
 	const rewritten = connectionAuthority ? rewriteMarkdownLinks(content, connectionAuthority) : content;
-	return new MarkdownString(rewritten, options);
+	return new MarkdownString(rewritten);
 }
 
 /**

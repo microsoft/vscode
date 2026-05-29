@@ -51,6 +51,13 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _noopRootState: IAgentSubscription<RootState> = {
+		value: undefined,
+		verifiedValue: undefined,
+		onDidChange: Event.None,
+		onWillApplyAction: Event.None,
+		onDidApplyAction: Event.None,
+	};
 	private _connectStarted = false;
 
 	constructor(
@@ -145,7 +152,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
-		return this._requireClient().rootState;
+		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
 
 	get onDidNotification(): Event<INotification> {

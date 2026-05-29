@@ -14,6 +14,8 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
+import { CustomizationType, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
+import { customizationId } from '../../agentHost/common/state/sessionState.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,12 +51,20 @@ export interface IParsedHookGroup {
 	readonly uri: URI;
 	/** Original key as it appears in the hook file. */
 	readonly originalId: string;
+	/**
+	 * Protocol-level projection of this hook group as a child customization.
+	 * Multiple groups parsed from the same file share the same `customization.id`
+	 * so consumers can dedupe by id when collecting customizations.
+	 */
+	readonly customization: HookCustomization;
 }
 
 export interface IMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
 	readonly uri: URI;
+	/** Protocol-level projection of this MCP server as a child customization. */
+	readonly customization: McpServerCustomization;
 }
 
 /** A named resource (skill, agent, command, or instruction) within a plugin. */
@@ -68,12 +78,28 @@ export interface INamedPluginResource {
 	readonly description?: string;
 }
 
+/** A parsed agent paired with its protocol-level child customization. */
+export interface IParsedAgent extends INamedPluginResource {
+	readonly customization: AgentCustomization;
+}
+
+/** A parsed skill paired with its protocol-level child customization. */
+export interface IParsedSkill extends INamedPluginResource {
+	readonly customization: SkillCustomization;
+}
+
+/** A parsed rule (instruction) paired with its protocol-level child customization. */
+export interface IParsedRule extends INamedPluginResource {
+	readonly customization: RuleCustomization;
+}
+
 /** The result of parsing a single plugin directory. */
 export interface IParsedPlugin {
 	readonly hooks: readonly IParsedHookGroup[];
 	readonly mcpServers: readonly IMcpServerDefinition[];
-	readonly skills: readonly INamedPluginResource[];
-	readonly agents: readonly INamedPluginResource[];
+	readonly skills: readonly IParsedSkill[];
+	readonly agents: readonly IParsedAgent[];
+	readonly instructions: readonly IParsedRule[];
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +166,79 @@ export async function detectPluginFormat(pluginUri: URI, fileService: IFileServi
 	}
 
 	return COPILOT_FORMAT;
+}
+
+// ---------------------------------------------------------------------------
+// Child customization helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Mints a child-customization id from a source uri plus an optional opaque
+ * disambiguator. Used when multiple customizations are declared inline in
+ * a single file (e.g. two MCP servers in one `.mcp.json`, or two hook
+ * lifecycle groups in one hook file).
+ *
+ * Percent-encodes any pre-existing `#` in the URI before appending the
+ * disambiguating fragment so the resulting id can never collide with a
+ * URI that happens to already contain a matching fragment.
+ */
+function buildChildId(uri: URI, disambiguator?: string): string {
+	const base = customizationId(uri.toString());
+	if (!disambiguator) {
+		return base;
+	}
+	return `${base.replace(/#/g, '%23')}#${disambiguator}`;
+}
+
+function makeAgentCustomization(resource: INamedPluginResource): AgentCustomization {
+	const uri = resource.uri.toString();
+	return {
+		type: CustomizationType.Agent,
+		id: buildChildId(resource.uri),
+		uri,
+		name: resource.name,
+		...(resource.description ? { description: resource.description } : {}),
+	};
+}
+
+function makeSkillCustomization(resource: INamedPluginResource): SkillCustomization {
+	const uri = resource.uri.toString();
+	return {
+		type: CustomizationType.Skill,
+		id: buildChildId(resource.uri),
+		uri,
+		name: resource.name,
+		...(resource.description ? { description: resource.description } : {}),
+	};
+}
+
+function makeRuleCustomization(resource: INamedPluginResource): RuleCustomization {
+	const uri = resource.uri.toString();
+	return {
+		type: CustomizationType.Rule,
+		id: buildChildId(resource.uri),
+		uri,
+		name: resource.name,
+		...(resource.description ? { description: resource.description } : {}),
+	};
+}
+
+function makeHookCustomization(hookUri: URI): HookCustomization {
+	return {
+		type: CustomizationType.Hook,
+		id: buildChildId(hookUri),
+		uri: hookUri.toString(),
+		name: basename(hookUri),
+	};
+}
+
+function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
+	return {
+		type: CustomizationType.McpServer,
+		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
+		uri: definitionUri.toString(),
+		name,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +457,7 @@ export function interpolateMcpPluginRoot(
 		interpolated = remote;
 	}
 
-	return { name: def.name, configuration: interpolated, uri: def.uri };
+	return { name: def.name, configuration: interpolated, uri: def.uri, customization: def.customization };
 }
 
 /**
@@ -542,6 +641,7 @@ function parseHooksJson(
 
 	const hooksObj = hooks as Record<string, unknown>;
 	const result: IParsedHookGroup[] = [];
+	const customization = makeHookCustomization(hookUri);
 
 	for (const originalId of Object.keys(hooksObj)) {
 		const canonicalType = HOOK_TYPE_MAP[originalId];
@@ -560,7 +660,7 @@ function parseHooksJson(
 		}
 
 		if (commands.length > 0) {
-			result.push({ type: canonicalType, commands, uri: hookUri, originalId });
+			result.push({ type: canonicalType, commands, uri: hookUri, originalId, customization });
 		}
 	}
 
@@ -651,6 +751,8 @@ export async function pathExists(resource: URI, fileService: IFileService): Prom
 // ---------------------------------------------------------------------------
 
 const COMMAND_FILE_SUFFIX = '.md';
+const RULE_FILE_SUFFIX = '.mdc';
+const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 
 export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
@@ -740,6 +842,71 @@ export async function readMarkdownComponents(dirs: readonly URI[], fileService: 
 	return items;
 }
 
+function getInstructionFileName(resource: URI): string | undefined {
+	const fileName = basename(resource);
+	const lowerName = fileName.toLowerCase();
+	if (lowerName.endsWith(RULE_FILE_SUFFIX)) {
+		return fileName.slice(0, -RULE_FILE_SUFFIX.length);
+	}
+	if (lowerName.endsWith(INSTRUCTION_FILE_SUFFIX)) {
+		return fileName.slice(0, -INSTRUCTION_FILE_SUFFIX.length);
+	}
+	return undefined;
+}
+
+/**
+ * Reads rule/instruction files from plugin `rules` component directories.
+ *
+ * Open Plugins rules are conventionally `.mdc` files. We also accept
+ * `.instructions.md` for compatibility with VS Code-discovered instructions
+ * bundled as synthetic plugins.
+ */
+export async function readInstructionComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+	const seen = new Set<string>();
+	const items: INamedPluginResource[] = [];
+
+	const addItem = (name: string, uri: URI) => {
+		if (!seen.has(name)) {
+			seen.add(name);
+			items.push({ uri, name });
+		}
+	};
+
+	for (const dir of dirs) {
+		let stat;
+		try {
+			stat = await fileService.resolve(dir);
+		} catch {
+			continue;
+		}
+
+		if (stat.isFile) {
+			const instructionName = getInstructionFileName(dir);
+			if (instructionName) {
+				addItem(instructionName, dir);
+			}
+			continue;
+		}
+
+		if (!stat.isDirectory || !stat.children) {
+			continue;
+		}
+
+		for (const child of stat.children) {
+			if (!child.isFile) {
+				continue;
+			}
+			const instructionName = getInstructionFileName(child.resource);
+			if (instructionName) {
+				addItem(instructionName, child.resource);
+			}
+		}
+	}
+
+	items.sort((a, b) => a.name.localeCompare(b.name));
+	return items;
+}
+
 /**
  * Reads `.md` files in agent directories and enriches each entry with
  * the optional `name` / `description` from YAML frontmatter. Falls back
@@ -752,14 +919,11 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	}
 	const enriched = await Promise.all(files.map(async file => {
 		try {
-			const content = await fileService.readFile(file.uri);
-			const frontmatter = parseFrontMatter(content.value.toString());
-			const fmName = frontmatter?.getStringValue('name')?.trim();
-			const fmDescription = frontmatter?.getStringValue('description')?.trim();
+			const { name, description } = await parseAgentFile(file.uri, fileService);
 			return {
 				uri: file.uri,
-				name: fmName || file.name,
-				...(fmDescription ? { description: fmDescription } : {}),
+				name: name || file.name,
+				...(description ? { description } : {}),
 			} satisfies INamedPluginResource;
 		} catch {
 			return file;
@@ -777,6 +941,20 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	}
 	result.sort((a, b) => a.name.localeCompare(b.name));
 	return result;
+}
+
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string }> {
+	// Use regex to strip the trailing `.agent.md` before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
+	const nameFromFile = basename(uri).replace(/\.agent\.md$/i, '');
+	try {
+		const content = await fileService.readFile(uri);
+		const frontmatter = parseFrontMatter(content.value.toString());
+		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
+		const description = frontmatter?.getStringValue('description')?.trim();
+		return { name, ...(description ? { description } : {}) };
+	} catch {
+		return { name: nameFromFile };
+	}
 }
 
 async function readHooks(
@@ -834,7 +1012,12 @@ export function parseMcpServerDefinitionMap(
 			continue;
 		}
 
-		let def: IMcpServerDefinition = { name, configuration, uri: definitionURI };
+		let def: IMcpServerDefinition = {
+			name,
+			configuration,
+			uri: definitionURI,
+			customization: makeMcpServerCustomization(definitionURI, name),
+		};
 		if (formatConfig.pluginRootToken && formatConfig.pluginRootEnvVar) {
 			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootToken, formatConfig.pluginRootEnvVar);
 		}
@@ -850,7 +1033,8 @@ export function parseMcpServerDefinitionMap(
 // ---------------------------------------------------------------------------
 
 /**
- * Parses a plugin directory to extract hooks, MCP servers, skills, and agents.
+ * Parses a plugin directory to extract hooks, MCP servers, skills, agents,
+ * and instructions.
  * This is the main entry point for the agent host to discover plugin contents.
  */
 export async function parsePlugin(
@@ -871,6 +1055,7 @@ export async function parsePlugin(
 	const mcpDirs = resolveComponentDirs(pluginUri, '.mcp.json', parseComponentPathConfig(manifest?.['mcpServers']), boundaryUri);
 	const skillDirs = resolveComponentDirs(pluginUri, 'skills', parseComponentPathConfig(manifest?.['skills']), boundaryUri);
 	const agentDirs = resolveComponentDirs(pluginUri, 'agents', parseComponentPathConfig(manifest?.['agents']), boundaryUri);
+	const instructionDirs = resolveComponentDirs(pluginUri, 'rules', parseComponentPathConfig(manifest?.['rules']), boundaryUri);
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];
@@ -892,7 +1077,7 @@ export async function parsePlugin(
 		embeddedHooks = formatConfig.parseHooks(manifestUri, { hooks: hooksSection }, pluginUri, workspaceRoot, userHome);
 	}
 
-	const [hooks, mcpServers, skills, agents] = await Promise.all([
+	const [hooks, mcpServers, skills, agents, instructions] = await Promise.all([
 		embeddedHooks.length > 0
 			? Promise.resolve(embeddedHooks)
 			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
@@ -901,8 +1086,27 @@ export async function parsePlugin(
 			: readMcpServers(mcpDirs, pluginUri.fsPath, formatConfig, fileService),
 		readSkills(pluginUri, skillDirs, fileService),
 		readAgentComponents(agentDirs, fileService),
+		readInstructionComponents(instructionDirs, fileService),
 	]);
 
-	return { hooks, mcpServers, skills, agents };
+	return {
+		hooks,
+		mcpServers,
+		skills: skills.map(toParsedSkill),
+		agents: agents.map(toParsedAgent),
+		instructions: instructions.map(toParsedRule),
+	};
+}
+
+function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
+	return { ...resource, customization: makeAgentCustomization(resource) };
+}
+
+function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+	return { ...resource, customization: makeSkillCustomization(resource) };
+}
+
+function toParsedRule(resource: INamedPluginResource): IParsedRule {
+	return { ...resource, customization: makeRuleCustomization(resource) };
 }
 

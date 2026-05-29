@@ -47,7 +47,6 @@ const BUILD_TARGETS = [
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
 	{ platform: 'linux', arch: 'x64' },
-	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
 	{ platform: 'alpine', arch: 'arm64' },
 	// legacy: we use to ship only one alpine so it was put in the arch, but now we ship
@@ -190,9 +189,7 @@ if (defaultNodeTask) {
 
 function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefined {
 
-	if (arch === 'armhf') {
-		arch = 'armv7l';
-	} else if (arch === 'alpine') {
+	if (arch === 'alpine') {
 		platform = 'alpine';
 		arch = 'x64';
 	}
