@@ -230,6 +230,13 @@ export class CodeApplication extends Disposable {
 
 		// Without this, starting recording in the issue reporting wizard takes
 		// a few seconds due to overhead of enumerating sources, so we warm up the sources in advance.
+		// Skip on Wayland (Electron 39+): desktopCapturer.getSources triggers the XDG Desktop Portal
+		// screencast dialog there, causing a spurious screen-share picker on every window open even
+		// when the user never opened the Issue Reporter. (#317948, #317955)
+		const isWaylandSession = isLinux && (
+			process.env['XDG_SESSION_TYPE'] === 'wayland' ||
+			!!process.env['WAYLAND_DISPLAY']
+		);
 		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
 		const warmUpScreenSources = () => {
 			desktopCapturer.getSources({
@@ -239,7 +246,7 @@ export class CodeApplication extends Disposable {
 		};
 		const invalidateScreenSourceCache = () => {
 			cachedScreenSources = undefined;
-			if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
+			if (!isWaylandSession && (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted')) {
 				warmUpScreenSources();
 			}
 		};
@@ -251,7 +258,7 @@ export class CodeApplication extends Disposable {
 			electronScreen.off('display-removed', invalidateScreenSourceCache);
 			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
 		}));
-		if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
+		if (!isWaylandSession && (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted')) {
 			warmUpScreenSources();
 		}
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
