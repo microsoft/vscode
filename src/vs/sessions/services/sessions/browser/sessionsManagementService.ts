@@ -584,7 +584,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._visibility.setActiveChat(session, chat);
 	}
 
-	setActive(session: IActiveSession) {
+	setActive(session: IActiveSession | undefined) {
 		this.setActiveSession(session);
 	}
 
