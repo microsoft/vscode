@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, TerminalClaimKind, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
+import { SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
 import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
@@ -291,6 +291,33 @@ suite('SessionStateSubscription', () => {
 		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
 	});
 
+	test('server terminal turn action drops stale optimistic turn start', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeSessionState(sessionUri), 0);
+
+		sub.applyOptimistic({
+			type: ActionType.SessionTurnStarted,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+
+		assert.strictEqual((sub.value as SessionState).activeTurn?.id, 'turn-1');
+
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+			1,
+			undefined,
+		));
+
+		assert.deepStrictEqual({
+			activeTurn: (sub.value as SessionState).activeTurn,
+			turns: (sub.value as SessionState).turns.map(turn => ({ id: turn.id, state: turn.state })),
+		}, {
+			activeTurn: undefined,
+			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
+	});
+
 	test('after all pending cleared, value falls through to verifiedValue', () => {
 		const sub = createSub();
 		sub.handleSnapshot(makeSessionState(sessionUri), 0);
@@ -462,19 +489,19 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(): AgentSubscriptionManager {
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState; fromSeq: number }> = async (resource) => {
+		subscribedResources.push(resource.toString());
+		const key = resource.toString();
+		if (key.startsWith('copilot:')) {
+			return { resource: key, state: makeSessionState(key), fromSeq: 0 };
+		}
+		return { resource: key, state: makeTerminalState(), fromSeq: 0 };
+	}): AgentSubscriptionManager {
 		return disposables.add(new AgentSubscriptionManager(
 			'c1',
 			() => ++seq,
 			noop,
-			async (resource) => {
-				subscribedResources.push(resource.toString());
-				const key = resource.toString();
-				if (key.startsWith('copilot:')) {
-					return { resource: key, state: makeSessionState(key), fromSeq: 0 };
-				}
-				return { resource: key, state: makeTerminalState(), fromSeq: 0 };
-			},
+			subscribe,
 			(resource) => {
 				unsubscribedResources.push(resource.toString());
 			},
@@ -653,5 +680,42 @@ suite('AgentSubscriptionManager', () => {
 		// Now unmanaged should return undefined since it was released
 		const after = mgr.getSubscriptionUnmanaged<SessionState>(uri);
 		assert.strictEqual(after, undefined);
+	});
+
+	test('getSubscription retries after a failed subscribe for the same resource', async () => {
+		let subscribeAttempts = 0;
+		const mgr = createManager(async resource => {
+			subscribedResources.push(resource.toString());
+			subscribeAttempts++;
+			if (subscribeAttempts === 1) {
+				throw new Error('not found yet');
+			}
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { summary: { ...makeSessionState(resource.toString()).summary, title: 'Retried' } }), fromSeq: 0 };
+		});
+		const uri = URI.parse(sessionUri);
+
+		const failedRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.ok(failedRef.object.value instanceof Error);
+
+		const retryRef = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual({
+			subscribeAttempts,
+			retriedTitle: (retryRef.object.value as SessionState).summary.title,
+			unmanagedIsRetry: mgr.getSubscriptionUnmanaged<SessionState>(uri) === retryRef.object,
+		}, {
+			subscribeAttempts: 2,
+			retriedTitle: 'Retried',
+			unmanagedIsRetry: true,
+		});
+
+		failedRef.dispose();
+		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), retryRef.object);
+
+		retryRef.dispose();
+		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), undefined);
 	});
 });

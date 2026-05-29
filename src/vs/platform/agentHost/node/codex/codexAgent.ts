@@ -201,7 +201,12 @@ interface ICodexSession {
 	 */
 	readonly acceptedForSession: Set<string>;
 	model: ModelSelection | undefined;
+	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
+	/** Codex app-server turn id for the active turn. */
+	currentAppTurnId: string | undefined;
+	/** Codex app-server turn id -> workbench-facing turn id. */
+	readonly hostTurnIdByAppTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
@@ -598,23 +603,33 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Wire global notification → SessionAction dispatch.
 		this._register(client.onNotification('thread/started', () => { /* no-op: createSession awaits the request response */ }));
 		this._registerIgnoredNotifications(client);
-		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => mapTurnStarted(s.mapState, params, s.lastPromptText))));
-		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => mapItemStarted(s.mapState, params))));
-		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, params))));
-		this._register(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, params))));
-		this._register(client.onNotification('item/fileChange/patchUpdated', params => this._dispatchByThread(params.threadId, s => mapFileChangePatchUpdated(s.mapState, params))));
-		this._register(client.onNotification('item/fileChange/outputDelta', params => this._dispatchByThread(params.threadId, s => mapFileChangeOutputDelta(s.mapState, params))));
-		this._register(client.onNotification('item/mcpToolCall/progress', params => this._dispatchByThread(params.threadId, s => mapMcpToolCallProgress(s.mapState, params))));
-		this._register(client.onNotification('item/reasoning/summaryPartAdded', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryPartAdded(s.mapState, params))));
-		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, params))));
-		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, params))));
-		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, () => mapTokenUsageUpdated(params))));
-		this._register(client.onNotification('item/completed', params => this._dispatchByThread(params.threadId, s => mapItemCompleted(s.mapState, params))));
+		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => {
+			// The workbench already dispatched the canonical SessionTurnStarted
+			// action before calling sendMessage. Codex's app-server turn id is
+			// only needed to correlate subsequent app-server item/turn events
+			// back to the workbench turn id.
+			mapTurnStarted(s.mapState, this._withHostTurn(s, params), s.lastPromptText);
+			return [];
+		})));
+		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => mapItemStarted(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/fileChange/patchUpdated', params => this._dispatchByThread(params.threadId, s => mapFileChangePatchUpdated(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/fileChange/outputDelta', params => this._dispatchByThread(params.threadId, s => mapFileChangeOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/mcpToolCall/progress', params => this._dispatchByThread(params.threadId, s => mapMcpToolCallProgress(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/reasoning/summaryPartAdded', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryPartAdded(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, s => mapTokenUsageUpdated(this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('item/completed', params => this._dispatchByThread(params.threadId, s => mapItemCompleted(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('turn/completed', params => this._dispatchByThread(params.threadId, s => {
-			const out = mapTurnCompleted(s.mapState, params);
-			if (s.currentTurnId === params.turn.id) {
+			const appTurnId = params.turn.id;
+			const out = mapTurnCompleted(s.mapState, this._withHostTurn(s, params));
+			if (s.currentAppTurnId === appTurnId || s.currentTurnId === this._hostTurnId(s, appTurnId)) {
 				s.currentTurnId = undefined;
+				s.currentAppTurnId = undefined;
 			}
+			s.hostTurnIdByAppTurnId.delete(appTurnId);
 			return out;
 		})));
 
@@ -632,6 +647,23 @@ export class CodexAgent extends Disposable implements IAgent {
 		));
 
 		return { client, proxyHandle, child };
+	}
+
+	private _hostTurnId(session: ICodexSession, appTurnId: string): string {
+		return session.hostTurnIdByAppTurnId.get(appTurnId) ?? appTurnId;
+	}
+
+	private _withHostTurnId<T extends { readonly turnId: string }>(session: ICodexSession, params: T): T {
+		const turnId = this._hostTurnId(session, params.turnId);
+		return turnId === params.turnId ? params : { ...params, turnId };
+	}
+
+	private _withHostTurn<T extends { readonly turn: { readonly id: string } }>(session: ICodexSession, params: T): T {
+		const appTurnId = params.turn.id;
+		const hostTurnId = session.currentTurnId ?? this._hostTurnId(session, appTurnId);
+		session.hostTurnIdByAppTurnId.set(appTurnId, hostTurnId);
+		session.currentAppTurnId = appTurnId;
+		return hostTurnId === appTurnId ? params : { ...params, turn: { ...params.turn, id: hostTurnId } };
 	}
 
 	private _registerIgnoredNotifications(client: ICodexAppServerClient): void {
@@ -741,7 +773,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Unpark any pending approvals so awaiters unwind.
 			session.pendingCommandApprovals.denyAll('decline');
 			const turnId = session.currentTurnId;
+			const appTurnId = session.currentAppTurnId;
 			session.currentTurnId = undefined;
+			session.currentAppTurnId = undefined;
+			if (appTurnId) {
+				session.hostTurnIdByAppTurnId.delete(appTurnId);
+			}
 			if (turnId) {
 				this._onDidSessionProgress.fire({
 					kind: 'action',
@@ -819,6 +856,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			acceptedForSession: new Set<string>(),
 			model: effectiveModel,
 			currentTurnId: undefined,
+			currentAppTurnId: undefined,
+			hostTurnIdByAppTurnId: new Map<string, string>(),
 			needsResume: false,
 			lastPromptText: '',
 			disposed: false,
@@ -1072,8 +1111,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
-		const turnId = session.currentTurnId;
-		if (!turnId) {
+		const appTurnId = session.currentAppTurnId;
+		if (!appTurnId) {
 			// No active turn — let the framework re-queue this as a normal sendMessage.
 			return;
 		}
@@ -1093,7 +1132,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		void conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
 			input: input.slice(),
-			expectedTurnId: turnId,
+			expectedTurnId: appTurnId,
 		}).catch(err => {
 			if (err instanceof JsonRpcError) {
 				// `expectedTurnId` mismatch is benign — framework will requeue.
@@ -1107,7 +1146,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	async abortSession(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (!session || !session.currentTurnId || session.threadId === undefined) {
+		if (!session || !session.currentAppTurnId || session.threadId === undefined) {
 			return;
 		}
 		const threadId = session.threadId;
@@ -1118,7 +1157,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		try {
 			await conn.client.request<'turn/interrupt'>('turn/interrupt', {
 				threadId,
-				turnId: session.currentTurnId,
+				turnId: session.currentAppTurnId,
 			});
 		} catch (err) {
 			this._logService.warn(`[Codex:${sessionId}] turn/interrupt failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1207,6 +1246,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				acceptedForSession: new Set<string>(),
 				model: undefined,
 				currentTurnId: undefined,
+				currentAppTurnId: undefined,
+				hostTurnIdByAppTurnId: new Map<string, string>(),
 				needsResume: true,
 				lastPromptText: '',
 				disposed: false,
