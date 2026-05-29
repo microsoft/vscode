@@ -255,7 +255,8 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
-	test('skips agent host sessions when the setting is disabled (default)', async () => {
+	test('skips agent host sessions when the setting is disabled', async () => {
+		await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, false);
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);

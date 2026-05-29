@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -18,7 +18,7 @@ const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
 /**
  * Setting that controls whether `runOptions.runOn === 'worktreeCreated'`
  * tasks are auto-dispatched for agent host sessions when a new worktree is
- * created. Defaults to `false`. Manual `Run Task` invocations are unaffected.
+ * created. Defaults to `true`. Manual `Run Task` invocations are unaffected.
  */
 export const AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING = 'chat.agentHost.runWorktreeCreatedTasks';
 
@@ -73,10 +73,9 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		this._sessionDisposables.set(session.sessionId, store);
 
 		// Wait for the session to finish loading and report an actual worktree,
-		// then dispatch any pending worktreeCreated tasks once. Set
-		// `dispatched` synchronously before the await so any re-firing of the
-		// autorun observes it and bails.
-		store.add(autorun(reader => {
+		// then dispatch any pending worktreeCreated tasks once. When dispatched,
+		// dispose the per-session subscription store to tear down this autorun.
+		registerAutorunSelfDisposable(store, reader => {
 			if (session.loading.read(reader)) {
 				return;
 			}
@@ -88,7 +87,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			}
 			this._sessionDisposables.deleteAndDispose(session.sessionId);
 			this._dispatchWorktreeCreatedTasks(session);
-		}));
+		});
 	}
 
 	private async _dispatchWorktreeCreatedTasks(session: ISession): Promise<void> {
