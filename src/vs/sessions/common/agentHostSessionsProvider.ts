@@ -121,6 +121,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
+	 * Returns the working directory for the session, if provided by the host.
+	 */
+	getWorkingDirectory(sessionId: string): string | undefined;
+
+	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so
 	 * providers that don't expose custom agents can omit it.
 	 * @param sessionId The ID of the session.
