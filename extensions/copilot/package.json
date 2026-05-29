@@ -1880,7 +1880,11 @@
                 "properties": {
                   "id": {
                     "type": "string",
-                    "description": "Unique identifier for the model"
+                    "markdownDescription": "Unique identifier for the model. Must be unique among the models in this list — it is the stable key used to select and persist the model, and is not necessarily the value sent to the API endpoint (see `modelId`)."
+                  },
+                  "modelId": {
+                    "type": "string",
+                    "markdownDescription": "The model identifier sent to the API endpoint (for example the `model` field in the request body). Unlike `id`, this does not need to be unique. When omitted, `id` is used."
                   },
                   "name": {
                     "type": "string",
@@ -2029,7 +2033,11 @@
                 "properties": {
                   "id": {
                     "type": "string",
-                    "description": "Unique identifier for the model"
+                    "markdownDescription": "Unique identifier for the model. Must be unique among the models in this list — it is the stable key used to select and persist the model, and is not necessarily the value sent to the API endpoint (see `modelId`)."
+                  },
+                  "modelId": {
+                    "type": "string",
+                    "markdownDescription": "The model identifier sent to the API endpoint (for example the `model` field in the request body). Unlike `id`, this does not need to be unique. When omitted, `id` is used."
                   },
                   "name": {
                     "type": "string",
@@ -2178,7 +2186,11 @@
                 "properties": {
                   "id": {
                     "type": "string",
-                    "description": "Unique identifier for the model"
+                    "markdownDescription": "Unique identifier for the model. Must be unique among the models in this list — it is the stable key used to select and persist the model, and is not necessarily the value sent to the API endpoint (see `modelId`)."
+                  },
+                  "modelId": {
+                    "type": "string",
+                    "markdownDescription": "The model identifier sent to the API endpoint (for example the `model` field in the request body). Unlike `id`, this does not need to be unique. When omitted, `id` is used."
                   },
                   "name": {
                     "type": "string",
