@@ -14,8 +14,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { MessageAttachmentKind } from '../../common/state/protocol/state.js';
-import { CustomizationStatus, type CustomizationRef } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind } from '../../common/state/protocol/state.js';
+import { CustomizationLoadStatus, customizationId, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { MockAgent } from './mockAgent.js';
@@ -38,10 +38,14 @@ suite('AgentHostSkillCompletionProvider', () => {
 		return URI.from({ scheme: Schemas.inMemory, path });
 	}
 
-	function customization(root: URI, nonce?: string): CustomizationRef {
+	function customization(root: URI, nonce?: string): ClientPluginCustomization {
+		const uri = root.toString();
 		return {
-			uri: root.toString(),
-			displayName: root.path,
+			type: CustomizationType.Plugin,
+			id: customizationId(uri),
+			uri,
+			name: root.path,
+			enabled: true,
 			...(nonce !== undefined ? { nonce } : {}),
 		};
 	}
@@ -116,7 +120,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const globalCustomization = customization(globalRoot, 'global');
 		const agent = new MockAgent('mock');
 		agent.customizations = [globalCustomization];
-		agent.getSessionCustomizations = async () => [{ customization: sessionCustomization, enabled: true, status: CustomizationStatus.Loaded }];
+		agent.getSessionCustomizations = async () => [{ ...sessionCustomization, load: { kind: CustomizationLoadStatus.Loaded } }];
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');
@@ -130,7 +134,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const ref = customization(root, '1');
 		const agent = new MockAgent('mock');
 		agent.customizations = [ref];
-		agent.getSessionCustomizations = async () => [{ customization: ref, enabled: false, status: CustomizationStatus.Loaded }];
+		agent.getSessionCustomizations = async () => [{ ...ref, enabled: false, load: { kind: CustomizationLoadStatus.Loaded } }];
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');

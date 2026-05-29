@@ -162,3 +162,23 @@ export const agentsUnreadBadgeForeground = registerColor(
 	'agentsUnreadBadge.foreground', ACTIVITY_BAR_BADGE_FOREGROUND,
 	localize('agentsUnreadBadge.foreground', 'Foreground color of the unread sessions count badge on the sidebar toggle.')
 );
+
+export const activeSessionViewBackground = registerColor(
+	'activeSessionView.background', agentsPanelBackground,
+	localize('activeSessionView.background', 'Background color of an active session view in the agent sessions window.')
+);
+
+export const inactiveSessionViewBackground = registerColor(
+	'inactiveSessionView.background', agentsChatInputBackground,
+	localize('inactiveSessionView.background', 'Background color of an inactive session view in the agent sessions window.')
+);
+
+export const activeSessionViewForeground = registerColor(
+	'activeSessionView.foreground', agentsPanelForeground,
+	localize('activeSessionView.foreground', 'Foreground color of an active session view in the agent sessions window.')
+);
+
+export const inactiveSessionViewForeground = registerColor(
+	'inactiveSessionView.foreground', agentsPanelForeground,
+	localize('inactiveSessionView.foreground', 'Foreground color of an inactive session view in the agent sessions window.')
+);

@@ -252,6 +252,8 @@ export const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'local_shell',
 	'runInTerminal',
 	'run_in_terminal',
+	// Claude
+	'Bash',
 ]);
 
 /**
@@ -279,4 +281,10 @@ export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'replace_string_in_file',
 	'multi_replace_string_in_file',
 	'edit_notebook_file',
+	// Claude (capitalized)
+	'Read',
+	'Edit',
+	'MultiEdit',
+	'Write',
+	'NotebookEdit',
 ]);
