@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CopilotSessionSearchPolicy, ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -189,6 +189,14 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	async signOut(): Promise<void> {
 		await this.initBarrier.wait();
 		await this.defaultAccountProvider?.signOut();
+	}
+
+	resolveGitHubUrl(path: string): string {
+		if (this.defaultAccountProvider) {
+			return this.defaultAccountProvider.resolveGitHubUrl(path);
+		}
+
+		return `https://github.com/${path}`;
 	}
 
 	private setDefaultAccount(account: IDefaultAccount | null): void {
@@ -544,12 +552,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
 			let mcpRegistryDataFetchedAt: number | undefined;
 			let policyData: Mutable<IPolicyData> | undefined = accountPolicyData?.policyData ? { ...accountPolicyData.policyData } : undefined;
+			if (entitlementsData) {
+				policyData = policyData ?? {};
+				policyData.cloud_session_storage_enabled = entitlementsData.cloud_session_storage_enabled;
+			}
 			if (tokenEntitlementsResult?.data) {
 				const tokenEntitlementsData = tokenEntitlementsResult.data;
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
-				policyData.session_search = tokenEntitlementsData.policyData.session_search;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
@@ -671,8 +682,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
 						// MCP is only enabled if the flag is explicitly present and set to 1
 						mcp: tokenMap.get('mcp') === '1',
-						// Session search policy enum from Copilot token
-						session_search: Number(tokenMap.get('session_search') ?? '0') as CopilotSessionSearchPolicy,
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),
@@ -883,6 +892,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			...this.defaultAccountConfig.authenticationProvider.default,
 			enterprise: false
 		};
+	}
+
+	resolveGitHubUrl(path: string): string {
+		if (this.getDefaultAccountAuthenticationProvider().enterprise) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (enterpriseUrl) {
+					return `${enterpriseUrl.protocol}//${enterpriseUrl.host}/${path}`;
+				}
+			} catch {
+				// fall through to default
+			}
+		}
+
+		return `https://github.com/${path}`;
 	}
 
 	private getEnterpriseUrl(): URL | undefined {

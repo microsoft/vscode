@@ -8,7 +8,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
-import { BrowserViewElementInspector } from './browserViewElementInspector.js';
+import { BrowserViewEmulator } from './browserViewEmulator.js';
+import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -41,7 +42,8 @@ export class BrowserView extends Disposable {
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	readonly debugger: BrowserViewDebugger;
-	readonly inspector: BrowserViewElementInspector;
+	readonly emulator: BrowserViewEmulator;
+	readonly inspector: BrowserViewInspector;
 
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
@@ -94,7 +96,7 @@ export class BrowserView extends Disposable {
 	) {
 		super();
 
-		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+		const webPreferences: Electron.WebPreferences = {
 			...options?.webPreferences,
 
 			nodeIntegration: false,
@@ -108,8 +110,7 @@ export class BrowserView extends Disposable {
 			webviewTag: false,
 			session: this.session.electronSession,
 
-			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
-			type: 'browserView'
+			focusOnNavigation: false
 		};
 
 		this._view = new WebContentsView({
@@ -191,7 +192,8 @@ export class BrowserView extends Disposable {
 		});
 
 		this.debugger = new BrowserViewDebugger(this, this.logService);
-		this.inspector = this._register(new BrowserViewElementInspector(this));
+		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
+		this.inspector = this._register(new BrowserViewInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -346,11 +348,6 @@ export class BrowserView extends Disposable {
 		});
 
 		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
-			// Intercept Ctrl/Cmd+Enter during element selection to pick the focused element.
-			if (this.inspector.isElementSelectionActive && keyEvent.key === 'Enter' && (keyEvent.ctrlKey || keyEvent.metaKey)) {
-				void this.inspector.pickFocusedElement();
-				return;
-			}
 			this._onDidKeyCommand.fire(keyEvent);
 		};
 
@@ -477,7 +474,9 @@ export class BrowserView extends Disposable {
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
 			browserZoomIndex: this._browserZoomIndex,
-			isElementSelectionActive: this.inspector.isElementSelectionActive
+			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
+			device: this.emulator.device
 		};
 	}
 
@@ -502,6 +501,11 @@ export class BrowserView extends Disposable {
 		}
 
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
+
+		if (bounds.emulation) {
+			this.emulator.applyScreenEmulation(bounds.width, bounds.height, bounds.emulation.scale, bounds.zoomFactor);
+		}
+
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
@@ -608,6 +612,11 @@ export class BrowserView extends Disposable {
 		}
 
 		const quality = options?.quality ?? 80;
+
+		if (options?.fullPage && !options.screenRect && !options.pageRect) {
+			return this._captureFullPageScreenshot(quality);
+		}
+
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
@@ -619,6 +628,9 @@ export class BrowserView extends Disposable {
 				height: options.pageRect.height * visualViewportScale * zoomFactor
 			};
 		}
+		if (options?.awaitNextPaint) {
+			await this._waitForNextPaint();
+		}
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
@@ -629,6 +641,57 @@ export class BrowserView extends Disposable {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
+	}
+
+	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
+	private async _captureFullPageScreenshot(quality: number): Promise<VSBuffer> {
+		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as { cssContentSize?: { width: number; height: number } };
+		// Size in CSS pixels
+		const size = metrics.cssContentSize;
+		if (!size) {
+			throw new Error('Page.getLayoutMetrics did not return a cssContentSize');
+		}
+		const zoomFactor = this._view.webContents.getZoomFactor();
+		try {
+			const result = await this.debugger.sendCommand('Page.captureScreenshot', {
+				format: 'jpeg',
+				quality,
+				captureBeyondViewport: true,
+				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
+				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
+				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
+				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
+				// visual content from the top at the bottom, instead of showing the bottom of the page.
+				// - Sidenote: Setting the scale here to be zoomFactor or 1/zoomFactor has strange effects and doesn't solve the issue.
+				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
+				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
+				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream
+				//   in Chromium).
+				clip: { x: 0, y: 0, width: size.width * zoomFactor, height: size.height * zoomFactor, scale: 1 }
+			}) as { data: string };
+			return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
+		} finally {
+			// `Page.captureScreenshot` with `captureBeyondViewport` resets and
+			// disables pinch-to-zoom until the next navigation. Re-enable it so
+			// the user can still pinch-to-zoom even immediately after
+			// capturing a full-page screenshot.
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to restore visual zoom level limits after full-page screenshot.', error);
+			});
+		}
+	}
+
+	private async _waitForNextPaint(): Promise<void> {
+		const WAIT_TIMEOUT_MS = 100;
+		try {
+			await Promise.race([
+				this._view.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))'),
+				new Promise<void>(resolve => setTimeout(resolve, WAIT_TIMEOUT_MS))
+			]);
+		} catch {
+			// `executeJavaScript` can throw if the page navigates while we're waiting;
+			// just proceed in that case.
+		}
 	}
 
 	/**

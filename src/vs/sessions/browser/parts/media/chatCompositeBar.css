@@ -6,11 +6,20 @@
 .chat-composite-bar {
 	display: flex;
 	align-items: center;
-	background-color: var(--chat-bar-background);
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
 	padding: 0 4px;
 	height: 35px;
 	flex-shrink: 0;
 	overflow: hidden;
+	container-type: inline-size;
+}
+
+/* The ScrollableElement wrapper holding the tabs is the shrinkable flex item */
+.chat-composite-bar > .monaco-scrollable-element {
+	flex: 0 1 auto;
+	min-width: 0;
+	height: 100%;
 }
 
 .chat-composite-bar-tabs {
@@ -18,12 +27,28 @@
 	align-items: center;
 	height: 100%;
 	gap: 0;
-	overflow-x: auto;
-	overflow-y: hidden;
 }
 
-.chat-composite-bar-tabs::-webkit-scrollbar {
-	display: none;
+.chat-composite-bar-inline-toolbar {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-toolbar {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: auto;
+	padding-left: 4px;
+}
+
+.chat-composite-bar.chat-composite-bar-toolbar-floating {
+	position: absolute;
+	top: 0px;
+	right: 0px;
+	container-type: unset;
 }
 
 /* Base tab: preserve chat title casing while keeping the same pill treatment */
@@ -33,7 +58,6 @@
 	position: relative;
 	padding: 0 8px;
 	cursor: pointer;
-	white-space: nowrap;
 	color: var(--chat-tab-inactive-foreground);
 	font-weight: 500;
 	font-size: 12px;
@@ -41,6 +65,15 @@
 	height: 26px;
 	border-radius: 4px;
 	user-select: none;
+	flex-shrink: 0;
+	max-width: min(200px, 40cqi);
+}
+
+.chat-composite-bar-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .chat-composite-bar-tab:hover {
@@ -48,8 +81,11 @@
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
-.chat-composite-bar-tab.active {
+.session-view .chat-composite-bar-tab.active {
 	color: var(--chat-tab-active-foreground);
+}
+
+.session-view.is-active .chat-composite-bar-tab.active {
 	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
 }
 
@@ -58,29 +94,19 @@
 	padding-right: 2px;
 }
 
-/* When an indicator is shown on a tab without a close button (e.g. the main chat),
-	reserve right-side space so the absolutely-positioned indicator doesn't overlap the label. */
-.chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).unread,
-.chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).needs-input,
-.chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).in-progress {
-	padding-right: 22px;
-}
-
-/* Indicator: absolutely positioned over the close-action slot.
+/* Indicator: rendered inline between the label and the close action.
 	Shows a small blue dot for unread, a yellow dot when input is needed,
 	or a spinner for in-progress.
 	Only one mode is set on the element at a time (mutually exclusive in JS). */
 .chat-composite-bar-tab-indicator {
 	display: none;
-	position: absolute;
-	right: 4px;
-	top: 50%;
-	transform: translateY(-50%);
 	width: 16px;
 	height: 16px;
 	align-items: center;
 	justify-content: center;
 	pointer-events: none;
+	flex-shrink: 0;
+	margin-left: 4px;
 }
 
 .chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
@@ -115,21 +141,12 @@
 	font-size: 12px;
 }
 
-/* When the close action is visible (hover / focus-within / active),
-	suppress the indicator so the two never render at the same time.
-	Only applies to tabs that actually have a close action. */
-.chat-composite-bar-tab.active:has(.chat-composite-bar-tab-actions) .chat-composite-bar-tab-indicator,
-.chat-composite-bar-tab:hover:has(.chat-composite-bar-tab-actions) .chat-composite-bar-tab-indicator,
-.chat-composite-bar-tab:focus-within:has(.chat-composite-bar-tab-actions) .chat-composite-bar-tab-indicator {
-	display: none;
-}
-
 .chat-composite-bar-tab:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-/* Close action — visible on hover/focus/active, hidden by default so the indicator (if any) shows instead */
+/* Close action — always visible, like the status indicator */
 .chat-composite-bar-tab-actions {
 	display: flex;
 	margin-left: 2px;
@@ -140,13 +157,6 @@
 	height: 16px;
 	border-radius: 4px;
 	color: var(--chat-tab-inactive-foreground, currentColor);
-	opacity: 0;
-}
-
-.chat-composite-bar-tab.active .chat-composite-bar-tab-actions .action-label,
-.chat-composite-bar-tab:hover .chat-composite-bar-tab-actions .action-label,
-.chat-composite-bar-tab-actions .action-label:focus {
-	opacity: 1;
 }
 
 .chat-composite-bar-tab-actions .action-item .action-label:hover {

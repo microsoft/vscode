@@ -133,7 +133,8 @@ suite('FileBackedInstalledPluginsStore', () => {
 		assert.strictEqual(parsed.version, 1);
 		assert.strictEqual(parsed.installed.length, 1);
 		assert.ok(parsed.installed[0].pluginUri.includes('/home/user/.vscode/agent-plugins/github.com/microsoft/plugins/plugins/my-plugin'));
-		// plugin metadata is NOT stored in the file
+		assert.strictEqual(parsed.installed[0].name, 'my-plugin');
+		// Full plugin metadata is NOT stored in the file.
 		assert.strictEqual(parsed.installed[0].plugin, undefined);
 		assert.strictEqual(pluginsStore.get().length, 1);
 

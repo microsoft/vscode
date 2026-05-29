@@ -18,8 +18,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/widget/input/modelPickerWidget.js';
+import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -226,6 +225,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					inputCost: m.inputCost,
 					outputCost: m.outputCost,
 					cacheCost: m.cacheCost,
+					longContextInputCost: m.longContextInputCost,
+					longContextOutputCost: m.longContextOutputCost,
+					longContextCacheCost: m.longContextCacheCost,
 					priceCategory: m.priceCategory,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
@@ -235,7 +237,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					statusIcon: m.statusIcon,
 					targetChatSessionType: m.targetChatSessionType,
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
-					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
 						editTools: m.capabilities.editTools,
@@ -370,7 +371,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		for (const [modelIdentifier, modelData] of this._localModels) {
-			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat] && modelData.metadata.vendor === 'copilot') {
+			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat] && modelData.metadata.vendor === COPILOT_VENDOR_ID) {
 				defaultModelId = modelIdentifier;
 				break;
 			}
@@ -422,6 +423,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				inputCost: model.metadata.inputCost,
 				outputCost: model.metadata.outputCost,
 				cacheCost: model.metadata.cacheCost,
+				longContextInputCost: model.metadata.longContextInputCost,
+				longContextOutputCost: model.metadata.longContextOutputCost,
+				longContextCacheCost: model.metadata.longContextCacheCost,
 				priceCategory: model.metadata.priceCategory,
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
@@ -519,6 +523,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (data) {
 			data.res.handleResponsePart(chunk.value);
 		}
+	}
+
+	$onChatModelsChange(): void {
+		this._onDidChangeProviders.fire();
 	}
 
 	async $acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void> {

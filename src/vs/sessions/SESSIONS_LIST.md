@@ -79,7 +79,7 @@ The **active session is always visible** even if it would be excluded by filters
 
 ### Find
 
-A built-in find widget filters the list by session title and section label. When active, it bypasses workspace group capping so all matching sessions are visible.
+A built-in find widget filters the list by session title and section label. When a search pattern is entered, it bypasses workspace group capping so all matching sessions are visible. Simply opening the find widget (without typing) does not reorder the list.
 
 ### Pinning
 
@@ -90,6 +90,7 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
 - A session becomes **unread** when it completes in the background (transitions from InProgress to a terminal status while not active)
+- Pin and read state are cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 

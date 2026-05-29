@@ -29,11 +29,12 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
-import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
@@ -59,6 +60,10 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 			break;
 	}
 	return hoverContent;
+}
+
+export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
+	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
 }
 
 /**
@@ -252,11 +257,19 @@ function resolveConfigProperty(
  */
 function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case 'low': return localize('chat.priceCategory.low', "Low cost");
-		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
-		case 'high': return localize('chat.priceCategory.high', "High cost");
-		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
-		default: return undefined;
+		case undefined:
+		case '':
+			return undefined;
+		case 'low':
+			return localize('chat.priceCategory.low', "Low cost");
+		case 'medium':
+			return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high':
+			return localize('chat.priceCategory.high', "High cost");
+		case 'very_high':
+			return localize('chat.priceCategory.veryHigh', "Very high cost");
+		default:
+			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
 	}
 }
 
@@ -336,7 +349,9 @@ function createModelAction(
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+	return chatEntitlementService.clientByokEnabled ||
+		chatEntitlementService.hasByokModels ||
+		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
@@ -832,7 +847,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
-	private _hideChevrons: IObservable<boolean> | undefined;
+	private _compact: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -863,6 +878,7 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -875,12 +891,12 @@ export class ModelPickerWidget extends Disposable {
 		}));
 	}
 
-	setHideChevrons(hideChevrons: IObservable<boolean>): void {
-		this._hideChevrons = hideChevrons;
+	setCompact(compact: IObservable<boolean>): void {
+		this._compact = compact;
 		this._register(autorun(reader => {
-			const hide = hideChevrons.read(reader);
+			const isCompact = compact.read(reader);
 			if (this._domNode) {
-				this._domNode.classList.toggle('hide-chevrons', hide);
+				this._domNode.classList.toggle('compact', isCompact);
 			}
 			this._renderLabel();
 		}));
@@ -908,8 +924,8 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'group');
 
 		// Apply initial collapsed state now that _domNode exists
-		if (this._hideChevrons?.get()) {
-			this._domNode.classList.toggle('hide-chevrons', true);
+		if (this._compact?.get()) {
+			this._domNode.classList.toggle('compact', true);
 		}
 
 		// Model name button
@@ -996,16 +1012,17 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const isPro = isProUser(this._entitlementService.entitlement);
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
+		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
-		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
+		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
-		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
+		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
 		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
 			if (pinned) {
 				this._languageModelsService.pinModel(modelIdentifier);
@@ -1020,8 +1037,8 @@ export class ModelPickerWidget extends Disposable {
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds(),
-			this._languageModelsService.getPinnedModelIds(),
+			this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+			this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModelsForTier,
 			this._productService.version,
 			this._updateService.state.type,
@@ -1360,7 +1377,7 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.tokens.costHint', "Larger size may increase cost in longer sessions"),
+				footerText: localize('chat.tokens.costHint', "Larger context may increase cost"),
 			}
 		);
 	}
@@ -1396,48 +1413,51 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 
 	// --- Cost info (UBB only) ---
 	if (!isAuto && isUBB) {
-		const costLines: { label: string; value: string }[] = [];
-		if (model.metadata.inputCost !== undefined) {
-			costLines.push({
-				label: localize('models.inputCostLabel', "Input"),
-				value: model.metadata.inputCost === 1
-					? localize('models.costValueSingular', "{0} credit", model.metadata.inputCost)
-					: localize('models.costValuePlural', "{0} credits", model.metadata.inputCost),
-			});
-		}
-		if (model.metadata.cacheCost !== undefined) {
-			costLines.push({
-				label: localize('models.cacheCostLabel', "Cached input"),
-				value: model.metadata.cacheCost === 1
-					? localize('models.costValueSingular', "{0} credit", model.metadata.cacheCost)
-					: localize('models.costValuePlural', "{0} credits", model.metadata.cacheCost),
-			});
-		}
-		if (model.metadata.outputCost !== undefined) {
-			costLines.push({
-				label: localize('models.outputCostLabel', "Output"),
-				value: model.metadata.outputCost === 1
-					? localize('models.costValueSingular', "{0} credit", model.metadata.outputCost)
-					: localize('models.costValuePlural', "{0} credits", model.metadata.outputCost),
-			});
-		}
-
-		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
-		if (costLines.length > 0) {
-			const costSection = dom.$('.chat-model-hover-cost');
-			const titleRow = dom.$('.chat-model-hover-cost-title-row');
-			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
-			if (priceCategoryLabel) {
-				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
+		const formatCostValue = (cost: number): string => {
+			return cost === 1
+				? localize('models.costValueSingular', "{0} credit", cost)
+				: localize('models.costValuePlural', "{0} credits", cost);
+		};
+		const buildCostLines = (input: number | undefined, cache: number | undefined, output: number | undefined): { label: string; value: string }[] => {
+			const lines: { label: string; value: string }[] = [];
+			if (input !== undefined) {
+				lines.push({ label: localize('models.inputCostLabel', "Input"), value: formatCostValue(input) });
 			}
-			costSection.appendChild(titleRow);
-			for (const line of costLines) {
-				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
+			if (cache !== undefined) {
+				lines.push({ label: localize('models.cacheCostLabel', "Cached input"), value: formatCostValue(cache) });
+			}
+			if (output !== undefined) {
+				lines.push({ label: localize('models.outputCostLabel', "Output"), value: formatCostValue(output) });
+			}
+			return lines;
+		};
+		const appendCostSection = (parent: HTMLElement, title: string, lines: { label: string; value: string }[], categoryLabel?: string): void => {
+			const section = dom.$('.chat-model-hover-cost');
+			const titleRow = dom.$('.chat-model-hover-cost-title-row');
+			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, title));
+			if (categoryLabel) {
+				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, categoryLabel));
+			}
+			section.appendChild(titleRow);
+			for (const line of lines) {
+				section.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
 					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
 					dom.$('span', undefined, line.value),
 				));
 			}
-			container.appendChild(costSection);
+			parent.appendChild(section);
+		};
+
+		const costLines = buildCostLines(model.metadata.inputCost, model.metadata.cacheCost, model.metadata.outputCost);
+		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
+		if (costLines.length > 0) {
+			appendCostSection(container, localize('models.priceTitle', "Cost (per 1M tokens)"), costLines, priceCategoryLabel);
+
+			// Long-context pricing — only when it differs from default
+			const longContextCostLines = buildCostLines(model.metadata.longContextInputCost, model.metadata.longContextCacheCost, model.metadata.longContextOutputCost);
+			if (longContextCostLines.length > 0) {
+				appendCostSection(container, localize('models.longContextPriceTitle', "Long context cost (per 1M tokens)"), longContextCostLines);
+			}
 		} else if (priceCategoryLabel) {
 			const costSection = dom.$('.chat-model-hover-cost');
 			const titleRow = dom.$('.chat-model-hover-cost-title-row');
@@ -1488,9 +1508,12 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 
 
 export function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
 	} else if (count >= 1000) {
 		return `${Math.round(count / 1000)}K`;
 	}

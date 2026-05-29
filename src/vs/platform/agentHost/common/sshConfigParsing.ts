@@ -59,6 +59,7 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		user: map.get('user') || undefined,
 		port: parseInt(map.get('port') ?? '22', 10),
 		identityFile: identityFiles,
+		identityAgent: map.get('identityagent') || undefined,
 		forwardAgent: map.get('forwardagent') === 'yes',
 	};
 }

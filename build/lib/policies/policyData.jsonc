@@ -39,6 +39,21 @@
     ],
     "policies": [
         {
+            "key": "mcp.enterpriseManagedAuth.idp",
+            "name": "McpEnterpriseManagedAuthIdp",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "mcp.enterpriseManagedAuth.idp.policy",
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
             "key": "chat.mcp.gallery.serviceUrl",
             "name": "McpGalleryServiceUrl",
             "category": "InteractiveSession",
@@ -117,7 +132,7 @@
             "key": "chat.sessionSync.enabled",
             "name": "CopilotSessionSync",
             "category": "InteractiveSession",
-            "minimumVersion": "1.119",
+            "minimumVersion": "1.121",
             "localization": {
                 "description": {
                     "key": "chat.sessionSync.enabled.policy",

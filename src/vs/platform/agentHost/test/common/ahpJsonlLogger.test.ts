@@ -27,10 +27,11 @@ suite('AhpJsonlLogger', () => {
 		));
 
 		const requestText = '{"jsonrpc":"2.0","id":"request-1","method":"initialize","params":{"protocolVersion":1}}';
+		const uri = URI.parse('ahp-session:/session-1');
 		logger.log(JSON.parse(requestText), 'c2s', getAhpLogByteLength(requestText));
 		logger.log({ jsonrpc: '2.0', id: 2, result: { ok: true } }, 's2c');
 		logger.log({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Nope' } }, 's2c');
-		logger.log({ jsonrpc: '2.0', method: 'notification', params: { value: true } }, 's2c');
+		logger.log({ jsonrpc: '2.0', method: 'notification', params: { uri } }, 's2c');
 		await logger.flush();
 
 		const content = (await fileService.readFile(logger.resource)).value.toString();
@@ -43,6 +44,7 @@ suite('AhpJsonlLogger', () => {
 			method: entry.method,
 			hasResult: Object.hasOwn(entry, 'result'),
 			hasError: Object.hasOwn(entry, 'error'),
+			params: entry.params,
 			log: entry._ahpLog,
 		})), [
 			{
@@ -51,6 +53,7 @@ suite('AhpJsonlLogger', () => {
 				method: 'initialize',
 				hasResult: false,
 				hasError: false,
+				params: { protocolVersion: 1 },
 				log: {
 					ts: parsed[0]._ahpLog.ts,
 					dir: 'c2s',
@@ -65,6 +68,7 @@ suite('AhpJsonlLogger', () => {
 				method: undefined,
 				hasResult: true,
 				hasError: false,
+				params: undefined,
 				log: {
 					ts: parsed[1]._ahpLog.ts,
 					dir: 's2c',
@@ -78,6 +82,7 @@ suite('AhpJsonlLogger', () => {
 				method: undefined,
 				hasResult: false,
 				hasError: true,
+				params: undefined,
 				log: {
 					ts: parsed[2]._ahpLog.ts,
 					dir: 's2c',
@@ -91,6 +96,7 @@ suite('AhpJsonlLogger', () => {
 				method: 'notification',
 				hasResult: false,
 				hasError: false,
+				params: { uri: uri.toString() },
 				log: {
 					ts: parsed[3]._ahpLog.ts,
 					dir: 's2c',

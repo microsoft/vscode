@@ -18,7 +18,7 @@ import { isValidPythonFile } from '../simulation/diagnosticProviders/python';
 ssuite({ title: 'newNotebook', subtitle: 'prompt', location: 'panel' }, () => {
 	stest({ description: 'generate code cell', language: 'python' }, async (testingServiceCollection) => {
 		const accessor = testingServiceCollection.createTestingAccessor();
-		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 		const topic = 'Creating Random Arrays with Numpy';
 		const sections: INotebookSection[] = [
 			{
@@ -57,7 +57,7 @@ ssuite({ title: 'newNotebook', subtitle: 'prompt', location: 'panel' }, () => {
 
 	stest({ description: 'Generate code cell (numpy)', language: 'python' }, async (testingServiceCollection) => {
 		const accessor = testingServiceCollection.createTestingAccessor();
-		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 		const topic = 'A Jupyter notebook that creates a structured array with NumPy.';
 		const sections: INotebookSection[] = [
 			{
@@ -95,7 +95,7 @@ ssuite({ title: 'newNotebook', subtitle: 'prompt', location: 'panel' }, () => {
 
 	stest({ description: 'Generate code cell (seaborn + pandas)', language: 'python' }, async (testingServiceCollection) => {
 		const accessor = testingServiceCollection.createTestingAccessor();
-		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 		const topic = 'A Jupyter notebook that loads planets data from Seaborn and performs aggregation in Pandas.';
 		const sections: INotebookSection[] = [
 			{ title: 'Import Required Libraries', content: 'Import the necessary libraries, including Pandas and Seaborn.' },

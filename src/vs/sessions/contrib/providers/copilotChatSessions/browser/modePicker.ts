@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -15,15 +15,21 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { Target } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import type { ISession } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -48,14 +54,17 @@ export class ModePicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _modeChangeListener = this._register(new MutableDisposable());
+	private readonly _chatModesDisposable = this._register(new MutableDisposable<IChatModes & IDisposable>());
 
 	private _selectedMode: IChatMode = ChatMode.Agent;
+	private _sessionResource: URI | undefined;
 
 	get selectedMode(): IChatMode {
 		return this._selectedMode;
 	}
 
-	private readonly _chatModes: IChatModes;
+	private _chatModes: IChatModes | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -68,14 +77,42 @@ export class ModePicker extends Disposable {
 	) {
 		super();
 
-		this._chatModes = this.chatModeService.getModes(CopilotCLISessionType.id);
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSession.read(reader);
+			session?.mode.read(reader);
+			if (session) {
+				const provider = this.sessionsProvidersService.getProvider(session.providerId);
+				if (provider instanceof CopilotChatSessionsProvider || (provider && isAgentHostProvider(provider))) {
+					this._setSession(session);
+					this._syncSelectionFromSession();
+				}
+			}
+		}));
+	}
 
-		this._register(this._chatModes.onDidChange(() => {
-			// Refresh the trigger label when available chat modes change
+	/**
+	 * Called when the active session switches to a Copilot session.
+	 * Updates the modes tracked for that session resource.
+	 */
+	private _setSession(session: ISession): void {
+		const sessionResource = session.resource;
+		if (this._sessionResource?.toString() === sessionResource.toString()) {
+			return;
+		}
+		this._sessionResource = sessionResource;
+		const modes = this.chatModeService.createModes(sessionResource);
+		this._chatModesDisposable.value = modes;
+		this._chatModes = modes;
+		// Subscribe to mode changes to keep the trigger label fresh
+		this._modeChangeListener.value = modes.onDidChange(() => {
+			this._syncSelectionFromSession();
 			if (this._triggerElement) {
 				this._updateTriggerLabel();
 			}
-		}));
+		});
+		if (this._triggerElement) {
+			this._updateTriggerLabel();
+		}
 	}
 
 	/**
@@ -121,14 +158,15 @@ export class ModePicker extends Disposable {
 	}
 
 	private _getAvailableModes(): IChatMode[] {
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(CopilotCLISessionType.id);
+		const sessionType = this._sessionResource ? getChatSessionType(this._sessionResource) : CopilotCLISessionType.id;
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
 		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
 
 		// Always include the default Agent mode
 		const result: IChatMode[] = [ChatMode.Agent];
 
 		// Add custom modes matching the target and visible to users
-		for (const mode of this._chatModes.custom) {
+		for (const mode of (this._chatModes?.custom ?? [])) {
 			const target = mode.target.get();
 			if (target === effectiveTarget || target === Target.Undefined) {
 				const visibility = mode.visibility?.get();
@@ -240,6 +278,33 @@ export class ModePicker extends Disposable {
 		if (provider instanceof CopilotChatSessionsProvider) {
 			provider.getSession(session.sessionId)?.setMode(mode);
 		}
+	}
+
+	private isAgentHostActiveSession() {
+		const session = this.sessionsManagementService.activeSession.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		return provider && isAgentHostProvider(provider);
+	}
+	private _syncSelectionFromSession(): void {
+		if (!this.isAgentHostActiveSession()) {
+			return;
+		}
+		const selectedModeId = this.sessionsManagementService.activeSession.get()?.mode.get()?.id;
+		const mode = selectedModeId ? this._findModeById(selectedModeId) : undefined;
+		this._selectedMode = mode ?? ChatMode.Agent;
+		this._updateTriggerLabel();
+	}
+
+	private _findModeById(id: string): IChatMode | undefined {
+		const mode = this._chatModes?.findModeById(id);
+		if (mode) {
+			return mode;
+		}
+
+		return this._chatModes?.custom.find(mode => {
+			const uri = mode.uri?.get();
+			return uri && fromAgentHostUri(uri).toString() === id;
+		});
 	}
 
 	private _updateTriggerLabel(): void {

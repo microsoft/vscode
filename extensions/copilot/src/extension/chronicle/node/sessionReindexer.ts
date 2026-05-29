@@ -489,7 +489,7 @@ async function reindexOneCloudSession(
 		const chunk = batch.slice(i, i + MAX_EVENTS_PER_UPLOAD);
 		const filtered = chunk.map(e => filterSecretsFromObj(e));
 		const success = await cloudClient.submitSessionEvents(cloudSessionId, filtered);
-		if (success) {
+		if (success.ok) {
 			uploaded += chunk.length;
 		} else {
 			uploadFailed = true;

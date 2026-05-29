@@ -40,11 +40,12 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
-import { formatModelDetails, getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
+import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
@@ -951,7 +952,25 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
 
+		const sandboxConfig = this.getSandboxConfig();
+		if (sandboxConfig) {
+			allOptions.sandboxConfig = sandboxConfig;
+		}
+
 		return allOptions as Readonly<SessionOptions>;
+	}
+
+	private getSandboxConfig(): SessionOptions['sandboxConfig'] {
+		const sandboxSettingId = process.platform === 'win32' ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled';
+		const rawSandboxSetting = this.configurationService.getNonExtensionConfig<unknown>(sandboxSettingId);
+		const sandboxSetting = typeof rawSandboxSetting === 'string'
+			? rawSandboxSetting
+			: rawSandboxSetting === true ? 'on' : rawSandboxSetting === false ? 'off' : undefined;
+		const rawFileSystemSetting = this.configurationService.getNonExtensionConfig<unknown>('chat.agent.sandbox.fileSystem');
+		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
+			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
+			: undefined;
+		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting);
 	}
 
 	public async getSession(options: IGetSessionOptions, token: CancellationToken): Promise<RefCountedSession | undefined> {
@@ -1036,6 +1055,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				shutdown = sessionManager.closeSession(sessionId).catch(error => {
 					this.logService.error(`[CopilotCLISession] Failed to close session ${sessionId} after fetching chat history: ${error}`);
 				});
+			} catch (error) {
+				this.logService.error(`[CopilotCLISession] Failed to read session ${sessionId}, it may be corrupted: ${error}`);
+				return { history: [], events: [] };
 			} finally {
 				await shutdown;
 			}
@@ -1141,14 +1163,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, ModelDetailsInfo>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const detailsById = new Map<string, string>();
+		const detailsById = new Map<string, ModelDetailsInfo>();
 		for (const model of models) {
-			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+			detailsById.set(model.id.trim().toLowerCase(), { name: model.name, multiplier: model.multiplier });
 		}
 		return detailsById;
 	}
@@ -1536,4 +1558,79 @@ export class RefCountedSession extends RefCountedDisposable implements IReferenc
 	dispose(): void {
 		this.release();
 	}
+}
+
+export interface IAgentSandboxFileSystemSetting {
+	allowRead?: string[];
+	allowWrite?: string[];
+	denyRead?: string[];
+	denyWrite?: string[];
+}
+
+export interface IAgentSandboxFileSystemSettings {
+	linux?: IAgentSandboxFileSystemSetting;
+	mac?: IAgentSandboxFileSystemSetting;
+	windows?: IAgentSandboxFileSystemSetting;
+}
+
+/**
+ * Maps the workbench `chat.agent.sandbox.*` settings onto the SDK's
+ * {@link SessionOptions.sandboxConfig}.
+ *
+ * When the same path appears in multiple settings, the most restrictive
+ * setting wins: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`. Each
+ * path is emitted in exactly one of `deniedPaths` / `readonlyPaths` /
+ * `readwritePaths`, regardless of how many settings reference it.
+ */
+export function buildSandboxConfigForCLI(
+	platform: NodeJS.Platform,
+	sandboxSetting: string | undefined,
+	fileSystemSetting: IAgentSandboxFileSystemSettings | undefined,
+): SessionOptions['sandboxConfig'] {
+	const sandboxEnabled = platform === 'win32'
+		? sandboxSetting === 'allowNetwork'
+		: sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
+	if (!sandboxEnabled) {
+		return undefined;
+	}
+
+	const fs = (platform === 'win32'
+		? fileSystemSetting?.windows
+		: platform === 'darwin'
+			? fileSystemSetting?.mac
+			: fileSystemSetting?.linux) ?? {};
+	const denied = new Set<string>(fs.denyRead ?? []);
+	const readonly = new Set<string>();
+	const readwrite = new Set<string>();
+	// `denyWrite` only blocks writes (mxc's `readonlyPaths`), losing only to `denyRead`.
+	for (const p of fs.denyWrite ?? []) {
+		if (!denied.has(p)) {
+			readonly.add(p);
+		}
+	}
+	for (const p of fs.allowWrite ?? []) {
+		if (!denied.has(p) && !readonly.has(p)) {
+			readwrite.add(p);
+		}
+	}
+	// `allowRead` is covered by `allowWrite`, so only add it when not already granted write access.
+	for (const p of fs.allowRead ?? []) {
+		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
+			readonly.add(p);
+		}
+	}
+
+	return {
+		enabled: true,
+		userPolicy: {
+			filesystem: {
+				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+				...(denied.size ? { deniedPaths: [...denied] } : {}),
+			},
+			network: {
+				allowOutbound: sandboxSetting === 'allowNetwork',
+			},
+		},
+	};
 }

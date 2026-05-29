@@ -9,8 +9,37 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IChat, ISession, ISessionType } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
+
+/**
+ * A (provider, session-type) pair returned by
+ * {@link ISessionsManagementService.getSessionTypesForFolder} so the UI can
+ * group session types by provider when more than one provider can serve the
+ * same folder.
+ */
+export interface IProviderSessionType {
+	readonly providerId: string;
+	readonly sessionType: ISessionType;
+}
+
+/**
+ * Options for {@link ISessionsManagementService.createNewSession}.
+ */
+export interface ICreateNewSessionOptions {
+	/**
+	 * Force creation through a specific provider. When omitted, the service
+	 * iterates registered providers and picks the first one whose
+	 * {@link ISessionsProvider.resolveWorkspace} succeeds for the folder URI
+	 * (and, when `sessionTypeId` is given, whose `getSessionTypes` includes it).
+	 */
+	readonly providerId?: string;
+	/**
+	 * The session type to use. When omitted, defaults to the first type the
+	 * chosen provider advertises for the folder URI.
+	 */
+	readonly sessionTypeId?: string;
+}
 
 export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
@@ -29,6 +58,11 @@ export interface ISessionsChangeEvent {
 export interface IActiveSession extends ISession {
 	/** The currently active chat within this session. */
 	readonly activeChat: IObservable<IChat>;
+
+	readonly isCreated: IObservable<boolean>;
+
+	/** Whether this session is sticky in the sessions part's grid. */
+	readonly sticky: IObservable<boolean>;
 }
 
 /**
@@ -57,6 +91,21 @@ export interface ISessionsManagementService {
 	getAllSessionTypes(): ISessionType[];
 
 	/**
+	 * Get all session types that can serve the given workspace URI, across all
+	 * registered providers. Returns one entry per (provider × supported type),
+	 * so the UI can group types by provider when more than one provider can
+	 * serve the same workspace.
+	 */
+	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[];
+
+	/**
+	 * Resolve a workspace URI to a workspace using the first provider whose
+	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
+	 * when no registered provider can resolve the URI.
+	 */
+	resolveWorkspace(workspaceUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
+
+	/**
 	 * Fires when available session types change (providers added/removed).
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;
@@ -65,6 +114,11 @@ export interface ISessionsManagementService {
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	/**
+	 * Fires when a brand-new session is started by this window via
+	 * {@link sendNewChatRequest}.
+	 */
+	readonly onDidStartSession: Event<ISession>;
 
 	// -- Active Session --
 
@@ -72,6 +126,47 @@ export interface ISessionsManagementService {
 	 * Observable for the currently active session as {@link IActiveSession}.
 	 */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+
+	/**
+	 * Observable list of slots currently displayed in the sessions part's
+	 * grid, in their grid order (left-to-right). Each entry is either an
+	 * {@link IActiveSession} or `undefined` for the empty (new-session)
+	 * placeholder. At most one entry is `undefined` at a time. Sessions
+	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
+	 * non-sticky entries get replaced when new sessions are opened.
+	 */
+	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+
+	/**
+	 * Toggle a session's stickiness in the grid. The session keeps its grid
+	 * slot when toggled. If the session is not currently visible, it is
+	 * appended to the grid as sticky.
+	 */
+	toggleSessionStickiness(session: ISession): void;
+
+	/**
+	 * Insert (or move) a session into the grid positioned next to a target
+	 * session that is already visible.
+	 * - If the session is not yet visible, a new non-sticky entry is created
+	 *   at the computed position.
+	 * - If the session is already visible, it is moved to the computed
+	 *   position; its sticky / non-sticky state is preserved.
+	 *
+	 * When `activate` is `true` (default), the inserted session also becomes
+	 * the active session. Pass `false` to leave the active session unchanged.
+	 */
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
+
+	/**
+	 * Close a session: remove it from the visibility model so it is no longer
+	 * shown in the grid. If the session was the active one, the previous
+	 * visible session becomes active; if no session remains visible, the
+	 * new-session view is opened. Passing `undefined` closes the empty
+	 * (new-session) slot if it is currently visible.
+	 */
+	closeSession(session: ISession | undefined): void;
+
+	setActive(session: IActiveSession): void;
 
 	/**
 	 * Select an existing session as the active session.
@@ -99,10 +194,16 @@ export interface ISessionsManagementService {
 	openNewSessionView(): void;
 
 	/**
-	 * Create a new session for the given workspace.
-	 * Delegates to the provider identified by providerId.
+	 * Create a new session for the given folder.
+	 *
+	 * When `options.providerId` is omitted, iterates registered providers and
+	 * picks the first one whose {@link ISessionsProvider.resolveWorkspace}
+	 * succeeds for `folderUri` (and, when `options.sessionTypeId` is given,
+	 * whose `getSessionTypes` includes it). When `options.sessionTypeId` is
+	 * omitted, defaults to the chosen provider's first advertised type for
+	 * the folder.
 	 */
-	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession;
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
 	/**
 	 * Unset the new session
@@ -112,7 +213,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Send a request, creating a new chat in the session.
 	 */
-	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
+	sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
 
 	/**
 	 * Send a request for an existing chat within a session.
@@ -124,7 +225,7 @@ export interface ISessionsManagementService {
 	 * Adds a new chat to the session via the provider, makes it the active chat,
 	 * and shows a rich input for composing a message.
 	 */
-	openNewChatInSession(session: ISession): void;
+	openNewChatInSession(session: ISession): Promise<void>;
 
 	/** Navigate to the previous session in the navigation history. */
 	openPreviousSession(): Promise<void>;
@@ -136,12 +237,16 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
+
 	/** Delete a single chat from a session by its URI. */
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
 }

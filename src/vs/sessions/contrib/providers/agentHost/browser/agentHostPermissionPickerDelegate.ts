@@ -6,6 +6,7 @@
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -16,6 +17,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
+const REQUIRED_PERMISSION_MODE_VALUE = 'default';
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -90,6 +92,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return;
 		}
+		// Defensive: ActionWidgetDropdown picks up Enter/Space on its
+		// label even when `pointer-events: none` is set on the chip.
+		if (provider.isSessionConfigResolving(session.sessionId).get()) {
+			return;
+		}
 		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
 	}
@@ -156,4 +163,18 @@ export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): bool
 		return false;
 	}
 	return true;
+}
+
+/**
+ * Returns `true` when a `permissionMode` session-config property uses the
+ * Claude SDK's well-known permission-mode value set and includes `default`.
+ */
+export function isWellKnownClaudePermissionModeSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_PERMISSION_MODE_VALUE)) {
+		return false;
+	}
+	return schema.enum.every(value => narrowClaudePermissionMode(value) !== undefined);
 }
