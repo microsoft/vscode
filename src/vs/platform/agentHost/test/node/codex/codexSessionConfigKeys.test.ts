@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode } from '../../../node/codex/codexSessionConfigKeys.js';
+import { isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId } from '../../../node/codex/codexSessionConfigKeys.js';
 
 suite('codexSessionConfigKeys', () => {
 
@@ -37,5 +37,19 @@ suite('codexSessionConfigKeys', () => {
 			isCodexSupportedModel('gpt-5.1-codex-max', 'GPT-5.1 Codex Max'),
 			isCodexSupportedModel('codex-mini-latest', 'Codex Mini'),
 		], [false, false, true, true, true]);
+	});
+
+	test('normalizes provider-prefixed Codex model ids', () => {
+		assert.deepStrictEqual({
+			raw: normalizeCodexModelId('gpt-5.2'),
+			prefixed: normalizeCodexModelId('copilot/gpt-5.2'),
+			unsupportedRaw: normalizeCodexModelId('claude-sonnet-4.5'),
+			unsupportedPrefixed: normalizeCodexModelId('copilot/auto'),
+		}, {
+			raw: 'gpt-5.2',
+			prefixed: 'gpt-5.2',
+			unsupportedRaw: undefined,
+			unsupportedPrefixed: undefined,
+		});
 	});
 });
