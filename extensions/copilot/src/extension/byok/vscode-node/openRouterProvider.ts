@@ -84,8 +84,9 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<LanguageModelChatConfiguration>): Promise<OpenAIEndpoint> {
-		const modelInfo = this.getModelInfo(model.id, model.url);
-		const isAnthropic = isAnthropicModelId(model.id);
+		const wireModelId = model.modelId ?? model.id;
+		const modelInfo = this.getModelInfo(wireModelId, model.url);
+		const isAnthropic = isAnthropicModelId(wireModelId);
 
 		if (isAnthropic) {
 			// Anthropic models on OpenRouter use the native Messages API which

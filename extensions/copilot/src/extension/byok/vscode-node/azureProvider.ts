@@ -118,7 +118,7 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			editTools: model.capabilities?.editTools?.filter(isEndpointEditToolName),
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
 		};
-		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		const modelInfo = resolveModelInfo(model.modelId ?? model.id, this._name, undefined, modelCapabilities);
 
 		const openAIChatEndpoint = this._instantiationService.createInstance(
 			AzureOpenAIEndpoint,

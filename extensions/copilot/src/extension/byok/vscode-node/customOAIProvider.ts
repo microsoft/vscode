@@ -149,7 +149,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
-		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		const modelInfo = resolveModelInfo(model.modelId ?? model.id, this._name, undefined, modelCapabilities);
 		if (modelCapabilities?.url?.includes('/responses')) {
 			modelInfo.supported_endpoints = [
 				ModelSupportedEndpoint.ChatCompletions,

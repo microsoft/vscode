@@ -139,7 +139,7 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<OllamaConfig>): Promise<OpenAIEndpoint> {
-		const modelInfo = this.getModelInfo(model.id, model.url);
+		const modelInfo = this.getModelInfo(model.modelId ?? model.id, model.url);
 		const url = `${model.url}/v1/chat/completions`;
 		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}

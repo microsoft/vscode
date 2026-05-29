@@ -168,7 +168,7 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 	}
 
 	protected async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<T>): Promise<OpenAIEndpoint> {
-		const modelInfo = this.getModelInfo(model.id, model.url);
+		const modelInfo = this.getModelInfo(model.modelId ?? model.id, model.url);
 		const url = modelInfo.supported_endpoints?.includes(ModelSupportedEndpoint.Responses) ?
 			`${model.url}/responses` :
 			`${model.url}/chat/completions`;
