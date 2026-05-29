@@ -170,18 +170,16 @@ suite('AhpJsonlLogger', () => {
 		const lines = content.split('\n').filter(Boolean);
 		const ids = lines.map(line => JSON.parse(line).id);
 
-		// All lines must be present and ordered, but they must be coalesced into
-		// far fewer writes than there were log() calls. The first write is the
-		// initial one; subsequent logs batched while it's in flight should land
-		// in a single follow-up write.
+		// All 50 log() calls are queued synchronously, so they all land in the
+		// first drain and must be coalesced into exactly one writeFile.
 		assert.deepStrictEqual({
 			lineCount: lines.length,
 			idsInOrder: ids,
-			writeCountIsBounded: provider.writeCount > 0 && provider.writeCount < messageCount,
+			writeCount: provider.writeCount,
 		}, {
 			lineCount: messageCount,
 			idsInOrder: Array.from({ length: messageCount }, (_, i) => i),
-			writeCountIsBounded: true,
+			writeCount: 1,
 		});
 	});
 
