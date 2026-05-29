@@ -530,6 +530,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
 			? comment.sourceId
 			: undefined;
+		const kind = comment.source === SessionEditorCommentSource.PRReview ? 'prReview' : 'codeReview';
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
@@ -539,6 +540,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,
+			kind,
 		);
 		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
@@ -592,6 +594,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
 			? comment.sourceId
 			: undefined;
+		const kind = comment.source === SessionEditorCommentSource.PRReview ? 'prReview' : 'codeReview';
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
@@ -601,6 +604,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,
+			kind,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
