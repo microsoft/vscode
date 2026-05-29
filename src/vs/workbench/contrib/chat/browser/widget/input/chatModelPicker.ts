@@ -1317,10 +1317,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
