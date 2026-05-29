@@ -569,10 +569,6 @@ suite('AgentService (node dispatcher)', () => {
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 		});
 
@@ -721,10 +717,6 @@ suite('AgentService (node dispatcher)', () => {
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 		});
 
@@ -825,10 +817,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 		});
@@ -968,9 +956,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
-			]);
+			assert.deepStrictEqual(state!.summary.changesets?.length, 0);
 		});
 
 		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
@@ -1004,7 +990,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
 		});
 
@@ -1039,7 +1024,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
 		});
 
@@ -2079,10 +2063,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 
 			const changesetSnapshot = localService.stateManager.getSnapshot(`${sessionResource.toString()}/changeset/session`);
@@ -2128,10 +2108,6 @@ suite('AgentService (node dispatcher)', () => {
 					description: 'Show uncommitted changes in this session',
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 
@@ -2303,7 +2279,6 @@ suite('AgentService (node dispatcher)', () => {
 			return [
 				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 			];
 		}
 
