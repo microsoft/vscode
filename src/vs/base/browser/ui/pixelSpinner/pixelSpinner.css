@@ -19,10 +19,10 @@
 	transform: translateZ(0);
 }
 
-/* Pause all dot animations when the spinner is offscreen or the document is hidden.
- * Set by JS via an IntersectionObserver / visibilitychange listener. Continuous
- * CSS animations otherwise force the compositor to do work every vsync even for
- * spinners that are scrolled out of view. */
+/* Pause all dot animations while the spinner is scrolled out of view. The
+ * `monaco-pixel-spinner-paused` class is toggled from JS by a per-window
+ * IntersectionObserver. Continuous CSS animations otherwise force the
+ * compositor to do work every vsync even for spinners that are offscreen. */
 .monaco-pixel-spinner.monaco-pixel-spinner-paused .monaco-pixel-spinner-dot {
 	animation-play-state: paused;
 }

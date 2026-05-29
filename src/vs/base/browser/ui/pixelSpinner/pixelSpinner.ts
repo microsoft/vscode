@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../dom.js';
-import { mainWindow } from '../../window.js';
+import { getWindow, h, onDidUnregisterWindow } from '../../dom.js';
+import { CodeWindow } from '../../window.js';
+import { IDisposable } from '../../../common/lifecycle.js';
 import './pixelSpinner.css';
 
 export interface IPixelSpinnerOptions {
@@ -54,59 +55,50 @@ export function createPixelSpinner(parent?: HTMLElement, options?: IPixelSpinner
 	return root;
 }
 
-// Pause animations when the spinner is offscreen or the document is hidden, so
-// continuous CSS animations stop costing compositor work for spinners the user
-// can't see. Falls back to always-on if the platform lacks IntersectionObserver.
 
 const PAUSED_CLASS = 'monaco-pixel-spinner-paused';
-const trackedSpinners = new Set<HTMLElement>();
-let intersectionObserver: IntersectionObserver | undefined;
-let visibilityListenerAttached = false;
+const observersByWindow = new Map<CodeWindow, IntersectionObserver>();
+let unregisterWindowListener: IDisposable | undefined;
 
-function updateForDocumentVisibility(): void {
-	const hidden = mainWindow.document.visibilityState === 'hidden';
-	for (const el of trackedSpinners) {
-		if (!el.isConnected) {
-			trackedSpinners.delete(el);
-			intersectionObserver?.unobserve(el);
-			continue;
-		}
-		if (hidden) {
-			el.classList.add(PAUSED_CLASS);
-		}
-		// When becoming visible, leave the per-element class alone — the
-		// IntersectionObserver callback will run and set the correct state.
+function getObserverFor(targetWindow: CodeWindow): IntersectionObserver | undefined {
+	if (typeof targetWindow.IntersectionObserver !== 'function') {
+		return undefined;
 	}
-}
-
-function trackSpinner(root: HTMLElement): void {
-	if (typeof IntersectionObserver !== 'function') {
-		return;
-	}
-	if (!intersectionObserver) {
-		intersectionObserver = new mainWindow.IntersectionObserver(entries => {
-			const hidden = mainWindow.document.visibilityState === 'hidden';
+	let observer = observersByWindow.get(targetWindow);
+	if (!observer) {
+		observer = new targetWindow.IntersectionObserver(entries => {
 			for (const entry of entries) {
 				const target = entry.target as HTMLElement;
 				if (!target.isConnected) {
-					trackedSpinners.delete(target);
-					intersectionObserver!.unobserve(target);
+					observer!.unobserve(target);
 					continue;
 				}
-				if (entry.isIntersecting && !hidden) {
-					target.classList.remove(PAUSED_CLASS);
-				} else {
-					target.classList.add(PAUSED_CLASS);
-				}
+				target.classList.toggle(PAUSED_CLASS, !entry.isIntersecting);
 			}
 		});
-	}
-	if (!visibilityListenerAttached) {
-		mainWindow.document.addEventListener('visibilitychange', updateForDocumentVisibility);
-		visibilityListenerAttached = true;
-	}
+		observersByWindow.set(targetWindow, observer);
 
-	root.classList.add(PAUSED_CLASS);
-	trackedSpinners.add(root);
-	intersectionObserver.observe(root);
+		if (!unregisterWindowListener) {
+			unregisterWindowListener = onDidUnregisterWindow(window => {
+				const obs = observersByWindow.get(window);
+				if (obs) {
+					obs.disconnect();
+					observersByWindow.delete(window);
+				}
+			});
+		}
+	}
+	return observer;
 }
+
+function trackSpinner(root: HTMLElement): void {
+	const observer = getObserverFor(getWindow(root));
+	if (!observer) {
+		return;
+	}
+	// Start paused; the observer delivers an initial notification that resumes
+	// the spinner if it is actually on screen.
+	root.classList.add(PAUSED_CLASS);
+	observer.observe(root);
+}
+
