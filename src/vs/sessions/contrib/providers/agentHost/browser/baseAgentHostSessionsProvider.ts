@@ -1876,6 +1876,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// notification before sendRequest resolves.
 		this._ensureSessionCache();
 		const existingKeys = new Set(this._sessionCache.keys());
+		// The eagerly-created session may already be cached before first send.
+		// Treat that raw id as the session we are waiting for, not old state.
+		const newSessionRawId = chatResource.path.replace(/^\//, '');
+		existingKeys.delete(newSessionRawId);
 
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
@@ -2189,8 +2193,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			const removed: ISession[] = [];
+			// Some hosts briefly omit the just-sent eager session from listSessions.
+			// Keep the pending session visible until sendRequest graduates it.
+			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
+					if (key === pendingRawId) {
+						continue;
+					}
 					this._sessionCache.delete(key);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					removed.push(cached);
