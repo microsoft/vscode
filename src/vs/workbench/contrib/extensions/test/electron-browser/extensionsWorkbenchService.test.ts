@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -469,7 +469,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('test getAutoUpdateDelayRemaining returns remaining time regardless of signing', async () => {
-		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */, true);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */, false);
 
 		const remaining = testObject.getAutoUpdateDelayRemaining(testObject.local[0]);
 		assert.ok(remaining > (1000 * 60 * 30) && remaining <= (1000 * 60 * 60), `unexpected remaining time ${remaining}`);
@@ -479,6 +479,23 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await anOutdatedExtensionWorkbenchService(undefined);
 
 		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+	});
+
+	test('test getAutoUpdateValue normalizes legacy insiders values', async () => {
+		const expected = new Map<unknown, AutoUpdateConfigurationValue>([
+			['on', true],
+			['delayed', true],
+			['off', false],
+			['onlySelectedExtensions', false],
+			[true, true],
+			[false, false],
+			['onlyEnabledExtensions', 'onlyEnabledExtensions'],
+		]);
+		for (const [configured, normalized] of expected) {
+			stubConfiguration(configured);
+			testObject = await aWorkbenchService();
+			assert.strictEqual(testObject.getAutoUpdateValue(), normalized, `unexpected value for ${String(configured)}`);
+		}
 	});
 
 	test('test canInstall returns false for extensions with out gallery', async () => {

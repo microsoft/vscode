@@ -1200,13 +1200,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	getAutoUpdateValue(): AutoUpdateConfigurationValue {
-		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
-		// eslint-disable-next-line local/code-no-any-casts
-		if (<any>autoUpdate === 'onlySelectedExtensions' || <any>autoUpdate === 'off') {
+		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue | 'on' | 'off' | 'delayed'>(AutoUpdateConfigurationKey);
+		if (autoUpdate === 'onlySelectedExtensions' || autoUpdate === 'off') {
 			return false;
 		}
-		// eslint-disable-next-line local/code-no-any-casts
-		if (<any>autoUpdate === 'on' || <any>autoUpdate === 'delayed') {
+		if (autoUpdate === 'on' || autoUpdate === 'delayed') {
 			return true;
 		}
 		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
