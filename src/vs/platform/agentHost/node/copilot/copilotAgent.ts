@@ -20,7 +20,7 @@ import { basename as resourceBasename, dirname as resourceDirname } from '../../
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -1925,6 +1925,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private _customizations: readonly DirectoryCustomization[] = [];
 	private _plugin: IParsedPlugin | undefined;
 	private _settled: Promise<void>;
+	private readonly _fileService: IFileService;
 
 	constructor(
 		workingDirectory: URI,
@@ -1937,6 +1938,7 @@ class SessionDiscoveredEntry extends Disposable {
 		super();
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
 		this._bundler = this._register(instantiationService.createInstance(SessionPluginBundler, workingDirectory));
+		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		this._settled = this._refresh();
 		this._register(this._discovery.onDidChange(() => {
 			this._settled = this._refresh().finally(() => this._onDidRefresh());
@@ -1958,7 +1960,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private async _refresh(): Promise<void> {
 		try {
 			const directories = await this._discovery.directories();
-			this._customizations = toDiscoveredDirectoryCustomizations(directories);
+			this._customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
 			this._plugin = undefined;
 
 			const bundleResult = await this._bundler.bundle(directories);
@@ -1975,8 +1977,8 @@ class SessionDiscoveredEntry extends Disposable {
 	}
 }
 
-function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[]): DirectoryCustomization[] {
-	return directories.map(directory => {
+function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
+	return Promise.all(directories.map(async directory => {
 		const protocolUri = directory.uri.toString();
 		return {
 			type: CustomizationType.Directory,
@@ -1987,9 +1989,9 @@ function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDi
 			contents: toDirectoryContentsType(directory.type),
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
-			children: directory.files.map(file => toDiscoveredChildCustomization(file, directory.type)),
+			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file, directory.type, fileService))),
 		};
-	});
+	}));
 }
 
 function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
@@ -2003,15 +2005,16 @@ function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
 	}
 }
 
-function toDiscoveredChildCustomization(file: URI, type: DiscoveredType): ChildCustomization {
+async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, fileService: IFileService): Promise<ChildCustomization> {
 	const uri = file.toString();
 	const id = customizationId(uri);
 	if (type === DiscoveredType.Agent) {
+		const agentInfo = await parseAgentFile(file, fileService);
 		return {
 			type: CustomizationType.Agent,
 			id,
 			uri,
-			name: resourceBasename(file) // todo parse metadata and get the name from there
+			name: agentInfo.name,
 		};
 	}
 	if (type === DiscoveredType.Skill) {
