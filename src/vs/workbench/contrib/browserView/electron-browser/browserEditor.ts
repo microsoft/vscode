@@ -13,6 +13,9 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IQuickInputButton } from '../../../../platform/quickinput/common/quickInput.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -105,6 +108,22 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * `https:` prefix when a certificate error is active).
 	 */
 	get urlRenderers(): readonly IBrowserUrlRenderer[] { return []; }
+
+	/**
+	 * Optional URL bar suggestion providers (open tabs, history, bookmarks,
+	 * search engines, ...). The navbar invokes each provider in sorted order
+	 * when the URL picker opens or its value changes, and renders the merged
+	 * suggestions below the built-in "Go to" entry.
+	 */
+	get urlSuggestionProviders(): readonly IBrowserUrlSuggestionProvider[] { return []; }
+
+	/**
+	 * Optional action providers for buttons rendered in the URL picker chrome
+	 * (e.g. a bookmark toggle). The navbar collects buttons from each provider
+	 * when the picker opens and refreshes them when a provider fires
+	 * {@link IBrowserUrlPickerActionProvider.onDidChange}.
+	 */
+	get urlPickerActionProviders(): readonly IBrowserUrlPickerActionProvider[] { return []; }
 
 	/**
 	 * Called when the editor is laid out with a new dimension.
@@ -254,6 +273,117 @@ export interface IBrowserUrlRenderer {
 	 * URL (e.g. underlying state changed). The navbar re-renders on this.
 	 */
 	readonly onDidChange: Event<void>;
+}
+
+/**
+ * A single URL bar suggestion. Suggestions are produced by
+ * {@link IBrowserUrlSuggestionProvider}s contributed via
+ * {@link BrowserEditorContribution.urlSuggestionProviders}. When the user
+ * picks a suggestion the navbar invokes {@link apply}, passing the active
+ * {@link BrowserEditorInput} so the suggestion can decide what to do with it
+ * (navigate, swap to a different tab, etc.).
+ */
+export interface IBrowserUrlSuggestion {
+	/** Stable identifier used as the picker item id. */
+	readonly id: string;
+	/** Label shown in the suggestion list. */
+	readonly label: string;
+	/** Optional secondary description (e.g. host, date, source). */
+	readonly description?: string;
+	/** Optional leading icon (codicon). */
+	readonly icon?: ThemeIcon;
+	/** Optional leading icon (image, e.g. favicon). Takes precedence over {@link icon}. */
+	readonly iconPath?: { dark: URI; light?: URI };
+	/**
+	 * Optional per-item actions rendered as inline buttons on the
+	 * suggestion's row (e.g. a delete button on a bookmark suggestion).
+	 */
+	readonly actions?: readonly IBrowserUrlSuggestionAction[];
+	/**
+	 * Invoked when the suggestion is accepted. Receives the input that owns
+	 * the URL bar so the suggestion can act on its editor (e.g. swap the
+	 * editor's input for a different tab, or load a URL into its model).
+	 */
+	apply(input: BrowserEditorInput): void | Promise<void>;
+}
+
+/**
+ * A per-item button rendered inline on a suggestion's row (e.g. a delete
+ * button on a bookmark). Extends {@link IQuickInputButton} so visual
+ * properties are configured the same way as any other picker button; adds
+ * an {@link id} for identification and a {@link run} callback that receives
+ * the active {@link BrowserEditorInput} so the action can operate on the
+ * editor it was triggered from.
+ */
+export interface IBrowserUrlSuggestionAction extends IQuickInputButton {
+	/** Stable id (useful for telemetry/debugging). */
+	readonly id: string;
+	/** Invoked when the user activates the per-item button. */
+	run(input: BrowserEditorInput): void | Promise<void>;
+}
+
+/** Context passed to providers when suggestions are requested. */
+export interface IBrowserUrlSuggestionContext {
+	/** Current URL bar text (may be empty). */
+	readonly text: string;
+	/** The input that owns the URL bar requesting suggestions. */
+	readonly input: BrowserEditorInput;
+}
+
+/**
+ * A source of URL bar suggestions (open tabs, history, bookmarks, search
+ * engines, ...). Contributions return providers via
+ * {@link BrowserEditorContribution.urlSuggestionProviders}.
+ */
+export interface IBrowserUrlSuggestionProvider {
+	/**
+	 * Optional group label rendered as a separator above this provider's
+	 * suggestions (only shown when the provider returns at least one item).
+	 */
+	readonly label?: string;
+	/**
+	 * Optional group description rendered next to the separator label
+	 * (e.g. "Select a tab to switch"). Only shown when {@link label} is set.
+	 */
+	readonly description?: string;
+	/** Sort order between providers. Lower runs first. Defaults to 0. */
+	readonly order?: number;
+	/**
+	 * Fires when the set of suggestions or any suggestion's state has
+	 * changed (e.g. a bookmark was removed via a per-item action). The
+	 * navbar re-requests suggestions when this fires.
+	 */
+	readonly onDidChange?: Event<void>;
+	getSuggestions(context: IBrowserUrlSuggestionContext, token: CancellationToken): Promise<readonly IBrowserUrlSuggestion[]>;
+}
+
+/**
+ * A button rendered in the URL picker chrome (e.g. a bookmark toggle).
+ * Extends {@link IQuickInputButton} so visual properties (icon, tooltip,
+ * toggle state, location) are configured the same way as any other picker
+ * button; adds an {@link id} for identification and a {@link run} callback
+ * that receives the active {@link BrowserEditorInput} so the action can
+ * operate on the editor it was triggered from.
+ */
+export interface IBrowserUrlPickerAction extends IQuickInputButton {
+	/** Stable id (useful for telemetry/debugging). */
+	readonly id: string;
+	/** Invoked when the user activates the button. */
+	run(input: BrowserEditorInput): void | Promise<void>;
+}
+
+/**
+ * A source of URL picker chrome actions. Providers are queried once when the
+ * picker opens; if a provider's actions or their state change while the
+ * picker is open, fire {@link onDidChange} to have the navbar rebuild the
+ * button list.
+ */
+export interface IBrowserUrlPickerActionProvider {
+	/** Fires when the action set or any action's visual state changes. */
+	readonly onDidChange?: Event<void>;
+	/** Sort order between providers. Lower runs first. Defaults to 0. */
+	readonly order?: number;
+	getActions(input: BrowserEditorInput): readonly IBrowserUrlPickerAction[];
 }
 
 export class BrowserEditor extends EditorPane {
@@ -434,6 +564,11 @@ export class BrowserEditor extends EditorPane {
 		// So we make sure we don't keep a reference to the disposed model.
 		this._inputDisposables.add(this._model.onWillDispose(() => {
 			this._model = undefined;
+		}));
+
+		this._inputDisposables.add(this._model.onWillNavigate(() => {
+			this.group.pinEditor(this.input); // pin editor on navigation
+			this.ensureBrowserFocus();
 		}));
 
 		this._inputDisposables.add(this._model.onDidNavigate(() => {
