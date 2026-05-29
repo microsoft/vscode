@@ -101,6 +101,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			}
 			this._cacheInitialized = true;
 			this._refreshSessions();
+			this._resumeNewSessionAfterAuthenticationSettles();
 		}));
 	}
 
