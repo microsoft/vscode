@@ -300,5 +300,38 @@ suite('SessionsManagementService', () => {
 		await restorePromise;
 		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), [targetSession.resource.toString()]);
 	});
+
+	test('same-id replacement updates the active session wrapper', async () => {
+		const replacementEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		const fromSession = stubSession({ sessionId: 'same', providerId: 'test', title: constObservable('Untitled') });
+		const toSession = stubSession({ sessionId: 'same', providerId: 'test', title: constObservable('Committed') });
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidReplaceSession = replacementEmitter.event;
+			constructor() { super(fromSession); }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const chatWidgetService = new TestChatWidgetService();
+		const agentSessionsService = new TestAgentSessionsService();
+
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, chatWidgetService);
+		instantiationService.stub(IAgentSessionsService, agentSessionsService);
+		instantiationService.stub(IProgressService, new TestProgressService());
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		await service.openSession(fromSession.resource);
+		assert.strictEqual(service.activeSession.get()?.title.get(), 'Untitled');
+
+		replacementEmitter.fire({ from: fromSession, to: toSession });
+
+		assert.strictEqual(service.activeSession.get()?.title.get(), 'Committed');
+		assert.strictEqual(service.visibleSessions.get()[0]?.title.get(), 'Committed');
+	});
 });
 
