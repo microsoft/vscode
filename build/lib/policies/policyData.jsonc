@@ -54,6 +54,21 @@
             "included": false
         },
         {
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
             "key": "chat.mcp.gallery.serviceUrl",
             "name": "McpGalleryServiceUrl",
             "category": "InteractiveSession",
