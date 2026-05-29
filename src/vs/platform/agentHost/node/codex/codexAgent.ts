@@ -33,7 +33,7 @@ import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOu
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId, type CodexApprovalPolicy } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
@@ -332,8 +332,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _supportedModelOrUndefined(model: ModelSelection | undefined): ModelSelection | undefined {
-		if (model && isCodexSupportedModel(model.id)) {
-			return model;
+		if (model) {
+			const normalizedId = normalizeCodexModelId(model.id);
+			if (normalizedId) {
+				return normalizedId === model.id ? model : { ...model, id: normalizedId };
+			}
 		}
 		if (model) {
 			this._logService.warn(`[Codex] Ignoring unsupported model '${model.id}'`);
