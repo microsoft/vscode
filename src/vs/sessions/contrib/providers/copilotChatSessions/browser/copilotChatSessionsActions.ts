@@ -577,7 +577,7 @@ registerAction2(class RenameCopilotSessionAction extends Action2 {
 		});
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
-			if (trimmedTitle) {
+			if (trimmedTitle && trimmedTitle !== session.title.get().trim()) {
 				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
 			}
 		}
