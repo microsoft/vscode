@@ -284,6 +284,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _isElementSelectionActive: boolean = false;
 	private _isAreaSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
+	// Tracks disposal start so late visibility IPC from editor teardown becomes a no-op.
+	private _isDisposed = false;
 
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
@@ -502,6 +504,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async setVisible(visible: boolean): Promise<void> {
+		if (this._isDisposed) {
+			return; // Safe no-op: the backing browser view is already being destroyed.
+		}
 		this._visible = visible; // Set optimistically so model is in sync immediately
 		return this.browserViewService.setVisible(this.id, visible);
 	}
@@ -747,6 +752,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
 		this._onWillDispose.fire();
 
 		// Stop sharing with the agent before destroying the view so the
