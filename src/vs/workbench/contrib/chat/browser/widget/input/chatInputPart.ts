@@ -1108,7 +1108,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Observe changes from model and sync to view
-		this._modelSyncDisposables.add(autorun(async reader => {
+		this._modelSyncDisposables.add(autorun(reader => {
 			let state = model.state.read(reader);
 			let message = `syncing from model for ${forSessionResource.toString()} in ${this._currentSessionKey}`;
 			if (!state && this._chatSessionIsEmpty) {
@@ -1116,7 +1116,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 			}
 			logChangesToStateModel(this._inputModel, message, state, undefined, this.logService);
-			await this._syncFromModel(state, forSessionResource);
+			this._syncFromModel(state, forSessionResource);
 		}));
 	}
 
@@ -1156,7 +1156,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync from model to view (when model state changes)
 	 */
-	private async _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): Promise<void> {
+	private _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): void {
 		// Prevent circular updates
 		if (this._isSyncingToOrFromInputModel) {
 			return;
@@ -1169,8 +1169,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
 				if (currentMode.id !== state.mode.id) {
-					// Await mode list to be up to date before applying
-					await this._currentChatModesObservable.get().waitForPendingUpdates();
 					this.setChatMode(state.mode.id, false);
 				}
 			}
