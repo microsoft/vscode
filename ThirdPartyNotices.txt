@@ -734,7 +734,7 @@ Title to copyright in this work will at all times remain with copyright holders.
 
 ---------------------------------------------------------
 
-dompurify 3.2.7 - Apache 2.0
+dompurify 3.4.5 - Apache 2.0
 https://github.com/cure53/DOMPurify
 
 Apache License
