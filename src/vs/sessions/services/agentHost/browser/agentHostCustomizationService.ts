@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -93,13 +93,15 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 			return;
 		}
 
-		this._providerListeners.set(provider, provider.onDidChangeCustomAgents(() => {
-			this._onDidChangeCustomAgents.fire();
-		}));
-
-		this._providerListeners.set(provider, provider.onDidChangeCustomizations(() => {
-			this._onDidChangeCustomizations.fire();
-		}));
+		// Keep both subscriptions alive under one map key so replacing the provider entry disposes both together.
+		this._providerListeners.set(provider, combinedDisposable(
+			provider.onDidChangeCustomAgents(() => {
+				this._onDidChangeCustomAgents.fire();
+			}),
+			provider.onDidChangeCustomizations(() => {
+				this._onDidChangeCustomizations.fire();
+			})
+		));
 	}
 
 	private _agentFromMode(uri: string): AgentCustomization {
