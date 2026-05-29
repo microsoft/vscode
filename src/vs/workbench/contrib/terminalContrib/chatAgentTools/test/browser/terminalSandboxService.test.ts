@@ -610,7 +610,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should reallow reads from workspace storage', async () => {
+	test('should allow reads and writes from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
@@ -628,6 +628,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
 		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
+		ok(config.filesystem.allowWrite.includes(expectedWorkspaceStoragePath), 'Sandbox config should allow writes to workspace storage');
 	});
 
 	test('should only add command-specific allow-list paths for the current command details', async () => {
