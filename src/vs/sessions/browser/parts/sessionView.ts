@@ -11,12 +11,14 @@ import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, ChatViewKind } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { autorun } from '../../../base/common/observable.js';
-import { SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext } from '../../common/contextkeys.js';
+import { SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext } from '../../common/contextkeys.js';
+import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
 /**
@@ -31,6 +33,10 @@ import { SessionStatus } from '../../services/sessions/common/session.js';
 export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
+	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
+	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
+	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
+	private static readonly INACTIVE_FOREGROUND = asCssVariable(inactiveSessionViewForeground);
 
 	/** Height of the chat composite bar when visible. */
 	private static readonly BAR_HEIGHT = 35;
@@ -56,6 +62,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
 	private readonly _sessionIsStickyKey: IContextKey<boolean>;
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
+	private readonly _sessionSupportsMultipleChatsKey: IContextKey<boolean>;
+
+	/** Whether this view currently hosts the active session in the grid. */
+	private _isActive = true;
 
 	constructor(
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
@@ -70,6 +80,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionIsCreatedKey = SessionIsCreatedContext.bindTo(scopedContextKeyService);
 		this._sessionIsStickyKey = SessionIsStickyContext.bindTo(scopedContextKeyService);
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
+		this._sessionSupportsMultipleChatsKey = SessionSupportsMultipleChatsContext.bindTo(scopedContextKeyService);
 
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
@@ -78,6 +89,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
+		this._applyActiveSessionStyles();
 
 		// Re-layout children when the composite bar becomes visible/hidden
 		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));
@@ -86,7 +98,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	openSession(session: IActiveSession | undefined): void {
 		this._openSessionDisposables.clear();
 
-		this._handleContextKeys(session);
+		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._openSessionDisposables.add(autorun(reader => {
 			let desiredKind: ChatViewKind;
@@ -106,6 +118,7 @@ export class SessionView extends Disposable implements ISerializableView {
 					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession');
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
+				view.setActive(this._isActive);
 			}
 
 			if (session) {
@@ -121,6 +134,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (!session) {
 			this._sessionIsCreatedKey.set(false);
 			this._sessionIsStickyKey.set(false);
+			this._sessionSupportsMultipleChatsKey.set(false);
 			return Disposable.None;
 		}
 
@@ -132,6 +146,8 @@ export class SessionView extends Disposable implements ISerializableView {
 		disposables.add(autorun(reader => {
 			this._sessionIsStickyKey.set(session.sticky.read(reader));
 		}));
+
+		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);
 
 		return disposables;
 	}
@@ -163,11 +179,42 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.selectWorkspace(folderUri, providerId);
 	}
 
+	prefillInput(text: string): void {
+		this._currentView.value?.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		this._currentView.value?.sendQuery(text);
+	}
+
 	/**
 	 * Updates the view's maximized context key so toolbars hosted within can react.
 	 * Called by the owning {@link SessionsPart} when the grid's maximized view changes.
 	 */
 	setMaximized(maximized: boolean): void {
 		this._sessionIsMaximizedKey.set(maximized);
+	}
+
+	/**
+	 * Updates whether this view currently hosts the active session in the grid.
+	 * Forwarded to the inner chat view so it can adjust its visual styling
+	 * (e.g. dim the list background for inactive sessions).
+	 */
+	setActive(active: boolean): void {
+		if (this._isActive === active) {
+			return;
+		}
+		this._isActive = active;
+		this._applyActiveSessionStyles();
+		this._currentView.value?.setActive(active);
+	}
+
+	private _applyActiveSessionStyles(): void {
+		const background = this._isActive ? SessionView.ACTIVE_BACKGROUND : SessionView.INACTIVE_BACKGROUND;
+		const foreground = this._isActive ? SessionView.ACTIVE_FOREGROUND : SessionView.INACTIVE_FOREGROUND;
+		this.element.style.setProperty('--session-view-background', background);
+		this.element.style.setProperty('--session-view-foreground', foreground);
+		this.element.style.setProperty('--part-background', background);
+		this.element.style.setProperty('--part-foreground', foreground);
 	}
 }

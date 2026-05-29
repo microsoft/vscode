@@ -114,6 +114,11 @@ export interface ISessionsManagementService {
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	/**
+	 * Fires when a brand-new session is started by this window via
+	 * {@link sendNewChatRequest}.
+	 */
+	readonly onDidStartSession: Event<ISession>;
 
 	// -- Active Session --
 
@@ -146,8 +151,11 @@ export interface ISessionsManagementService {
 	 *   at the computed position.
 	 * - If the session is already visible, it is moved to the computed
 	 *   position; its sticky / non-sticky state is preserved.
+	 *
+	 * When `activate` is `true` (default), the inserted session also becomes
+	 * the active session. Pass `false` to leave the active session unchanged.
 	 */
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right'): void;
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
 
 	/**
 	 * Close a session: remove it from the visibility model so it is no longer

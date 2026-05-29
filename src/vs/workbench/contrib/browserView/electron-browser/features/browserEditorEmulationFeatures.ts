@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
-import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ISashEvent, Orientation, OrthogonalEdge, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
@@ -30,8 +29,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
 	'browserEmulationToolbarVisible',
@@ -395,11 +393,11 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	// -- BrowserEditorContribution hooks ------------------------------------
 
-	override get toolbarElements(): readonly HTMLElement[] {
-		return [this._toolbar.element];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.Toolbar, element: this._toolbar.element, order: 0 }];
 	}
 
-	override onContainerReady(container: HTMLElement): void {
+	override onContainerCreated(container: HTMLElement): void {
 		this._createResizeSashes(container);
 
 		const observer = new (getWindow(container).ResizeObserver)(() => {
@@ -410,14 +408,15 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._register({ dispose: () => observer.disconnect() });
 	}
 
-	override getContainerLayoutOverride(): IContainerLayoutOverride | undefined {
+	override beforeContainerLayout(): IContainerLayoutOverride | undefined {
 		if (!this.editor.model?.device) {
 			return undefined;
 		}
 		return {
 			// Reserve space for the east + south resize sashes that sit just outside the container.
 			padding: { right: 16, bottom: 16 },
-			compute: (w, h) => this._computeLayout(w, h),
+			compute: (_current, pane) => this._computeLayout(pane.width, pane.height),
+			priority: 0
 		};
 	}
 
@@ -425,8 +424,6 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		const device = this.editor.model?.device;
 		const width = device?.width;
 		const height = device?.height;
-		const z = getZoomFactor(this.editor.window);
-		const snap = (v: number) => Math.floor(v * z) / z;
 		const fitScale = paneWidth > 0 && paneHeight > 0
 			? Math.min(width ? paneWidth / width : 1, height ? paneHeight / height : 1, 1)
 			: 1;
@@ -435,14 +432,20 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			this._onDidChangeAutoFitScale.fire(fitScale);
 		}
 		const scale = this._scale ?? fitScale;
+		const layoutWidth = width ? Math.min(width * scale, paneWidth) : paneWidth;
+		const layoutHeight = height ? Math.min(height * scale, paneHeight) : paneHeight;
 		return {
-			width: snap(width ? Math.min(width * scale, paneWidth) : paneWidth),
-			height: snap(height ? Math.min(height * scale, paneHeight) : paneHeight),
+			width: layoutWidth,
+			height: layoutHeight,
+			// Center the device within the available pane (the sash reservation
+			// is already accounted for via padding).
+			left: Math.max(0, (paneWidth - layoutWidth) / 2),
+			top: Math.max(0, (paneHeight - layoutHeight) / 2),
 			emulation: { scale },
 		};
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._toolbar.refresh();
 		this._syncContextKeys(model.device);
 		this._updateSashState();
@@ -464,7 +467,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		// Editor input is being cleared — drop renderer-side state so a freshly
 		// reopened input starts without stale viewport overrides.
 		this._scale = undefined;

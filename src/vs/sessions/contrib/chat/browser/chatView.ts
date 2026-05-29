@@ -10,17 +10,19 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatViewPane.js';
 import { NewChatInSessionWidget } from './newChatInSessionViewPane.js';
-import { agentsPanelBackground, agentsPanelForeground } from '../../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -64,6 +66,18 @@ export class NewChatView extends AbstractChatView {
 			this._widget.selectWorkspace(folderUri, providerId);
 		}
 	}
+
+	override prefillInput(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.prefillInput(text);
+		}
+	}
+
+	override sendQuery(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.sendQuery(text);
+		}
+	}
 }
 
 /**
@@ -87,10 +101,14 @@ export class ChatView extends AbstractChatView {
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
 
+	/** Whether this view currently represents the active session. */
+	private _isActive = true;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -115,19 +133,25 @@ export class ChatView extends AbstractChatView {
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 				},
 				enableImplicitContext: true,
-				enableWorkingSet: 'explicit',
+				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				inputEditorMinLines: 2,
+				isSessionsWindow: true
 			},
-			{
-				listForeground: agentsPanelForeground,
-				listBackground: agentsPanelBackground,
-				overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
-				inputEditorBackground: inputBackground,
-				resultEditorBackground: agentsPanelBackground,
-			}
+			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
+	}
+
+	private _buildStyles(active: boolean) {
+		return {
+			listForeground: active ? activeSessionViewForeground : inactiveSessionViewForeground,
+			listBackground: active ? activeSessionViewBackground : inactiveSessionViewBackground,
+			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
+			inputEditorBackground: inactiveSessionViewBackground,
+			resultEditorBackground: agentsPanelBackground,
+		};
 	}
 
 	/** The underlying chat widget. */
@@ -139,7 +163,7 @@ export class ChatView extends AbstractChatView {
 		const resource = chat.resource;
 
 		// Skip loading if we're already showing this chat
-		if (this._currentChatResource?.toString() === resource.toString()) {
+		if (isEqual(this._currentChatResource, resource)) {
 			return;
 		}
 
@@ -156,6 +180,7 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			this._modelRef.value = ref;
+			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
 		}, err => {
 			if (!token.isCancellationRequested) {
@@ -165,6 +190,20 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+	}
+
+	private _updateWidgetLockState(sessionType: string): void {
+		if (sessionType === localChatSessionType) {
+			this._widget.unlockFromCodingAgent();
+			return;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+		if (contribution) {
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+		} else {
+			this._widget.unlockFromCodingAgent();
+		}
 	}
 
 	override toJSON(): object {
@@ -177,6 +216,14 @@ export class ChatView extends AbstractChatView {
 
 	override focus(): void {
 		this._widget.focusInput();
+	}
+
+	override setActive(active: boolean): void {
+		if (this._isActive === active) {
+			return;
+		}
+		this._isActive = active;
+		this._widget.setStyles(this._buildStyles(active));
 	}
 }
 

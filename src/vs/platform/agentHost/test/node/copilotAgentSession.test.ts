@@ -75,8 +75,8 @@ class MockCopilotSession {
 	}
 	async abort() { }
 	async setModel() { }
-	async getMessages(): Promise<SessionEvent[]> { return this.messages; }
-	async destroy() { }
+	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
+	async disconnect() { }
 
 	readonly rpc = {
 		mode: {
@@ -143,7 +143,7 @@ class RecordingTelemetryService implements ITelemetryService {
  * handler implementation actually returns.
  */
 function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string, args: Record<string, unknown> = {}): Promise<ToolResultObject> {
-	return Promise.resolve(tool.handler(args, {
+	return Promise.resolve(tool.handler!(args, {
 		sessionId: 'test-session-1',
 		toolCallId,
 		toolName: tool.name,
@@ -404,14 +404,12 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			cacheReadTokens: 5,
 			cost: 2,
-			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 		});
 		mockSession.fire('assistant.usage', {
 			model: 'claude-sonnet-4.6',
 			inputTokens: 30,
 			outputTokens: 40,
 			cost: 2,
-			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
 		});
 
 		const usageActions = signals
@@ -427,7 +425,6 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: 5,
 				_meta: {
 					cost: 2,
-					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 				},
 			},
 			{
@@ -437,7 +434,6 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: undefined,
 				_meta: {
 					cost: 2,
-					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
 				},
 			},
 		]);
@@ -887,41 +883,92 @@ suite('CopilotAgentSession', () => {
 
 	suite('sendSteering', () => {
 
-		test('fires steering_consumed after send resolves and the next tool starts', async () => {
+		test('promotes steering to its own turn when the SDK echoes the user message', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
 
 			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
 
-			let consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.strictEqual(consumed, undefined, 'should keep steering visible after the SDK send resolves');
+			// Sending the steering must not flip turns until the SDK has
+			// echoed the user message back through the event stream.
+			assert.strictEqual(signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted), undefined);
 
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-steer',
-				toolName: 'bash',
-				arguments: { command: 'echo hi' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
 
-			consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.ok(consumed, 'should fire steering_consumed signal after the next tool starts');
-			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
+			const actions = signals.filter(s => s.kind === 'action').map(s => (s as IAgentActionSignal).action);
+			const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+			const turnStarted = actions.find(a => a.type === ActionType.SessionTurnStarted);
+			assert.ok(turnComplete, 'should complete the in-flight turn before promoting steering');
+			assert.strictEqual(turnComplete.turnId, 'turn-original');
+			assert.ok(turnStarted, 'should start a new turn for the steering message');
+			assert.notStrictEqual(turnStarted.turnId, 'turn-original');
+			assert.deepStrictEqual(turnStarted.userMessage, { text: 'focus on tests' });
+			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
 		});
 
-		test('fires steering_consumed after send resolves and the turn ends without a tool', async () => {
+		test('routes subsequent SDK events into the steering turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const turnStarted = signals
+				.filter(s => s.kind === 'action')
+				.map(s => (s as IAgentActionSignal).action)
+				.find(a => a.type === ActionType.SessionTurnStarted)!;
+
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'No problem',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+
+			const responseParts = signals
+				.filter(s => s.kind === 'action')
+				.map(s => (s as IAgentActionSignal).action)
+				.filter(a => a.type === ActionType.SessionResponsePart);
+			assert.ok(responseParts.length > 0, 'expected delta to allocate a response part');
+			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
+		});
+
+		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
 
 			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
 
-			let consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.strictEqual(consumed, undefined, 'should keep steering visible after the SDK send resolves');
+			// SDK injects an unrelated user.message (e.g. skill content)
+			// with the steering's exact text but a non-'user' source.
+			// Even if the text happened to match, the synthetic-source
+			// guard MUST skip the flip.
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				source: 'skill-pdf',
+			} as SessionEventPayload<'user.message'>['data']);
 
-			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-
-			consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.ok(consumed, 'should fire steering_consumed signal after the turn ends');
-			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			assert.strictEqual(turnStarted, undefined, 'synthetic user messages should not promote steering to a turn');
 		});
 
-		test('does not send the same steering message again before it is flushed', async () => {
+		test('does not flip turns when the user.message content does not match', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			mockSession.fire('user.message', {
+				content: 'something completely different',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			assert.strictEqual(turnStarted, undefined, 'unrelated user messages should not consume the pending steering');
+		});
+
+		test('does not send the same steering message again before it is flipped', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 
 			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
@@ -930,18 +977,18 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
-		test('fires steering_consumed on abort after send resolves', async () => {
+		test('fires steering_consumed on abort when the steering never reached its turn', async () => {
 			const { session, signals } = await createAgentSession(disposables);
 
 			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
 			await session.abort();
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
-			assert.ok(consumed, 'should fire steering_consumed signal when the turn is aborted');
+			assert.ok(consumed, 'abort should clean up pending steering UI state');
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
-		test('does not fire steering_consumed when send fails', async () => {
+		test('does not signal cleanup when send fails', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.send = async () => { throw new Error('send failed'); };
@@ -949,7 +996,9 @@ suite('CopilotAgentSession', () => {
 			await session.sendSteering({ id: 'steer-fail', userMessage: { text: 'will fail' } });
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
 			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
+			assert.strictEqual(turnStarted, undefined, 'should not start a new turn on failure');
 		});
 	});
 
@@ -1203,14 +1252,16 @@ suite('CopilotAgentSession', () => {
 			].join('\n');
 
 			await capturedCallbacks.current!.hooks.onPreToolUse({
-				timestamp: 0,
-				cwd: '/repo/project',
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/repo/project',
 				toolName: 'apply_patch',
 				toolArgs: patch,
 			});
 			await capturedCallbacks.current!.hooks.onPostToolUse({
-				timestamp: 0,
-				cwd: '/repo/project',
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/repo/project',
 				toolName: 'apply_patch',
 				toolArgs: patch,
 				toolResult: { textResultForLlm: '', resultType: 'success' },
@@ -1412,7 +1463,7 @@ suite('CopilotAgentSession', () => {
 
 		test('history replay renders assistant tool requests when lifecycle events are missing', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.getMessages = async () => [
+			mockSession.getEvents = async () => [
 				{
 					type: 'user.message',
 					data: { messageId: 'turn-1', content: 'inspect the workspace' },
@@ -1497,7 +1548,7 @@ suite('CopilotAgentSession', () => {
 
 		test('history replay does not duplicate assistant tool requests with lifecycle events', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.getMessages = async () => [
+			mockSession.getEvents = async () => [
 				{
 					type: 'user.message',
 					data: { messageId: 'turn-1', content: 'run tests' },
@@ -2107,8 +2158,9 @@ suite('CopilotAgentSession', () => {
 
 			await assert.rejects(
 				capturedCallbacks.current!.hooks.onPreToolUse({
-					timestamp: 0,
-					cwd: '/tmp',
+					sessionId: 'test-session-1',
+					timestamp: new Date(0),
+					workingDirectory: '/tmp',
 					toolName: 'edit',
 					toolArgs: { path: '/tmp/file.ts' },
 				}),
@@ -2133,8 +2185,9 @@ suite('CopilotAgentSession', () => {
 
 			await assert.rejects(
 				capturedCallbacks.current!.hooks.onPostToolUse({
-					timestamp: 0,
-					cwd: '/tmp',
+					sessionId: 'test-session-1',
+					timestamp: new Date(0),
+					workingDirectory: '/tmp',
 					toolName: 'edit',
 					toolArgs: { path: '/tmp/file.ts' },
 					toolResult: { textResultForLlm: '', resultType: 'success' },
@@ -2751,7 +2804,7 @@ suite('CopilotAgentSession', () => {
 		test('session.mode_changed for unsupported mode is ignored', async () => {
 			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
-			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'shell' } as SessionEventPayload<'session.mode_changed'>['data']);
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'shell' } as unknown as SessionEventPayload<'session.mode_changed'>['data']);
 
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});

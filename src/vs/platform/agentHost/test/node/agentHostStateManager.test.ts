@@ -393,6 +393,66 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.hasActiveSessions, false);
 	});
 
+	test('active turn event follows reducer-derived active state transitions', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+		const events: Array<{ session: string; active: boolean }> = [];
+		disposables.add(manager.onDidChangeSessionActiveTurn(e => events.push(e)));
+
+		manager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionTurnStarted,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+		manager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionTurnComplete,
+			turnId: 'stale-turn',
+		});
+		manager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionError,
+			turnId: 'turn-1',
+			error: { errorType: 'failed', message: 'boom' },
+		});
+
+		assert.deepStrictEqual(events, [
+			{ session: sessionUri, active: true },
+			{ session: sessionUri, active: false },
+		]);
+	});
+
+	test('active turn event covers cancellation and removal while active', () => {
+		const session2Uri = URI.from({ scheme: 'copilot', path: '/test-session-2' }).toString();
+		manager.createSession(makeSessionSummary(sessionUri));
+		manager.createSession(makeSessionSummary(session2Uri));
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+		manager.dispatchServerAction(session2Uri, { type: ActionType.SessionReady, });
+		const events: Array<{ session: string; active: boolean }> = [];
+		disposables.add(manager.onDidChangeSessionActiveTurn(e => events.push(e)));
+
+		manager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionTurnStarted,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+		manager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionTurnCancelled,
+			turnId: 'turn-1',
+		});
+		manager.dispatchServerAction(session2Uri, {
+			type: ActionType.SessionTurnStarted,
+			turnId: 'turn-2',
+			userMessage: { text: 'hi' },
+		});
+		manager.removeSession(session2Uri);
+
+		assert.deepStrictEqual(events, [
+			{ session: sessionUri, active: true },
+			{ session: sessionUri, active: false },
+			{ session: session2Uri, active: true },
+			{ session: session2Uri, active: false },
+		]);
+	});
+
 	test('restoreSession creates session in Ready state with pre-populated turns', () => {
 		const turns = [
 			{
