@@ -23,7 +23,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -569,10 +569,6 @@ suite('AgentService (node dispatcher)', () => {
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 		});
 
@@ -721,10 +717,6 @@ suite('AgentService (node dispatcher)', () => {
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 		});
 
@@ -825,10 +817,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 		});
@@ -968,9 +956,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
-			]);
+			assert.deepStrictEqual(state!.summary.changesets?.length, 0);
 		});
 
 		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
@@ -1004,7 +990,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
 		});
 
@@ -1039,7 +1024,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
 		});
 
@@ -1148,7 +1132,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -2079,10 +2063,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 
 			const changesetSnapshot = localService.stateManager.getSnapshot(`${sessionResource.toString()}/changeset/session`);
@@ -2128,10 +2108,6 @@ suite('AgentService (node dispatcher)', () => {
 					description: 'Show uncommitted changes in this session',
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 
@@ -2303,7 +2279,6 @@ suite('AgentService (node dispatcher)', () => {
 			return [
 				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 			];
 		}
 

@@ -16,7 +16,18 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin, IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { CustomizationType, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+
+function stubMcpCustomization(name = 'test'): McpServerCustomization {
+	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name };
+}
+function stubHookCustomization(type: string): HookCustomization {
+	return { type: CustomizationType.Hook, id: `hook:${type}`, uri: 'file:///plugin/hooks.json', name: 'hooks.json' };
+}
+function stubSkillCustomization(name: string): SkillCustomization {
+	return { type: CustomizationType.Skill, id: `skill:${name}`, uri: `file:///${name}/SKILL.md`, name };
+}
 
 suite('copilotPluginConverters', () => {
 
@@ -46,6 +57,7 @@ suite('copilotPluginConverters', () => {
 					env: { NODE_ENV: 'production', PORT: 3000 as unknown as string },
 					cwd: '/workspace',
 				},
+				customization: stubMcpCustomization('test-server'),
 			}];
 
 			const result = toSdkMcpServers(defs);
@@ -70,6 +82,7 @@ suite('copilotPluginConverters', () => {
 					url: 'https://example.com/mcp',
 					headers: { 'Authorization': 'Bearer token' },
 				},
+				customization: stubMcpCustomization('remote-server'),
 			}];
 
 			const result = toSdkMcpServers(defs);
@@ -96,6 +109,7 @@ suite('copilotPluginConverters', () => {
 					type: McpServerType.LOCAL,
 					command: 'echo',
 				},
+				customization: stubMcpCustomization('minimal'),
 			}];
 
 			const result = toSdkMcpServers(defs);
@@ -114,6 +128,7 @@ suite('copilotPluginConverters', () => {
 					command: 'test',
 					env: { KEEP: 'value', DROP: null as unknown as string },
 				},
+				customization: stubMcpCustomization('with-null-env'),
 			}];
 
 			const result = toSdkMcpServers(defs);
@@ -279,6 +294,7 @@ suite('copilotPluginConverters', () => {
 				commands: [{ command }],
 				uri: URI.file('/plugin/hooks.json'),
 				originalId: type,
+				customization: stubHookCustomization(type),
 			};
 		}
 
@@ -309,7 +325,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', command);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 			} finally {
 				cleanup();
@@ -325,7 +341,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.strictEqual(result, undefined);
 			} finally {
 				try { unlinkSync(filePath); } catch { /* ignore */ }
@@ -340,7 +356,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.strictEqual(result, undefined);
 			} finally {
 				try { unlinkSync(filePath); } catch { /* ignore */ }
@@ -364,7 +380,7 @@ suite('copilotPluginConverters', () => {
 				};
 				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' };
+				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
 				const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 				assert.deepStrictEqual(trackingInput, callInput);
@@ -395,27 +411,29 @@ suite('copilotPluginConverters', () => {
 
 		test('returns true for same content', () => {
 			const a = makePlugin({
-				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a' }],
+				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill],
 				mcpServers: [{
 					name: 'server',
 					uri: URI.file('/mcp'),
 					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: stubMcpCustomization('server'),
 				}],
 			});
 			const b = makePlugin({
-				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a' }],
+				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill],
 				mcpServers: [{
 					name: 'server',
 					uri: URI.file('/mcp'),
 					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: stubMcpCustomization('server'),
 				}],
 			});
 			assert.strictEqual(parsedPluginsEqual([a], [b]), true);
 		});
 
 		test('returns false for different content', () => {
-			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a' }] });
-			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b' }] });
+			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
+			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
 		});
 
