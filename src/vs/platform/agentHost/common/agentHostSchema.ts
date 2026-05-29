@@ -45,12 +45,7 @@ export interface ISchemaProperty<T> {
  * Defines a strongly-typed schema property whose runtime validator is
  * derived from the supplied JSON-schema descriptor.
  */
-export function schemaProperty<T>(protocol: SessionConfigPropertySchema & {
-	// TODO: Move this into the generated SessionConfigPropertySchema if compact
-	// chip title display becomes part of the AHP protocol contract.
-	/** When true, render the property's title before the resolved value label in compact chips. */
-	readonly showChipTitle?: boolean;
-}): ISchemaProperty<T> {
+export function schemaProperty<T>(protocol: SessionConfigPropertySchema): ISchemaProperty<T> {
 	const assertFn = buildAssert(protocol);
 	const assertValid = (value: unknown, path: string = ''): asserts value is T => assertFn(value, path);
 	const validate = (value: unknown): value is T => {
