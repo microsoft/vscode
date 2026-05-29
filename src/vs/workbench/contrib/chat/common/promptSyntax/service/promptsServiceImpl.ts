@@ -204,9 +204,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			)
 		));
 
-		this.hydrateKnownPromptSlashCommandNames();
-		this._register(this.onDidChangeSlashCommands(() => this.hydrateKnownPromptSlashCommandNames()));
-
 		this._register(this.watchPluginPromptFilesForType(
 			PromptsType.prompt,
 			(plugin, reader) => plugin.commands.read(reader),
@@ -508,10 +505,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public hasPromptSlashCommand(name: string): boolean {
+		if (!this.knownPromptSlashCommandsHydrationStarted) {
+			this.knownPromptSlashCommandsHydrationStarted = true;
+			this.refreshKnownPromptSlashCommandNames();
+			this._register(this.onDidChangeSlashCommands(() => this.refreshKnownPromptSlashCommandNames()));
+		}
 		return this.knownPromptSlashCommandNames.has(name);
 	}
 
-	private hydrateKnownPromptSlashCommandNames(): void {
+	private knownPromptSlashCommandsHydrationStarted = false;
+
+	private refreshKnownPromptSlashCommandNames(): void {
 		this.getPromptSlashCommands(CancellationToken.None).then(commands => {
 			this.knownPromptSlashCommandNames.clear();
 			for (const cmd of commands) {
