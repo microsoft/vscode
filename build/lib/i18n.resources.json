@@ -283,6 +283,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/worktrees",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},
