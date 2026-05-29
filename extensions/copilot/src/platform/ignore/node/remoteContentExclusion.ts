@@ -124,6 +124,11 @@ export class RemoteContentExclusion implements IDisposable {
 			this._logService.trace(`Fetching content exclusions, due to ${this.shouldFetchContentExclusionRules(repoMetadata) ? 'repository change' : 'stale cache'}.`);
 			this._lastRuleFetch = Date.now();
 			await raceCancellationError(this.makeContentExclusionRequest(), token);
+		} else if (this._contentExclusionFetchPromise) {
+			// A concurrent caller may have started a fetch while we were awaiting
+			// getRepositoryFetchUrls above. Wait for it to complete so we match
+			// against the actual rules instead of the empty seed entries.
+			await raceCancellationError(this._contentExclusionFetchPromise, token);
 		}
 
 		const minimatchConfig = {
@@ -259,7 +264,9 @@ export class RemoteContentExclusion implements IDisposable {
 	 * Not recommended to call directly and instead use {@link makeContentExclusionRequest} as that ensures only one call is pending at any time
 	 */
 	private async _contentExclusionRequest(): Promise<void> {
-		// Clear the result cache as new rules will come and therefore it is no longer valid
+		// Clear the result cache as new rules will come and therefore it is no longer valid.
+		// Note: we clear again at the end of this method to invalidate any stale entries
+		// written by concurrent isIgnored() calls that ran while the fetch was in flight.
 		this._ignoreGlobResultCache.clear();
 		const startTime = Date.now();
 		const capiClientService = this._capiClientService;
@@ -300,6 +307,10 @@ export class RemoteContentExclusion implements IDisposable {
 			await updateRulesForRepos(batch);
 		}
 		this._lastRuleFetch = Date.now();
+		// Clear result caches again to invalidate any stale entries written by concurrent
+		// isIgnored() calls that matched against the empty seed entries during the fetch.
+		this._ignoreGlobResultCache.clear();
+		this._ignoreRegexResultCache.clear();
 		this._logService.info(`Fetched content exclusion rules in ${Date.now() - startTime}ms`);
 
 		// Log the fetched rules to the request logger for debugging visibility
