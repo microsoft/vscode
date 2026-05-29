@@ -194,8 +194,8 @@ export class ChatArtifactsWidget extends Disposable {
 				this.domNode.style.display = '';
 
 				titleElement.textContent = data.totalCount === 1
-					? localize('chat.artifacts.one', "1 Artifact")
-					: localize('chat.artifacts.count', "{0} Artifacts", data.totalCount);
+					? localize('chat.artifacts.one', "1 artifact")
+					: localize('chat.artifacts.count', "{0} artifacts", data.totalCount);
 
 				tree.layout(data.treeHeight);
 				tree.getHTMLElement().style.height = `${data.treeHeight}px`;
