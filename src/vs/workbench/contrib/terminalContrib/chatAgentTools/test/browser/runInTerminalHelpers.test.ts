@@ -574,9 +574,14 @@ suite('isMultilineCommand', () => {
 suite('buildCommandDisplayText', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('should collapse newlines (including blank lines) to spaces', () => {
-		strictEqual(buildCommandDisplayText('echo a\n\necho b'), 'echo a  echo b');
-		strictEqual(buildCommandDisplayText('echo a\r\necho b'), 'echo a echo b');
+	test('should keep only the first line and append ellipsis for multi-line commands', () => {
+		strictEqual(buildCommandDisplayText('echo a\n\necho b'), 'echo a...');
+		strictEqual(buildCommandDisplayText('echo a\r\necho b'), 'echo a...');
+		strictEqual(buildCommandDisplayText('echo a\recho b'), 'echo a...');
+	});
+
+	test('should leave single-line commands unchanged', () => {
+		strictEqual(buildCommandDisplayText('echo hello'), 'echo hello');
 	});
 
 	test('should truncate long commands to 80 characters', () => {

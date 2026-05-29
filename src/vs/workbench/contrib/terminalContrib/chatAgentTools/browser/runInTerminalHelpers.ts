@@ -72,11 +72,18 @@ export function normalizeTerminalCommandForDisplay(commandLine: string): string 
 
 /**
  * Builds a single-line display string for a terminal command, suitable for UI messages.
- * Normalizes escape artifacts, collapses newlines to spaces, and truncates to 80 characters.
+ * Normalizes escape artifacts, then keeps only the first line and appends an ellipsis
+ * if the command spans multiple lines or the first line exceeds 80 characters.
  */
 export function buildCommandDisplayText(command: string): string {
-	const normalized = normalizeTerminalCommandForDisplay(command).replace(/\r\n|\r|\n/g, ' ');
-	return normalized.length > 80 ? normalized.substring(0, 77) + '...' : normalized;
+	const normalized = normalizeTerminalCommandForDisplay(command);
+	const firstLineEnd = normalized.search(/\r|\n/);
+	const hasMoreLines = firstLineEnd !== -1;
+	const firstLine = hasMoreLines ? normalized.substring(0, firstLineEnd) : normalized;
+	if (firstLine.length > 80) {
+		return firstLine.substring(0, 77) + '...';
+	}
+	return hasMoreLines ? firstLine + '...' : firstLine;
 }
 
 /**
