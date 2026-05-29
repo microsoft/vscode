@@ -13,52 +13,16 @@ suite('Notebook Layout Actions', () => {
 	test('Toggle Cell Toolbar Position', async function () {
 		const action = new ToggleCellToolbarPositionAction();
 
-		// "notebook.cellToolbarLocation": "right"
-		assert.deepStrictEqual(action.togglePosition('test-nb', 'right'), {
-			default: 'right',
-			'test-nb': 'left'
-		});
+		// "notebook.cellToolbarLocation": "right" -> "left"
+		assert.strictEqual(action.togglePosition('right'), 'left');
 
-		// "notebook.cellToolbarLocation": "left"
-		assert.deepStrictEqual(action.togglePosition('test-nb', 'left'), {
-			default: 'left',
-			'test-nb': 'right'
-		});
+		// "notebook.cellToolbarLocation": "left" -> "right"
+		assert.strictEqual(action.togglePosition('left'), 'right');
 
-		// "notebook.cellToolbarLocation": "hidden"
-		assert.deepStrictEqual(action.togglePosition('test-nb', 'hidden'), {
-			default: 'hidden',
-			'test-nb': 'right'
-		});
+		// "notebook.cellToolbarLocation": "hidden" -> "right"
+		assert.strictEqual(action.togglePosition('hidden'), 'right');
 
-		// invalid
-		assert.deepStrictEqual(action.togglePosition('test-nb', ''), {
-			default: 'right',
-			'test-nb': 'left'
-		});
-
-		// no user config, default value
-		assert.deepStrictEqual(action.togglePosition('test-nb', {
-			default: 'right'
-		}), {
-			default: 'right',
-			'test-nb': 'left'
-		});
-
-		// user config, default to left
-		assert.deepStrictEqual(action.togglePosition('test-nb', {
-			default: 'left'
-		}), {
-			default: 'left',
-			'test-nb': 'right'
-		});
-
-		// user config, default to hidden
-		assert.deepStrictEqual(action.togglePosition('test-nb', {
-			default: 'hidden'
-		}), {
-			default: 'hidden',
-			'test-nb': 'right'
-		});
+		// invalid value -> "left" (as if toggling from default "right")
+		assert.strictEqual(action.togglePosition(''), 'left');
 	});
 });
