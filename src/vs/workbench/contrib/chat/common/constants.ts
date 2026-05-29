@@ -12,7 +12,6 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../comm
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
-	OfflineByok = 'chat.offlineByok',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
@@ -83,6 +82,7 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
+	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',

@@ -32,6 +32,23 @@ export interface IBuildOptionsInput {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
 	readonly mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined;
+	/**
+	 * Local plugin directories to load at SDK startup. Projected onto
+	 * `Options.plugins` as `{ type: 'local', path }`. Omitted from the
+	 * returned options entirely when empty so the SDK keeps its default
+	 * (no plugins). Built per-session from
+	 * {@link SessionClientCustomizationsDiff.consume}.
+	 */
+	readonly plugins?: readonly URI[];
+	/**
+	 * Resolved SDK agent name (matches a key in `Options.agents`, or an
+	 * agent loaded from `~/.claude/agents/**`). Projected onto
+	 * `Options.agent` — the SDK's `--agent` flag. The plugin URI captured
+	 * at startup is the only path the SDK consults, so any `changeAgent`
+	 * after materialize triggers a yield-restart through the rematerializer.
+	 * Omit when no custom agent is selected (SDK default behavior).
+	 */
+	readonly agent?: string;
 }
 
 /**
@@ -88,6 +105,10 @@ export async function buildOptions(
 			? { resume: input.sessionId }
 			: { sessionId: input.sessionId }),
 		...(input.mcpServers ? { mcpServers: input.mcpServers } : {}),
+		...(input.plugins && input.plugins.length > 0
+			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
+			: {}),
+		...(input.agent ? { agent: input.agent } : {}),
 		settingSources: ['user', 'project', 'local'],
 		settings: { env: settingsEnv },
 		systemPrompt: { type: 'preset', preset: 'claude_code' },

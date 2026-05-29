@@ -14,8 +14,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory } from '../browserViewActions.js';
+import { BrowserEditor, BrowserEditorContribution, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
@@ -30,14 +29,14 @@ class BrowserEditorDevToolsContribution extends BrowserEditorContribution {
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._devToolsOpenContext.set(model.isDevToolsOpen);
 		store.add(model.onDidChangeDevToolsState(e => {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._devToolsOpenContext.reset();
 	}
 }
@@ -52,7 +51,7 @@ class ToggleDevToolsAction extends Action2 {
 			id: ToggleDevToolsAction.ID,
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
 			category: BrowserActionCategory,
-			icon: Codicon.terminal,
+			icon: Codicon.developerTools,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
@@ -70,7 +69,7 @@ class ToggleDevToolsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.toggleDevTools();
+			await browserEditor.model?.toggleDevTools();
 		}
 	}
 }

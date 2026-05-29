@@ -9,11 +9,13 @@ import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
+import { extractToolParameters } from '../../../../platform/otel/node/extractToolParameters';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -238,10 +240,11 @@ export class ClaudeCodeSession extends Disposable {
 		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this._isResumed = !isNewSession;
-		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService);
+		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService, this._gitService);
 		this._debugFileLogger.startSession(this.sessionId).catch(err => {
 			this.logService.error('[ClaudeCodeSession] Failed to start debug log session', err);
 		});
@@ -621,6 +624,7 @@ export class ClaudeCodeSession extends Disposable {
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
 		const otelHookSpans = new Map<string, ISpanHandle>();
+		const hookStartTimes = new Map<string, number>();
 		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
@@ -662,8 +666,10 @@ export class ClaudeCodeSession extends Disposable {
 						toolStartTimes,
 						otelToolSpans,
 						otelHookSpans,
+						hookStartTimes,
 						parentTraceContext: this._otelTracker.traceContext,
 						subagentTraceContexts,
+						extractToolParameters,
 					});
 				} catch (dispatchError) {
 					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {

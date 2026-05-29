@@ -3222,7 +3222,7 @@
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "nextEditSuggestions",
               "onExp"
@@ -6106,6 +6106,18 @@
           "group": "1_edit@10"
         }
       ],
+      "chatSessions/item/context": [
+        {
+          "command": "github.copilot.claude.sessions.rename",
+          "when": "chatSessionType == claude-code",
+          "group": "1_edit@4"
+        },
+        {
+          "command": "github.copilot.cli.sessions.rename",
+          "when": "chatSessionType == copilotcli",
+          "group": "1_edit@4"
+        }
+      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
@@ -6637,6 +6649,13 @@
         ]
       },
       {
+        "path": "./assets/prompts/chronicle-improve.prompt.md",
+        "when": "github.copilot.sessionSearch.enabled",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
         "path": "./assets/prompts/chronicle-reindex.prompt.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
@@ -6902,7 +6921,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.4.0",
+    "@vscode/copilot-api": "^0.4.2",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",

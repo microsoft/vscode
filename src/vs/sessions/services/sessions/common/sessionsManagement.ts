@@ -58,6 +58,11 @@ export interface ISessionsChangeEvent {
 export interface IActiveSession extends ISession {
 	/** The currently active chat within this session. */
 	readonly activeChat: IObservable<IChat>;
+
+	readonly isCreated: IObservable<boolean>;
+
+	/** Whether this session is sticky in the sessions part's grid. */
+	readonly sticky: IObservable<boolean>;
 }
 
 /**
@@ -109,6 +114,11 @@ export interface ISessionsManagementService {
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	/**
+	 * Fires when a brand-new session is started by this window via
+	 * {@link sendNewChatRequest}.
+	 */
+	readonly onDidStartSession: Event<ISession>;
 
 	// -- Active Session --
 
@@ -116,6 +126,47 @@ export interface ISessionsManagementService {
 	 * Observable for the currently active session as {@link IActiveSession}.
 	 */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+
+	/**
+	 * Observable list of slots currently displayed in the sessions part's
+	 * grid, in their grid order (left-to-right). Each entry is either an
+	 * {@link IActiveSession} or `undefined` for the empty (new-session)
+	 * placeholder. At most one entry is `undefined` at a time. Sessions
+	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
+	 * non-sticky entries get replaced when new sessions are opened.
+	 */
+	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+
+	/**
+	 * Toggle a session's stickiness in the grid. The session keeps its grid
+	 * slot when toggled. If the session is not currently visible, it is
+	 * appended to the grid as sticky.
+	 */
+	toggleSessionStickiness(session: ISession): void;
+
+	/**
+	 * Insert (or move) a session into the grid positioned next to a target
+	 * session that is already visible.
+	 * - If the session is not yet visible, a new non-sticky entry is created
+	 *   at the computed position.
+	 * - If the session is already visible, it is moved to the computed
+	 *   position; its sticky / non-sticky state is preserved.
+	 *
+	 * When `activate` is `true` (default), the inserted session also becomes
+	 * the active session. Pass `false` to leave the active session unchanged.
+	 */
+	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
+
+	/**
+	 * Close a session: remove it from the visibility model so it is no longer
+	 * shown in the grid. If the session was the active one, the previous
+	 * visible session becomes active; if no session remains visible, the
+	 * new-session view is opened. Passing `undefined` closes the empty
+	 * (new-session) slot if it is currently visible.
+	 */
+	closeSession(session: ISession | undefined): void;
+
+	setActive(session: IActiveSession): void;
 
 	/**
 	 * Select an existing session as the active session.
