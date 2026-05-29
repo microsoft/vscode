@@ -228,6 +228,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private _manuallyManageCheckboxes: boolean = false;
 	private messageElement: HTMLElement | undefined;
 	private tree: Tree | undefined;
+	private _autoCollapseCheckedFolders: boolean = false;
 	private treeLabels: ResourceLabels | undefined;
 	private treeViewDnd: CustomTreeViewDragAndDrop | undefined;
 	private _container: HTMLElement | undefined;
@@ -302,6 +303,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		// Remember when adding to this method that it isn't called until the view is visible, meaning that
 		// properties could be set and events could be fired before we're initialized and that this needs to be handled.
 
+		this._autoCollapseCheckedFolders = this.configurationService.getValue<boolean>('workbench.tree.autoCollapseCheckedFolders') ?? false;
+
 		this.contextKeyService.bufferChangeEvents(() => {
 			this.initializeShowCollapseAllAction();
 			this.initializeCollapseAllToggle();
@@ -316,6 +319,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
 				this.doRefresh([this.root]); /** soft refresh **/
+			}
+			if (e.affectsConfiguration('workbench.tree.autoCollapseCheckedFolders')) {
+				this._autoCollapseCheckedFolders = this.configurationService.getValue<boolean>('workbench.tree.autoCollapseCheckedFolders') ?? false;
 			}
 		}));
 		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
@@ -696,7 +702,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const aligner = this.treeDisposables.add(new Aligner(this.themeService, this.logService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
 		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
-		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
+		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => {
+			this._onDidChangeCheckboxState.fire(e);
+			this.autoCollapseFoldersIfNeeded(e);
+		}));
 
 		const widgetAriaLabel = this._title;
 
@@ -1008,6 +1017,74 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private updateCheckboxes(elements: readonly ITreeItem[]): ITreeItem[] {
 		return setCascadingCheckboxUpdates(elements);
+	}
+
+	private autoCollapseFoldersIfNeeded(items: readonly ITreeItem[]): void {
+		if (!this._autoCollapseCheckedFolders) {
+			return;
+		}
+
+		if (!this.tree) {
+			return;
+		}
+
+		// Check each item and its parent to see if we should auto-collapse
+		const parentsToCheck = new Set<ITreeItem>();
+		items.forEach(item => item.parent && parentsToCheck.add(item.parent));
+
+		// For each parent, check if all children are checked
+		for (const parent of parentsToCheck) {
+			if (this.shouldCollapseParent(parent)) {
+				// Collapse the parent (non-recursive)
+				try {
+					this.tree.collapse(parent, false);
+				} catch (e) {
+					// The tree structure may have changed during checkbox updates
+					// Log and continue to avoid breaking the checkbox functionality
+					this.logService.debug(`Failed to auto-collapse parent folder '${this.getItemDisplayName(parent)}'`, e);
+				}
+			}
+		}
+	}
+
+	private getItemDisplayName(item: ITreeItem): string {
+		if (item.label) {
+			if (typeof item.label === 'string') {
+				return item.label;
+			}
+			// ITreeItemLabel case - check that label property exists
+			if (item.label.label) {
+				if (typeof item.label.label === 'string') {
+					return item.label.label;
+				}
+				// IMarkdownString case
+				if (isMarkdownString(item.label.label)) {
+					return item.label.label.value;
+				}
+			}
+		}
+		return item.handle;
+	}
+
+	private shouldCollapseParent(parent: ITreeItem): boolean {
+		// Only collapse if parent is expanded and has children
+		if (!parent.children || parent.children.length === 0) {
+			return false;
+		}
+
+		// Parent must be expanded to be collapsed
+		if (!this.tree || this.tree.isCollapsed(parent)) {
+			return false;
+		}
+
+		// Check if all children with checkboxes are checked
+		const checkboxChildren = parent.children.filter(child => child.checkbox);
+		if (checkboxChildren.length === 0) {
+			return false;
+		}
+
+		// All checkbox children must be checked
+		return checkboxChildren.every(child => child.checkbox!.isChecked);
 	}
 
 	async refresh(elements?: readonly ITreeItem[], checkboxes?: readonly ITreeItem[]): Promise<void> {
