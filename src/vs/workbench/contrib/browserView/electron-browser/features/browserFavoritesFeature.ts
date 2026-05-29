@@ -299,7 +299,7 @@ class AddFavoriteAction extends Action2 {
 	constructor() {
 		super({
 			id: AddFavoriteAction.ID,
-			title: localize2('browser.addFavoriteAction', 'Add Current Page to Favorites'),
+			title: localize2('browser.addFavoriteAction', 'Add to Favorites'),
 			category: BrowserActionCategory,
 			icon: Codicon.star,
 			f1: true,
@@ -331,7 +331,7 @@ class RemoveFavoriteAction extends Action2 {
 	constructor() {
 		super({
 			id: RemoveFavoriteAction.ID,
-			title: localize2('browser.removeFavoriteAction', 'Remove Current Page from Favorites'),
+			title: localize2('browser.removeFavoriteAction', 'Remove from Favorites'),
 			category: BrowserActionCategory,
 			icon: Codicon.starFull,
 			f1: true,
