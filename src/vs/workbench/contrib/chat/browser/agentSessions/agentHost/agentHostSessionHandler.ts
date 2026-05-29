@@ -589,11 +589,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// its tool calls appear grouped under the parent widget.
 					await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
 
-					// Store historical turns so the editing session can seed
-					// per-request sentinels (and edit checkpoints) when it's
-					// created lazily. We seed for every turn — not just those
-					// with edits — so "Restore Checkpoint" on any historical
-					// request can find a boundary to navigate to.
+					// Store historical turns so the editing session can seed a
+					// request-level checkpoint for each turn (with file edits
+					// folded in) when the controller is created lazily. We seed
+					// for every turn — not just those with edits — so "Restore
+					// Checkpoint" on any historical request can find a boundary
+					// to navigate to.
 					if (sessionState.turns.length > 0) {
 						this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
 					}
@@ -2329,10 +2330,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// Hydrate from historical turns if this is the first time
-		// the controller is accessed for this chat session. We seed a sentinel
-		// for every turn (not just turns with edits) so "Restore Checkpoint"
-		// on any historical request can find its boundary and mark subsequent
-		// requests as disabled via requestDisablement.
+		// the controller is accessed for this chat session. We seed a
+		// request-level checkpoint for every turn (not just turns with
+		// edits) so "Restore Checkpoint" on any historical request can
+		// find a boundary and mark subsequent requests as disabled via
+		// requestDisablement.
 		const pendingTurns = this._pendingHistoryTurns.get(sessionResource);
 		if (pendingTurns) {
 			this._pendingHistoryTurns.delete(sessionResource);

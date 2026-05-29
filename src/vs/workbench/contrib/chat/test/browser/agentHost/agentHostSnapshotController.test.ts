@@ -264,6 +264,34 @@ suite('AgentHostSnapshotController', () => {
 		assert.strictEqual(contentMap.get(fileB), 'b-original');
 	});
 
+	test('multiple tool calls editing the same file collapse to one net edit', async () => {
+		// Two sequential edits to /file.ts within the same request: the
+		// second edit's after-content must win on redo, and the first
+		// edit's before-content must win on undo. Without merging, the
+		// two edits would race when applied in parallel.
+		const beforeA = URI.file('/snap/before-a').toString();
+		const afterA = URI.file('/snap/after-a').toString();
+		const beforeB = URI.file('/snap/before-b').toString();
+		const afterB = URI.file('/snap/after-b').toString();
+		const file = URI.file('/file.ts').toString();
+		const contentMap = new Map([
+			[beforeA, 'v0'], [afterA, 'v1'],
+			[beforeB, 'v1'], [afterB, 'v2'],
+			[file, 'v2'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1', filePath: '/file.ts',
+			beforeURI: beforeA, afterURI: afterA,
+		}));
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-2', filePath: '/file.ts',
+			beforeURI: beforeB, afterURI: afterB,
+		}));
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.strictEqual(contentMap.get(file), 'v0');
+	});
+
 	test('hasEditsInRequest reflects added tool call edits', () => {
 		const controller = createController(store, new Map());
 		controller.addToolCallEdits('req-1', makeToolCall({

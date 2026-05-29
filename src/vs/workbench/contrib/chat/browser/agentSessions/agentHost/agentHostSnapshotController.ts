@@ -153,15 +153,29 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 
 		const authority = this._connectionAuthority;
 		for (const edit of fileEdits) {
-			cp.edits.push({
+			const resource = toAgentHostUri(edit.resource, authority);
+			const entry: IToolCallFileEdit = {
 				kind: edit.kind,
-				resource: toAgentHostUri(edit.resource, authority),
+				resource,
 				originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
 				beforeContentUri: edit.beforeContentUri ? toAgentHostUri(edit.beforeContentUri, authority) : undefined,
 				afterContentUri: edit.afterContentUri ? toAgentHostUri(edit.afterContentUri, authority) : undefined,
 				undoStopId: edit.undoStopId,
 				diff: edit.diff,
-			});
+			};
+
+			// Multiple tool calls in one request may touch the same file
+			// (e.g. create→edit, edit→delete). Fold each new edit into the
+			// prior one for the same resource so the checkpoint stores a
+			// single net before/after pair per file. Otherwise
+			// _writeCheckpointContent would apply duplicate writes in
+			// parallel and race to leave the file in an undefined state.
+			const existingIdx = cp.edits.findIndex(e => e.resource.toString() === resource.toString());
+			if (existingIdx < 0) {
+				cp.edits.push(entry);
+			} else {
+				cp.edits[existingIdx] = mergeFileEdit(cp.edits[existingIdx], entry);
+			}
 		}
 	}
 
@@ -362,4 +376,43 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		});
 		await Promise.all(ops);
 	}
+}
+
+/**
+ * Combines two edits to the same file (in arrival order) into a single net
+ * edit. The merged entry keeps the earlier `before` snapshot and the later
+ * `after` snapshot, and derives a net `kind` based on whether the file
+ * exists at the start and end of the combined operation.
+ *
+ * A create-then-delete collapses to a no-op edit (no before, no after) — we
+ * still keep the entry so the file is restored to "absent" on undo, but
+ * `_writeCheckpointContent` will skip the write since both URIs are absent.
+ */
+function mergeFileEdit(prev: IToolCallFileEdit, next: IToolCallFileEdit): IToolCallFileEdit {
+	const startsAbsent = prev.kind === FileEditKind.Create;
+	const endsAbsent = next.kind === FileEditKind.Delete;
+
+	let kind: FileEditKind;
+	if (startsAbsent && endsAbsent) {
+		kind = FileEditKind.Edit; // create+delete collapses to no-op
+	} else if (startsAbsent) {
+		kind = FileEditKind.Create;
+	} else if (endsAbsent) {
+		kind = FileEditKind.Delete;
+	} else {
+		kind = FileEditKind.Edit;
+	}
+
+	return {
+		kind,
+		resource: next.resource,
+		// Renames within a single request are uncommon; if the second edit
+		// is itself a rename keep its originalResource, otherwise carry
+		// forward the first one.
+		originalResource: next.originalResource ?? prev.originalResource,
+		beforeContentUri: prev.beforeContentUri,
+		afterContentUri: next.afterContentUri,
+		undoStopId: prev.undoStopId,
+		diff: next.diff ?? prev.diff,
+	};
 }
