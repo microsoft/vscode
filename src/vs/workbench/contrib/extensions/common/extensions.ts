@@ -194,7 +194,7 @@ export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 export type AutoUpdateConfigurationValue = 'on' | 'delayed' | 'off';
 
 export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
+	autoUpdate: AutoUpdateConfigurationValue;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;

@@ -829,7 +829,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 						// Recompute the status so any time-sensitive content (e.g. the
 						// delayed auto-update message) reflects the current time on each hover.
 						try {
-							await this.extensionStatusAction.update();
+							await this.extensionStatusAction.recomputeStatus();
 						} catch (error) {
 							// Ignore: fall back to the last computed status.
 						}

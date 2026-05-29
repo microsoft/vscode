@@ -2786,7 +2786,16 @@ export class ExtensionStatusAction extends ExtensionAction {
 		this.update();
 	}
 
-	update(): Promise<void> {
+	update(): void {
+		this.recomputeStatus();
+	}
+
+	/**
+	 * Recomputes the status and returns a promise that resolves when the
+	 * computation is done. Use this when callers need to await time-sensitive
+	 * status content (e.g. the delayed auto-update message) before reading it.
+	 */
+	recomputeStatus(): Promise<void> {
 		return this.updateThrottler.queue(() => this.computeAndUpdateStatus());
 	}
 
@@ -2835,8 +2844,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.outdated) {
+			let hasConsentWarning = false;
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
+				hasConsentWarning = true;
 				const markdown = new MarkdownString();
 				markdown.appendMarkdown(`${message} `);
 				markdown.appendMarkdown(
@@ -2851,7 +2862,8 @@ export class ExtensionStatusAction extends ExtensionAction {
 			}
 			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
 				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
-				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because extension auto updates are configured to be delayed by 6 hours. It will be auto updated {0}.", updateAt)) }, true);
+				// Do not override the higher-priority warning class with the info class.
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because extension auto updates are configured to be delayed by 6 hours. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
 			}
 		}
 
