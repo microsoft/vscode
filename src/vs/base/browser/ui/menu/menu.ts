@@ -25,6 +25,7 @@ import { DisposableStore } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
+import { hasKey } from '../../../common/types.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
@@ -236,6 +237,22 @@ export class Menu extends ActionBar {
 		const parentData: ISubMenuData = {
 			parent: this
 		};
+
+		// When a keepOpen action runs, refresh the checked/enabled state of all items
+		this._register(this.onDidRun(e => {
+			if (e.action && hasKey(e.action, 'keepOpen') && e.action.keepOpen) {
+				for (const item of this.viewItems) {
+					if (item instanceof BaseMenuActionViewItem) {
+						// Re-evaluate the action's state from context keys
+						if (hasKey(item.action, 'refreshState')) {
+							(item.action as { refreshState(): void }).refreshState();
+						}
+						// Update the visual state
+						item.refreshState();
+					}
+				}
+			}
+		}));
 
 		this.mnemonics = new Map<string, Array<BaseMenuActionViewItem>>();
 
@@ -698,6 +715,15 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 	getMnemonic(): string | undefined {
 		return this.mnemonic;
+	}
+
+	/**
+	 * Refreshes the checked and enabled visual state of this menu item.
+	 * Used when a keepOpen action runs and the menu stays visible.
+	 */
+	refreshState(): void {
+		this.updateChecked();
+		this.updateEnabled();
 	}
 
 	protected applyStyle(): void {
