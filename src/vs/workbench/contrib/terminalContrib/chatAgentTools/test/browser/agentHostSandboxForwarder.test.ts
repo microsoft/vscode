@@ -291,6 +291,29 @@ suite('AgentHostSandboxForwarder', () => {
 		assert.deepStrictEqual(remoteConn.dispatched.at(-1), expectedPatch);
 	});
 
+	test('forwards per-command network request permission to connected agent hosts', () => {
+		const { local, configurationService } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
+		local.setRootState(rootStateWithSandboxSchema());
+
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
+			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]),
+			change: { keys: [AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests], overrides: [] },
+		});
+
+		assert.deepStrictEqual(local.dispatched.at(-1), {
+			type: ActionType.RootConfigChanged,
+			config: {
+				[AgentHostSandboxConfigKey.Sandbox]: {
+					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+					[AgentHostSandboxKey.RetryWithAllowNetworkRequests]: true,
+				},
+			},
+		});
+	});
+
 	test('ignores unrelated configuration changes', () => {
 		const { local, configurationService } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));

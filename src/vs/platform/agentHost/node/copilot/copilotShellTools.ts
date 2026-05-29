@@ -631,9 +631,12 @@ interface IShellToolArgs {
 	timeout?: number;
 	requestUnsandboxedExecution?: boolean;
 	requestUnsandboxedExecutionReason?: string;
+	requestAllowNetwork?: boolean;
+	requestAllowNetworkReason?: string;
 }
 
-export interface IUnsandboxedCommandConfirmationRequest {
+export interface ISandboxCommandConfirmationRequest {
+	readonly kind: 'unsandboxed' | 'allowNetwork';
 	readonly toolCallId: string;
 	readonly toolName: string;
 	readonly shellExecutable: string;
@@ -642,7 +645,7 @@ export interface IUnsandboxedCommandConfirmationRequest {
 	readonly blockedDomains?: readonly string[];
 }
 
-export type UnsandboxedCommandConfirmationHandler = (request: IUnsandboxedCommandConfirmationRequest) => Promise<boolean>;
+export type SandboxCommandConfirmationHandler = (request: ISandboxCommandConfirmationRequest) => Promise<boolean>;
 
 interface IWriteShellArgs {
 	command: string;
@@ -665,20 +668,21 @@ export async function createShellTools(
 	shellManager: ShellManager,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
-	confirmUnsandboxedExecution?: UnsandboxedCommandConfirmationHandler,
+	confirmSandboxExecution?: SandboxCommandConfirmationHandler,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<Tool<any>[]> {
 	const executable = await shellManager.getResolvedExecutable();
 	const shellType = shellTypeForExecutable(executable);
 	const engine = shellManager.getOrCreateSandboxEngine();
 	const sandboxEnabled = await engine.isEnabled();
+	const retryWithAllowNetworkRequests = sandboxEnabled && engine.areRetryWithAllowNetworkRequestsAllowed() && !(await engine.isSandboxAllowNetworkEnabled());
 	const networkDomains = sandboxEnabled ? engine.getResolvedNetworkDomains() : undefined;
 
 	const primaryTool: Tool<IShellToolArgs> = {
 		name: shellType,
 		description: shellType === 'bash'
-			? (isZsh(executable) ? createZshModelDescription(sandboxEnabled, networkDomains) : createBashModelDescription(sandboxEnabled, networkDomains))
-			: createPowerShellModelDescription(shellType, executable, sandboxEnabled, networkDomains),
+			? (isZsh(executable) ? createZshModelDescription(sandboxEnabled, retryWithAllowNetworkRequests, networkDomains) : createBashModelDescription(sandboxEnabled, retryWithAllowNetworkRequests, networkDomains))
+			: createPowerShellModelDescription(shellType, executable, sandboxEnabled, retryWithAllowNetworkRequests, networkDomains),
 		parameters: {
 			type: 'object',
 			properties: {
@@ -693,6 +697,16 @@ export async function createShellTools(
 						type: 'string',
 						description: 'A short explanation of the sandboxed execution failure or blocked-domain requirement that justifies retrying outside the sandbox. Only provide this when requestUnsandboxedExecution is true.',
 					},
+					...(retryWithAllowNetworkRequests ? {
+						requestAllowNetwork: {
+							type: 'boolean',
+							description: 'Request that this command remain in the sandbox while running with unrestricted network access. Only set this for a required network access failure. The user will be prompted before network restrictions are relaxed.',
+						},
+						requestAllowNetworkReason: {
+							type: 'string',
+							description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.',
+						},
+					} : {}),
 				} : {}),
 			},
 			required: ['command'],
@@ -715,26 +729,35 @@ export async function createShellTools(
 							'unsandboxed_disabled'
 						);
 					}
+					if (args.requestAllowNetwork && !retryWithAllowNetworkRequests && !(await engine.isSandboxAllowNetworkEnabled())) {
+						return makeFailureResult(
+							'Sandboxed execution with unrestricted network access is disabled by the chat.agent.sandbox.retryWithAllowNetworkRequests setting.',
+							'allow_network_disabled'
+						);
+					}
 
 					const autoApproveUnsandboxed = engine.isAutoApproveUnsandboxedCommands();
-					const requestUnsandboxedConfirmation = async (blockedDomains?: readonly string[]): Promise<boolean | ToolResultObject> => {
-						if (autoApproveUnsandboxed) {
+					const requestSandboxConfirmation = async (kind: 'unsandboxed' | 'allowNetwork', blockedDomains?: readonly string[], reason?: string): Promise<boolean | ToolResultObject> => {
+						if (kind === 'unsandboxed' && autoApproveUnsandboxed) {
 							return true;
 						}
-						if (!confirmUnsandboxedExecution) {
+						if (!confirmSandboxExecution) {
 							const blocked = blockedDomains?.join(', ') ?? '(unknown)';
 							return makeFailureResult(
-								`Command requires approval to run outside the sandbox. Blocked domains: ${blocked}. Re-run with requestUnsandboxedExecution=true and requestUnsandboxedExecutionReason explaining why unsandboxed access is required.`,
+								kind === 'allowNetwork'
+									? `Command requires approval to run in the sandbox with unrestricted network access. Blocked domains: ${blocked}. Re-run with requestAllowNetwork=true and requestAllowNetworkReason explaining why network access is required.`
+									: `Command requires approval to run outside the sandbox. Blocked domains: ${blocked}. Re-run with requestUnsandboxedExecution=true and requestUnsandboxedExecutionReason explaining why unsandboxed access is required.`,
 								'sandbox_blocked'
 							);
 						}
 
-						const approved = await confirmUnsandboxedExecution({
+						const approved = await confirmSandboxExecution({
+							kind,
 							toolCallId: invocation.toolCallId,
 							toolName: invocation.toolName,
 							shellExecutable: executable,
 							command: args.command,
-							reason: args.requestUnsandboxedExecutionReason,
+							reason,
 							blockedDomains,
 						});
 						return approved;
@@ -745,10 +768,12 @@ export async function createShellTools(
 						args.requestUnsandboxedExecution,
 						executable,
 						ref.object.shellType === 'bash' ? shellManager.workingDirectory : undefined,
+						undefined,
+						args.requestAllowNetwork,
 					);
 
 					if (args.requestUnsandboxedExecution && !wrapped.isSandboxWrapped) {
-						const decision = await requestUnsandboxedConfirmation(wrapped.blockedDomains);
+						const decision = await requestSandboxConfirmation('unsandboxed', wrapped.blockedDomains, args.requestUnsandboxedExecutionReason);
 						if (typeof decision !== 'boolean') {
 							return decision;
 						}
@@ -762,7 +787,7 @@ export async function createShellTools(
 					}
 
 					if (wrapped.requiresUnsandboxConfirmation) {
-						const decision = await requestUnsandboxedConfirmation(wrapped.blockedDomains);
+						const decision = await requestSandboxConfirmation('unsandboxed', wrapped.blockedDomains, args.requestUnsandboxedExecutionReason);
 						if (typeof decision !== 'boolean') {
 							return decision;
 						}
@@ -780,6 +805,19 @@ export async function createShellTools(
 							executable,
 							ref.object.shellType === 'bash' ? shellManager.workingDirectory : undefined,
 						);
+					}
+					if (wrapped.requiresAllowNetworkConfirmation) {
+						const decision = await requestSandboxConfirmation('allowNetwork', wrapped.blockedDomains, args.requestAllowNetworkReason);
+						if (typeof decision !== 'boolean') {
+							return decision;
+						}
+						if (!decision) {
+							const blocked = wrapped.blockedDomains?.join(', ') ?? '(unknown)';
+							return makeFailureResult(
+								`User declined to run command in the sandbox with unrestricted network access. Blocked domains: ${blocked}.`,
+								'sandbox_blocked'
+							);
+						}
 					}
 					commandToRun = wrapped.command;
 				}
@@ -924,7 +962,7 @@ function isWindowsPowerShell(envShell: string): boolean {
 	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
 }
 
-function createPowerShellModelDescription(shellType: string, shellPath: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createPowerShellModelDescription(shellType: string, shellPath: string, isSandboxEnabled: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shellPath);
 	const parts = [
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
@@ -956,7 +994,7 @@ function createPowerShellModelDescription(shellType: string, shellPath: string, 
 	];
 
 	if (isSandboxEnabled) {
-		parts.push(...createSandboxLines(networkDomains));
+		parts.push(...createSandboxLines(retryWithAllowNetworkRequests, networkDomains));
 	}
 
 	parts.push(
@@ -986,18 +1024,26 @@ function createPowerShellModelDescription(shellType: string, shellPath: string, 
 	return parts.join('\n');
 }
 
-function createSandboxLines(networkDomains?: ITerminalSandboxResolvedNetworkDomains): string[] {
+function createSandboxLines(retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string[] {
 	const lines = [
 		'',
 		'Sandboxing:',
 		'- ATTENTION: Terminal sandboxing is enabled, commands run in a sandbox by default',
 		'- When executing commands within the sandboxed environment, all operations requiring a temporary directory must utilize the $TMPDIR environment variable. The /tmp directory is not guaranteed to be accessible or writable and must be avoided',
 		'- Tools and scripts should respect the TMPDIR environment variable, which is automatically set to an appropriate path within the sandbox',
-		'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
-		'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
-		'- Do NOT set requestUnsandboxedExecution=true without first executing the command in sandbox mode. Always try the command in the sandbox first, and only set requestUnsandboxedExecution=true when retrying after that sandboxed execution failed due to sandbox restrictions.',
-		'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
 	];
+	if (retryWithAllowNetworkRequests) {
+		lines.push(
+			'- When a command fails due to network access being blocked by the sandbox, immediately re-run it with requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the command sandboxed with unrestricted network access and automatically shows a confirmation prompt to the user',
+			'- When a command fails due to a non-network sandbox restriction, or still fails after retrying with requestAllowNetwork=true, immediately re-run it with requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. Setting this flag automatically shows a confirmation prompt to the user',
+			'- Only set requestUnsandboxedExecution=true when a network-enabled sandbox retry is not sufficient, such as file access or process restriction errors',
+		);
+	} else {
+		lines.push(
+			'- Running sandboxed commands with unrestricted network access is disabled by the current chat.agent.sandbox.retryWithAllowNetworkRequests setting. Do not set requestAllowNetwork=true.',
+			'- When a command fails due to sandbox restrictions and needs access that cannot be requested in the sandbox, immediately re-run it with requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. Setting this flag automatically shows a confirmation prompt to the user',
+		);
+	}
 	if (networkDomains) {
 		const deniedSet = new Set(networkDomains.deniedDomains);
 		const effectiveAllowed = networkDomains.allowedDomains.filter(d => !deniedSet.has(d));
@@ -1013,7 +1059,7 @@ function createSandboxLines(networkDomains?: ITerminalSandboxResolvedNetworkDoma
 	return lines;
 }
 
-function createGenericDescription(shellType: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createGenericDescription(shellType: string, isSandboxEnabled: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const parts = [`
 Command Execution:
 - Use && to chain simple commands on one line
@@ -1039,7 +1085,7 @@ Async Mode:
 Use write_${shellType} to send commands or input to a terminal session.`];
 
 	if (isSandboxEnabled) {
-		parts.push(createSandboxLines(networkDomains).join('\n'));
+		parts.push(createSandboxLines(retryWithAllowNetworkRequests, networkDomains).join('\n'));
 	}
 
 	parts.push(`
@@ -1066,20 +1112,20 @@ Interactive Input Handling:
 	return parts.join('');
 }
 
-function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createBashModelDescription(isSandboxEnabled: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription('bash', isSandboxEnabled, networkDomains),
+		createGenericDescription('bash', isSandboxEnabled, retryWithAllowNetworkRequests, networkDomains),
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
 		'- Use set -e at start of complex commands to exit on errors'
 	].join('\n');
 }
 
-function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createZshModelDescription(isSandboxEnabled: boolean, retryWithAllowNetworkRequests: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription('bash', isSandboxEnabled, networkDomains),
+		createGenericDescription('bash', isSandboxEnabled, retryWithAllowNetworkRequests, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',

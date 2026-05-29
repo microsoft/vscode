@@ -6,7 +6,10 @@
 import { ok, strictEqual } from 'assert';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { outputLooksSandboxBlocked, outputLooksSandboxNetworkBlocked, SandboxOutputAnalyzer } from '../../browser/tools/sandboxOutputAnalyzer.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
@@ -15,9 +18,13 @@ suite('SandboxOutputAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let analyzer: SandboxOutputAnalyzer;
+	let configurationService: TestConfigurationService;
 
 	setup(() => {
 		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, store);
+		configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			getOS: async () => OperatingSystem.Linux,
@@ -35,6 +42,20 @@ suite('SandboxOutputAnalyzer', () => {
 
 		ok(guidance?.includes('If you determine from the output that the failure was caused by blocked network access'));
 		ok(guidance?.includes('If it is not a network restriction, or the command still fails after retrying with requestAllowNetwork=true'));
+	});
+
+	test('does not recommend allow-network requests when per-command network access is disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
+
+		const guidance = await analyzer.analyze({
+			exitCode: 1,
+			exitResult: 'connect: Operation not permitted',
+			commandLine: 'curl https://example.com',
+			isSandboxWrapped: true,
+		});
+
+		ok(guidance?.includes('chat.agent.sandbox.retryWithAllowNetworkRequests'));
+		ok(guidance?.includes('Do not set requestAllowNetwork=true'));
 	});
 });
 

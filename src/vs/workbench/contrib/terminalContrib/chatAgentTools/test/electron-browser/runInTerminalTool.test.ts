@@ -360,6 +360,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should include sandbox escalation requests in schema when sandbox is enabled', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
@@ -386,6 +387,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should set allowToRunUnsandboxedCommands from setting in schema when unsandboxed commands are disabled', async () => {
 			setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
@@ -400,6 +402,17 @@ suite('RunInTerminalTool', () => {
 			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema when unsandboxed commands are disabled');
 			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema when unsandboxed commands are disabled');
 			ok(toolData.modelDescription?.includes('Running commands outside the sandbox is disabled'), 'Expected model description to explain that unsandboxed commands are disabled');
+		});
+
+		test('should hide allow-network requests in schema when per-command network access is disabled', async () => {
+			sandboxEnabled = true;
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
+
+			ok(!properties?.['requestAllowNetwork'], 'Expected no requestAllowNetwork when per-command network access is disabled');
+			ok(!properties?.['requestAllowNetworkReason'], 'Expected no requestAllowNetworkReason when per-command network access is disabled');
+			ok(toolData.modelDescription?.includes('chat.agent.sandbox.retryWithAllowNetworkRequests'), 'Expected model description to identify the disabled network request setting');
 		});
 
 		test('should not include requestUnsandboxedExecution in schema when sandbox is disabled', async () => {
@@ -463,6 +476,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should include allowed and denied network domains in model description', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 			terminalSandboxService.getResolvedNetworkDomains = () => ({
 				allowedDomains: ['github.com', 'npmjs.org'],
@@ -947,6 +961,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should force confirmation for explicit sandboxed allow-network requests', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 			sandboxPrereqResult = {
 				enabled: true,
@@ -975,6 +990,55 @@ suite('RunInTerminalTool', () => {
 				throw new Error('Expected markdown confirmation message');
 			}
 			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: Needs registry access while remaining sandboxed'));
+		});
+
+		test('should use allow-network confirmation for blocked domains selected before execution', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+			terminalSandboxService.wrapCommand = async (command: string) => ({
+				command: `network-sandbox:${command}`,
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: true,
+				blockedDomains: ['evil.com'],
+				deniedDomains: ['evil.com'],
+			});
+
+			const result = await executeToolTest({ command: 'curl https://evil.com' });
+
+			assertConfirmationRequired(result, 'Run `bash` command in the [sandbox](https://aka.ms/vscode-sandboxing) with unrestricted network access to access `evil.com`?');
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.requestAllowNetwork, true);
+			strictEqual(terminalData.requestUnsandboxedExecution, false);
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+		});
+
+		test('should reject explicit allow-network requests when per-command network access is disabled', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+
+			const prepared = await executeToolTest({ requestAllowNetwork: true, requestAllowNetworkReason: 'Needs registry access' });
+			ok(prepared, 'Expected prepared invocation to be defined');
+			ok(!prepared.confirmationMessages, 'Expected no confirmation because the command will not run');
+			ok((prepared.invocationMessage as IMarkdownString).value.includes('unrestricted network access in the sandbox is disabled'));
+
+			const result = await invokeToolTest({ requestAllowNetwork: true, requestAllowNetworkReason: 'Needs registry access' });
+			strictEqual(createTerminalCallCount, 0, 'Expected no terminal to be created');
+			ok(result.toolResultError, 'Expected the rejected request to be returned as a tool error');
+			ok(result.content[0].kind === 'text' && result.content[0].value.includes('chat.agent.sandbox.retryWithAllowNetworkRequests'));
 		});
 
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {

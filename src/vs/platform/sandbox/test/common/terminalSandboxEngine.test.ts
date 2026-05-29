@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IFileService } from '../../../files/common/files.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import type { ISandboxDependencyStatus, IWindowsMxcFilesystemPolicy } from '../../common/sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
@@ -163,6 +164,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
 
 		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash', undefined, undefined, true);
@@ -177,6 +179,36 @@ suite('TerminalSandboxEngine', () => {
 		await engine.wrapCommand('echo restricted again');
 		const restrictedConfig = JSON.parse(createdFiles.get(configPath)!);
 		deepStrictEqual(restrictedConfig.network, { allowedDomains: [], deniedDomains: [] });
+	});
+
+	test('requestAllowNetwork does not relax network access when per-command requests are disabled', async () => {
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash', undefined, undefined, true);
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, undefined);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
+	});
+
+	test('blocked domains request sandboxed network access before execution when enabled', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, true);
+		deepStrictEqual(wrapped.blockedDomains, ['example.com']);
+		deepStrictEqual(wrapped.deniedDomains, ['example.com']);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
 	});
 
 	test('onDidChangeRoots triggers a sandbox config rewrite on the next wrap', async () => {

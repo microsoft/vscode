@@ -881,6 +881,33 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
+	test('should request network-enabled sandbox execution for a non-allowlisted domain when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains should require network confirmation');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not request unsandbox confirmation when a safer network request is available');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
+	});
+
+	test('should request network-enabled sandbox execution even when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Network access should not require leaving the sandbox');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Network access should be confirmable independently from unsandboxed execution');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+	});
+
 	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -924,6 +951,21 @@ suite('TerminalSandboxService - network domains', () => {
 		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
+		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
+		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
+	});
+
+	test('should allow confirmed sandboxed network override for explicitly denied domains when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Denied domains should remain filesystem sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Explicitly denied domains should require network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
 		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
 	});
