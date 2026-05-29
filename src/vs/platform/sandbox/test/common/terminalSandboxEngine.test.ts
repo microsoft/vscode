@@ -17,6 +17,7 @@ import type { ISandboxDependencyStatus, IWindowsMxcFilesystemPolicy } from '../.
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
 
 suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,7 +79,7 @@ suite('TerminalSandboxEngine', () => {
 			getWorkspaceStorageReadRoot: () => Promise.resolve(undefined),
 			getWriteRoots: () => [URI.file('/workspace')],
 			onDidChangeRoots: rootsEmitter.event,
-			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, socatInstalled: true }),
+			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true }),
 			getWindowsMxcFilesystemPolicy: (): Promise<IWindowsMxcFilesystemPolicy | undefined> => Promise.resolve(undefined),
 			getWindowsMxcEnvironment: (): Promise<string[] | undefined> => Promise.resolve(undefined),
 			getSandboxSetting: <T>(settingId: string): T | undefined => sandboxSettings.has(settingId) ? sandboxSettings.get(settingId) as T : undefined,
@@ -455,7 +456,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('checkForSandboxingPrereqs reports missing dependencies', async () => {
-		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, socatInstalled: true };
+		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true };
 		const host = createHost({
 			checkSandboxDependencies: () => Promise.resolve(status),
 		});
@@ -466,8 +467,44 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(result.failedCheck, 'dependencies');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap');
 
-		status = { bubblewrapInstalled: true, socatInstalled: true };
+		status = { bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true };
 		const result2 = await engine.checkForSandboxingPrereqs(true);
 		strictEqual(result2.failedCheck, undefined);
+	});
+
+	test('checkForSandboxingPrereqs reports remediation when Ubuntu AppArmor remediation is supported', async () => {
+		const host = createHost({
+			checkSandboxDependencies: () => Promise.resolve({
+				bubblewrapInstalled: true,
+				bubblewrapUsable: false,
+				bubblewrapError: 'Creating new namespace failed',
+				supportsUbuntuAppArmorRemediation: true,
+				socatInstalled: true,
+			}),
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const result = await engine.checkForSandboxingPrereqs();
+
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
+		strictEqual(result.detail, 'Creating new namespace failed');
+		strictEqual(result.missingDependencies, undefined);
+	});
+
+	test('checkForSandboxingPrereqs omits the AppArmor remediation on unsupported Linux releases', async () => {
+		const host = createHost({
+			checkSandboxDependencies: () => Promise.resolve({
+				bubblewrapInstalled: true,
+				bubblewrapUsable: false,
+				supportsUbuntuAppArmorRemediation: false,
+				socatInstalled: true,
+			}),
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const result = await engine.checkForSandboxingPrereqs();
+
+		strictEqual(result.remediations, undefined);
 	});
 });
