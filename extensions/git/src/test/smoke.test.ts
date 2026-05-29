@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, ConfigurationTarget } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,6 +22,32 @@ suite('git smoke test', function () {
 
 	function uri(relativePath: string) {
 		return Uri.file(file(relativePath));
+	}
+
+	function getLastCommitMessage(): string {
+		return cp.execSync('git log -1 --pretty=%B', { cwd, encoding: 'utf8' }).trimEnd();
+	}
+
+	async function waitForInternalCommand(commandId: string): Promise<void> {
+		for (let attempt = 0; attempt < 100; attempt++) {
+			if ((await commands.getCommands()).includes(commandId)) {
+				return;
+			}
+
+			await new Promise(resolve => setTimeout(resolve, 50));
+		}
+
+		throw new Error(`Command not registered: ${commandId}`);
+	}
+
+	async function markAiContribution(relativePath: string, feature: 'chat' | 'inlineSuggest'): Promise<void> {
+		await waitForInternalCommand('_aiEdits.markAiContributions');
+		await commands.executeCommand('_aiEdits.markAiContributions', [{ resource: uri(relativePath), feature }]);
+	}
+
+	async function hasAiContributions(relativePath: string, level: 'chatAndAgent' | 'all'): Promise<boolean> {
+		await waitForInternalCommand('_aiEdits.hasAiContributions');
+		return commands.executeCommand<boolean>('_aiEdits.hasAiContributions', [uri(relativePath)], level);
 	}
 
 	async function open(relativePath: string) {
@@ -145,6 +171,60 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('adds and clears AI co-author trailer through commit lifecycle', async function () {
+		const gitConfig = workspace.getConfiguration('git', repository.rootUri);
+		const previousAddAICoAuthor = gitConfig.inspect<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor')?.globalValue;
+		const cleanupBranchName = 'ai-coauthor-cleanup';
+
+		await gitConfig.update('addAICoAuthor', 'all', ConfigurationTarget.Global);
+
+		try {
+			const appjs = await open('app.js');
+
+			await type(appjs, '\nconst widenedAiAttribution = true;');
+			await appjs.save();
+			await markAiContribution('app.js', 'inlineSuggest');
+
+			assert.strictEqual(await hasAiContributions('app.js', 'chatAndAgent'), false);
+			assert.strictEqual(await hasAiContributions('app.js', 'all'), true);
+
+			await repository.commit('ai marked commit', { all: true });
+
+			assert.strictEqual(getLastCommitMessage(), 'ai marked commit\n\nCo-authored-by: Copilot <copilot@github.com>');
+
+			await type(appjs, '\nconst plainCommit = true;');
+			await appjs.save();
+			await repository.commit('plain commit', { all: true });
+
+			assert.strictEqual(getLastCommitMessage(), 'plain commit');
+
+			await markAiContribution('app.js', 'inlineSuggest');
+			try {
+				await repository.deleteBranch(cleanupBranchName, true);
+			} catch { }
+
+			await repository.createBranch(cleanupBranchName, true);
+
+			const cleanupDoc = await open('app.js');
+			// This final typed change is a plain edit after branch creation, so the next commit should stay clean.
+			await type(cleanupDoc, '\nconst branchCleanup = true;');
+			await cleanupDoc.save();
+			await repository.commit('branch cleanup commit', { all: true });
+
+			assert.strictEqual(getLastCommitMessage(), 'branch cleanup commit');
+		} finally {
+			if (repository.state.HEAD?.name !== 'main') {
+				await repository.checkout('main');
+			}
+
+			try {
+				await repository.deleteBranch(cleanupBranchName, true);
+			} catch { }
+
+			await gitConfig.update('addAICoAuthor', previousAddAICoAuthor, ConfigurationTarget.Global);
+		}
 	});
 
 	test('rename/delete conflict', async function () {
