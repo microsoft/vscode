@@ -33,7 +33,8 @@ export interface IMarketplaceReference {
  *   policy into {@link ChatConfiguration.ExtraMarketplaces}. Read-only.
  *
  * Entries may be strings (`<owner>/<repo>` or git URIs) or, in the policy case,
- * arbitrary JSON values — both shapes flow through {@link parseMarketplaceReferences}.
+ * {@link IExtraMarketplaceObjectEntry} objects — both shapes flow through
+ * {@link parseMarketplaceReferences}.
  */
 export interface IConfiguredMarketplaces {
 	readonly userValues: readonly unknown[];
@@ -41,9 +42,23 @@ export interface IConfiguredMarketplaces {
 	readonly effectiveValues: readonly unknown[];
 }
 
+/** Shorthand-or-URI regex used to detect GitHub `owner/repo[#ref]` entries. */
+const _githubShorthandRe = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#.+)?$/;
+
 export function readConfiguredMarketplaces(configurationService: IConfigurationService): IConfiguredMarketplaces {
 	const userValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-	const extraValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.ExtraMarketplaces) ?? [];
+
+	// `ChatExtraMarketplaces` is stored as `{ [name]: url-or-shorthand }` when delivered by
+	// policy. Convert each entry to the nested IExtraMarketplaceObjectEntry shape so that
+	// parseMarketplaceReferences can set displayLabel = name (critical for enabledPlugins keys).
+	const extraObj = configurationService.getValue<Record<string, string>>(ChatConfiguration.ExtraMarketplaces) ?? {};
+	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).map(([name, src]) => {
+		const isGithubShorthand = _githubShorthandRe.test(src);
+		return isGithubShorthand
+			? { name, source: { source: 'github' as const, repo: src } }
+			: { name, source: { source: 'git' as const, url: src } };
+	});
+
 	return {
 		userValues,
 		extraValues,
