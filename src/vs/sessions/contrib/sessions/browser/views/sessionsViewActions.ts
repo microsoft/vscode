@@ -18,8 +18,6 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
@@ -770,37 +768,6 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		await openSessionToTheSide(sessionsManagementService, sessions[sessions.length - 1]);
-	}
-});
-
-registerAction2(class OpenSessionInNewWindowAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsViewPane.openInNewWindow',
-			title: localize2('openInNewWindow', "Open in New Window"),
-			menu: [{
-				id: SessionItemContextMenuId,
-				group: 'navigation',
-				order: 0,
-			}]
-		});
-	}
-	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		if (!context) {
-			return;
-		}
-		const sessions = Array.isArray(context) ? context : [context];
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-
-		sessionsManagementService.openNewSessionView(); // running this first to address focus issues
-
-		for (const session of sessions) {
-			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
-				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
-				pinned: true
-			});
-		}
 	}
 });
 
