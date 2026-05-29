@@ -27,7 +27,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { CustomizationRef, isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionCustomization, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, SessionInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -937,7 +937,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		entry?.session.completeClientToolCall(toolCallId, result);
 	}
 
-	async setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 		const sessionId = AgentSession.id(session);
 		const sess = this._findAnySession(sessionId);
 		if (!sess) {
@@ -973,22 +973,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			session,
 			action: {
 				type: ActionType.SessionCustomizationUpdated,
-				customization: item.customization.customization,
-				enabled: item.customization.enabled,
-				...(item.customization.status !== undefined ? { status: item.customization.status } : {}),
-				...(item.customization.statusMessage !== undefined ? { statusMessage: item.customization.statusMessage } : {}),
-				...(item.customization.agents !== undefined ? { agents: item.customization.agents } : {}),
+				customization: item.customization,
 			},
 		});
 	}
 
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
+	setCustomizationEnabled(id: string, enabled: boolean): void {
 		for (const entry of this._sessions.values()) {
-			entry.session.setClientCustomizationEnabled(uri, enabled);
+			entry.session.setClientCustomizationEnabled(id, enabled);
 		}
 	}
 
-	getCustomizations(): readonly CustomizationRef[] {
+	getCustomizations(): readonly Customization[] {
 		// Provider-level customization catalogue — feeds `AgentInfo.customizations`
 		// on `RootAgentsChanged`. Should advertise host-configured plugin refs
 		// (the equivalent of Copilot's `agentHost.customizations` setting).
@@ -1003,7 +999,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return [];
 	}
 
-	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
+	async getSessionCustomizations(session: URI): Promise<readonly Customization[]> {
 		const sess = this._findAnySession(AgentSession.id(session));
 		return sess ? await sess.getSessionCustomizations() : [];
 	}

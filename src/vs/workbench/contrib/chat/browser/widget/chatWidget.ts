@@ -2039,12 +2039,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * refreshes the CSS variables the chat container exposes for stylesheet rules.
 	 */
 	setStyles(styles: IChatWidgetStyles): void {
+		const oldStyles = this.styles;
 		this.styles = styles;
-		this.listWidget?.setStyles({
-			listForeground: styles.listForeground,
-			listBackground: styles.listBackground,
-		});
-		if (this.container) {
+
+		// update list if needed
+		const listColorsChanged =
+			oldStyles.listBackground !== styles.listBackground ||
+			oldStyles.listForeground !== styles.listForeground;
+
+		if (listColorsChanged) {
+			this.listWidget?.setStyles({
+				listForeground: styles.listForeground,
+				listBackground: styles.listBackground,
+			});
+		}
+
+		// update editor colors if needed
+		const editorColorsChanged =
+			oldStyles.listForeground !== styles.listForeground ||
+			oldStyles.inputEditorBackground !== styles.inputEditorBackground ||
+			oldStyles.resultEditorBackground !== styles.resultEditorBackground;
+
+		if (editorColorsChanged && this.container) {
 			// Updating editorOptions fires onDidChange which triggers onDidStyleChange
 			// and also propagates the new colors to subscribers like CodeBlockPart.
 			this.editorOptions.setColors(styles.listForeground, styles.inputEditorBackground, styles.resultEditorBackground);

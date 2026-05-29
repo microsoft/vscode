@@ -7,19 +7,19 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
-import { CustomizationStatus } from '../../../common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId } from '../../../common/state/sessionState.js';
 import { SessionClientCustomizationsDiff } from '../../../node/claude/customizations/claudeSessionClientCustomizationsModel.js';
 
-function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; displayName?: string } = {}): ISyncedCustomization {
+function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; name?: string } = {}): ISyncedCustomization {
 	return {
 		customization: {
-			customization: {
-				uri,
-				displayName: opts.displayName ?? uri,
-				...(opts.nonce !== undefined ? { nonce: opts.nonce } : {}),
-			},
+			type: CustomizationType.Plugin,
+			id: customizationId(uri),
+			uri,
+			name: opts.name ?? uri,
 			enabled: opts.enabled ?? true,
-			status: CustomizationStatus.Loaded,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			...(opts.nonce !== undefined ? { nonce: opts.nonce } : {}),
 		},
 		...(opts.dir !== undefined ? { pluginDir: URI.file(opts.dir) } : {}),
 	};
@@ -62,13 +62,13 @@ suite('SessionClientCustomizationsDiff', () => {
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
 
-		const uri = 'https://a';
-		diff.model.setEnabled(uri, false);
+		const id = customizationId('https://a');
+		diff.model.setEnabled(id, false);
 		assert.deepStrictEqual(diff.model.enabledPluginPaths.get(), []);
 		assert.strictEqual(diff.hasDifference, true);
 		assert.strictEqual(fires, 1);
 
-		diff.model.setEnabled(uri, false); // no change → no fire, stays dirty
+		diff.model.setEnabled(id, false); // no change → no fire, stays dirty
 		assert.strictEqual(fires, 1);
 	});
 
@@ -84,7 +84,7 @@ suite('SessionClientCustomizationsDiff', () => {
 		diff.consume();
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
-		diff.model.setEnabled('https://a', true);
+		diff.model.setEnabled(customizationId('https://a'), true);
 		assert.strictEqual(fires, 0);
 		assert.strictEqual(diff.hasDifference, false);
 	});
@@ -121,7 +121,7 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		diff.model.setSyncedCustomizations([synced('https://a')]);
 		diff.consume();
-		diff.model.setEnabled('https://a', false);
+		diff.model.setEnabled(customizationId('https://a'), false);
 		assert.strictEqual(diff.hasDifference, true);
 	});
 
@@ -133,13 +133,13 @@ suite('SessionClientCustomizationsDiff', () => {
 		assert.strictEqual(diff.hasDifference, true);
 	});
 
-	test('displayName change at same URI flips dirty (state observable fires for workbench refetch)', () => {
+	test('name change at same URI flips dirty (state observable fires for workbench refetch)', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', displayName: 'A' })]);
+		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', name: 'A' })]);
 		diff.consume();
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', displayName: 'A renamed' })]);
+		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', name: 'A renamed' })]);
 		assert.strictEqual(fires, 1);
 		assert.strictEqual(diff.hasDifference, true);
 	});

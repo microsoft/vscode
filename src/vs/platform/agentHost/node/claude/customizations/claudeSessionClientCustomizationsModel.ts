@@ -67,8 +67,7 @@ export class SessionClientCustomizationsModel {
 				if (!synced.pluginDir) {
 					continue;
 				}
-				const uri = synced.customization.customization.uri.toString();
-				if (s.enablement.get(uri) === false) {
+				if (s.enablement.get(synced.customization.id) === false) {
 					continue;
 				}
 				paths.push(synced.pluginDir);
@@ -84,17 +83,17 @@ export class SessionClientCustomizationsModel {
 	}
 
 	/** Toggle a client-pushed customization on/off for this session. */
-	setEnabled(uri: string, enabled: boolean): void {
+	setEnabled(id: string, enabled: boolean): void {
 		const cur = this._state.get();
-		const current = cur.enablement.get(uri);
+		const current = cur.enablement.get(id);
 		if (current === enabled || (enabled && current === undefined)) {
 			return;
 		}
 		const next = new Map(cur.enablement);
 		if (enabled) {
-			next.delete(uri);
+			next.delete(id);
 		} else {
-			next.set(uri, false);
+			next.set(id, false);
 		}
 		this._state.set({ synced: cur.synced, enablement: next }, undefined);
 	}
@@ -195,28 +194,28 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 	for (let i = 0; i < a.length; i++) {
 		const ai = a[i].customization;
 		const bi = b[i].customization;
-		if (ai.customization.uri.toString() !== bi.customization.uri.toString()) {
+		if (ai.id !== bi.id) {
 			return false;
 		}
-		if (ai.customization.nonce !== bi.customization.nonce) {
+		if (ai.uri.toString() !== bi.uri.toString()) {
 			return false;
 		}
-		if (ai.customization.displayName !== bi.customization.displayName) {
+		if ((ai as { nonce?: string }).nonce !== (bi as { nonce?: string }).nonce) {
 			return false;
 		}
-		if (ai.customization.description !== bi.customization.description) {
+		if (ai.name !== bi.name) {
 			return false;
 		}
 		if (ai.enabled !== bi.enabled) {
 			return false;
 		}
-		if (ai.status !== bi.status) {
+		if (ai.load?.kind !== bi.load?.kind) {
 			return false;
 		}
-		if (ai.statusMessage !== bi.statusMessage) {
+		if (loadMessageOf(ai.load) !== loadMessageOf(bi.load)) {
 			return false;
 		}
-		if (!agentsEqual(ai.agents, bi.agents)) {
+		if (!childrenEqual(ai.children, bi.children)) {
 			return false;
 		}
 		if (a[i].pluginDir?.toString() !== b[i].pluginDir?.toString()) {
@@ -226,7 +225,11 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 	return true;
 }
 
-function agentsEqual(a: readonly { name: string }[] | undefined, b: readonly { name: string }[] | undefined): boolean {
+function loadMessageOf(load: { kind: string; message?: string } | undefined): string | undefined {
+	return load && load.message ? load.message : undefined;
+}
+
+function childrenEqual(a: readonly { id: string; name: string }[] | undefined, b: readonly { id: string; name: string }[] | undefined): boolean {
 	if (a === b) {
 		return true;
 	}
@@ -234,7 +237,7 @@ function agentsEqual(a: readonly { name: string }[] | undefined, b: readonly { n
 		return false;
 	}
 	for (let i = 0; i < a.length; i++) {
-		if (a[i].name !== b[i].name) {
+		if (a[i].id !== b[i].id || a[i].name !== b[i].name) {
 			return false;
 		}
 	}

@@ -147,6 +147,70 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(messages[0].cot_summary).toBe('this is my reasoning');
 		});
 
+		// Regression for https://github.com/microsoft/vscode/issues/312746
+		//
+		// When DeepSeek / Moonshot (Kimi) / Minimax reasoning models are used via BYOK
+		// (either directly through the OpenAI-compatible API or proxied through OpenRouter),
+		// the *next* turn after a tool call previously failed with HTTP 400 and an error such as:
+		//
+		//   "thinking is enabled but reasoning_content is missing in assistant tool call
+		//    message at index N"
+		//
+		// These providers require the assistant tool-call message in the request history to
+		// echo back the reasoning text under the field name `reasoning_content`. The OpenAI
+		// Chat Completions BYOK path in `OpenAIEndpoint.createRequestBody` must therefore
+		// emit `reasoning_content` alongside the CAPI-specific `cot_id` / `cot_summary` keys.
+		it('issue #312746: emits reasoning_content on assistant tool-call message for BYOK Chat Completions (DeepSeek/Kimi/Moonshot)', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://openrouter.ai/api/v1/chat/completions');
+
+			const thinkingMessage = createThinkingMessage(
+				'reasoning-deepseek-1',
+				'The user asked me to analyze the project. I should call the read_file tool.'
+			);
+			const body = endpoint.createRequestBody(createTestOptions([thinkingMessage]));
+			const messages = body.messages as any[];
+
+			// CAPI-compatible keys are still emitted so the same payload also works with CAPI.
+			expect(messages[0].cot_id).toBe('reasoning-deepseek-1');
+			expect(messages[0].cot_summary).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+
+			// And the DeepSeek/Kimi/Moonshot-required field is now present.
+			expect(messages[0].reasoning_content).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+
+			// OpenRouter expects the reasoning echoed back under `reasoning`.
+			expect(messages[0].reasoning).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+		});
+
+		it('issue #312746: does not emit reasoning_content / reasoning when the model does not support thinking', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: { ...modelMetadata.capabilities.supports, thinking: false }
+					}
+				},
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+
+			const thinkingMessage = createThinkingMessage('reasoning-1', 'some reasoning');
+			const body = endpoint.createRequestBody(createTestOptions([thinkingMessage]));
+			const messages = body.messages as any[];
+
+			// CAPI-compatible keys remain, but the reasoning-model fields are omitted.
+			expect(messages[0].cot_id).toBe('reasoning-1');
+			expect(messages[0].cot_summary).toBe('some reasoning');
+			expect(messages[0].reasoning_content).toBeUndefined();
+			expect(messages[0].reasoning).toBeUndefined();
+		});
+
 		it('should handle multiple messages with thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
