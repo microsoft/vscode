@@ -10,6 +10,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "package-linux-appimage": "bash scripts/package-appimage.sh",
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
