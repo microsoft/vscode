@@ -542,10 +542,10 @@ registerAction2(class DeleteSessionAction extends Action2 {
 	}
 });
 
-registerAction2(class RenameCopilotLocalSessionAction extends Action2 {
+registerAction2(class RenameCopilotSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.copilot.renameLocalSession',
+			id: 'sessionsViewPane.copilot.renameSession',
 			title: localize2('renameSession', "Rename..."),
 			menu: [{
 				id: SessionItemContextMenuId,
@@ -553,7 +553,7 @@ registerAction2(class RenameCopilotLocalSessionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
-					ContextKeyExpr.equals('chatSessionType', LocalSessionType.id),
+					ContextKeyExpr.notEquals('chatSessionType', CopilotCloudSessionType.id),
 				),
 			}]
 		});
@@ -567,10 +567,10 @@ registerAction2(class RenameCopilotLocalSessionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const newTitle = await quickInputService.input({
 			value: session.title.get(),
-			prompt: localize('renameCopilotLocalSession.prompt', "New session title"),
+			prompt: localize('renameCopilotSession.prompt', "New session title"),
 			validateInput: async value => {
 				if (!value.trim()) {
-					return localize('renameCopilotLocalSession.empty', "Title cannot be empty");
+					return localize('renameCopilotSession.empty', "Title cannot be empty");
 				}
 				return undefined;
 			}
