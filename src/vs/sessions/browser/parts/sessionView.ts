@@ -15,7 +15,7 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, ChatViewKind } from './chatView.js';
-import { ChatCompositeBar } from './chatCompositeBar.js';
+import { ChatCompositeBar, SessionViewFloatingToolbar } from './chatCompositeBar.js';
 import { autorun } from '../../../base/common/observable.js';
 import { SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
@@ -52,12 +52,15 @@ export class SessionView extends Disposable implements ISerializableView {
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	private readonly _compositeBar: ChatCompositeBar;
+	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _contentContainer: HTMLElement;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
+	private _currentSession: IActiveSession | undefined;
+	private _hasOpenedSession = false;
 
 	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
 	private readonly _sessionIsStickyKey: IContextKey<boolean>;
@@ -89,6 +92,10 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
+
+		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
+		this.element.appendChild(this._floatingToolbar.element);
+
 		this._applyActiveSessionStyles();
 
 		// Re-layout children when the composite bar becomes visible/hidden
@@ -96,6 +103,11 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	openSession(session: IActiveSession | undefined): void {
+		if (this._hasOpenedSession && this._currentSession === session) {
+			return;
+		}
+		this._hasOpenedSession = true;
+		this._currentSession = session;
 		this._openSessionDisposables.clear();
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
@@ -126,6 +138,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			}
 
 			this._compositeBar.setSession(session);
+			this._floatingToolbar.setSession(session);
 			this._layoutChildren();
 		}));
 	}
@@ -177,6 +190,14 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {
 		this._currentView.value?.selectWorkspace(folderUri, providerId);
+	}
+
+	prefillInput(text: string): void {
+		this._currentView.value?.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		this._currentView.value?.sendQuery(text);
 	}
 
 	/**

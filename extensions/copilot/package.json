@@ -1262,6 +1262,18 @@
             "description": {
               "type": "string",
               "description": "A 2-5 word summary of what this call does (e.g. 'Recent sessions overview', 'Generate standup', 'Reindex sessions')."
+            },
+            "subcommand": {
+              "type": "string",
+              "enum": [
+                "standup",
+                "tips",
+                "cost-tips",
+                "search",
+                "improve",
+                "reindex"
+              ],
+              "description": "The chronicle subcommand that triggered this call (e.g. 'tips' for /chronicle tips). Used for telemetry attribution only — pass this whenever the call originates from a /chronicle slash command."
             }
           },
           "required": [
@@ -6106,6 +6118,18 @@
           "group": "1_edit@10"
         }
       ],
+      "chatSessions/item/context": [
+        {
+          "command": "github.copilot.claude.sessions.rename",
+          "when": "chatSessionType == claude-code",
+          "group": "1_edit@4"
+        },
+        {
+          "command": "github.copilot.cli.sessions.rename",
+          "when": "chatSessionType == copilotcli",
+          "group": "1_edit@4"
+        }
+      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
@@ -6909,7 +6933,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.4.2",
+    "@vscode/copilot-api": "^0.4.3",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",

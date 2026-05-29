@@ -17,14 +17,18 @@ import { editingEntriesContainResource } from '../../../../workbench/contrib/cha
 import { changeMatchesResource, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
+
+/**
+ * The origin of an agent feedback item. Used to classify how the feedback
+ * entered the session so that telemetry can distinguish user-authored
+ * feedback from feedback converted out of an existing review comment.
+ */
+export type AgentFeedbackKind = 'user' | 'codeReview' | 'prReview';
 
 export interface IAgentFeedback {
 	readonly id: string;
@@ -35,6 +39,8 @@ export interface IAgentFeedback {
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
+	/** Origin of this feedback item (user-authored, converted from code/PR review). */
+	readonly kind: AgentFeedbackKind;
 	/** When this feedback was converted from a PR review comment, the original thread ID. */
 	readonly sourcePRReviewCommentId?: string;
 	/**
@@ -59,6 +65,38 @@ export interface IAgentFeedbackNavigationBearing {
 	readonly totalCount: number;
 }
 
+/** Fired when a brand-new agent feedback item is added by the user. */
+export interface IAgentFeedbackAddedEvent {
+	readonly sessionResource: URI;
+	readonly feedback: IAgentFeedback;
+	readonly hasExistingFeedbackForFile: boolean;
+}
+
+/** Fired when an existing PR/code-review comment is converted into agent feedback. */
+export interface IAgentFeedbackConvertedEvent {
+	readonly sessionResource: URI;
+	readonly feedback: IAgentFeedback;
+	readonly kind: 'codeReview' | 'prReview';
+	readonly hasExistingFeedbackForFile: boolean;
+}
+
+/** Fired when a reply is appended to an existing feedback thread. */
+export interface IAgentFeedbackReplyAddedEvent {
+	readonly sessionResource: URI;
+	readonly feedback: IAgentFeedback;
+	readonly replyCount: number;
+}
+
+/** Fired when feedback items are submitted to the agent for action. */
+export interface IAgentFeedbackSubmittedEvent {
+	readonly sessionResource: URI;
+	readonly totalCount: number;
+	readonly userCount: number;
+	readonly codeReviewCount: number;
+	readonly prReviewCount: number;
+	readonly replyCount: number;
+}
+
 // --- Service Interface --------------------------------------------------------
 
 export const IAgentFeedbackService = createDecorator<IAgentFeedbackService>('agentFeedbackService');
@@ -69,10 +107,21 @@ export interface IAgentFeedbackService {
 	readonly onDidChangeFeedback: Event<IAgentFeedbackChangeEvent>;
 	readonly onDidChangeNavigation: Event<URI>;
 
+	/** Fired when a new user-authored feedback item is added. */
+	readonly onDidAddFeedback: Event<IAgentFeedbackAddedEvent>;
+	/** Fired when an external review comment is converted into agent feedback. */
+	readonly onDidConvertFeedback: Event<IAgentFeedbackConvertedEvent>;
+	/** Fired when a reply is appended to an existing feedback thread. */
+	readonly onDidAddReply: Event<IAgentFeedbackReplyAddedEvent>;
+	/** Fired when feedback items are submitted to the agent. */
+	readonly onDidSubmitFeedback: Event<IAgentFeedbackSubmittedEvent>;
+
 	/**
-	 * Add a feedback item for the given session.
+	 * Add a feedback item for the given session. {@link kind} (defaults to
+	 * `'user'`) classifies the origin of the feedback and selects which
+	 * lifecycle event is fired.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): IAgentFeedback;
 
 	/**
 	 * Remove a single feedback item.
@@ -129,10 +178,17 @@ export interface IAgentFeedbackService {
 	clearFeedback(sessionResource: URI): void;
 
 	/**
+	 * Submit the currently accumulated feedback for the session to the agent.
+	 * Captures the per-kind counts before submission and fires
+	 * {@link onDidSubmitFeedback}.
+	 */
+	submitFeedback(sessionResource: URI): Promise<void>;
+
+	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
-	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void>;
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -145,6 +201,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	readonly onDidChangeFeedback = this._onDidChangeFeedback.event;
 	private readonly _onDidChangeNavigation = this._store.add(new Emitter<URI>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
+	private readonly _onDidAddFeedback = this._store.add(new Emitter<IAgentFeedbackAddedEvent>());
+	readonly onDidAddFeedback = this._onDidAddFeedback.event;
+	private readonly _onDidConvertFeedback = this._store.add(new Emitter<IAgentFeedbackConvertedEvent>());
+	readonly onDidConvertFeedback = this._onDidConvertFeedback.event;
+	private readonly _onDidAddReply = this._store.add(new Emitter<IAgentFeedbackReplyAddedEvent>());
+	readonly onDidAddReply = this._onDidAddReply.event;
+	private readonly _onDidSubmitFeedback = this._store.add(new Emitter<IAgentFeedbackSubmittedEvent>());
+	readonly onDidSubmitFeedback = this._onDidSubmitFeedback.event;
 
 	/** sessionResource → feedback items */
 	private readonly _feedbackBySession = new Map<string, IAgentFeedback[]>();
@@ -157,20 +221,21 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = 'user'): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
 			feedbackItems = [];
 			this._feedbackBySession.set(key, feedbackItems);
 		}
+
+		// A sourcePRReviewCommentId implies the feedback originated from a PR review.
+		const effectiveKind: AgentFeedbackKind = sourcePRReviewCommentId ? 'prReview' : kind;
 
 		const feedback: IAgentFeedback = {
 			id: generateUuid(),
@@ -181,6 +246,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			suggestion,
 			codeSelection: context?.codeSelection,
 			diffHunks: context?.diffHunks,
+			kind: effectiveKind,
 			sourcePRReviewCommentId,
 		};
 
@@ -217,11 +283,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 
-		logChangesViewReviewCommentAdded(this._telemetryService, {
-			hasExistingFeedback: hasExistingForFile,
-			hasSuggestion: !!suggestion,
-			isFromPRReview: !!sourcePRReviewCommentId,
-		});
+		if (effectiveKind === 'user') {
+			this._onDidAddFeedback.fire({ sessionResource, feedback, hasExistingFeedbackForFile: hasExistingForFile });
+		} else {
+			this._onDidConvertFeedback.fire({ sessionResource, feedback, kind: effectiveKind, hasExistingFeedbackForFile: hasExistingForFile });
+		}
 
 		return feedback;
 	}
@@ -282,13 +348,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		const existing = feedbackItems[idx];
-		const existingReplies = existing.replies ?? [];
-		feedbackItems[idx] = {
+		const newReplies = [...(existing.replies ?? []), replyText];
+		const updated: IAgentFeedback = {
 			...existing,
-			replies: [...existingReplies, replyText],
+			replies: newReplies,
 		};
+		feedbackItems[idx] = updated;
 		this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		this._onDidAddReply.fire({ sessionResource, feedback: updated, replyCount: newReplies.length });
 	}
 
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
@@ -476,8 +544,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
 	}
 
-	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void> {
-		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId);
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId, kind);
 
 		// Wait for the attachment contribution to update the chat widget's attachment model
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
@@ -495,10 +563,43 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 
+		await this.submitFeedback(sessionResource);
+	}
+
+	async submitFeedback(sessionResource: URI): Promise<void> {
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (!widget) {
+			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
+			return;
+		}
+
+		const feedbackItems = this._feedbackBySession.get(sessionResource.toString()) ?? [];
+		let userCount = 0;
+		let codeReviewCount = 0;
+		let prReviewCount = 0;
+		let replyCount = 0;
+		for (const item of feedbackItems) {
+			switch (item.kind) {
+				case 'user': userCount++; break;
+				case 'codeReview': codeReviewCount++; break;
+				case 'prReview': prReviewCount++; break;
+			}
+			replyCount += item.replies?.length ?? 0;
+		}
+
+		this._onDidSubmitFeedback.fire({
+			sessionResource,
+			totalCount: feedbackItems.length,
+			userCount,
+			codeReviewCount,
+			prReviewCount,
+			replyCount,
+		});
+
 		try {
-			await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
+			await widget.acceptInput('/act-on-feedback');
 		} catch (err) {
-			this._logService.error('[AgentFeedback] Failed to execute submit feedback command', err);
+			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
 		}
 	}
 }

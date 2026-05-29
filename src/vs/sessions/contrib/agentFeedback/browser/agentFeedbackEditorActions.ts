@@ -8,11 +8,9 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
@@ -96,16 +94,8 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 	}
 
 	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const logService = accessor.get(ILogService);
-
-		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-		if (!widget) {
-			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
-			return;
-		}
-
-		await widget.acceptInput('/act-on-feedback');
+		const agentFeedbackService = accessor.get(IAgentFeedbackService);
+		await agentFeedbackService.submitFeedback(sessionResource);
 	}
 }
 
@@ -190,8 +180,6 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const logService = accessor.get(ILogService);
 
 		const activeSession = sessionManagementService.activeSession.get();
 		if (!activeSession) {
@@ -204,13 +192,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 			return;
 		}
 
-		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-		if (!widget) {
-			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
-			return;
-		}
-
-		await widget.acceptInput('/act-on-feedback');
+		await agentFeedbackService.submitFeedback(sessionResource);
 	}
 }
 

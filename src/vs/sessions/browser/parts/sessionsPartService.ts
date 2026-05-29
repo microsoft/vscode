@@ -31,7 +31,14 @@ export interface ISessionsPartService {
 	 * Toggles the maximized state of the session view hosting the given session
 	 * in the sessions part's grid.
 	 */
-	toggleMaximizeSession(session: IActiveSession): void;
+	toggleMaximizeSession(session: IActiveSession | undefined): void;
+
+	/**
+	 * Moves keyboard focus into the chat input of the session view hosting the
+	 * given session, or into the placeholder (new-session) view when `session`
+	 * is `undefined`. No-op if no matching slot is currently mounted.
+	 */
+	focusSession(session: IActiveSession | undefined): void;
 
 	/**
 	 * Returns the {@link SessionView} hosting the given session id, or the
@@ -92,8 +99,12 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		}));
 	}
 
-	toggleMaximizeSession(session: IActiveSession): void {
-		this._mainPart.toggleMaximizeSession(session.sessionId);
+	toggleMaximizeSession(session: IActiveSession | undefined): void {
+		this._mainPart.toggleMaximizeSession(session?.sessionId);
+	}
+
+	focusSession(session: IActiveSession | undefined): void {
+		this._mainPart.getSessionView(session?.sessionId)?.focus();
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {

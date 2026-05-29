@@ -85,11 +85,11 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const hasLongContextSurcharge = !!pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default pricing'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
 		{
 			value: fullMax,
 			description: hasLongContextSurcharge
-				? vscode.l10n.t('Longer sessions (higher cost)')
+				? vscode.l10n.t('Longer sessions')
 				: vscode.l10n.t('Longer sessions without compaction'),
 			isDefault: false,
 		},
@@ -97,9 +97,12 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 }
 
 function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
 	} else if (count >= 1000) {
 		return `${Math.round(count / 1000)}K`;
 	}

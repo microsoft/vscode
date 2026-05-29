@@ -23,9 +23,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { ChatSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,7 +41,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus }
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { Separator } from '../../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -67,6 +69,8 @@ const PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 // Duration of the cross-fade when the icon swaps to a different glyph/variant.
 const ICON_SWAP_FADE_MS = 180;
+
+const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 
 // Marker dataset key on the outgoing element during a cross-fade swap. Lets a
 // follow-up swap (before the previous fade finishes) skip re-processing it.
@@ -108,7 +112,7 @@ function swapIconWithCrossfade(container: HTMLElement, newChild: HTMLElement, an
 }
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
-export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
+export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
@@ -436,6 +440,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const changes = element.changes.read(reader);
+			const changesSummary = element.changesSummary?.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			let timeDate: Date | undefined;
@@ -477,13 +482,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Diff stats
-			if (!hideDetails && changes.length > 0) {
-				let insertions = 0;
-				let deletions = 0;
-				for (const change of changes) {
-					insertions += change.insertions;
-					deletions += change.deletions;
+			if (!hideDetails && (changesSummary || changes.length > 0)) {
+				let insertions = 0, deletions = 0;
+
+				if (changesSummary) {
+					insertions = changesSummary.additions;
+					deletions = changesSummary.deletions;
+				} else if (changes.length > 0) {
+					for (const change of changes) {
+						insertions += change.insertions;
+						deletions += change.deletions;
+					}
 				}
+
 				if (insertions > 0 || deletions > 0) {
 					if (parts.length > 0) {
 						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -681,6 +692,7 @@ interface ISessionSectionTemplate {
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
+	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
@@ -688,6 +700,8 @@ interface ISessionSectionTemplate {
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
+
+	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -702,6 +716,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -709,7 +725,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, count, toolbar, contextKeyService, disposables };
+		return { container, label, count, toolbar, chevron, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -717,6 +733,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		if (!isSessionSection(element)) {
 			return;
 		}
+		this.templatesByElement.set(element, template);
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
 			template.count.textContent = '';
@@ -726,10 +743,39 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.count.style.display = '';
 		}
 
+		this.updateChevron(template, node.collapsible, node.collapsed);
+
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		template.toolbar.context = element;
+	}
+
+	/**
+	 * Updates the expand/collapse chevron for an already-rendered section. The
+	 * tree only re-invokes `renderTwistie` (not `renderElement`) when a section's
+	 * collapse state toggles, so the owning list forwards collapse changes here.
+	 */
+	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
+		const template = this.templatesByElement.get(element);
+		if (template) {
+			this.updateChevron(template, true, collapsed);
+		}
+	}
+
+	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
+		template.chevron.className = 'session-section-chevron';
+		if (collapsible) {
+			template.chevron.classList.add('collapsible');
+			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
+		}
+	}
+
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
+		if (isSessionSection(node.element)) {
+			this.templatesByElement.delete(node.element);
+		}
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
@@ -764,8 +810,8 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		} else {
 			template.textContent = element.kind === 'folders'
 				? element.remainingCount === 1
-					? localize('showMoreWorkspaceCompact', "+{0} workspace", element.remainingCount)
-					: localize('showMoreWorkspacesCompact', "+{0} workspaces", element.remainingCount)
+					? localize('showMoreWorkspaceCompact', "+{0} more workspace", element.remainingCount)
+					: localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
 				: localize('showMoreCompact', "+{0} more", element.remainingCount);
 		}
 	}
@@ -957,6 +1003,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -972,6 +1019,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
+		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
+			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}));
+		this._register(DOM.addDisposableListener(this.listContainer.ownerDocument, DOM.EventType.KEY_DOWN, () => {
+			this.listContainer.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}, true));
 
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
@@ -992,6 +1045,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
 		// observe the workbench's value rather than shadowing it with a fresh
@@ -1006,7 +1060,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			delegate,
 			[
 				sessionRenderer,
-				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
+				sectionRenderer,
 				showMoreRenderer,
 			],
 			{
@@ -1105,12 +1159,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeCollapseState(e => {
-			if (this.suspendCollapseStatePersistence) {
-				return;
-			}
 			const element = e.node.element;
 			if (element && isSessionSection(element)) {
-				this.saveSectionCollapseState(element.id, e.node.collapsed);
+				sectionRenderer.updateCollapseState(element, e.node.collapsed);
+				if (!this.suspendCollapseStatePersistence) {
+					this.saveSectionCollapseState(element.id, e.node.collapsed);
+				}
 			}
 		}));
 
@@ -1455,8 +1509,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
+		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession[].
+		const marshalledArg = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: { resource: element.resource },
+			sessions: selectedSessions.map(s => ({ resource: s.resource })),
+		};
+		const wrapForExtensions = (action: IAction): IAction => {
+			if (!(action instanceof MenuItemAction) || !action.item.source) {
+				return action;
+			}
+			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			wrapped.tooltip = action.tooltip;
+			wrapped.checked = action.checked;
+			return wrapped;
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions))),
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 		});

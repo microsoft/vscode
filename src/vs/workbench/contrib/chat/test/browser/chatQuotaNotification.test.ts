@@ -86,10 +86,12 @@ function createMockNotificationService() {
 	let setCount = 0;
 
 	const onDidChange = new Emitter<void>();
+	const onDidDismiss = new Emitter<string>();
 
 	const service: IChatInputNotificationService = {
 		_serviceBrand: undefined,
 		onDidChange: onDidChange.event,
+		onDidDismiss: onDidDismiss.event,
 		setNotification(notification: IChatInputNotification) {
 			lastNotification = notification;
 			deleted = false;

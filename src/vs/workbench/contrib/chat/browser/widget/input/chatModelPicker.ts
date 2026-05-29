@@ -1317,10 +1317,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
@@ -1384,7 +1381,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
@@ -1508,9 +1505,12 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 
 
 export function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
 	} else if (count >= 1000) {
 		return `${Math.round(count / 1000)}K`;
 	}
