@@ -383,7 +383,7 @@ suite('CopilotAgentSession', () => {
 		}];
 
 		assert.deepStrictEqual(await session.getMessages(), [{
-			id: 'message-1',
+			id: 'event-1',
 			userMessage: {
 				text: '/act-on-feedback',
 				attachments: [expectedAttachment],
@@ -1771,6 +1771,47 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(toolCompletions, [
 				{ parentToolCallId: 'tc-subagent', toolCallId: 'tc-child-tool' },
 			]);
+		});
+
+		test('history replay seeds turn id from the SDK envelope id, matching `turns.event_id`', async () => {
+			// Regression test: fork / truncate look up the SDK boundary
+			// event id via `getNextTurnEventId(turnId)`, which keys on
+			// either `turns.id` (live `request_xxx`) or `turns.event_id`
+			// (SDK envelope id). For sessions restored from disk we want
+			// the restored turn id to be the SDK envelope id so that
+			// lookup succeeds without translation.
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.getEvents = async () => [
+				{
+					type: 'user.message',
+					id: 'sdk-evt-user-1',
+					data: { interactionId: 'capi-interaction-1', content: 'first prompt' },
+				},
+				{
+					type: 'assistant.message',
+					id: 'sdk-evt-asst-1',
+					data: { messageId: 'sdk-msg-1', content: 'first response.' },
+				},
+				{
+					type: 'user.message',
+					id: 'sdk-evt-user-2',
+					data: { interactionId: 'capi-interaction-2', content: 'second prompt' },
+				},
+				{
+					type: 'assistant.message',
+					id: 'sdk-evt-asst-2',
+					data: { messageId: 'sdk-msg-2', content: 'second response.' },
+				},
+			] as SessionEvent[];
+
+			const turns = await session.getMessages();
+			assert.deepStrictEqual(
+				turns.map(t => ({ id: t.id, text: t.userMessage.text })),
+				[
+					{ id: 'sdk-evt-user-1', text: 'first prompt' },
+					{ id: 'sdk-evt-user-2', text: 'second prompt' },
+				],
+			);
 		});
 	});
 
