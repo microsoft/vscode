@@ -33,6 +33,8 @@ export class NewChatWidget extends Disposable {
 
 	/** Tracks an in-flight wait for a provider's session types to become available. */
 	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
+	/** Guards against disposal-time picker callbacks mutating the active session. */
+	private _isDisposed = false;
 
 	/**
 	 * The currently mounted no-agent-host empty state, if any. Set by
@@ -378,6 +380,10 @@ export class NewChatWidget extends Disposable {
 	 * Requests folder trust if needed and creates a new session.
 	 */
 	private async _onWorkspaceSelected(folderUri: URI | undefined, pick: IPreferredSessionType | undefined): Promise<void> {
+		if (this._isDisposed) {
+			return;
+		}
+
 		// Cancel any in-flight wait for a previous selection.
 		this._pendingSessionTypeWait.clear();
 
@@ -410,6 +416,11 @@ export class NewChatWidget extends Disposable {
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId });
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 }
 
