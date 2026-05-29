@@ -592,6 +592,13 @@ export interface IPromptsService extends IDisposable {
 	isValidSlashCommandName(name: string): boolean;
 
 	/**
+	 * Synchronously checks whether `name` matches a discovered prompt slash command.
+	 * Backed by the cached slash-command list, which is populated asynchronously, so
+	 * this may return `false` for known commands before the first discovery completes.
+	 */
+	hasPromptSlashCommand(name: string): boolean;
+
+	/**
 	 * Gets the prompt file for a slash command.
 	 */
 	resolvePromptSlashCommand(command: string, sessionType: string | undefined, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
