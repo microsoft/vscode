@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev, CollapseAllUnchangedRegions, ExitCompareMove, RevertHunkOrSelection, ShowAllUnchangedRegions, SwitchSide, ToggleCollapseUnchangedRegions, ToggleShowMovedCodeBlocks, ToggleUseInlineViewWhenSpaceIsLimited } from './commands.js';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev, CollapseAllUnchangedRegions, ExitCompareMove, RevertHunkOrSelection, ShowAllUnchangedRegions, SwitchSide, ToggleCollapseUnchangedRegions, ToggleDiffSideBySide, ToggleShowMovedCodeBlocks, ToggleUseInlineViewWhenSpaceIsLimited } from './commands.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -15,6 +15,7 @@ import './registrations.contribution.js';
 registerAction2(ToggleCollapseUnchangedRegions);
 registerAction2(ToggleShowMovedCodeBlocks);
 registerAction2(ToggleUseInlineViewWhenSpaceIsLimited);
+registerAction2(ToggleDiffSideBySide);
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
