@@ -141,7 +141,7 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 					options.location,
 					turns.slice(0, -1),
 					docSnapshot
-				);
+				).catch(() => { /* best-effort telemetry — endpoint may be unavailable */ });
 			}
 		}
 	}

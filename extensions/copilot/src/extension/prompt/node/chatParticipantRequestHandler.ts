@@ -253,7 +253,7 @@ export class ChatParticipantRequestHandler {
 						this.location,
 						history,
 						this.documentContext?.document
-					);
+					).catch(() => { /* best-effort telemetry — endpoint may be unavailable */ });
 				}
 
 				result = await chatResult;
