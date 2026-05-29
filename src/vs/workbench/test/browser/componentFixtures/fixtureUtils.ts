@@ -624,6 +624,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
 		onDidChangeNavigation: Event.None,
+		onDidAddFeedback: Event.None,
+		onDidConvertFeedback: Event.None,
+		onDidAddReply: Event.None,
+		onDidSubmitFeedback: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
@@ -637,6 +641,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		setNavigationAnchor: () => { },
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
+		submitFeedback: async () => { },
 		addFeedbackAndSubmit: async () => { },
 	});
 
