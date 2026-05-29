@@ -389,7 +389,19 @@ class PlaywrightSession extends Disposable {
 		const pageMethodsCalled = new Map<string, number>();
 
 		if (timeoutMs !== undefined) {
-			const fn = await this._compileFunction(fnDef);
+			let fn;
+			try {
+				fn = await this._compileFunction(fnDef);
+			} catch (err: unknown) {
+				// Return compile/syntax errors as { error, summary } like other
+				// execution failures rather than throwing to callers.
+				const summary = await this._getSummary(pageId);
+				return {
+					error: err instanceof Error ? err.message : String(err),
+					summary,
+					pageMethodsCalled: Object.fromEntries(pageMethodsCalled),
+				};
+			}
 			const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, pageMethodsCalled), args ?? []);
 			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, pageMethodsCalled);
 		}
