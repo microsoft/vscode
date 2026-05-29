@@ -32,7 +32,6 @@ import { IAgentHostCustomizationService } from '../../../../../../workbench/cont
 import { AgentCustomizationItemProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 
 class MockAgentConnection extends mock<IAgentConnection>() {
-	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	override readonly onDidAction = this._onDidAction.event;
