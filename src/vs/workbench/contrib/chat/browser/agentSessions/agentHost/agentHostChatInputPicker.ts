@@ -27,8 +27,10 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -72,12 +74,24 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined): IActionListItem<IConfigPickerItem>[] {
+function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+}
+
+function normalizeConfigValue(property: string, value: string, policyRestricted: boolean): string {
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === 'autoApprove' || value === 'autopilot')) {
+		return 'default';
+	}
+	return value;
+}
+
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
 		description: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
+		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
 		item: { ...item, label: item.value === currentValue ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
 }
@@ -200,6 +214,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -431,7 +446,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 		const currentValue = ctx.value;
-		const actionItems = toActionItems(this._property, items, currentValue);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
+		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted);
 		if (this._property === ClaudeSessionConfigKey.PermissionMode || this._property === SessionConfigKey.AutoApprove) {
 			actionItems.push({
 				kind: ActionListItemKind.Action,
@@ -456,7 +472,7 @@ export class AgentHostChatInputPicker extends Disposable {
 					if (!refreshed) {
 						return [];
 					}
-					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value);
+					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService));
 				})
 				: undefined,
 			onHide: () => trigger.focus(),
@@ -534,7 +550,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		const partial = { [this._property]: value };
+		const normalizedValue = normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
+		const partial = { [this._property]: normalizedValue };
 
 		if (isUntitledChatSession(sessionResource)) {
 			// Route through the provisional service so the workbench-owned
