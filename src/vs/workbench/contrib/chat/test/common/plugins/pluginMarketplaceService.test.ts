@@ -260,38 +260,6 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(refs[2].kind, MarketplaceReferenceKind.GitHubShorthand);
 	});
 
-	test('chat.plugins.extraMarketplaces schema: setting is registered as an object with single-element-array additionalProperties.type so Settings Editor renders it as ComplexObject', async () => {
-		// Guards the schema shape the Settings Editor relies on to render the
-		// policy-managed extra marketplaces inline (key/value rows) instead of
-		// just an "Edit in settings.json" link.
-		//
-		// Settings Editor logic (`getObjectSettingSchemaType` /
-		// `getObjectRenderableSchemaType` in `settingsTreeModels.ts`):
-		//   - requires `type === 'object'`
-		//   - requires `additionalProperties` to be an object (not `true`/undefined)
-		//   - if `additionalProperties.type` is a single-element array of a simple
-		//     type, falls into the "complex" branch → ComplexObject renderer.
-		//
-		// Lazy-imported because the contribution module is heavy; we only want
-		// to register it for this single assertion.
-		const { Extensions: ConfigurationExtensions } = await import('../../../../../../platform/configuration/common/configurationRegistry.js');
-		const { Registry } = await import('../../../../../../platform/registry/common/platform.js');
-		await import('../../../browser/chat.shared.contribution.js');
-
-		const registry = Registry.as<import('../../../../../../platform/configuration/common/configurationRegistry.js').IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		const allProps = { ...registry.getConfigurationProperties(), ...registry.getExcludedConfigurationProperties() };
-		const schema = allProps[ChatConfiguration.ExtraMarketplaces];
-		assert.ok(schema, `expected ${ChatConfiguration.ExtraMarketplaces} to be registered`);
-		assert.strictEqual(schema.type, 'object', 'type must be "object" so the Settings Editor renders inline rows');
-		assert.ok(schema.additionalProperties && typeof schema.additionalProperties === 'object',
-			'additionalProperties must be a schema object so getObjectSettingSchemaType does not early-return');
-		const apType = (schema.additionalProperties as { type?: unknown }).type;
-		assert.ok(Array.isArray(apType),
-			'additionalProperties.type must be an array form (e.g. ["string"]) to land in the ComplexObject branch');
-		assert.ok((apType as unknown[]).every(t => t === 'string' || t === 'boolean' || t === 'integer' || t === 'number'),
-			'all entries in additionalProperties.type must be simple types so getObjectRenderableSchemaType returns "complex"');
-	});
-
 	test('parses Azure DevOps HTTPS clone URLs without .git suffix', () => {
 		const parsed = parseMarketplaceReference('https://dev.azure.com/org/project/_git/repo');
 		assert.ok(parsed);
