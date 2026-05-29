@@ -146,6 +146,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'bsi.cose'),
 			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.cat'),
 			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
+			path.join('mxc-bin', 'arm64', 'linux-test-proxy'),
 			path.join('mxc-bin', 'x64', 'lxc-exec'),
 			path.join('mxc-bin', 'x64', 'winhttp-proxy-shim.exe'),
 			path.join('mxc-bin', 'x64', 'wslcsdk.dll'),
@@ -157,6 +158,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'bsi.cose'),
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.cat'),
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
+			path.join('mxc-bin', 'x64', 'linux-test-proxy'),
 			// parsing commands for shell.
 			'tree-sitter-bash.wasm',
 			'tree-sitter.wasm',
