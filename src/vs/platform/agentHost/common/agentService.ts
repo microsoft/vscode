@@ -883,7 +883,7 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
-	readonly _serviceBrand: undefined;
+
 	readonly clientId: string;
 
 	// ---- State subscriptions ------------------------------------------------
@@ -942,6 +942,8 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
  * exposes the proxied service). Consumed by the main process and workbench.
  */
 export interface IAgentHostService extends IAgentConnection {
+
+	readonly _serviceBrand: undefined;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

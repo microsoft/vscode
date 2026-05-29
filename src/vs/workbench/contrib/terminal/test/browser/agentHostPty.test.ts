@@ -21,7 +21,7 @@ import { StateComponents } from '../../../../../platform/agentHost/common/state/
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
-	declare readonly _serviceBrand: undefined;
+
 	readonly clientId = 'test-client';
 
 	private _seq = 0;
