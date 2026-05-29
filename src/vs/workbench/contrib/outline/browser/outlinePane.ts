@@ -30,12 +30,32 @@ import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from '..
 import { EditorResourceAccessor, IEditorPane } from '../../../common/editor.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
+import { ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../base/browser/ui/tree/tree.js';
 import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ctxAllCollapsed, ctxFilterOnType, ctxFocused, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IDragAndDropData } from '../../../../base/browser/dnd.js';
+import { ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { SymbolKinds, SymbolKind, DocumentSymbol } from '../../../../editor/common/languages.js';
+
+interface VisibleTreeNode {
+	element: unknown;
+	visible: boolean;
+	collapsed: boolean;
+	children: readonly VisibleTreeNode[];
+}
+
+interface OutlineDropTarget {
+	element: unknown;
+	position: 'before' | 'after';
+	feedbackElement: unknown;
+}
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -75,6 +95,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IAbstractTreeViewState>(10);
 
+	// The custom drag preview is attached to the tree container and removed after each drag.
+	private _dragImage?: HTMLElement;
+
 	private _ctxFollowsCursor!: IContextKey<boolean>;
 	private _ctxFilterOnType!: IContextKey<boolean>;
 	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
@@ -94,6 +117,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._outlineViewState.restore(this._storageService);
@@ -116,6 +140,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override dispose(): void {
+		this._clearDragImage();
 		this._disposables.dispose();
 		this._editorPaneDisposables.dispose();
 		this._editorControlDisposables.dispose();
@@ -175,6 +200,382 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 	get outlineViewState() {
 		return this._outlineViewState;
+	}
+
+	private _clearDragImage(): void {
+		this._dragImage?.remove();
+		this._dragImage = undefined;
+	}
+
+	private _getDocumentSymbol(element: unknown | undefined): DocumentSymbol | undefined {
+		const symbol = (element as { symbol?: unknown })?.symbol;
+
+		if (!symbol || typeof symbol !== 'object') {
+			return undefined;
+		}
+
+		const s = symbol as Record<string, unknown>;
+
+		if (
+			typeof s.name === 'string' &&
+			typeof s.kind === 'number' &&
+			typeof s.range === 'object' &&
+			typeof s.selectionRange === 'object'
+		) {
+			return symbol as DocumentSymbol;
+		}
+
+		return undefined;
+	}
+
+	private _getParentDocumentSymbol(element: unknown | undefined): DocumentSymbol | undefined {
+		const parent = (element as { parent?: unknown } | undefined)?.parent;
+		return this._getDocumentSymbol(parent);
+	}
+
+	private _isPotentialMethodExtractionSource(symbol: DocumentSymbol): boolean {
+		return symbol.kind === SymbolKind.Method
+			|| symbol.kind === SymbolKind.Constructor
+			|| symbol.kind === SymbolKind.Property;
+	}
+
+	// Keep drag feedback limited to moves the refactoring command can validate further.
+	private _isSupportedOutlineMove(sourceElement: unknown | undefined, targetElement: unknown | undefined): boolean {
+		const sourceSymbol = this._getDocumentSymbol(sourceElement);
+		const targetSymbol = this._getDocumentSymbol(targetElement);
+
+		if (!sourceSymbol || !targetSymbol) {
+			return false;
+		}
+
+		if (!this._isPotentialMethodExtractionSource(sourceSymbol)) {
+			return false;
+		}
+
+		const sourceParentSymbol = this._getParentDocumentSymbol(sourceElement);
+		const targetParentSymbol = this._getParentDocumentSymbol(targetElement);
+		if (sourceParentSymbol?.kind !== SymbolKind.Class || targetParentSymbol?.kind === SymbolKind.Class) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private _getOutlineDragLabel(sourceElement: unknown | undefined): string {
+		return this._getDocumentSymbol(sourceElement)?.name ?? localize('outline.drag.label', "Symbol");
+	}
+
+	private _createOutlineDragIcon(sourceElement: unknown | undefined): HTMLElement | undefined {
+		const symbol = this._getDocumentSymbol(sourceElement);
+		if (!symbol) {
+			return undefined;
+		}
+
+		const icon = dom.$('.outline-drag-image-icon.inline.codicon-colored');
+		icon.classList.add(...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(symbol.kind)));
+		return icon;
+	}
+
+	private _applyOutlineDragImage(event: DragEvent, sourceElement: unknown | undefined): void {
+		this._clearDragImage();
+
+		if (!event.dataTransfer) {
+			return;
+		}
+
+		const target = event.target as HTMLElement | null;
+
+		const row = target?.closest('.monaco-list-row') as HTMLElement | null;
+
+		if (!row) {
+			return;
+		}
+
+		const rowRect = row.getBoundingClientRect();
+		const dragImage = dom.$('.outline-drag-image');
+
+		const icon = this._createOutlineDragIcon(sourceElement);
+		if (icon) {
+			dragImage.appendChild(icon);
+		}
+
+		const label = dom.$('span.outline-drag-image-label');
+		label.textContent = this._getOutlineDragLabel(sourceElement);
+		dragImage.appendChild(label);
+
+		dragImage.style.width = `${Math.max(160, rowRect.width)}px`;
+		dragImage.style.height = `${rowRect.height}px`;
+
+		this._treeContainer.appendChild(dragImage);
+
+		event.dataTransfer.setDragImage(
+			dragImage,
+			Math.min(24, event.clientX - rowRect.left),
+			Math.floor(rowRect.height / 2)
+		);
+
+		this._dragImage = dragImage;
+	}
+
+	private _getDropPosition(targetSector: ListViewTargetSector | undefined): 'before' | 'after' | undefined {
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
+				return 'before';
+			case ListViewTargetSector.CENTER_BOTTOM:
+			case ListViewTargetSector.BOTTOM:
+				return 'after';
+		}
+		return undefined;
+	}
+
+	private _isExpandedClass(element: unknown | undefined): boolean {
+		const symbol = this._getDocumentSymbol(element);
+		const node = element ? this._tree?.getNode(element) : undefined;
+
+		return symbol?.kind === SymbolKind.Class
+			&& !!node
+			&& node.collapsible
+			&& !node.collapsed;
+	}
+
+	private _isLastVisibleDescendantOfClass(element: unknown | undefined): boolean {
+		if (!element) {
+			return false;
+		}
+
+		let child = element;
+		let parent = (element as { parent?: unknown } | undefined)?.parent;
+
+		while (parent) {
+			const parentSymbol = this._getDocumentSymbol(parent);
+
+			if (parentSymbol?.kind !== SymbolKind.Class) {
+				child = parent;
+				parent = (parent as { parent?: unknown } | undefined)?.parent;
+				continue;
+			}
+
+			const parentNode = this._tree?.getNode(parent);
+			if (!parentNode || parentNode.collapsed || parentNode.children.length === 0) {
+				return false;
+			}
+
+			let lastVisibleChild: VisibleTreeNode | undefined;
+			for (const childNode of parentNode.children) {
+				if (childNode.visible) {
+					lastVisibleChild = childNode;
+				}
+			}
+
+			return !!lastVisibleChild && (lastVisibleChild as { element?: unknown }).element === child;
+		}
+
+		return false;
+	}
+
+	private _getContainingClassElement(element: unknown | undefined): unknown | undefined {
+		let parent = (element as { parent?: unknown } | undefined)?.parent;
+
+		while (parent) {
+			if (this._getDocumentSymbol(parent)?.kind === SymbolKind.Class) {
+				return parent;
+			}
+
+			parent = (parent as { parent?: unknown } | undefined)?.parent;
+		}
+
+		return undefined;
+	}
+
+	private _getOutlineDropTarget(
+		targetElement: unknown | undefined,
+		targetSector: ListViewTargetSector | undefined
+	): OutlineDropTarget | undefined {
+		const position = this._getDropPosition(targetSector);
+
+		if (!targetElement || !position) {
+			return undefined;
+		}
+
+		if (position === 'after') {
+			if (this._isExpandedClass(targetElement)) {
+				return {
+					element: targetElement,
+					position: 'before',
+					feedbackElement: targetElement
+				};
+			}
+
+			if (this._isLastVisibleDescendantOfClass(targetElement)) {
+				const containingClass = this._getContainingClassElement(targetElement);
+				if (containingClass) {
+					return {
+						element: containingClass,
+						position: 'after',
+						feedbackElement: targetElement
+					};
+				}
+			}
+		}
+
+		return {
+			element: targetElement,
+			position,
+			feedbackElement: targetElement
+		};
+	}
+
+	private _getDraggedElement(data: IDragAndDropData): unknown | undefined {
+		if (!(data instanceof ElementsDragAndDropData)) {
+			return undefined;
+		}
+
+		const elements = data.getData();
+		return elements.length === 1 ? elements[0] : undefined;
+	}
+
+	private _toOutlineMoveSymbol(symbol: DocumentSymbol): {
+		name: string;
+		kind: number;
+		range: {
+			start: { line: number; character: number };
+			end: { line: number; character: number };
+		};
+	} {
+		return {
+			name: symbol.name,
+			kind: symbol.kind,
+			range: {
+				start: {
+					line: symbol.range.startLineNumber - 1,
+					character: symbol.range.startColumn - 1
+				},
+				end: {
+					line: symbol.range.endLineNumber - 1,
+					character: symbol.range.endColumn - 1
+				}
+			}
+		};
+	}
+
+	private _getLastVisibleDescendantIndex(element: unknown, targetIndex: number): number {
+		const node = this._tree?.getNode(element);
+		if (!node) {
+			return targetIndex;
+		}
+
+		const countVisibleRows = (node: VisibleTreeNode): number => {
+			if (!node.visible) {
+				return 0;
+			}
+
+			if (node.collapsed) {
+				return 1;
+			}
+
+			let count = 1;
+			for (const child of node.children) {
+				count += countVisibleRows(child);
+			}
+			return count;
+		};
+
+		return targetIndex + countVisibleRows(node) - 1;
+	}
+
+	private _createOutlineDragAndDrop(
+		outline: IOutline<unknown>,
+		originalDnd: ITreeDragAndDrop<unknown> | undefined
+	): ITreeDragAndDrop<unknown> {
+		return {
+			getDragURI: element => originalDnd ? originalDnd.getDragURI(element) : outline.uri ? `outline:${outline.uri.toString()}` : null,
+
+			getDragLabel: (elements, originalEvent) => originalDnd?.getDragLabel?.(elements, originalEvent) ?? (elements.length === 1
+				? this._getOutlineDragLabel(elements[0])
+				: localize('outline.drag.labelMany', "{0} symbols", elements.length)),
+
+			onDragStart: (data, originalEvent): void => {
+				originalDnd?.onDragStart?.(data, originalEvent);
+				this._applyOutlineDragImage(originalEvent, this._getDraggedElement(data));
+			},
+
+			onDragEnd: originalEvent => {
+				this._clearDragImage();
+				originalDnd?.onDragEnd?.(originalEvent);
+			},
+
+			onDragOver: (data, targetElement, targetIndex, targetSector, originalEvent): boolean | ITreeDragOverReaction => {
+				const sourceElement = this._getDraggedElement(data);
+				const dropTarget = this._getOutlineDropTarget(targetElement, targetSector);
+				const sourceSymbol = this._getDocumentSymbol(sourceElement);
+				const targetSymbol = this._getDocumentSymbol(dropTarget?.element);
+
+				if (!outline.uri || !sourceSymbol || !targetSymbol || !dropTarget || sourceElement === dropTarget.element) {
+					return originalDnd?.onDragOver(data, targetElement, targetIndex, targetSector, originalEvent) ?? false;
+				}
+
+				// Visual order must match source order for before/after drops to produce predictable edits.
+				if (this._outlineViewState.sortBy === OutlineSortOrder.ByKind || this._outlineViewState.sortBy === OutlineSortOrder.ByName) {
+					return originalDnd?.onDragOver(data, targetElement, targetIndex, targetSector, originalEvent) ?? false;
+				}
+
+				if (!this._isSupportedOutlineMove(sourceElement, dropTarget.element)) {
+					return false;
+				}
+
+				const reaction: ITreeDragOverReaction = {
+					accept: true,
+					effect: {
+						type: ListDragOverEffectType.Move,
+						position: dropTarget.position === 'before' ? ListDragOverEffectPosition.Before : ListDragOverEffectPosition.After
+					}
+				};
+
+				if (typeof targetIndex === 'number') {
+					reaction.feedback = [
+						dropTarget.position === 'after'
+							? this._getLastVisibleDescendantIndex(dropTarget.feedbackElement, targetIndex)
+							: targetIndex
+					];
+				}
+
+				return reaction;
+			},
+
+			drop: (data, targetElement, targetIndex, targetSector, originalEvent): void => {
+				this._clearDragImage();
+
+				const sourceElement = this._getDraggedElement(data);
+
+				const sourceSymbol = sourceElement ? this._getDocumentSymbol(sourceElement) : undefined;
+				const dropTarget = this._getOutlineDropTarget(targetElement, targetSector);
+				const targetSymbol = dropTarget ? this._getDocumentSymbol(dropTarget.element) : undefined;
+
+				const sourceParentSymbol = this._getParentDocumentSymbol(sourceElement);
+				const targetParentSymbol = this._getParentDocumentSymbol(dropTarget?.element);
+
+				if (!outline.uri || !sourceSymbol || !targetSymbol || !dropTarget || sourceElement === dropTarget.element) {
+					originalDnd?.drop(data, targetElement, targetIndex, targetSector, originalEvent);
+					return;
+				}
+
+				if (!this._isSupportedOutlineMove(sourceElement, dropTarget.element)) {
+					return;
+				}
+
+				void this._commandService.executeCommand('outline.moveSymbol', {
+					uri: outline.uri,
+					source: this._toOutlineMoveSymbol(sourceSymbol),
+					target: this._toOutlineMoveSymbol(targetSymbol),
+					sourceParent: sourceParentSymbol ? this._toOutlineMoveSymbol(sourceParentSymbol) : undefined,
+					targetParent: targetParentSymbol ? this._toOutlineMoveSymbol(targetParentSymbol) : undefined,
+					position: dropTarget.position
+				});
+			},
+
+			dispose: () => originalDnd?.dispose()
+		};
 	}
 
 	private _showMessage(message: string) {
@@ -252,6 +653,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
+		// Unsupported drag-and-drop cases continue to use the outline's existing behavior.
+		const dnd = this._createOutlineDragAndDrop(newOutline, newOutline.config.options.dnd);
+
 		const tree = this._instantiationService.createInstance(
 			WorkbenchDataTree<IOutline<unknown> | undefined, unknown, FuzzyScore>,
 			'OutlinePane',
@@ -262,6 +666,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 			{
 				...newOutline.config.options,
 				sorter,
+				dnd,
 				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
