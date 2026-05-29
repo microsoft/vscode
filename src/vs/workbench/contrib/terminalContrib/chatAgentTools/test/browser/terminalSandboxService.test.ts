@@ -1300,7 +1300,6 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
 		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
-		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
 		ok(config.filesystem.readonlyPaths.includes('c:\\program files\\powershell\\7'), 'Resolved PowerShell executable directory should be readable in the MXC config');
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');

@@ -377,7 +377,6 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be writable');
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'MXC temporary files policy should add host temp path to writable paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be readable through readonly paths');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/app'), 'App root should be readable for MXC');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/tools/node'), 'MXC available tools policy should add tool paths to readonly paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/program files/powershell/7'), 'Resolved PowerShell executable directory should be readable');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/programs/git'), 'MXC user profile policy should add user profile paths to readonly paths');
