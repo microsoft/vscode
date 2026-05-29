@@ -845,6 +845,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			let reconnectionToken: string = '';
 			let lastIncomingDataTime: number = 0;
 			let reconnectionAttempts: number = 0;
+			// Stable across reconnect-loop token rotations; a change at the next ConnectionGain means stale-token recovery.
+			let reconnectionTokenAtLoss: string = '';
 
 			const reconnectButton = {
 				label: nls.localize('reconnectNow', "Reconnect Now"),
@@ -895,6 +897,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
 						reconnectionToken = e.reconnectionToken;
+						reconnectionTokenAtLoss = e.reconnectionToken;
 						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
 						reconnectionAttempts = 0;
 
@@ -1017,10 +1020,15 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						}
 						break;
 
-					case PersistentConnectionEventType.ConnectionGain:
+					case PersistentConnectionEventType.ConnectionGain: {
+						const wasReplaced = !!reconnectionTokenAtLoss && reconnectionTokenAtLoss !== e.reconnectionToken;
+						reconnectionTokenAtLoss = '';
 						reconnectionToken = e.reconnectionToken;
 						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
 						reconnectionAttempts = e.attempt;
+						if (wasReplaced) {
+							logService.warn(`Reconnected to a replaced remote server; previous server-side session state is gone.`);
+						}
 
 						type RemoteConnectionGainClassification = {
 							owner: 'alexdima';
@@ -1029,22 +1037,26 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
 							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
+							wasReplaced: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the remote server was replaced (stale-token recovery).' };
 						};
 						type RemoteConnectionGainEvent = {
 							remoteName: string | undefined;
 							reconnectionToken: string;
 							millisSinceLastIncomingData: number;
 							attempt: number;
+							wasReplaced: boolean;
 						};
 						telemetryService.publicLog2<RemoteConnectionGainEvent, RemoteConnectionGainClassification>('remoteConnectionGain', {
 							remoteName: getRemoteName(environmentService.remoteAuthority),
 							reconnectionToken: e.reconnectionToken,
 							millisSinceLastIncomingData: e.millisSinceLastIncomingData,
-							attempt: e.attempt
+							attempt: e.attempt,
+							wasReplaced
 						});
 
 						hideProgress();
 						break;
+					}
 				}
 			}));
 		}

@@ -161,6 +161,8 @@ class TestService implements ITestService {
 
 class TestChannel implements IServerChannel {
 
+	public listenCount = 0;
+
 	constructor(private service: ITestService) { }
 
 	call(_: unknown, command: string, arg: any, cancellationToken: CancellationToken): Promise<any> {
@@ -176,7 +178,9 @@ class TestChannel implements IServerChannel {
 
 	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'onPong': return this.service.onPong;
+			case 'onPong':
+				this.listenCount++;
+				return this.service.onPong;
 			default: throw new Error('not implemented');
 		}
 	}
@@ -243,6 +247,7 @@ suite('Base IPC', function () {
 		let server: IPCServer;
 		let client: IPCClient;
 		let service: TestService;
+		let serverChannel: TestChannel;
 		let ipcService: ITestService;
 
 		setup(function () {
@@ -250,7 +255,8 @@ suite('Base IPC', function () {
 			const testServer = store.add(new TestIPCServer());
 			server = testServer;
 
-			server.registerChannel(TestChannelId, new TestChannel(service));
+			serverChannel = new TestChannel(service);
+			server.registerChannel(TestChannelId, serverChannel);
 
 			client = store.add(testServer.createConnection('client1'));
 			ipcService = new TestChannelClient(client.getChannel(TestChannelId));
@@ -339,6 +345,59 @@ suite('Base IPC', function () {
 			const writer = new BufferWriter();
 			serialize(writer, input);
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
+
+		test('cancelPendingCalls rejects in-flight calls and leaves event subscriptions alive', async function () {
+			const pending1 = ipcService.neverComplete();
+			const pending2 = ipcService.neverComplete();
+			const messages: string[] = [];
+			store.add(ipcService.onPong(msg => messages.push(msg)));
+			await timeout(0);
+
+			service.ping('before');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['before']);
+
+			client.cancelPendingCalls();
+
+			await assert.rejects(pending1, /Canceled/);
+			await assert.rejects(pending2, /Canceled/);
+
+			// event subscription should still fire
+			service.ping('after');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['before', 'after']);
+		});
+
+		test('client is still usable after cancelPendingCalls', async function () {
+			const pending = ipcService.neverComplete();
+			client.cancelPendingCalls();
+			await assert.rejects(pending, /Canceled/);
+
+			assert.strictEqual(await ipcService.marco(), 'polo');
+
+			const messages: string[] = [];
+			store.add(ipcService.onPong(msg => messages.push(msg)));
+			await timeout(0);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+		});
+
+		test('replayEventSubscriptions re-issues EventListen for live subscriptions and skips disposed ones', async function () {
+			store.add(ipcService.onPong(() => { }));
+			store.add(ipcService.onPong(() => { }));
+			const sub3 = ipcService.onPong(() => { });
+			await timeout(0);
+			assert.strictEqual(serverChannel.listenCount, 3);
+
+			sub3.dispose();
+			await timeout(0);
+
+			client.replayEventSubscriptions();
+			await timeout(0);
+			// sub1 and sub2 are re-issued; sub3 was disposed and is skipped
+			assert.strictEqual(serverChannel.listenCount, 5);
 		});
 	});
 
