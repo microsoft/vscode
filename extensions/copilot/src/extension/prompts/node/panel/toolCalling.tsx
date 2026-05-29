@@ -607,7 +607,7 @@ async function appendHookContext(
 		return;
 	}
 
-	// Skip postToolUse hook if the request was cancelled — the response stream is closed
+	// Skip postToolUse hook if the request was cancelled - the response stream is closed
 	if (props.token.isCancellationRequested) {
 		return;
 	}
