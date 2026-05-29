@@ -191,7 +191,18 @@ export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 
 	readonly name: string;
+	/**
+	 * The unique identifier of the model within its provider. Used as a stable key for model
+	 * selection and persistence (combined with the vendor into a qualified identifier). This is
+	 * not necessarily the value sent to the underlying model API - see {@link modelId}.
+	 */
 	readonly id: string;
+	/**
+	 * The model identifier sent to the underlying model API (for example the `model` field in an
+	 * OpenAI-compatible request body). Unlike {@link id}, this does not need to be unique. Resolved
+	 * from the provider's `modelId`, falling back to {@link id} when not specified.
+	 */
+	readonly modelId?: string;
 	readonly vendor: string;
 	readonly version: string;
 	readonly tooltip?: string;

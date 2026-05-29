@@ -214,6 +214,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				metadata: {
 					extension: data.extension.identifier,
 					id: m.id,
+					modelId: m.modelId ?? m.id,
 					vendor,
 					name: m.name ?? '',
 					family: m.family ?? '',

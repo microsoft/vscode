@@ -34,6 +34,17 @@ declare module 'vscode' {
 	export interface LanguageModelChatInformation {
 
 		/**
+		 * The model identifier that is sent to the underlying model API (for example the `model`
+		 * field in an OpenAI-compatible request body).
+		 *
+		 * Unlike {@linkcode LanguageModelChatInformation.id id}, this value does NOT need to be unique:
+		 * multiple contributed models may target the same underlying API model (e.g. with different
+		 * configurations or display names). When omitted, {@linkcode LanguageModelChatInformation.id id}
+		 * is used as the model identifier for backwards compatibility.
+		 */
+		readonly modelId?: string;
+
+		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.
