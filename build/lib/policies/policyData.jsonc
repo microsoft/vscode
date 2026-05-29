@@ -253,21 +253,6 @@
             "included": true
         },
         {
-            "key": "chat.plugins.extraMarketplaces",
-            "name": "ChatExtraMarketplaces",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.122",
-            "localization": {
-                "description": {
-                    "key": "chat.plugins.extraMarketplaces.policy",
-                    "value": "Additional plugin marketplaces to query. Entries are GitHub shorthand (`owner/repo[#ref]`), Git URIs (`<url>[#ref]`), or `{ name, source: { source: 'github'|'git', repo|url, ref? } }` objects."
-                }
-            },
-            "type": "array",
-            "default": [],
-            "included": false
-        },
-        {
             "key": "chat.plugins.strictMarketplaces",
             "name": "ChatStrictMarketplaces",
             "category": "InteractiveSession",
