@@ -14,7 +14,7 @@
 	height: 16px;
 	color: currentColor;
 	pointer-events: none;
-	contain: strict;
+	contain: layout style size;
 	isolation: isolate;
 	transform: translateZ(0);
 }
@@ -114,6 +114,8 @@
 	animation: monaco-pixel-spinner-ring-pulse 1200ms linear infinite;
 	opacity: 0.25;
 	transform: none;
+	/* Ring keyframes only animate opacity. */
+	will-change: opacity;
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(1) {
