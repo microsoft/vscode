@@ -801,6 +801,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		};
 		const provider = createProvider(disposables, connection);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
 		assert.strictEqual(session.loading.get(), true);
@@ -913,7 +914,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			},
 		});
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		const chat = await provider.createNewChat(session.sessionId);
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
