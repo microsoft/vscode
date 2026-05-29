@@ -1424,10 +1424,17 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// rotating between several desktop builds could see their
 			// currently-used CLI fall out of the 5-newest window and
 			// get deleted just before the next reconnect.
-			await sshExec(client, `touch -- ${cliBin}`, { ignoreExitCode: true });
-			// Now that the in-use binary is the newest by mtime, prune
-			// older commit-keyed installs. Best-effort.
-			await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+			const { code: touchCode } = await sshExec(client, `touch -- ${cliBin}`, { ignoreExitCode: true });
+			if (touchCode === 0) {
+				// Now that the in-use binary is the newest by mtime, prune
+				// older commit-keyed installs. Best-effort.
+				await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+			} else {
+				// If we couldn't refresh mtime, skip the retention pass —
+				// running it now could prune the binary we just decided
+				// to reuse. We'll retry retention on the next reconnect.
+				this._logService.warn(`${LOG_PREFIX} Skipping CLI retention cleanup: touch exited ${touchCode}`);
+			}
 			return cliBin;
 		}
 

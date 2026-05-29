@@ -22,6 +22,26 @@ export function validateShellToken(value: string, label: string): string {
 }
 
 /**
+ * Validate and normalize a commit SHA. Returns the lowercase form.
+ *
+ * The commit-keyed install layout, the cleanup glob (`[0-9a-f]{40}`), and
+ * the fallback discovery glob all assume an exactly-40-char lowercase hex
+ * commit. If a caller ever supplies a non-SHA value (or uppercase hex),
+ * the cleanup pass would silently miss those binaries and the
+ * commit-pinned download URL could 404. Enforce the shape at the source.
+ *
+ * `productService.commit` is already lowercase hex in practice; the
+ * normalization is defense-in-depth for any future callers.
+ */
+export function validateCommit(commit: string): string {
+	const normalized = commit.toLowerCase();
+	if (!/^[0-9a-f]{40}$/.test(normalized)) {
+		throw new Error(`Unsafe commit value (expected 40-char hex SHA): ${JSON.stringify(commit)}`);
+	}
+	return normalized;
+}
+
+/**
  * Name of the CLI binary as it appears inside the downloaded archive,
  * derived from product quality. Matches the names used by Remote-SSH's
  * exec-server installer so that CLI binaries can be shared between the
@@ -80,7 +100,7 @@ export function getRemoteCLIBin(serverDataFolderName: string, quality: string, c
 	const archive = getRemoteCLIArchiveName(quality);
 	const root = getRemoteCLIInstallRoot(serverDataFolderName);
 	if (commit) {
-		const c = validateShellToken(commit, 'commit');
+		const c = validateCommit(commit);
 		return `${root}/${archive}-${c}`;
 	}
 	return `${root}/${archive}`;
@@ -149,10 +169,10 @@ export function buildCLIDownloadUrl(os: string, arch: string, quality: string, c
 	const base = 'https://update.code.visualstudio.com';
 	const artifact = `cli-${os}-${arch}`;
 	if (commit) {
-		// Note: commit safety is enforced by the caller / by getRemoteCLIBin
-		// which runs the same validation. Repeat it here as defense-in-depth
-		// because the URL is built independently in some call paths.
-		const c = validateShellToken(commit, 'commit');
+		// Defense-in-depth: same validation as getRemoteCLIBin so the URL
+		// can never be formed with a non-SHA commit (would 404) and stays
+		// consistent with the commit-keyed install path.
+		const c = validateCommit(commit);
 		return `${base}/commit:${c}/${artifact}/${quality}`;
 	}
 	return `${base}/latest/${artifact}/${quality}`;

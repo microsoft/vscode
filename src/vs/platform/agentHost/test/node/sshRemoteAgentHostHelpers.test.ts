@@ -24,6 +24,7 @@ import {
 	redactToken,
 	resolveRemotePlatform,
 	shellEscape,
+	validateCommit,
 	validateShellToken,
 	writeAgentHostState,
 	type ISshExec,
@@ -70,6 +71,36 @@ suite('SSH Remote Agent Host Helpers', () => {
 
 		test('rejects empty string', () => {
 			assert.throws(() => validateShellToken('', 'quality'), /Unsafe quality/);
+		});
+	});
+
+	suite('validateCommit', () => {
+		test('accepts a 40-char lowercase hex SHA', () => {
+			const c = 'abcdef0123456789abcdef0123456789abcdef01';
+			assert.strictEqual(validateCommit(c), c);
+		});
+
+		test('normalizes uppercase hex to lowercase', () => {
+			assert.strictEqual(
+				validateCommit('ABCDEF0123456789ABCDEF0123456789ABCDEF01'),
+				'abcdef0123456789abcdef0123456789abcdef01',
+			);
+		});
+
+		test('rejects non-hex characters', () => {
+			assert.throws(() => validateCommit('g'.repeat(40)), /Unsafe commit/);
+			assert.throws(() => validateCommit('abcdef0123456789abcdef0123456789abcdef0z'), /Unsafe commit/);
+		});
+
+		test('rejects wrong-length values', () => {
+			assert.throws(() => validateCommit('abc'), /Unsafe commit/);
+			assert.throws(() => validateCommit('a'.repeat(41)), /Unsafe commit/);
+			assert.throws(() => validateCommit(''), /Unsafe commit/);
+		});
+
+		test('rejects shell metacharacters', () => {
+			assert.throws(() => validateCommit('foo;rm'), /Unsafe commit/);
+			assert.throws(() => validateCommit('a'.repeat(39) + '$'), /Unsafe commit/);
 		});
 	});
 
@@ -165,6 +196,14 @@ suite('SSH Remote Agent Host Helpers', () => {
 
 		test('rejects unsafe commit values', () => {
 			assert.throws(() => getRemoteCLIBin('.vscode-server', 'stable', 'foo;rm'), /Unsafe commit/);
+		});
+
+		test('normalizes uppercase hex commits to lowercase', () => {
+			const upper = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01';
+			assert.strictEqual(
+				getRemoteCLIBin('.vscode-server', 'stable', upper),
+				'~/.vscode-server/code-abcdef0123456789abcdef0123456789abcdef01',
+			);
 		});
 
 		test('rejects unsafe server data folder names', () => {
@@ -269,6 +308,14 @@ suite('SSH Remote Agent Host Helpers', () => {
 
 		test('rejects unsafe commit values', () => {
 			assert.throws(() => buildCLIDownloadUrl('linux', 'x64', 'insider', 'foo;rm'), /Unsafe commit/);
+		});
+
+		test('normalizes uppercase hex commits to lowercase', () => {
+			const upper = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01';
+			assert.strictEqual(
+				buildCLIDownloadUrl('linux', 'x64', 'insider', upper),
+				`https://update.code.visualstudio.com/commit:abcdef0123456789abcdef0123456789abcdef01/cli-linux-x64/insider`,
+			);
 		});
 	});
 
