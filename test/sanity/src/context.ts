@@ -884,22 +884,32 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public async installDeb(packagePath: string): Promise<string> {
+		const name = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', name, name);
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${entryPoint}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using DEB package manager`);
 		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
-		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux DEB package.
+	 * Uninstalls VS Code Linux DEB package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallDeb() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/share', name, name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`DEB package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
 		await this.runDpkgNoErrors('-r', name);
@@ -917,22 +927,33 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installRpm(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const installedBinary = path.join('/usr/bin', name);
+		if (fs.existsSync(installedBinary)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${installedBinary}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using RPM package manager`);
 		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
 		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux RPM package.
+	 * Uninstalls VS Code Linux RPM package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallRpm() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`RPM package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
 		this.runSudoNoErrors('rpm', '-e', name);
@@ -950,23 +971,34 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installSnap(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const snapWrapper = path.join('/snap/bin', name);
+		if (fs.existsSync(snapWrapper)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${snapWrapper}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using Snap package manager`);
 		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
-		const name = this.getLinuxBinaryName();
 		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux Snap package.
+	 * Uninstalls VS Code Linux Snap package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallSnap() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/snap/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`Snap package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
 		this.runSudoNoErrors('snap', 'remove', name);

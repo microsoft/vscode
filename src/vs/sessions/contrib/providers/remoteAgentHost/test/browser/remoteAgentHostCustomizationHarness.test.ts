@@ -23,15 +23,15 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { createRemoteAgentCustomizationItemProvider, RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
+import { RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { MockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { NullAgentHostCustomAgentsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';
+import { IAgentHostCustomizationService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AgentCustomizationItemProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 
 class MockAgentConnection extends mock<IAgentConnection>() {
-	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	override readonly onDidAction = this._onDidAction.event;
@@ -118,12 +118,45 @@ function createAgentInfo(customizations: readonly Customization[]): AgentInfo {
 	};
 }
 
+function createTestCustomAgentsService(connection: MockAgentConnection, rootCustomizations: readonly Customization[]): IAgentHostCustomizationService {
+	const onDidChangeCustomizations = Event.map(
+		Event.filter(connection.onDidAction, envelope =>
+			envelope.action.type === ActionType.SessionCustomizationsChanged
+			|| envelope.action.type === ActionType.SessionCustomizationUpdated
+		),
+		() => undefined,
+	);
+
+	const onDidChangeCustomAgents = Event.map(
+		Event.filter(connection.onDidAction, envelope =>
+			envelope.action.type === ActionType.SessionCustomizationsChanged
+			|| envelope.action.type === ActionType.SessionCustomizationUpdated
+			|| envelope.action.type === ActionType.SessionAgentChanged
+		),
+		() => undefined,
+	);
+
+	return {
+		_serviceBrand: undefined,
+		onDidChangeCustomAgents,
+		onDidChangeCustomizations,
+		getCustomAgents: () => [],
+		getCustomizations: (sessionResource: URI) => {
+			const provider = sessionResource.scheme.replace(/^agent-host-/, '');
+			const sessionChannel = `${provider}:${sessionResource.path}`;
+			const sessionState = connection.getSubscriptionUnmanaged(StateComponents.Session, URI.parse(sessionChannel))?.value;
+			if (!sessionState || sessionState instanceof Error) {
+				return [...rootCustomizations];
+			}
+			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
+		},
+	};
+}
+
 
 
 suite('RemoteAgentHostCustomizationHarness', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-
 
 	test('removeConfiguredPlugin keeps sibling scopes for the same URI', async () => {
 		const connection = disposables.add(new MockAgentConnection());
@@ -164,14 +197,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider assigns distinct item keys to plugins with different URIs', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 		const pluginA: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/a', uri: 'file:///plugins/a', name: 'Plugin A', enabled: true };
 		const pluginB: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/b', uri: 'file:///plugins/b', name: 'Plugin B', enabled: true };
 
@@ -184,14 +209,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([pluginA, pluginB]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [pluginA, pluginB]),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -201,14 +224,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider keeps client-synced entries distinct from host-owned entries', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 		const hostScoped: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/shared', uri: 'file:///plugins/shared', name: 'Shared Plugin', enabled: true };
 		const synced: Customization = {
 			...hostScoped,
@@ -224,14 +239,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([hostScoped]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [hostScoped]),
 		));
 
 		connection.fireAction({
@@ -251,14 +264,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider assigns client group to client-synced entries and host group to host entries', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 		const hostPlugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/host-plugin', uri: 'file:///plugins/host-plugin', name: 'Host Plugin', enabled: true };
 		const clientPlugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/client-plugin', uri: 'file:///plugins/client-plugin', name: 'Client Plugin', enabled: true };
 		const synced: Customization = {
@@ -275,14 +280,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([hostPlugin]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [hostPlugin]),
 		));
 
 		connection.fireAction({
@@ -308,14 +311,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider hides synthetic bundle but still expands its contents', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
 		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
@@ -372,14 +367,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			}
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, []),
 		));
 
 		connection.fireAction({
@@ -403,14 +396,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('toRemoteUri preserves synced-customization scheme URIs', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
 		const bundleRef: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', enabled: true };
@@ -426,14 +411,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, []),
 		));
 
 		connection.fireAction({
@@ -457,14 +440,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider propagates status and enabled from session customizations', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 
 		const pluginRef: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/my-plugin', uri: 'file:///plugins/my-plugin', name: 'My Plugin', enabled: true };
 		const sessionCustomization: Customization = {
@@ -480,14 +455,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([pluginRef]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [pluginRef]),
 		));
 
 		connection.fireAction({
@@ -508,16 +481,8 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.strictEqual(sessionItem.statusMessage, 'something went wrong');
 	});
 
-	test('provider fires change event on SessionCustomizationsChanged action', async () => {
+	test('provider fires one change event on SessionCustomizationsChanged action', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 
 		const pluginRef: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/host', uri: 'file:///plugins/host', name: 'Host Plugin', enabled: true };
 		connection.setRootState({ agents: [createAgentInfo([pluginRef])] });
@@ -527,14 +492,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([pluginRef]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [pluginRef]),
 		));
 
 		let changeCount = 0;
@@ -550,61 +513,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			},
 		});
 
-		assert.strictEqual(changeCount, 1, 'should fire change event on session customization action');
-	});
-
-	test('provider does not show remove action for client-synced plugins', async () => {
-		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
-
-		const hostPlugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/host', uri: 'file:///plugins/host', name: 'Host Plugin', enabled: true };
-		const clientPlugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/client', uri: 'file:///plugins/client', name: 'Client Plugin', enabled: true };
-
-		connection.setRootState({ agents: [createAgentInfo([hostPlugin])] });
-
-		const fileService = new class extends mock<IFileService>() {
-			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
-		};
-
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([hostPlugin]),
-			connection,
-			'test-authority',
-			controller,
-			fileService,
-			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
-		));
-
-		connection.fireAction({
-			channel: agentHostSessionId,
-			serverSeq: 1,
-			origin: undefined,
-			action: {
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [{
-					...clientPlugin,
-					clientId: 'test-client',
-				}],
-			},
-		});
-
-		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
-		const hostItem = items.find(i => i.name === 'Host Plugin');
-		const clientItem = items.find(i => i.name === 'Client Plugin');
-
-		assert.ok(hostItem, 'should have host item');
-		assert.ok(clientItem, 'should have client item');
-		assert.ok(hostItem.actions && hostItem.actions.length > 0, 'host item should have remove action');
-		assert.strictEqual(clientItem.actions, undefined, 'client item should have no actions');
+		assert.strictEqual(changeCount, 1, 'should fire one change event from customization service');
 	});
 
 	test('removeConfiguredPlugin dispatches updated list without the removed plugin', async () => {
@@ -653,14 +562,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('multiple client-synced entries all appear with distinct keys', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 
 		const clientA: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/client-a', uri: 'file:///plugins/client-a', name: 'Client A', enabled: true };
 		const clientB: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/client-b', uri: 'file:///plugins/client-b', name: 'Client B', enabled: true };
@@ -672,14 +573,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, []),
 		));
 
 		connection.fireAction({
@@ -705,14 +604,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('provider parses skill metadata, rewrites folder URIs to SKILL.md, and skips unreadable folder skills', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
 		const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle', enabled: true };
 
 		connection.setRootState({ agents: [createAgentInfo([plugin])] });
@@ -749,14 +640,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			}
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([plugin]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [plugin]),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -780,14 +669,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 	test('CustomizationHarnessService.getSlashCommands prefixes discovered skill names with the plugin id', async () => {
 		const connection = disposables.add(new MockAgentConnection());
-		const controller = disposables.add(new RemoteAgentPluginController(
-			'Test Host',
-			'test-authority',
-			connection,
-			{} as IFileDialogService,
-			createNotificationService(),
-			{} as IAICustomizationWorkspaceService,
-		));
+
 		const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle', enabled: true };
 
 		connection.setRootState({ agents: [createAgentInfo([plugin])] });
@@ -818,14 +700,12 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			}
 		};
 
-		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
-			createAgentInfo([plugin]),
-			connection,
+		const provider = disposables.add(new AgentCustomizationItemProvider(
 			'test-authority',
-			controller,
+			() => { },
 			fileService,
 			new NullLogService(),
-			new NullAgentHostCustomAgentsService()
+			createTestCustomAgentsService(connection, [plugin]),
 		));
 
 		const harnessId = 'remote-agent-host-test';

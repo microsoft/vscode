@@ -160,6 +160,7 @@
 		.browser-emulation-toolbar-label {
 			opacity: 0.8;
 			user-select: none;
+			white-space: nowrap;
 		}
 
 		.browser-emulation-toolbar-input {

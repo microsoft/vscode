@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -29,7 +29,7 @@ import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from 
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
@@ -1835,7 +1835,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 });
 
-suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotation', () => {
+suite('LocalAgentHostSessionsProvider - active-session branch changeset subscription', () => {
 	const disposables = new DisposableStore();
 	let agentHost: MockAgentHostService;
 	let activeSession: ISettableObservable<IActiveSession | undefined>;
@@ -1849,17 +1849,12 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeActive(rawId: string, providerId: string, sessionType: string = 'copilotcli'): IActiveSession {
+	function makeActive(rawId: string, sessionType: string = 'copilotcli'): IActiveSession {
 		return {
-			providerId,
+			// providerId: 'unused',
 			sessionType,
 			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
 		} as unknown as IActiveSession;
-	}
-
-	function uncommittedKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
-		// Matches the URI built in BaseAgentHostSessionsProvider's autorun.
-		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/uncommitted`;
 	}
 
 	function branchChangesKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
@@ -1870,73 +1865,93 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), additions, deletions, files: 1 }];
 	}
 
-	test('subscribes to <activeSession>/changeset/uncommitted when an AHP session becomes active', () => {
+	// The adapter subscribes to its branch changeset lazily — only while the
+	// session is active AND its `changes` / `changesSummary` observable is being
+	// observed. Keep an autorun alive so that the subscription is established.
+	function observeSession(session: ISession): void {
+		disposables.add(autorun(reader => {
+			session.changes.read(reader);
+			session.changesSummary?.read(reader);
+		}));
+	}
+
+	function addAndObserve(provider: LocalAgentHostSessionsProvider, rawId: string): ISession {
+		fireSessionAdded(agentHost, rawId, { title: `Session ${rawId}` });
+		const session = provider.getSessions().find(s => s.title.get() === `Session ${rawId}`);
+		assert.ok(session, `expected session ${rawId}`);
+		observeSession(session);
+		return session;
+	}
+
+	test('subscribes to the branch changeset when the session becomes active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		addAndObserve(provider, 'sess-A');
 
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		activeSession.set(makeActive('sess-A'), undefined);
 
-		const key = uncommittedKeyFor('sess-A');
+		const key = branchChangesKeyFor('sess-A');
 		assert.ok(
 			agentHost.wireOps.includes(`subscribe:${key}`),
 			`expected a subscribe for ${key}, got wireOps=${JSON.stringify(agentHost.wireOps)}`,
 		);
 	});
 
-	test('rotates the subscription when active session changes (refresh fires for the new one)', () => {
+	test('rotates the subscription when the active session changes', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		addAndObserve(provider, 'sess-A');
+		addAndObserve(provider, 'sess-B');
 
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		const subsAfterA = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(subsAfterA, 1, 'first activation should subscribe once');
+		activeSession.set(makeActive('sess-A'), undefined);
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(branchChangesKeyFor('sess-A')) ?? 0, 1, 'A should be subscribed once on activation');
 
-		activeSession.set(makeActive('sess-B', provider.id), undefined);
-		const subsAfterB = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-B')) ?? 0;
-		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(subsAfterB, 1, 'B should be subscribed exactly once on activation');
-		assert.strictEqual(unsubsForA, 1, 'A should be unsubscribed when no longer active');
+		activeSession.set(makeActive('sess-B'), undefined);
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(branchChangesKeyFor('sess-B')) ?? 0, 1, 'B should be subscribed once on activation');
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(branchChangesKeyFor('sess-A')) ?? 0, 1, 'A should be unsubscribed when no longer active');
 	});
 
-	test('switching back to a previously-active session re-subscribes (triggers a refresh)', () => {
+	test('switching back to a previously-active session re-subscribes', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		addAndObserve(provider, 'sess-A');
+		addAndObserve(provider, 'sess-B');
 
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		activeSession.set(makeActive('sess-B', provider.id), undefined);
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		activeSession.set(makeActive('sess-A'), undefined);
+		activeSession.set(makeActive('sess-B'), undefined);
+		activeSession.set(makeActive('sess-A'), undefined);
 
-		const subsForA = agentHost.sessionSubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
-		assert.strictEqual(subsForA, 2, 'switching back to A must open a fresh subscription so the 0→1 refresh fires');
+		const subsForA = agentHost.sessionSubscribeCounts.get(branchChangesKeyFor('sess-A')) ?? 0;
+		assert.strictEqual(subsForA, 2, 'switching back to A must open a fresh subscription');
 	});
 
-	test('does NOT subscribe when the active session belongs to a different provider', () => {
+	test('does NOT subscribe when a different session is active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		addAndObserve(provider, 'sess-A');
 
-		activeSession.set(makeActive('sess-other', 'some-other-provider-id'), undefined);
+		activeSession.set(makeActive('sess-other'), undefined);
 
-		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
-		assert.deepStrictEqual(subKeys, [], 'no uncommitted subscription should open for a foreign provider');
-		// Make sure provider was used so test isn't a no-op.
-		assert.strictEqual(provider.sessionTypes.length >= 0, true);
+		assert.strictEqual(
+			agentHost.sessionSubscribeCounts.get(branchChangesKeyFor('sess-A')) ?? 0,
+			0,
+			'no branch changeset subscription should open while a different session is active',
+		);
 	});
 
-	test('clears the active subscription when activeSession becomes undefined', () => {
+	test('releases the subscription when no session is active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		addAndObserve(provider, 'sess-A');
 
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		activeSession.set(makeActive('sess-A'), undefined);
 		activeSession.set(undefined, undefined);
 
-		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(uncommittedKeyFor('sess-A')) ?? 0;
+		const unsubsForA = agentHost.sessionUnsubscribeCounts.get(branchChangesKeyFor('sess-A')) ?? 0;
 		assert.strictEqual(unsubsForA, 1, 'leaving the agents window (no active session) must release the subscription');
 	});
 
 	test('active branch changeset uses before content URI as the diff original', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-		fireSessionAdded(agentHost, 'sess-A', { title: 'Session A' });
-		const session = provider.getSessions().find(session => session.title.get() === 'Session A');
-		assert.ok(session);
+		const session = addAndObserve(provider, 'sess-A');
 
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
-		const key = branchChangesKeyFor('sess-A');
-		agentHost.setChangesetState(key, {
+		activeSession.set(makeActive('sess-A'), undefined);
+		agentHost.setChangesetState(branchChangesKeyFor('sess-A'), {
 			status: ChangesetStatus.Ready,
 			files: [{
 				id: 'file:///repo/file.ts',
@@ -1967,13 +1982,11 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 		}]);
 	});
 
-	test('catalogue count updates resume after active branch changeset subscription is released', () => {
+	test('changes summary tracks the live branch changeset while active and the catalogue once inactive', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-		fireSessionAdded(agentHost, 'sess-A', { title: 'Session A' });
-		const session = provider.getSessions().find(session => session.title.get() === 'Session A');
-		assert.ok(session);
+		const session = addAndObserve(provider, 'sess-A');
 
-		activeSession.set(makeActive('sess-A', provider.id), undefined);
+		activeSession.set(makeActive('sess-A'), undefined);
 		agentHost.setChangesetState(branchChangesKeyFor('sess-A'), {
 			status: ChangesetStatus.Ready,
 			files: [{
@@ -1986,11 +1999,14 @@ suite('LocalAgentHostSessionsProvider - active-session uncommitted refresh rotat
 			}],
 		});
 
-		activeSession.set(makeActive('sess-B', provider.id), undefined);
+		// While active, the summary reflects the live branch changeset.
+		assert.deepStrictEqual(session.changesSummary?.get(), { additions: 2, deletions: 1, files: 1 });
+
+		// Once another session becomes active, the catalogue-seeded summary
+		// takes over again.
+		activeSession.set(makeActive('sess-B'), undefined);
 		fireSessionSummaryChanged(agentHost, 'sess-A', { changesets: catalogueFor('sess-A', 5, 3) });
 
-		assert.deepStrictEqual(session.changes.get().map(change => ({ insertions: change.insertions, deletions: change.deletions })), [
-			{ insertions: 5, deletions: 3 },
-		]);
+		assert.deepStrictEqual(session.changesSummary?.get(), { additions: 5, deletions: 3, files: 1 });
 	});
 });

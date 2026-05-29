@@ -86,6 +86,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 
 	private readonly _sessions = new Map<string, ISession>();
@@ -169,7 +170,7 @@ class MockSessionStore implements ISessionsManagementService {
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
 	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
 	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right', _activate?: boolean): void { throw new Error('not implemented'); }
-	closeSession(_session: ISession): void { throw new Error('not implemented'); }
+	closeSession(_session: ISession | undefined): void { throw new Error('not implemented'); }
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
