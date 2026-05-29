@@ -105,7 +105,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number; isKeepAliveProbe?: boolean };
 
 interface StartHookResult {
 	/**
@@ -1763,6 +1763,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					messages: probeMessages,
 					finishedCb: async (text) => text.length, // stop reading on first chunk
 					userInitiatedRequest: false,
+					isKeepAliveProbe: true,
 				}, cts.token);
 			} catch (err) {
 				if (!isCancellationError(err)) {
