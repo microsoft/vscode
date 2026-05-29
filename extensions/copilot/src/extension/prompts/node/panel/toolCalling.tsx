@@ -607,6 +607,11 @@ async function appendHookContext(
 		return;
 	}
 
+	// Skip postToolUse hook if the request was cancelled — the response stream is closed
+	if (props.token.isCancellationRequested) {
+		return;
+	}
+
 	// Execute postToolUse hook after successful tool execution
 	const postHookResult = await chatHookService.executePostToolUseHook(
 		props.toolCall.name,
