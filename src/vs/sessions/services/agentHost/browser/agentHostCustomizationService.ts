@@ -14,6 +14,7 @@ import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvid
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
 import { AgentCustomization, Customization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ISession } from '../../sessions/common/session.js';
 
 export class AgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
 	declare readonly _serviceBrand: undefined;
@@ -34,37 +35,56 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 		}));
 	}
 
-	getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
-		const session = this._sessionsManagementService.activeSession.get();
-		if (!session || session.resource.toString() !== sessionResource.toString()) {
-			return [];
+	private _getSession(sessionResource: URI): ISession | undefined {
+		const activeSession = this._sessionsManagementService.activeSession.get();
+		if (activeSession && activeSession.resource.toString() === sessionResource.toString()) {
+			return activeSession;
 		}
+		return this._sessionsManagementService.getSession(sessionResource);
+	}
 
+	private _getAHSProvider(session: ISession): IAgentHostSessionsProvider | undefined {
 		const provider = this._sessionsProvidersService.getProvider(session.providerId);
 		if (provider && isAgentHostProvider(provider)) {
 			this._ensureProviderListener(provider);
-			const agents = provider.getCustomAgents(session.sessionId);
-			const activeMode = session.mode.get()?.id;
-			const result = agents.length === 0 && activeMode ? [this._agentFromMode(activeMode)] : agents;
-			return result;
+			return provider;
 		}
+		return undefined;
+	}
 
+	getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
+		const session = this._getSession(sessionResource);
+		if (session) {
+			const provider = this._getAHSProvider(session);
+			if (provider) {
+				const agents = provider.getCustomAgents(session.sessionId);
+				const activeMode = session.mode.get()?.id;
+				return agents.length === 0 && activeMode ? [this._agentFromMode(activeMode)] : agents;
+			}
+		}
 		return [];
 	}
 
 	getCustomizations(sessionResource: URI): readonly Customization[] {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		if (!session) {
-			return [];
+		const session = this._getSession(sessionResource);
+		if (session) {
+			const provider = this._getAHSProvider(session);
+			if (provider) {
+				return provider.getCustomizations(session.sessionId);
+			}
 		}
-
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
-		if (provider && isAgentHostProvider(provider)) {
-			this._ensureProviderListener(provider);
-			return provider.getCustomizations(session.sessionId);
-		}
-
 		return [];
+	}
+
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		const session = this._getSession(sessionResource);
+		if (session) {
+			const provider = this._getAHSProvider(session);
+			if (provider) {
+				return provider.getWorkingDirectory(session.sessionId);
+			}
+		}
+		return undefined;
 	}
 
 
@@ -75,6 +95,10 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 
 		this._providerListeners.set(provider, provider.onDidChangeCustomAgents(() => {
 			this._onDidChangeCustomAgents.fire();
+		}));
+
+		this._providerListeners.set(provider, provider.onDidChangeCustomizations(() => {
+			this._onDidChangeCustomizations.fire();
 		}));
 	}
 
