@@ -1791,6 +1791,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 
+		newSession.setStatus(SessionStatus.InProgress);
 		const selectedModelId = newSession.getSelectedModelId();
 		const selectedAgent = newSession.getSelectedAgent();
 
