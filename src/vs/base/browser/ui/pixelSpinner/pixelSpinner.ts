@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../dom.js';
+import { mainWindow } from '../../window.js';
 import './pixelSpinner.css';
 
 export interface IPixelSpinnerOptions {
@@ -49,5 +50,63 @@ export function createPixelSpinner(parent?: HTMLElement, options?: IPixelSpinner
 		root.appendChild(h('span.monaco-pixel-spinner-dot').root);
 	}
 	parent?.appendChild(root);
+	trackSpinner(root);
 	return root;
+}
+
+// Pause animations when the spinner is offscreen or the document is hidden, so
+// continuous CSS animations stop costing compositor work for spinners the user
+// can't see. Falls back to always-on if the platform lacks IntersectionObserver.
+
+const PAUSED_CLASS = 'monaco-pixel-spinner-paused';
+const trackedSpinners = new Set<HTMLElement>();
+let intersectionObserver: IntersectionObserver | undefined;
+let visibilityListenerAttached = false;
+
+function updateForDocumentVisibility(): void {
+	const hidden = mainWindow.document.visibilityState === 'hidden';
+	for (const el of trackedSpinners) {
+		if (!el.isConnected) {
+			trackedSpinners.delete(el);
+			intersectionObserver?.unobserve(el);
+			continue;
+		}
+		if (hidden) {
+			el.classList.add(PAUSED_CLASS);
+		}
+		// When becoming visible, leave the per-element class alone — the
+		// IntersectionObserver callback will run and set the correct state.
+	}
+}
+
+function trackSpinner(root: HTMLElement): void {
+	if (typeof IntersectionObserver !== 'function') {
+		return;
+	}
+	if (!intersectionObserver) {
+		intersectionObserver = new mainWindow.IntersectionObserver(entries => {
+			const hidden = mainWindow.document.visibilityState === 'hidden';
+			for (const entry of entries) {
+				const target = entry.target as HTMLElement;
+				if (!target.isConnected) {
+					trackedSpinners.delete(target);
+					intersectionObserver!.unobserve(target);
+					continue;
+				}
+				if (entry.isIntersecting && !hidden) {
+					target.classList.remove(PAUSED_CLASS);
+				} else {
+					target.classList.add(PAUSED_CLASS);
+				}
+			}
+		});
+	}
+	if (!visibilityListenerAttached) {
+		mainWindow.document.addEventListener('visibilitychange', updateForDocumentVisibility);
+		visibilityListenerAttached = true;
+	}
+
+	root.classList.add(PAUSED_CLASS);
+	trackedSpinners.add(root);
+	intersectionObserver.observe(root);
 }

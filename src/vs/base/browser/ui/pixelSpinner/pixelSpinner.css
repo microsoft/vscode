@@ -14,9 +14,24 @@
 	height: 16px;
 	color: currentColor;
 	pointer-events: none;
-	contain: layout style size;
+	/* Promote ONLY the spinner root to a single compositor layer and clip all
+	 * painting to its 16x16 box with `paint` containment. The dots animate and
+	 * repaint *within* this one layer rather than each becoming their own GPU
+	 * layer. Repainting a contained 16x16 region on the main thread is far
+	 * cheaper than rasterizing and shuffling six separate GPU layers between
+	 * the renderer and GPU processes every frame, and it keeps the spinner's
+	 * invalidation from ever reaching the rest of the page. */
+	contain: layout style size paint;
 	isolation: isolate;
 	transform: translateZ(0);
+}
+
+/* Pause all dot animations when the spinner is offscreen or the document is hidden.
+ * Set by JS via an IntersectionObserver / visibilitychange listener. Continuous
+ * CSS animations otherwise force the compositor to do work every vsync even for
+ * spinners that are scrolled out of view. */
+.monaco-pixel-spinner.monaco-pixel-spinner-paused .monaco-pixel-spinner-dot {
+	animation-play-state: paused;
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot {
@@ -27,8 +42,8 @@
 	background-color: currentColor;
 	opacity: 0;
 	transform: translateY(-4px);
-	animation: monaco-pixel-spinner-dot-cycle 1820ms linear infinite;
-	will-change: transform, opacity;
+	animation: monaco-pixel-spinner-dot-cycle 1820ms infinite;
+	animation-timing-function: steps(6, jump-none);
 }
 
 .monaco-pixel-spinner .monaco-pixel-spinner-dot:nth-child(1) {
@@ -114,8 +129,7 @@
 	animation: monaco-pixel-spinner-ring-pulse 1200ms linear infinite;
 	opacity: 0.25;
 	transform: none;
-	/* Ring keyframes only animate opacity. */
-	will-change: opacity;
+	animation-timing-function: steps(4, jump-none);
 }
 
 .monaco-pixel-spinner.monaco-pixel-spinner-ring .monaco-pixel-spinner-dot:nth-child(1) {
@@ -158,6 +172,5 @@
 		animation: none;
 		opacity: 1;
 		transform: translateY(0);
-		will-change: auto;
 	}
 }
