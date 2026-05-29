@@ -211,6 +211,7 @@ export class CompletionsFromNetwork {
 		) => Promise<GhostTextResultWithTelemetry<T>>
 	): Promise<GhostTextResultWithTelemetry<T>> {
 		const statelessTelemetryBuilder = new StatelessNextEditTelemetryBuilder(requestContext.ourRequestId);
+		telemetryBuilder.setHeaderRequestId(requestContext.ourRequestId);
 		const result = await this._genericGetCompletionsFromNetwork(
 			requestContext,
 			baseTelemetryData,
