@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { ContainerConfig, ContainmentBackend, ContainmentType, SandboxPolicy } from '@microsoft/mxc-sdk';
 
 export const ISandboxHelperService = createDecorator<ISandboxHelperService>('sandboxHelperService');
 
@@ -18,11 +17,79 @@ export interface IWindowsMxcFilesystemPolicy {
 	readonly readwritePaths: string[];
 }
 
-export type IWindowsMxcSandboxPolicy = SandboxPolicy;
+/** Sandbox policy passed to the Windows MXC helper process. */
+export interface IWindowsMxcSandboxPolicy {
+	version: string;
+	filesystem?: {
+		readwritePaths?: string[];
+		readonlyPaths?: string[];
+		deniedPaths?: string[];
+		clearPolicyOnExit?: boolean;
+	};
+	network?: {
+		allowOutbound?: boolean;
+		allowLocalNetwork?: boolean;
+		allowedHosts?: string[];
+		blockedHosts?: string[];
+		proxy?: { builtinTestServer: true } | { localhost: number } | { url: string };
+	};
+	ui?: {
+		allowWindows?: boolean;
+		clipboard?: 'none' | 'read' | 'write' | 'all';
+		allowInputInjection?: boolean;
+	};
+	timeoutMs?: number;
+}
 
-export type IWindowsMxcConfig = ContainerConfig;
+/** MXC payload returned by the Windows sandbox helper. */
+export interface IWindowsMxcConfig {
+	version: string;
+	containerId?: string;
+	containment?: IWindowsMxcPolicyContainment;
+	lifecycle?: {
+		destroyOnExit?: boolean;
+		preservePolicy?: boolean;
+	};
+	process?: {
+		commandLine: string;
+		cwd?: string;
+		env?: string[];
+		timeout?: number;
+	};
+	processContainer?: {
+		name?: string;
+		leastPrivilege?: boolean;
+		capabilities?: string[];
+		ui?: {
+			isolation: 'desktop' | 'handles' | 'atoms' | 'container';
+			desktopSystemControl: boolean;
+			systemSettings: string;
+			ime: boolean;
+		};
+	};
+	filesystem?: {
+		readwritePaths?: string[];
+		readonlyPaths?: string[];
+		deniedPaths?: string[];
+		clearPolicyOnExit?: boolean;
+	};
+	network?: {
+		enforcementMode?: 'capabilities' | 'firewall' | 'both';
+		defaultPolicy?: 'allow' | 'block';
+		allowLocalNetwork?: boolean;
+		allowedHosts?: string[];
+		blockedHosts?: string[];
+		proxy?: { builtinTestServer: true } | { localhost: number } | { url: string };
+		removeRulesOnExit?: boolean;
+	};
+	ui?: {
+		disable: boolean;
+		clipboard: 'none' | 'read' | 'write' | 'all';
+		injection: boolean;
+	};
+}
 
-export type IWindowsMxcPolicyContainment = ContainmentType | ContainmentBackend;
+export type IWindowsMxcPolicyContainment = 'process' | 'vm' | 'microvm' | 'processcontainer' | 'windows_sandbox' | 'wslc' | 'lxc' | 'hyperlight' | 'seatbelt' | 'isolation_session' | 'bubblewrap';
 
 export interface ISandboxHelperService {
 	readonly _serviceBrand: undefined;
