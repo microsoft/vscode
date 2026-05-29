@@ -1353,9 +1353,20 @@ export namespace InlayHintKind {
 export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): languages.ILink {
+		// For external http/https links, pass the URL as a string rather than a URI
+		// object.  This means the link reaches `openerService.open` as a string, which
+		// causes `_doOpenExternal` to use the `href = resource` branch that preserves
+		// the URL verbatim - including any percent-encoded characters (e.g. %2F in paths
+		// or %2D in text-fragment specifications) that would otherwise be decoded and
+		// re-encoded incorrectly by the `encodeURI(uri.toString(true))` branch.
+		const scheme = link.target?.scheme;
+		const url: URI | string | undefined =
+			(scheme === 'http' || scheme === 'https')
+				? link.target!.toString(true)
+				: link.target;
 		return {
 			range: Range.from(link.range),
-			url: link.target,
+			url,
 			tooltip: link.tooltip
 		};
 	}
