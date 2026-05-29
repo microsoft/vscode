@@ -1868,11 +1868,12 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeActive(rawId: string, sessionType: string = 'copilotcli'): IActiveSession {
+	function makeActive(rawId: string, sessionType: string = 'copilotcli', status: SessionStatus = SessionStatus.Completed): IActiveSession {
 		return {
 			// providerId: 'unused',
 			sessionType,
 			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
+			status: constObservable(status),
 		} as unknown as IActiveSession;
 	}
 
@@ -1952,6 +1953,15 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			0,
 			'no branch changeset subscription should open while a different session is active',
 		);
+	});
+
+	test('does NOT subscribe to uncommitted changes for an untitled active session', () => {
+		createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-new', 'copilotcli', SessionStatus.Untitled), undefined);
+
+		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
+		assert.deepStrictEqual(subKeys, [], 'new-session composer should not restore the backend session just to refresh changes');
 	});
 
 	test('releases the subscription when no session is active', () => {
