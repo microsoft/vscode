@@ -33,9 +33,9 @@ const SESSION_INACTIVITY_MS = 30 * 60_000; // 30 minutes
  *
  * Playwright types the `send` payload as `object` but passes structured CDP
  * messages (not JSON strings) for a caller-supplied transport, so this guard
- * is expected to always hold. It exists to fail loudly should a future
- * Playwright version change the wire format, rather than silently forwarding
- * malformed messages.
+ * is expected to always hold. It exists to fail loudly (the caller throws)
+ * should a future Playwright version change the wire format, rather than
+ * silently forwarding malformed messages.
  */
 function isCDPRequest(message: object): message is CDPRequest {
 	const candidate = message as Partial<CDPRequest>;
@@ -131,8 +131,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 				},
 				send: (rawMessage) => {
 					if (!isCDPRequest(rawMessage)) {
-						this.logService.error(`[PlaywrightService] Unexpected CDP transport payload for session ${sessionId}; dropping message`);
-						return;
+						// Fail loudly: returning silently would leave Playwright
+						// waiting for a response and surface later as an opaque hang.
+						throw new Error(`[PlaywrightService] Unexpected CDP transport payload for session ${sessionId} (type: ${typeof rawMessage})`);
 					}
 					const message = rawMessage;
 					// Block Playwright's automatic / default emulation traffic. We
