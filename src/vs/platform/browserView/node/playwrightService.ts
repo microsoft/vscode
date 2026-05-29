@@ -12,30 +12,17 @@ import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightS
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
-import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
+import { CDPRequest, CDPResponse } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import type { Browser, BrowserContext, Page } from 'playwright-core';
-
-interface PlaywrightTransport {
-	send(s: CDPRequest): void;
-	close(): void;  // Note: calling close is expected to issue onclose at some point.
-	onmessage?: (message: CDPResponse | CDPEvent) => void;
-	onclose?: (reason?: string) => void;
-}
+import type { Browser, BrowserContext, ConnectOverCDPTransport, Page } from 'playwright-core';
 
 /**
  * Tracks whether a caller-initiated Playwright action is currently in flight.
  */
 export interface IPlaywrightActionScope {
 	activeCalls: number;
-}
-
-declare module 'playwright-core' {
-	interface BrowserType {
-		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
-	}
 }
 
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
@@ -120,12 +107,13 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		try {
 			const playwright = await import('playwright-core');
 			const sub = group.onCDPMessage(msg => transport.onmessage?.(msg));
-			const transport: PlaywrightTransport = {
+			const transport: ConnectOverCDPTransport = {
 				close() {
 					sub.dispose();
 					this.onclose?.();
 				},
-				send(message) {
+				send(rawMessage) {
+					const message = rawMessage as CDPRequest;
 					// Block Playwright's automatic / default emulation traffic. We
 					// only forward `Emulation.*` to the view while a caller-initiated
 					// action is running (see IPlaywrightActionScope) so the workbench
@@ -135,14 +123,14 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					// never hits the view.
 					if (actionScope.activeCalls === 0 && typeof message.method === 'string' && message.method.startsWith('Emulation.')) {
 						setTimeout(() => {
-							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId });
+							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId } satisfies CDPResponse);
 						}, 1);
 						return;
 					}
 					void group.sendCDPMessage(message);
 				}
 			};
-			browser = await playwright.chromium._connectOverCDPTransport(transport);
+			browser = await playwright.chromium.connectOverCDP(transport);
 		} catch (e) {
 			group.dispose();
 			throw e;

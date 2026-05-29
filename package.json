@@ -141,7 +141,7 @@
     "native-keymap": "^3.3.5",
     "node-pty": "^1.2.0-beta.13",
     "open": "^10.1.2",
-    "playwright-core": "1.59.1",
+    "playwright-core": "1.61.0-alpha-2026-05-29",
     "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
     "undici": "^7.24.0",
