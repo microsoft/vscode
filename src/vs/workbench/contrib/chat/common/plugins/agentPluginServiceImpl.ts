@@ -347,6 +347,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const plugin: PluginEntry = {
 			uri,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
+			format: format.format,
 			enablement,
 			remove: removeCallback,
 			hooks,

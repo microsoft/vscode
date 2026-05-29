@@ -190,6 +190,13 @@ export interface IPluginPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
 	readonly source: PromptFileSource.Plugin;
+	/**
+	 * Target implied by the contributing plugin's detected format
+	 * (e.g. {@link Target.Claude} for a Claude-format plugin). Used as a
+	 * fallback in {@link getTarget} so plugin-installed Claude files get
+	 * the same frontmatter handling as a hand-placed `.claude/` directory.
+	 */
+	readonly pluginTarget?: Target;
 }
 
 export type IAgentSource = {
