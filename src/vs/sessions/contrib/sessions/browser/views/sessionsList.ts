@@ -70,6 +70,8 @@ const PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 // Duration of the cross-fade when the icon swaps to a different glyph/variant.
 const ICON_SWAP_FADE_MS = 180;
 
+const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
+
 // Marker dataset key on the outgoing element during a cross-fade swap. Lets a
 // follow-up swap (before the previous fade finishes) skip re-processing it.
 const ICON_FADING_OUT_ATTR = 'iconFadingOut';
@@ -699,7 +701,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
-	private readonly templatesByElement = new Map<SessionListItem, ISessionSectionTemplate>();
+	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -715,6 +717,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -753,7 +756,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	 * tree only re-invokes `renderTwistie` (not `renderElement`) when a section's
 	 * collapse state toggles, so the owning list forwards collapse changes here.
 	 */
-	updateCollapseState(element: SessionListItem, collapsed: boolean): void {
+	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
 		const template = this.templatesByElement.get(element);
 		if (template) {
 			this.updateChevron(template, true, collapsed);
@@ -763,13 +766,16 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
+			template.chevron.classList.add('collapsible');
 			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
 	}
 
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
-		this.templatesByElement.delete(node.element);
+		if (isSessionSection(node.element)) {
+			this.templatesByElement.delete(node.element);
+		}
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
@@ -1013,6 +1019,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
+		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
+			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}));
+		this._register(DOM.addDisposableListener(this.listContainer.ownerDocument, DOM.EventType.KEY_DOWN, () => {
+			this.listContainer.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}, true));
 
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));

@@ -378,8 +378,8 @@
 	display: block;
 }
 
-.monaco-list-row:hover .session-section .session-section-chevron,
-.monaco-list-row.focused .session-section .session-section-chevron {
+.monaco-list-row:hover .session-section .session-section-chevron.collapsible,
+.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }
@@ -395,6 +395,13 @@
 	.monaco-list-row:hover .session-section .session-section-label,
 	.monaco-list-row.focused .session-section .session-section-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	&.session-section-focus-from-pointer {
+		.monaco-list-row.focused:has(.session-section),
+		.monaco-list-row.selected:has(.session-section) {
+			outline: none !important;
+		}
 	}
 }
 
