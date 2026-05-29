@@ -879,6 +879,9 @@ class NewSession extends Disposable {
 	 */
 	eagerCreate(connection: IAgentConnection): void {
 		const backendUri = AgentSession.uri(this.agentProvider, this.session.resource.path.substring(1));
+		if (this._backendUri?.toString() === backendUri.toString() || this._subscription) {
+			return;
+		}
 		this._backendUri = backendUri;
 		this._connection = connection;
 
@@ -1327,15 +1330,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
 
 		// Kick off the initial config resolve and the eager backend session
-		// in parallel. Both are non-blocking; failures are surfaced through
-		// the session's loading observable.
+		// in parallel after authentication settles. While auth is pending,
+		// providers such as Codex reject both paths with AuthRequired; the
+		// subclass calls _resumeNewSessionAfterAuthenticationSettles when the
+		// first auth pass completes.
 		if (connection) {
-			void this._refreshNewSessionConfig(newSession);
-			newSession.eagerCreate(connection);
+			if (!this.authenticationPending.get()) {
+				this._startNewSessionBackend(newSession, connection);
+			}
 		} else {
 			newSession.setLoading(false);
 		}
 		return newSession.session;
+	}
+
+	protected _resumeNewSessionAfterAuthenticationSettles(): void {
+		const newSession = this._newSession;
+		const connection = this.connection;
+		if (!newSession || !connection) {
+			return;
+		}
+		this._startNewSessionBackend(newSession, connection);
+	}
+
+	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
+		void this._refreshNewSessionConfig(newSession);
+		newSession.eagerCreate(connection);
 	}
 
 	/**
