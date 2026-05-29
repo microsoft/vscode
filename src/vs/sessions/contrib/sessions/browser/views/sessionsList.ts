@@ -810,8 +810,8 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		} else {
 			template.textContent = element.kind === 'folders'
 				? element.remainingCount === 1
-					? localize('showMoreWorkspaceCompact', "+{0} workspace", element.remainingCount)
-					: localize('showMoreWorkspacesCompact', "+{0} workspaces", element.remainingCount)
+					? localize('showMoreWorkspaceCompact', "+{0} more workspace", element.remainingCount)
+					: localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
 				: localize('showMoreCompact', "+{0} more", element.remainingCount);
 		}
 	}

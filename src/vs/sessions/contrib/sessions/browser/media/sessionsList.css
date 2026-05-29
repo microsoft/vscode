@@ -320,10 +320,14 @@
 	color: var(--vscode-foreground);
 }
 
-/* Folders show-more/show-less: match the folder section header style */
+/* Folders show-more/show-less: align with workspace section headers. */
 .session-show-more.session-show-more-folders {
+	justify-content: flex-start;
 	font-weight: var(--vscode-agents-fontWeight-medium, 500);
-	text-transform: uppercase;
+
+	.session-show-more-label {
+		padding: 0;
+	}
 
 	/* No surrounding separator lines for the folders show-more/less item */
 	&::before,
@@ -386,9 +390,10 @@
 
 .sessions-list-control {
 
-	/* Hovering a workspace header changes the label color instead of painting a row background fill. */
+	/* Workspace headers use label color changes instead of row background fills for hover/focus/selection. */
 	.monaco-list-row:has(.session-section):hover,
-	.monaco-list-row.focused:has(.session-section) {
+	.monaco-list-row.focused:has(.session-section),
+	.monaco-list-row.selected:has(.session-section) {
 		background: transparent !important;
 	}
 
