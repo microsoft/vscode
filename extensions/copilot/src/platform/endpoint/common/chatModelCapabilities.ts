@@ -365,6 +365,11 @@ export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string
 	return family.toLowerCase().startsWith('gemini') || getCachedSha256Hash(family) === HIDDEN_MODEL_K_HASH;
 }
 
+export function isGemini3Family(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	return family.toLowerCase().includes('gemini-3');
+}
+
 export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boolean {
 	return model.family.toLowerCase().includes('minimax');
 }
