@@ -495,6 +495,10 @@ export class BrowserUrlBarWidget extends Disposable {
 				picker.activeItems = [];
 			}
 			// Cancel any in-flight provider load and start a new one.
+			// (MutableDisposable.dispose only disposes the prior CTS; it does
+			// not cancel its token, so an in-flight `.then` could otherwise
+			// overwrite newer results with stale ones.)
+			loadCts.value?.cancel();
 			const cts = new CancellationTokenSource();
 			loadCts.value = cts;
 			const inputAtRequest = this._host.input;
