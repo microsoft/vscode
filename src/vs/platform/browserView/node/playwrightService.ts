@@ -28,6 +28,23 @@ export interface IPlaywrightActionScope {
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
 const SESSION_INACTIVITY_MS = 30 * 60_000; // 30 minutes
 
+/**
+ * Narrow a raw Playwright transport payload to a {@link CDPRequest}.
+ *
+ * Playwright types the `send` payload as `object` but passes structured CDP
+ * messages (not JSON strings) for a caller-supplied transport, so this guard
+ * is expected to always hold. It exists to fail loudly should a future
+ * Playwright version change the wire format, rather than silently forwarding
+ * malformed messages.
+ */
+function isCDPRequest(message: object): message is CDPRequest {
+	const candidate = message as Partial<CDPRequest>;
+	return typeof candidate.id === 'number'
+		&& typeof candidate.method === 'string'
+		&& (candidate.sessionId === undefined || typeof candidate.sessionId === 'string');
+}
+
+
 
 /**
  * Shared-process implementation of {@link IPlaywrightService}.
@@ -112,8 +129,12 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					sub.dispose();
 					this.onclose?.();
 				},
-				send(rawMessage) {
-					const message = rawMessage as CDPRequest;
+				send: (rawMessage) => {
+					if (!isCDPRequest(rawMessage)) {
+						this.logService.error(`[PlaywrightService] Unexpected CDP transport payload for session ${sessionId}; dropping message`);
+						return;
+					}
+					const message = rawMessage;
 					// Block Playwright's automatic / default emulation traffic. We
 					// only forward `Emulation.*` to the view while a caller-initiated
 					// action is running (see IPlaywrightActionScope) so the workbench
@@ -121,7 +142,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					// setup Playwright issues on its own when connecting or creating
 					// pages — is acknowledged with a synthetic success response and
 					// never hits the view.
-					if (actionScope.activeCalls === 0 && typeof message.method === 'string' && message.method.startsWith('Emulation.')) {
+					if (actionScope.activeCalls === 0 && message.method.startsWith('Emulation.')) {
 						setTimeout(() => {
 							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId } satisfies CDPResponse);
 						}, 1);
