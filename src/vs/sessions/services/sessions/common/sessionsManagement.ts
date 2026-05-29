@@ -53,6 +53,16 @@ export interface ISessionsChangeEvent {
 }
 
 /**
+ * Payload for {@link ISessionsManagementService.onDidSendRequest}.
+ */
+export interface ISendRequestSentEvent {
+	readonly session: ISession;
+	readonly chat: IChat;
+	readonly isNewSession: boolean;
+	readonly options: ISendRequestOptions;
+}
+
+/**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
@@ -119,6 +129,30 @@ export interface ISessionsManagementService {
 	 * {@link sendNewChatRequest}.
 	 */
 	readonly onDidStartSession: Event<ISession>;
+
+	/**
+	 * Fires immediately before a chat request is sent from this window via
+	 * {@link sendNewChatRequest} or {@link sendRequest}. Listeners can use this
+	 * to prewarm caches whose result is consumed by {@link onDidSendRequest}.
+	 */
+	readonly onWillSendRequest: Event<ISession>;
+
+	/**
+	 * Fires after a chat request was successfully sent from this window via
+	 * {@link sendNewChatRequest} or {@link sendRequest}.
+	 */
+	readonly onDidSendRequest: Event<ISendRequestSentEvent>;
+
+	/** Fires after a session was successfully archived via {@link archiveSession}. */
+	readonly onDidArchiveSession: Event<ISession>;
+	/** Fires after a session was successfully unarchived via {@link unarchiveSession}. */
+	readonly onDidUnarchiveSession: Event<ISession>;
+	/** Fires after a session was successfully deleted via {@link deleteSession}. */
+	readonly onDidDeleteSession: Event<ISession>;
+	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
+	readonly onDidDeleteChat: Event<ISession>;
+	/** Fires after a chat was successfully renamed via {@link renameChat}. */
+	readonly onDidRenameChat: Event<ISession>;
 
 	// -- Active Session --
 

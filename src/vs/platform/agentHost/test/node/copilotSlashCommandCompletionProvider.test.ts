@@ -37,6 +37,14 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/compact'), { command: 'compact', rest: '' });
 		});
 
+		test('matches lone /research', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research'), { command: 'research', rest: '' });
+		});
+
+		test('captures trailing text after a space for /research', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research How does React work?'), { command: 'research', rest: 'How does React work?' });
+		});
+
 		test('matches lone /rubber-duck', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '' });
 		});
@@ -98,7 +106,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/rubber-duck ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ']);
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
@@ -111,9 +119,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact']);
 		});
 
-		test('filters to /rubber-duck when "/r" typed', async () => {
+		test('filters to /research and /rubber-duck when "/r" typed', async () => {
 			const items = await run('/r');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/rubber-duck ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ', '/rubber-duck ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -159,6 +167,13 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
+						command: 'research',
+						description: 'Run deep research on a topic using search and web sources',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
 						command: 'rubber-duck',
 						description: 'Get an independent critique of the current approach',
 					},
@@ -171,7 +186,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/rubber-duck ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ', '/rubber-duck ']);
 		});
 
 		test('omits /rubber-duck when env var is unset', async () => {
@@ -179,7 +194,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			delete process.env['RUBBER_DUCK_AGENT'];
 			try {
 				const items = await run('/');
-				assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact']);
+				assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ']);
 			} finally {
 				if (saved !== undefined) {
 					process.env['RUBBER_DUCK_AGENT'] = saved;
