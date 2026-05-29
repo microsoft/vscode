@@ -21,7 +21,8 @@ import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
+import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
@@ -274,6 +275,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._proxy.resourceMove(params);
+	}
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		return this._proxy.resourceResolve(params);
+	}
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		return this._proxy.resourceMkdir(params);
+	}
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return this._proxy.createResourceWatch(params);
+	}
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> {
+		return createRemoteWatchHandle({
+			createResourceWatch: p => this._proxy.createResourceWatch(p),
+			subscribe: uri => this.subscribe(uri),
+			unsubscribe: uri => this.unsubscribe(uri),
+			onDidAction: this.onDidAction,
+		}, params);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side
