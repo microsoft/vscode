@@ -28,12 +28,11 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 
-/** Sentinel key used in {@link SessionsPart._views} when no session is active. */
-const PLACEHOLDER_KEY = '__placeholder__';
-
 interface IGridSlot {
 	readonly view: SessionView;
 	readonly disposables: DisposableStore;
+	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
+	boundSessionId: string | undefined;
 }
 
 export class SessionsPart extends Part {
@@ -61,13 +60,14 @@ export class SessionsPart extends Part {
 	private _progressIndicator: IProgressIndicator | undefined;
 
 	/**
-	 * Views currently mounted in the grid, in display order (left-to-right).
-	 * The first entry is always a placeholder view (key {@link PLACEHOLDER_KEY})
-	 * when no sessions are visible. Otherwise entries are keyed by session id.
+	 * Session views mounted in the grid, in display order (left-to-right). Slots
+	 * are reused across reconciliations: only the slot count changes with the
+	 * number of visible sessions; each slot is rebound to its session by position
+	 * via {@link SessionView.openSession}. There is always at least one slot — a
+	 * new-session placeholder (`boundSessionId === undefined`) when no sessions
+	 * are visible.
 	 */
-	private readonly _views = new Map<string, IGridSlot>();
-	/** Grid order — keys of {@link _views} in left-to-right order. */
-	private _gridOrder: string[] = [];
+	private readonly _slots: IGridSlot[] = [];
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string>());
 	/** Fired when a session view in the grid receives keyboard focus. */
@@ -120,12 +120,11 @@ export class SessionsPart extends Part {
 		this._progressBar = this._register(new ProgressBar(contentArea, defaultProgressBarStyles));
 		this._progressBar.hide();
 
-		// Seed the grid with a placeholder view so SerializableGrid always has
-		// at least one leaf. Replaced when visible sessions become available.
-		const placeholder = this._createSlot(PLACEHOLDER_KEY);
+		// Seed the grid with a placeholder slot so SerializableGrid always has
+		// at least one leaf. Rebound to a session when visible sessions appear.
+		const placeholder = this._createSlot();
 		this._gridWidget = this._register(new SerializableGrid(placeholder.view, { styles: { separatorBorder: this._gridSeparatorBorder } }));
-		this._views.set(PLACEHOLDER_KEY, placeholder);
-		this._gridOrder = [PLACEHOLDER_KEY];
+		this._slots.push(placeholder);
 		contentArea.appendChild(this._gridWidget.element);
 
 		// Propagate the grid's maximized-view state to each session view so the
@@ -142,101 +141,58 @@ export class SessionsPart extends Part {
 	}
 
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {
-		for (const [key, slot] of this._views) {
-			if (key === PLACEHOLDER_KEY) {
+		for (const slot of this._slots) {
+			if (slot.boundSessionId === undefined) {
 				continue;
 			}
 			if (isAncestor(child, slot.view.element)) {
-				return { sessionId: key, element: slot.view.element };
+				return { sessionId: slot.boundSessionId, element: slot.view.element };
 			}
 		}
 		return undefined;
 	}
 
 	/**
-	 * Reconcile the grid with the desired set of visible sessions. Creates a
-	 * {@link SessionView} per session, removes views no longer in the visible
-	 * list, reorders remaining views to match `visible`, and rebinds each view
-	 * to its session.
+	 * Reconcile the grid with the desired set of visible sessions. Reuses the
+	 * existing {@link SessionView} slots, growing or shrinking the pool only when
+	 * the number of visible sessions changes, and rebinds each slot to its
+	 * session by position via {@link SessionView.openSession}.
 	 */
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
 		if (!this._gridWidget) {
 			return;
 		}
 
-		const desiredKeys: string[] = visible.length > 0
-			? visible.map(s => s ? s.sessionId : PLACEHOLDER_KEY)
-			: [PLACEHOLDER_KEY];
-		const desiredKeySet = new Set(desiredKeys);
+		// Always keep at least one slot (a placeholder when no sessions are visible).
+		const desiredCount = Math.max(visible.length, 1);
 
-		// Add new views first so the grid never goes empty during reconciliation.
-		// New views are appended to the right; they will be moved into the correct
-		// position by the reorder pass below.
-		for (const key of desiredKeys) {
-			if (this._views.has(key)) {
-				continue;
-			}
-			const slot = this._createSlot(key);
-			const reference = this._views.get(this._gridOrder[this._gridOrder.length - 1])!.view;
+		// Grow the pool by appending new slots to the right.
+		while (this._slots.length < desiredCount) {
+			const slot = this._createSlot();
+			const reference = this._slots[this._slots.length - 1].view;
 			this._gridWidget.addView(slot.view, Sizing.Distribute, reference, Direction.Right);
-			this._views.set(key, slot);
-			this._gridOrder.push(key);
+			this._slots.push(slot);
 		}
 
-		// Remove views no longer desired (always leaves at least one — desiredKeys
-		// is non-empty because of the placeholder fallback).
-		for (const key of [...this._gridOrder]) {
-			if (desiredKeySet.has(key)) {
-				continue;
-			}
-			const slot = this._views.get(key);
-			if (!slot) {
-				continue;
-			}
+		// Shrink the pool by removing trailing slots (always leaves at least one).
+		while (this._slots.length > desiredCount) {
+			const slot = this._slots.pop()!;
 			this._gridWidget.removeView(slot.view, Sizing.Distribute);
 			slot.disposables.dispose();
-			this._views.delete(key);
-			this._gridOrder = this._gridOrder.filter(k => k !== key);
 		}
 
-		// Reorder remaining views to match `desiredKeys` left-to-right. After the
-		// add/remove passes, `_gridOrder` contains exactly the desired keys but
-		// possibly in the wrong order; move any out-of-place view next to its
-		// already-positioned predecessor (or to the left of the first view at i=0).
-		for (let i = 0; i < desiredKeys.length; i++) {
-			const target = desiredKeys[i];
-			if (this._gridOrder[i] === target) {
-				continue;
-			}
-			const targetView = this._views.get(target)!.view;
-			if (i === 0) {
-				const refView = this._views.get(this._gridOrder[0])!.view;
-				this._gridWidget.moveView(targetView, Sizing.Distribute, refView, Direction.Left);
-			} else {
-				const refView = this._views.get(this._gridOrder[i - 1])!.view;
-				this._gridWidget.moveView(targetView, Sizing.Distribute, refView, Direction.Right);
-			}
-			this._gridOrder = this._gridOrder.filter(k => k !== target);
-			this._gridOrder.splice(i, 0, target);
-		}
-
-		// Bind each remaining view to its session (or to undefined for placeholder).
-		for (let i = 0; i < visible.length; i++) {
+		// Rebind each slot to its session by position (or to undefined placeholder).
+		for (let i = 0; i < this._slots.length; i++) {
+			const slot = this._slots[i];
 			const session = visible[i];
-			if (session) {
-				this._views.get(session.sessionId)?.view.openSession(session);
-			} else {
-				this._views.get(PLACEHOLDER_KEY)?.view.openSession(undefined);
-			}
-		}
-		if (visible.length === 0) {
-			this._views.get(PLACEHOLDER_KEY)?.view.openSession(undefined);
+			slot.boundSessionId = session?.sessionId;
+			slot.view.openSession(session);
 		}
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
-		for (const [key, slot] of this._views) {
-			const isActive = key === activeId || this._views.size === 1;
+		for (const slot of this._slots) {
+			const isActive = (slot.boundSessionId !== undefined && slot.boundSessionId === activeId) || this._slots.length === 1;
 			slot.view.element.classList.toggle('is-active', isActive);
 			slot.view.setActive(isActive);
 		}
@@ -257,7 +213,7 @@ export class SessionsPart extends Part {
 		if (!this._gridWidget) {
 			return;
 		}
-		for (const slot of this._views.values()) {
+		for (const slot of this._slots) {
 			slot.view.setMaximized(this._gridWidget.isViewMaximized(slot.view));
 		}
 	}
@@ -271,14 +227,13 @@ export class SessionsPart extends Part {
 		if (!this._gridWidget) {
 			return;
 		}
-		const key = sessionId ?? PLACEHOLDER_KEY;
-		const slot = this._views.get(key);
+		const slot = this._slots.find(s => s.boundSessionId === sessionId);
 		if (!slot) {
 			return;
 		}
 		if (this._gridWidget.isViewMaximized(slot.view)) {
 			this._gridWidget.exitMaximizedView();
-		} else if (this._gridOrder.filter(k => k !== PLACEHOLDER_KEY).length >= 2) {
+		} else if (this._slots.filter(s => s.boundSessionId !== undefined).length >= 2) {
 			this._gridWidget.maximizeView(slot.view);
 			slot.view.focus();
 		}
@@ -290,8 +245,7 @@ export class SessionsPart extends Part {
 	 * `undefined` if no matching slot exists in the grid.
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
-		const key = sessionId ?? PLACEHOLDER_KEY;
-		return this._views.get(key)?.view;
+		return this._slots.find(s => s.boundSessionId === sessionId)?.view;
 	}
 
 	/**
@@ -316,23 +270,23 @@ export class SessionsPart extends Part {
 		return this._progressIndicator;
 	}
 
-	private _createSlot(key: string): IGridSlot {
+	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
 		// (e.g. the new chat widget's workspace picker area) where focus would
-		// not otherwise move into the view. The placeholder slot has no session
-		// to activate.
-		if (key !== PLACEHOLDER_KEY) {
-			disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, () => {
-				this._onDidFocusSession.fire(key);
-			}, true));
-			disposables.add(addDisposableGenericMouseDownListener(view.element, () => {
-				this._onDidFocusSession.fire(key);
-			}, true));
-		}
-		return { view, disposables };
+		// not otherwise move into the view. The placeholder slot (no bound
+		// session) has nothing to activate.
+		const fireFocus = () => {
+			if (slot.boundSessionId !== undefined) {
+				this._onDidFocusSession.fire(slot.boundSessionId);
+			}
+		};
+		disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, fireFocus, true));
+		disposables.add(addDisposableGenericMouseDownListener(view.element, fireFocus, true));
+		return slot;
 	}
 
 	private get _gridSeparatorBorder(): Color {
@@ -383,11 +337,10 @@ export class SessionsPart extends Part {
 	}
 
 	override dispose(): void {
-		for (const slot of this._views.values()) {
+		for (const slot of this._slots) {
 			slot.disposables.dispose();
 		}
-		this._views.clear();
-		this._gridOrder = [];
+		this._slots.length = 0;
 		super.dispose();
 	}
 
