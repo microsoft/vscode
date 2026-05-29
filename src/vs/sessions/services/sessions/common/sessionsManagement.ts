@@ -161,9 +161,10 @@ export interface ISessionsManagementService {
 	 * Close a session: remove it from the visibility model so it is no longer
 	 * shown in the grid. If the session was the active one, the previous
 	 * visible session becomes active; if no session remains visible, the
-	 * new-session view is opened.
+	 * new-session view is opened. Passing `undefined` closes the empty
+	 * (new-session) slot if it is currently visible.
 	 */
-	closeSession(session: ISession): void;
+	closeSession(session: ISession | undefined): void;
 
 	setActive(session: IActiveSession): void;
 
