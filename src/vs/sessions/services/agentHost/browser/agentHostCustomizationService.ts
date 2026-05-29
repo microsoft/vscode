@@ -8,17 +8,19 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentHostCustomAgentsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomAgentsService.js';
+import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
-import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, Customization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 
-export class AgentHostCustomAgentsService extends Disposable implements IAgentHostCustomAgentsService {
+export class AgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
+	private readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
+	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
 	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
 
 	constructor(
@@ -28,6 +30,7 @@ export class AgentHostCustomAgentsService extends Disposable implements IAgentHo
 		super();
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
 			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
 		}));
 	}
 
@@ -48,6 +51,22 @@ export class AgentHostCustomAgentsService extends Disposable implements IAgentHo
 
 		return [];
 	}
+
+	getCustomizations(sessionResource: URI): readonly Customization[] {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		if (!session) {
+			return [];
+		}
+
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (provider && isAgentHostProvider(provider)) {
+			this._ensureProviderListener(provider);
+			return provider.getCustomizations(session.sessionId);
+		}
+
+		return [];
+	}
+
 
 	private _ensureProviderListener(provider: IAgentHostSessionsProvider): void {
 		if (this._providerListeners.has(provider)) {
@@ -84,4 +103,4 @@ function agentNameFromUri(uri: string): string {
 	}
 }
 
-registerSingleton(IAgentHostCustomAgentsService, AgentHostCustomAgentsService, InstantiationType.Delayed);
+registerSingleton(IAgentHostCustomizationService, AgentHostCustomizationService, InstantiationType.Delayed);

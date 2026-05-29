@@ -7,15 +7,15 @@ import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
-import { extname as resourcesExtname, isEqual, joinPath } from '../../../base/common/resources.js';
+import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -24,10 +24,10 @@ import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sess
 import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -56,6 +56,16 @@ import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetrySer
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+/**
+ * Grace period before an idle resource watch is torn down after its last
+ * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
+ * this window, a re-subscribe (or reconnect) reuses the still-running
+ * {@link IFileService} watcher so transient drop-outs don't miss change
+ * events. Resource watch action envelopes flow through the normal
+ * envelope replay buffer for the same reason.
+ */
+const RESOURCE_WATCH_GRACE_MS = 30_000;
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -123,6 +133,30 @@ export class AgentService extends Disposable implements IAgentService {
 	 * whenever any client subscribes again or the timer fires.
 	 */
 	private readonly _pendingSessionGc = this._register(new DisposableResourceMap<IDisposable>());
+
+	/**
+	 * Active resource watches keyed by the channel URI string
+	 * (`ahp-resource-watch:/<encoded>`).
+	 *
+	 * Each entry owns the {@link IFileService} watcher together with the
+	 * decoded descriptor, the subscriber refcount, and the optional
+	 * grace-window dispose timer. The watch URI itself is fully
+	 * self-describing — {@link createResourceWatch} just encodes the
+	 * caller's params into the URI and returns it. State only exists
+	 * here once at least one client has subscribed.
+	 *
+	 * Lifecycle:
+	 * - First subscriber to a channel: {@link onResourceWatchSubscribed}
+	 *   parses the URI, creates the {@link IFileService} watcher, and
+	 *   installs the entry with `subscribers = 1`.
+	 * - Subsequent subscribers bump the refcount and cancel any pending
+	 *   grace-window dispose timer.
+	 * - {@link onResourceWatchUnsubscribed} drops the refcount; when it
+	 *   reaches zero we arm a {@link RESOURCE_WATCH_GRACE_MS} dispose
+	 *   timer rather than tearing down immediately, giving disconnected
+	 *   clients time to reconnect.
+	 */
+	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
 
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
@@ -1462,14 +1496,24 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			content = VSBuffer.fromString(params.data);
 		}
+		const mode = params.mode ?? ResourceWriteMode.Truncate;
+		const position = params.position ?? 0;
 		try {
-			if (params.createOnly) {
+			if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
+				await this._resourceWriteWithMode(fileUri, content, mode, position, params);
+			} else if (params.createOnly) {
 				await this._fileService.createFile(fileUri, content, { overwrite: false });
 			} else {
 				await this._fileService.writeFile(fileUri, content);
 			}
 			return {};
 		} catch (e) {
+			if (e instanceof ProtocolError) {
+				throw e;
+			}
+			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
+			}
 			const code = toFileSystemProviderErrorCode(e as Error);
 			if (code === FileSystemProviderErrorCode.FileExists) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
@@ -1479,6 +1523,67 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
 		}
+	}
+
+	/**
+	 * Slow-path for {@link resourceWrite} when the caller requested a
+	 * non-default {@link ResourceWriteMode}, supplied a `position`, or
+	 * provided an `ifMatch` etag precondition. Reads the current file
+	 * contents (when needed) and produces a single `writeFile` call that
+	 * realises the requested splice. A missing file is treated as
+	 * empty for `append` and `insert` (so the operation behaves like a
+	 * create); for `truncate` it falls through to a normal write.
+	 */
+	private async _resourceWriteWithMode(
+		fileUri: URI,
+		data: VSBuffer,
+		mode: ResourceWriteMode,
+		position: number,
+		params: ResourceWriteParams,
+	): Promise<void> {
+		let existing: VSBuffer | undefined;
+		let currentEtag: string | undefined;
+		try {
+			const file = await this._fileService.readFile(fileUri);
+			existing = file.value;
+			currentEtag = file.etag;
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code !== FileSystemProviderErrorCode.FileNotFound) {
+				throw e;
+			}
+		}
+
+		if (params.ifMatch !== undefined) {
+			// Missing file with an ifMatch is always a conflict (the caller
+			// believed they had the etag for an existing file).
+			if (existing === undefined || currentEtag !== params.ifMatch) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
+			}
+		}
+
+		const base = existing ?? VSBuffer.alloc(0);
+		let next: VSBuffer;
+		switch (mode) {
+			case ResourceWriteMode.Append: {
+				const eof = base.byteLength;
+				const splitAt = Math.max(0, eof - position);
+				next = VSBuffer.concat([base.slice(0, splitAt), data, base.slice(splitAt, eof)]);
+				break;
+			}
+			case ResourceWriteMode.Insert: {
+				const splitAt = Math.min(position, base.byteLength);
+				next = VSBuffer.concat([base.slice(0, splitAt), data, base.slice(splitAt, base.byteLength)]);
+				break;
+			}
+			case ResourceWriteMode.Truncate:
+			default: {
+				const splitAt = Math.min(position, base.byteLength);
+				next = VSBuffer.concat([base.slice(0, splitAt), data]);
+				break;
+			}
+		}
+		await this._fileService.writeFile(fileUri, next, { etag: currentEtag });
 	}
 
 	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
@@ -1529,6 +1634,198 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
 		}
+	}
+
+	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		try {
+			const stat = await this._fileService.stat(uri);
+			let type: ResourceType;
+			if (stat.isSymbolicLink && params.followSymlinks === false) {
+				// `IFileService.stat` always follows symlinks in its
+				// type-classification logic, so `followSymlinks: false`
+				// only changes how we report the result — we surface the
+				// link itself rather than the target.
+				type = ResourceType.Symlink;
+			} else if (stat.isDirectory) {
+				type = ResourceType.Directory;
+			} else {
+				type = ResourceType.File;
+			}
+			const result: ResourceResolveResult = {
+				uri: uri.toString(),
+				type,
+				...(stat.size !== undefined ? { size: stat.size } : {}),
+				...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+				...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+				...(stat.etag ? { etag: stat.etag } : {}),
+			};
+			return result;
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
+		}
+	}
+
+	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		try {
+			// `IFileService.createFolder` is idempotent for an existing
+			// directory and creates parents as needed, matching the
+			// `mkdir -p` semantics required by the spec.
+			const existing = await this._fileService.stat(uri).catch(() => undefined);
+			if (existing && !existing.isDirectory) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Path exists and is not a directory: ${uri.toString()}`);
+			}
+			await this._fileService.createFolder(uri);
+			return {};
+		} catch (e) {
+			if (e instanceof ProtocolError) {
+				throw e;
+			}
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to create directory: ${uri.toString()}`);
+		}
+	}
+
+	async createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		const root = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		// Verify the URI exists before we mint a channel; spec requires
+		// `NotFound` when the URI is missing rather than silently producing
+		// a watcher that will never fire. The watcher itself is not
+		// attached here — encoding the descriptor into the channel URI
+		// lets `subscribe` materialise the underlying IFileService
+		// watcher lazily on the first subscriber, and tear it down again
+		// after the last unsubscribe (with a grace window).
+		try {
+			await this._fileService.stat(root);
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${root.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${root.toString()}`);
+		}
+
+		const channel = buildResourceWatchChannelUri({
+			root: root.toString(),
+			recursive: params.recursive === true,
+			excludes: params.excludes,
+			includes: params.includes,
+		});
+		return { channel };
+	}
+
+	/**
+	 * Notifies the agent service that a client subscribed to a resource
+	 * watch channel. On the first subscriber the underlying
+	 * {@link IFileService} watcher is attached; subsequent subscribers
+	 * bump the refcount and cancel any pending grace dispose. Returns
+	 * the decoded descriptor for use as the subscribe snapshot, or
+	 * `undefined` when `channel` is not a recognisable
+	 * `ahp-resource-watch:` URI.
+	 */
+	onResourceWatchSubscribed(channel: string): ResourceWatchState | undefined {
+		const descriptor = parseResourceWatchChannelUri(channel);
+		if (!descriptor) {
+			return undefined;
+		}
+		const existing = this._resourceWatches.get(channel);
+		if (existing) {
+			existing.subscribers++;
+			if (existing.pendingGc) {
+				existing.pendingGc.clear();
+			}
+			return existing.descriptor;
+		}
+		// First subscriber — materialise the IFileService watcher.
+		const disposables = new DisposableStore();
+		try {
+			const root = URI.parse(descriptor.root);
+			const watchOptions = {
+				recursive: descriptor.recursive,
+				excludes: descriptor.excludes?.items ?? [],
+				includes: descriptor.includes?.items,
+			};
+			if (descriptor.recursive) {
+				// Correlated watchers are non-recursive only, so register
+				// an uncorrelated recursive watch and filter the global
+				// stream by descendants of the watched root.
+				disposables.add(this._fileService.watch(root, watchOptions));
+				disposables.add(this._fileService.onDidFilesChange(event => {
+					const filtered = collectChangesUnderRoot(event, root);
+					if (filtered.length > 0) {
+						this._dispatchResourceWatchChanges(channel, filtered);
+					}
+				}));
+			} else {
+				const watcher = this._fileService.createWatcher(root, { ...watchOptions, recursive: false });
+				disposables.add(watcher);
+				disposables.add(watcher.onDidChange(event => {
+					this._dispatchResourceWatchChanges(channel, collectChanges(event));
+				}));
+			}
+		} catch (e) {
+			disposables.dispose();
+			this._logService.warn(`[AgentService] Failed to start IFileService watcher for ${channel}: ${e instanceof Error ? e.message : String(e)}`);
+			return undefined;
+		}
+		this._resourceWatches.set(channel, {
+			channel,
+			descriptor,
+			subscribers: 1,
+			disposables,
+			pendingGc: disposables.add(new MutableDisposable()),
+			dispose: () => disposables.dispose(),
+		});
+		return descriptor;
+	}
+
+	/**
+	 * Counterpart to {@link onResourceWatchSubscribed}. Decrements the
+	 * subscriber refcount for a watch channel; when it reaches zero the
+	 * watcher is held for {@link RESOURCE_WATCH_GRACE_MS} before being
+	 * disposed, giving a transient disconnect time to resubscribe.
+	 */
+	onResourceWatchUnsubscribed(channel: string): boolean {
+		const entry = this._resourceWatches.get(channel);
+		if (!entry) {
+			return false;
+		}
+		entry.subscribers = Math.max(0, entry.subscribers - 1);
+		if (entry.subscribers > 0) {
+			return true;
+		}
+		entry.pendingGc.value = disposableTimeout(() => {
+			const current = this._resourceWatches.get(channel);
+			if (!current || current.subscribers > 0) {
+				return;
+			}
+			this._resourceWatches.deleteAndDispose(channel);
+		}, RESOURCE_WATCH_GRACE_MS);
+		return true;
+	}
+
+	private _dispatchResourceWatchChanges(channel: string, raw: readonly IFileChange[]): void {
+		if (raw.length === 0) {
+			return;
+		}
+		const items = raw.map(c => ({
+			uri: c.resource.toString(),
+			type: c.type === FileChangeType.ADDED ? ResourceChangeType.Added
+				: c.type === FileChangeType.DELETED ? ResourceChangeType.Deleted
+					: ResourceChangeType.Updated,
+		}));
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.ResourceWatchChanged,
+			changes: { items },
+		});
 	}
 
 	async shutdown(): Promise<void> {
@@ -1700,4 +1997,57 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providers.clear();
 		super.dispose();
 	}
+}
+
+/**
+ * Runtime owner of an active resource watch — pairs the {@link IFileService}
+ * watcher disposables with the subscriber refcount and the optional
+ * grace-window timer used to delay disposal after the last unsubscribe.
+ */
+interface IActiveResourceWatch extends IDisposable {
+	readonly channel: string;
+	readonly descriptor: ResourceWatchState;
+	subscribers: number;
+	readonly disposables: DisposableStore;
+	pendingGc: MutableDisposable<IDisposable>;
+}
+
+/**
+ * Flatten a {@link FileChangesEvent} into a synthetic {@link IFileChange}
+ * list. The event stores only URI arrays publicly (the underlying
+ * `IFileChange[]` is private), so we reconstruct one entry per URI per
+ * change type. The synthetic shape is sufficient for translation into
+ * `ResourceWatchChangedAction` items.
+ */
+function collectChanges(event: FileChangesEvent): IFileChange[] {
+	const out: IFileChange[] = [];
+	for (const resource of event.rawAdded) {
+		out.push({ resource, type: FileChangeType.ADDED });
+	}
+	for (const resource of event.rawUpdated) {
+		out.push({ resource, type: FileChangeType.UPDATED });
+	}
+	for (const resource of event.rawDeleted) {
+		out.push({ resource, type: FileChangeType.DELETED });
+	}
+	return out;
+}
+
+/**
+ * Variant of {@link collectChanges} that restricts the output to changes
+ * inside `root` (inclusive). Used for the recursive watch fallback,
+ * which feeds off the uncorrelated global stream and must filter out
+ * unrelated events.
+ */
+function collectChangesUnderRoot(event: FileChangesEvent, root: URI): IFileChange[] {
+	const out: IFileChange[] = [];
+	const accept = (resource: URI, type: FileChangeType) => {
+		if (isEqualOrParent(resource, root)) {
+			out.push({ resource, type });
+		}
+	};
+	for (const resource of event.rawAdded) { accept(resource, FileChangeType.ADDED); }
+	for (const resource of event.rawUpdated) { accept(resource, FileChangeType.UPDATED); }
+	for (const resource of event.rawDeleted) { accept(resource, FileChangeType.DELETED); }
+	return out;
 }

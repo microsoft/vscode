@@ -773,7 +773,7 @@ suite('CopilotAgent', () => {
 					type: CustomizationType.Agent,
 					id: customizationId(agentFile.toString()),
 					uri: agentFile.toString(),
-					name: 'helper.agent.md',
+					name: 'helper',
 				}]);
 
 				const instructionDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'instructions').toString());

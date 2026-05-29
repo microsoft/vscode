@@ -23,9 +23,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { ChatSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,7 +41,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus }
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { Separator } from '../../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -108,7 +110,7 @@ function swapIconWithCrossfade(container: HTMLElement, newChild: HTMLElement, an
 }
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
-export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
+export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
@@ -436,6 +438,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const changes = element.changes.read(reader);
+			const changesSummary = element.changesSummary?.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			let timeDate: Date | undefined;
@@ -477,13 +480,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Diff stats
-			if (!hideDetails && changes.length > 0) {
-				let insertions = 0;
-				let deletions = 0;
-				for (const change of changes) {
-					insertions += change.insertions;
-					deletions += change.deletions;
+			if (!hideDetails && (changesSummary || changes.length > 0)) {
+				let insertions = 0, deletions = 0;
+
+				if (changesSummary) {
+					insertions = changesSummary.additions;
+					deletions = changesSummary.deletions;
+				} else if (changes.length > 0) {
+					for (const change of changes) {
+						insertions += change.insertions;
+						deletions += change.deletions;
+					}
 				}
+
 				if (insertions > 0 || deletions > 0) {
 					if (parts.length > 0) {
 						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -957,6 +966,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -1455,8 +1465,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
+		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession[].
+		const marshalledArg = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: { resource: element.resource },
+			sessions: selectedSessions.map(s => ({ resource: s.resource })),
+		};
+		const wrapForExtensions = (action: IAction): IAction => {
+			if (!(action instanceof MenuItemAction) || !action.item.source) {
+				return action;
+			}
+			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			wrapped.tooltip = action.tooltip;
+			wrapped.checked = action.checked;
+			return wrapped;
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions))),
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 		});
