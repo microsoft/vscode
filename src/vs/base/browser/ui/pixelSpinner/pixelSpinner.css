@@ -14,13 +14,6 @@
 	height: 16px;
 	color: currentColor;
 	pointer-events: none;
-	/* Promote ONLY the spinner root to a single compositor layer and clip all
-	 * painting to its 16x16 box with `paint` containment. The dots animate and
-	 * repaint *within* this one layer rather than each becoming their own GPU
-	 * layer. Repainting a contained 16x16 region on the main thread is far
-	 * cheaper than rasterizing and shuffling six separate GPU layers between
-	 * the renderer and GPU processes every frame, and it keeps the spinner's
-	 * invalidation from ever reaching the rest of the page. */
 	contain: layout style size paint;
 	isolation: isolate;
 	transform: translateZ(0);
