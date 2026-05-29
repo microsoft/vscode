@@ -51,6 +51,7 @@ import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/nod
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
+import { formatCompactionFailureError, renderCompactionMessages, resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
@@ -59,8 +60,8 @@ import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
+import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -499,7 +500,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@ICodeMapperService codeMapperService: ICodeMapperService,
 		@IEnvService envService: IEnvService,
 		@IPromptPathRepresentationService promptPathRepresentationService: IPromptPathRepresentationService,
-		@IEndpointProvider endpointProvider: IEndpointProvider,
+		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IToolsService toolsService: IToolsService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -513,7 +514,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {
@@ -846,28 +847,43 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
 				|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
 
-			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
+			// The prism compaction path targets a separate endpoint, so it
+			// shares no prompt-cache prefix with the main agent loop. The
+			// cache-warm gate therefore has no rationale there and would only
+			// delay compaction; force `cacheWarm: true` so we fire as soon as
+			// the budget threshold is crossed.
+			const usePrismCompaction = this.configurationService.getExperimentBasedConfig(ConfigKey.ConversationUsePrismCompaction, this.expService);
+			const cacheWarm = usePrismCompaction
+				? true
+				: (promptContext.toolCallRounds?.length ?? 0) > 0;
 
 			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, cacheWarm, this._thresholdRng);
 
 			if (kickOff && idleOrFailed) {
-				// Compute and cache model capabilities from the current render's
-				// messages. These must match the main agent fetch for cache parity.
-				const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
-				const rawEffort = this.request.modelConfiguration?.reasoningEffort;
-				const isSubagent = !!this.request.subAgentInvocationId;
-				// Must match the main agent's enableThinking logic in
-				// toolCallingLoop.ts runOne() — thinking is only disabled
-				// on continuation turns for Anthropic when no thinking
-				// blocks exist yet in the messages.
-				const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
-				this._lastModelCapabilities = {
-					enableThinking: !shouldDisableThinking,
-					reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
-					enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
-					enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
-				};
-				this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+				if (usePrismCompaction) {
+					// Different endpoint → no shared cache prefix and no
+					// `_lastModelCapabilities` reuse; both are cache-parity
+					// machinery for the main-endpoint path.
+					this._startPrismBackgroundSummarization(backgroundSummarizer, promptContext, token, postRenderRatio);
+				} else {
+					// Compute and cache model capabilities from the current render's
+					// messages. These must match the main agent fetch for cache parity.
+					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
+					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
+					const isSubagent = !!this.request.subAgentInvocationId;
+					// Must match the main agent's enableThinking logic in
+					// toolCallingLoop.ts runOne() — thinking is only disabled
+					// on continuation turns for Anthropic when no thinking
+					// blocks exist yet in the messages.
+					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
+					this._lastModelCapabilities = {
+						enableThinking: !shouldDisableThinking,
+						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
+						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
+						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
+					};
+					this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+				}
 			}
 		}
 
@@ -1143,6 +1159,148 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	}
 
 	/**
+	 * Prism background-compaction path: routes the trajectory-compaction
+	 * request to a separately resolved CAPI endpoint
+	 * (`ConversationUsePrismCompaction`). Since the target model differs from
+	 * the main agent endpoint, the cache-parity machinery used by
+	 * `_startBackgroundSummarization` (re-using the main render, forwarding
+	 * tools, threading `_lastModelCapabilities`) doesn't apply. Instead, the
+	 * prompt is re-rendered against the compaction endpoint via
+	 * `_renderCrossEndpointCompactionMessages` and sent without tools.
+	 */
+	private _startPrismBackgroundSummarization(
+		backgroundSummarizer: BackgroundSummarizer,
+		promptContext: IBuildPromptContext,
+		token: vscode.CancellationToken,
+		contextRatio: number,
+	): void {
+		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting prism background compaction`);
+
+		const bgStartTime = Date.now();
+
+		// Snapshot rounds so telemetry reflects state at kick-off time, not at
+		// completion time (the main loop mutates toolCallRounds). History is
+		// stable across a single user turn so a reference is sufficient.
+		const rounds = [...(promptContext.toolCallRounds ?? [])];
+		const history = promptContext.history;
+		const availableTools = promptContext.tools?.availableTools;
+		const associatedRequestId = promptContext.conversation?.getLatestTurn()?.id;
+		const conversationId = promptContext.conversation?.sessionId;
+
+		backgroundSummarizer.start(async bgToken => {
+			try {
+				const compactionEndpoint = await resolveCompactionEndpoint(
+					this.endpoint,
+					this.configurationService,
+					this.expService,
+					this._endpointProvider,
+					this.logService,
+				);
+
+				const rendered = await this._renderCrossEndpointCompactionMessages(
+					compactionEndpoint,
+					promptContext,
+					availableTools,
+					bgToken,
+				);
+				if (!rendered) {
+					return;
+				}
+				const messages = rendered.messages;
+				// Trust the foreground-style propsBuilder over the bg's upfront
+				// round-id heuristic — the helper just rendered the prompt that
+				// summarizes up through `rendered.summarizedToolCallRoundId`, so
+				// the resulting summary must be attached to that same round.
+				const toolCallRoundId = rendered.summarizedToolCallRoundId;
+
+				const response = await compactionEndpoint.makeChatRequest2({
+					debugName: 'summarizeConversationHistory',
+					messages,
+					finishedCb: undefined,
+					location: ChatLocation.Agent,
+					conversationId,
+					requestOptions: {
+						temperature: 0,
+					},
+					telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
+					enableRetryOnFilter: true,
+					interactionTypeOverride: 'conversation-compaction',
+				}, bgToken);
+				if (response.type !== ChatFetchResponseType.Success) {
+					throw formatCompactionFailureError(response as never);
+				}
+				const rawSummaryText = extractSummary(response.value);
+				if (rawSummaryText === undefined) {
+					throw new Error('Background summarization: no <summary> tags found in response');
+				}
+				// Flush the transcript before snapshotting the line count so
+				// the baked "N lines" hint matches the on-disk file at this
+				// moment (mirrors the full/simple path in SummarizedConversationHistory.render).
+				if (conversationId && this.sessionTranscriptService.getTranscriptPath(conversationId)) {
+					await this.sessionTranscriptService.flush(conversationId);
+				}
+				const summaryText = conversationId
+					? appendTranscriptHintToSummary(rawSummaryText, conversationId, this.sessionTranscriptService)
+					: rawSummaryText;
+				this.logService.debug(`[ConversationHistorySummarizer] prism background compaction completed (${summaryText.length} chars, roundId=${toolCallRoundId})`);
+
+				const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(history, rounds);
+				const numRoundsInCurrentTurn = rounds.length;
+				const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
+					?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
+				const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
+				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
+					outcome: 'success',
+					model: compactionEndpoint.model,
+					summarizationMode: 'full',
+					conversationId,
+					chatRequestId: associatedRequestId,
+					lastUsedTool,
+					requestId: response.requestId,
+					promptTypes,
+				}, {
+					numRounds,
+					turnIndex: history.length,
+					curTurnRoundIndex: numRoundsInCurrentTurn,
+					isDuringToolCalling: numRoundsInCurrentTurn > 0 ? 1 : 0,
+					duration: Date.now() - bgStartTime,
+					promptTokenCount: response.usage?.prompt_tokens,
+					promptCacheTokenCount: response.usage?.prompt_tokens_details?.cached_tokens,
+					responseTokenCount: response.usage?.completion_tokens,
+				});
+
+				return {
+					summary: summaryText,
+					toolCallRoundId,
+					promptTokens: response.usage?.prompt_tokens,
+					promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
+					outputTokens: response.usage?.completion_tokens,
+					durationMs: Date.now() - bgStartTime,
+					model: compactionEndpoint.model,
+					summarizationMode: 'full',
+					numRounds,
+					numRoundsSinceLastSummarization,
+				};
+			} catch (err) {
+				this.logService.error(err, `[ConversationHistorySummarizer] prism background compaction failed`);
+
+				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
+					outcome: 'failed',
+					detailedOutcome: err instanceof Error ? err.message : String(err),
+					model: this.endpoint.model,
+					summarizationMode: 'full',
+					conversationId,
+					chatRequestId: associatedRequestId,
+				}, {
+					duration: Date.now() - bgStartTime,
+				});
+
+				throw err;
+			}
+		}, token);
+	}
+
+	/**
 	 * Returns the `BackgroundSummarizer` for this session, or `undefined` if
 	 * the intent is not an `AgentIntent` (e.g. `AskAgentIntent`).
 	 */
@@ -1156,6 +1314,35 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// different endpoint's prefix.
 		const endpointId = `${this.endpoint.modelProvider}:${this.endpoint.model}${this.endpoint.apiType ? `:${this.endpoint.apiType}` : ''}`;
 		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens, endpointId);
+	}
+
+	/**
+	 * Cross-endpoint re-render of the compaction prompt — used when the prism
+	 * compaction model differs from the main agent endpoint. Sacrifices
+	 * cache-prefix parity (impossible across endpoints anyway) for correctness:
+	 * the alternative is sending Anthropic/Gemini-shaped content to a model
+	 * that doesn't understand it and returns empty completions. Tools are
+	 * intentionally omitted; the cross-endpoint render's summarization prompt
+	 * is self-contained.
+	 */
+	private async _renderCrossEndpointCompactionMessages(
+		compactionEndpoint: IChatEndpoint,
+		promptContext: IBuildPromptContext,
+		availableTools: ReadonlyArray<vscode.LanguageModelToolInformation> | undefined,
+		bgToken: vscode.CancellationToken,
+	): Promise<{ messages: Raw.ChatMessage[]; summarizedToolCallRoundId: string } | undefined> {
+		const rendered = await renderCompactionMessages(
+			compactionEndpoint,
+			promptContext,
+			availableTools,
+			this.instantiationService,
+			this.logService,
+			bgToken,
+		);
+		if (!rendered) {
+			return undefined;
+		}
+		return { messages: rendered.messages, summarizedToolCallRoundId: rendered.summarizedToolCallRoundId };
 	}
 
 	/**
