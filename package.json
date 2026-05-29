@@ -1,7 +1,12 @@
 {
   "name": "code-oss-dev",
+<<<<<<< HEAD
   "version": "1.122.0",
   "distro": "8c72533c6dd351f5f8f785eff758768c032523e0",
+=======
+  "version": "1.122.1",
+  "distro": "6b7cc4eb2f07043712aa55cbd32e898649d3982b",
+>>>>>>> 8761a5560cf (Prepare for recovery release (#318911))
   "author": {
     "name": "Microsoft Corporation"
   },
