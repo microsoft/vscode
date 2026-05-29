@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
@@ -164,6 +165,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName,
 			description: agent.description,
+			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsDelegation: !this._isSessionsWindow,
@@ -182,7 +184,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
 
-		const itemProvider = store.add(new AgentCustomizationItemProvider(agent, this._loggedConnection!, 'local', this._fileService, this._logService));
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', this._fileService, this._logService, undefined));
 		// `[Local]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,

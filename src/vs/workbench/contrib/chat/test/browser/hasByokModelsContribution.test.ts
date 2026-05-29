@@ -35,7 +35,6 @@ suite('HasByokModelsContribution', () => {
 			readonly nonCopilotUserSelectable?: boolean;
 		};
 		readonly configuration?: {
-			readonly offlineByok?: boolean;
 			readonly aiDisabled?: boolean;
 		};
 		readonly storage?: {
@@ -79,7 +78,6 @@ suite('HasByokModelsContribution', () => {
 
 	function createScenario(store: DisposableStore, options: IScenarioOptions = {}): IScenario {
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.OfflineByok, options.configuration?.offlineByok ?? true);
 		configurationService.setUserConfiguration(ChatConfiguration.AIDisabled, options.configuration?.aiDisabled ?? false);
 
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
@@ -144,18 +142,6 @@ suite('HasByokModelsContribution', () => {
 		const scenario = createScenario(store, {
 			groups: [{ vendor: 'ollama', name: 'Ollama' }],
 			configuration: { aiDisabled: true },
-			storage: { lastKnown: true },
-		});
-		await flush();
-
-		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
-	});
-
-	test('feature disabled (offlineByok=false) → result is false', async () => {
-		const store = disposables.add(new DisposableStore());
-		const scenario = createScenario(store, {
-			groups: [{ vendor: 'ollama', name: 'Ollama' }],
-			configuration: { offlineByok: false },
 			storage: { lastKnown: true },
 		});
 		await flush();

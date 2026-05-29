@@ -54,7 +54,7 @@ export class SessionsPart extends Part {
 	static readonly BORDER_WIDTH = 1;
 
 	/** Internal grid that hosts the part's session views. */
-	private _gridWidget: SerializableGrid<SessionView> | undefined;
+	protected _gridWidget: SerializableGrid<SessionView> | undefined;
 
 	/** Lazily-created progress bar shown at the top of the content area. */
 	private _progressBar: ProgressBar | undefined;
@@ -236,7 +236,9 @@ export class SessionsPart extends Part {
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
 		for (const [key, slot] of this._views) {
-			slot.view.element.classList.toggle('is-active', key === activeId);
+			const isActive = key === activeId;
+			slot.view.element.classList.toggle('is-active', isActive);
+			slot.view.setActive(isActive);
 		}
 
 		this._updateContextKeys(visible);

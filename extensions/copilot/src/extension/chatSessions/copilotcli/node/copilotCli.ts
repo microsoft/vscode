@@ -91,9 +91,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		super();
 		this._fetchAndCacheModels();
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			// Auth changed which means models could've changed. Clear caches and re-fetch.
-			this._availableModels = undefined;
-			this._resolvedModelInfos = undefined;
+			// Auth changed which means models could've changed.
 			this._onDidChange.fire();
 			this._fetchAndCacheModels();
 		}));
@@ -108,6 +106,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		availableModels.then(models => {
 			// Bail out if a newer fetch has superseded this one (e.g. auth changed mid-flight).
 			if (this._availableModels !== availableModels) {
+				return;
+			}
+			// Don't overwrite a previously-good list with an empty result from a transient auth state.
+			if (models.length === 0 && this._resolvedModelInfos?.length) {
+				this._availableModels = undefined;
 				return;
 			}
 			this._resolvedModelInfos = this._buildModelInfos(models);
@@ -189,11 +192,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				if (!this._authenticationService.hasCopilotTokenSource || !this._resolvedModelInfos) {
-					return autoModelEnabled ? [buildAutoModel()] : [];
-				}
-				return this._resolvedModelInfos;
+				return this._resolvedModelInfos?? [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -534,6 +533,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
+			// The SDK's sandbox auto-detection looks for `mxc-bin/` next to `sdk/index.js`, but the
+			// binary actually ships at `<package-root>/mxc-bin/`. Point `MXC_BIN_DIR` at the right
+			// location so `spawnSandboxFromConfig` can find `mxc-exec-mac` / `lxc-exec` / `wxc-exec.exe`.
+			if (!process.env['MXC_BIN_DIR']) {
+				process.env['MXC_BIN_DIR'] = path.join(this.extensionContext.extensionPath, 'node_modules', '@github', 'copilot', 'mxc-bin');
+			}
 			return await import('@github/copilot/sdk');
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Failed to load @github/copilot/sdk: ${error}`);

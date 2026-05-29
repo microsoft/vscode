@@ -136,7 +136,15 @@ export class PermissionPicker extends Disposable {
 		const isApplicable = this._delegate.isApplicable;
 		if (isApplicable) {
 			this._renderDisposables.add(autorun(reader => {
-				slot.style.display = isApplicable.read(reader) ? '' : 'none';
+				const visible = isApplicable.read(reader);
+				slot.style.display = visible ? '' : 'none';
+				// Also collapse the wrapping `.action-item` that
+				// `MenuWorkbenchToolBar` created for this picker — hiding only
+				// the inner slot leaves the wrapper occupying its `min-width`
+				// floor and produces a visible empty gap in the chip row when
+				// the picker isn't applicable to the active session (e.g.
+				// Claude agent host has no `autoApprove` in its schema).
+				container.style.display = visible ? '' : 'none';
 			}));
 		}
 

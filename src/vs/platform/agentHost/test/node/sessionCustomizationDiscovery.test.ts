@@ -63,7 +63,8 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		await seed('/workspace/.github/agents/not-an-agent.txt', 'ignored');
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
-		const files = await discovery.files();
+		const directories = await discovery.directories();
+		const files = directories.flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
 			{ uri: userAgent, type: DiscoveredType.Agent },
@@ -72,28 +73,58 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 			{ uri: wsInstr, type: DiscoveredType.Instruction },
 			{ uri: wsSkill, type: DiscoveredType.Skill },
 		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
+		assert.ok(directories.some(directory => directory.uri.toString() === URI.joinPath(workspace, '.github', 'agents').toString()));
 	});
 
-	test('excludes exact-case README.md and more-specific prompt-type files inside agent folders', async () => {
-		// `.github/agents/` is type-disambiguated, but the workbench
-		// classifier (`getPromptFileType`) gives precedence to more-specific
-		// suffixes and excludes README. Discovery must mirror those rules.
+	test('excludes exact-case README.md inside agent folders', async () => {
 		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
 		const wsPlainAgent = await seed('/workspace/.github/agents/plain.md', 'plain agent body');
+		const wsLowerReadmeAgent = await seed('/workspace/.github/agents/readme.md', 'docs lower');
 		await seed('/workspace/.github/agents/README.md', 'docs');
-		const wsLowercaseReadmeAgent = await seed('/workspace/.github/agents/readme.md', 'docs lower');
-		await seed('/workspace/.github/agents/sub.instructions.md', 'instructions');
-		await seed('/workspace/.github/agents/sub.prompt.md', 'prompt');
-		await seed('/workspace/.github/agents/SKILL.md', 'skill');
-		await seed('/workspace/.github/agents/copilot-instructions.md', 'copilot instr');
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
-		const files = await discovery.files();
+		const files = (await discovery.directories()).flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
 			{ uri: wsAgent, type: DiscoveredType.Agent },
-			{ uri: wsLowercaseReadmeAgent, type: DiscoveredType.Agent },
+			{ uri: wsLowerReadmeAgent, type: DiscoveredType.Agent },
 			{ uri: wsPlainAgent, type: DiscoveredType.Agent },
+		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
+	});
+
+	test('includes non-README markdown files inside agent folders', async () => {
+		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
+		const wsLegacyMode = await seed('/workspace/.github/agents/legacy.chatmode.md', 'legacy mode body');
+		const wsPrompt = await seed('/workspace/.github/agents/bar.prompt.md', 'prompt body');
+		const wsInstruction = await seed('/workspace/.github/agents/baz.instructions.md', 'instruction body');
+		const wsCopilotInstructions = await seed('/workspace/.github/agents/copilot-instructions.md', 'copilot instructions body');
+		const wsSkill = await seed('/workspace/.github/agents/SKILL.md', 'skill body');
+		const wsSkillLowercase = await seed('/workspace/.github/agents/skill.md', 'skill body lowercase');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = (await discovery.directories()).flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })));
+
+		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
+			{ uri: wsCopilotInstructions, type: DiscoveredType.Agent },
+			{ uri: wsAgent, type: DiscoveredType.Agent },
+			{ uri: wsInstruction, type: DiscoveredType.Agent },
+			{ uri: wsLegacyMode, type: DiscoveredType.Agent },
+			{ uri: wsPrompt, type: DiscoveredType.Agent },
+			{ uri: wsSkill, type: DiscoveredType.Agent },
+			{ uri: wsSkillLowercase, type: DiscoveredType.Agent },
+		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
+	});
+
+	test('discovers nested .instructions.md files', async () => {
+		const nestedWsInstr = await seed('/workspace/.github/instructions/team/security/policy.instructions.md', 'workspace nested instruction');
+		const nestedUserInstr = await seed('/home/.copilot/instructions/domain/tools/deep.instructions.md', 'user nested instruction');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = (await discovery.directories()).flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })));
+
+		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
+			{ uri: nestedUserInstr, type: DiscoveredType.Instruction },
+			{ uri: nestedWsInstr, type: DiscoveredType.Instruction },
 		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
 	});
 
@@ -104,11 +135,11 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
-		const files = await discovery.files();
-		const result = await bundler.bundle(files);
+		const directories = await discovery.directories();
+		const result = await bundler.bundle(directories);
 
 		assert.ok(result);
-		assert.strictEqual(result.ref.displayName, 'VS Code Synced Data');
+		assert.strictEqual(result.ref.name, 'VS Code Synced Data');
 		assert.ok(result.ref.nonce);
 
 		const root = bundler.rootUri;
@@ -125,11 +156,29 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		assert.strictEqual(instr.value.toString(), 'instr body');
 	});
 
+	test('bundles nested .instructions.md files into rules', async () => {
+		await seed('/workspace/.github/instructions/team/security/policy.instructions.md', 'workspace nested instruction');
+		await seed('/home/.copilot/instructions/domain/tools/deep.instructions.md', 'user nested instruction');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
+		const result = await bundler.bundle(await discovery.directories());
+
+		assert.ok(result);
+
+		const root = bundler.rootUri;
+		const workspaceInstr = await fileService.readFile(URI.joinPath(root, 'rules', 'policy.instructions.md'));
+		assert.strictEqual(workspaceInstr.value.toString(), 'workspace nested instruction');
+
+		const userInstr = await fileService.readFile(URI.joinPath(root, 'rules', 'deep.instructions.md'));
+		assert.strictEqual(userInstr.value.toString(), 'user nested instruction');
+	});
+
 	test('returns undefined when no files were discovered', async () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
-		const files = await discovery.files();
-		const result = await bundler.bundle(files);
+		const directories = await discovery.directories();
+		const result = await bundler.bundle(directories);
 		assert.strictEqual(result, undefined);
 	});
 
@@ -139,8 +188,8 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
-		const first = await bundler.bundle(await discovery.files());
-		const second = await bundler.bundle(await discovery.files());
+		const first = await bundler.bundle(await discovery.directories());
+		const second = await bundler.bundle(await discovery.directories());
 		assert.ok(first && second);
 		assert.strictEqual(first.ref.nonce, second.ref.nonce);
 	});

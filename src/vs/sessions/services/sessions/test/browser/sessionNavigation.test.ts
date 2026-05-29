@@ -86,6 +86,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 
 	private readonly _sessions = new Map<string, ISession>();

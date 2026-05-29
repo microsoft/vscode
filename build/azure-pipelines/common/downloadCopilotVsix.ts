@@ -214,9 +214,7 @@ function copyDirSync(src: string, dest: string): void {
 	}
 }
 
-main().then(() => {
-	process.exit(0);
-}, err => {
+main().catch(err => {
 	console.error(err);
-	process.exit(1);
+	process.exitCode = 1;
 });

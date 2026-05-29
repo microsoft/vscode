@@ -17,7 +17,7 @@ export class CopilotSessionWrapper extends Disposable {
 	constructor(readonly session: CopilotSession) {
 		super();
 		this._register(toDisposable(() => {
-			session.destroy().catch(() => { /* best-effort */ });
+			session.disconnect().catch(() => { /* best-effort */ });
 		}));
 	}
 
