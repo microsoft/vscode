@@ -212,7 +212,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async setVisible(id: string, visible: boolean): Promise<void> {
-		return this._getBrowserView(id).setVisible(visible);
+		const view = this.browserViews.get(id);
+		if (!view) {
+			return; // View was already disposed (cross-process race)
+		}
+		return view.setVisible(visible);
 	}
 
 	async loadURL(id: string, url: string): Promise<void> {
