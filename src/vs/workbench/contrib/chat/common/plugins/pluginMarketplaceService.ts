@@ -28,7 +28,7 @@ import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 
 // Re-export marketplace reference types for downstream consumers.
 export { deduplicateMarketplaceReferences, extraKnownMarketplacesToConfigDict, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
@@ -430,7 +430,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		for (const value of effectiveValues) {
-			if (typeof value !== 'string' || !parseMarketplaceReference(value)) {
+			const parsed = typeof value === 'string'
+				? parseMarketplaceReference(value)
+				: (value && typeof value === 'object' ? parseMarketplaceObjectEntry(value as Parameters<typeof parseMarketplaceObjectEntry>[0]) : undefined);
+			if (!parsed) {
 				this._logService.debug(`[PluginMarketplaceService] Ignoring invalid marketplace entry: ${String(value)}`);
 			}
 		}
