@@ -390,11 +390,15 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, topLevelTurnId ?? turnId);
 						}
 
+						// Normalize once so span attributes, metric attributes, and the inference
+						// details event all report the same value (issue #318805).
+						const normalizedResponseModel = normalizeResponseModel(chatEndpoint.model, result.resolvedModel);
+
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,
 							requestModel: chatEndpoint.model,
-							responseModel: result.resolvedModel,
+							responseModel: normalizedResponseModel,
 						};
 						if (result.usage.prompt_tokens) {
 							GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs);
@@ -407,7 +411,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						otelInferenceSpan?.setAttributes({
 							[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 							[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-							[GenAiAttr.RESPONSE_MODEL]: normalizeResponseModel(chatEndpoint.model, result.resolvedModel) ?? chatEndpoint.model,
+							[GenAiAttr.RESPONSE_MODEL]: normalizedResponseModel ?? chatEndpoint.model,
 							[GenAiAttr.RESPONSE_ID]: result.requestId,
 							[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
 							...(result.usage.prompt_tokens_details?.cached_tokens
@@ -471,7 +475,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						},
 						result.type === ChatFetchResponseType.Success ? {
 							id: result.requestId,
-							model: result.resolvedModel,
+							model: normalizeResponseModel(chatEndpoint.model, result.resolvedModel),
 							finishReasons: ['stop'],
 							inputTokens: result.usage?.prompt_tokens,
 							outputTokens: result.usage?.completion_tokens,

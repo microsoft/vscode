@@ -813,24 +813,19 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					}
 				}
 
-				// Emit session start event and metric for top-level agent invocations (not subagents)
-				if (!parentTraceContext) {
-					GenAiMetrics.incrementSessionCount(this._otelService);
-					try {
-						const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
-						emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, endpoint.model, agentName);
-					} catch {
-						emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, 'unknown', agentName);
-					}
-				}
-
-				// Set request model from the endpoint
+				// Resolve the endpoint once for session start + request model attribute.
 				let requestModel: string | undefined;
 				try {
 					const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
 					requestModel = endpoint.model;
 					span.setAttribute(GenAiAttr.REQUEST_MODEL, endpoint.model);
-				} catch { /* endpoint not available yet, will be set on response */ }
+				} catch { /* endpoint not yet available */ }
+
+				// Emit session start event and metric for top-level agent invocations (not subagents)
+				if (!parentTraceContext) {
+					GenAiMetrics.incrementSessionCount(this._otelService);
+					emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, requestModel ?? 'unknown', agentName);
+				}
 
 				// Always capture user input message for the debug panel
 				{
