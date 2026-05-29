@@ -70,7 +70,6 @@ suite('AgentHostChangesetService', () => {
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 
 		changesetService.registerStaticChangesets(sessionStr);
@@ -88,7 +87,6 @@ suite('AgentHostChangesetService', () => {
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 	});
 
@@ -101,7 +99,7 @@ suite('AgentHostChangesetService', () => {
 		changesetService.registerStaticChangesets(sessionStr);
 
 		const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
-		assert.strictEqual(changesets?.length, 3, 'expected the three default catalogue entries');
+		assert.strictEqual(changesets?.length, 2, 'expected the two default catalogue entries');
 	});
 
 	test('restoreStaticChangeset publishes files in Ready and refreshes catalogue counts', () => {
@@ -141,10 +139,6 @@ suite('AgentHostChangesetService', () => {
 				label: 'Uncommitted Changes',
 				uriTemplate: `${sessionStr}/changeset/uncommitted`,
 				description: 'Show uncommitted changes in this session',
-			},
-			{
-				label: 'This Turn',
-				uriTemplate: `${sessionStr}/changeset/turn/{turnId}`,
 			},
 		]);
 	});
@@ -197,10 +191,6 @@ suite('AgentHostChangesetService', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionStr}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionStr}/changeset/turn/{turnId}`,
 				},
 			],
 		});
