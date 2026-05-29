@@ -584,6 +584,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
+		managedSettingsFetchStatus: null,
+		managedSettingsFetchedAt: null,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
