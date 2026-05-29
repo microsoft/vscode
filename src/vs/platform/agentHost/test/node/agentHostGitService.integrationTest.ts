@@ -330,6 +330,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-wt-'));
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
 		run('init', '-q', '-b', 'main');
+		run('config', 'user.name', 't');
+		run('config', 'user.email', 't@t');
 		run('commit', '-q', '--allow-empty', '-m', 'initial');
 		return tmpRoot!;
 	}

@@ -170,19 +170,17 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test('does not generate a message or commit when the working tree is clean', async () => {
+	test('returns no-op success without generating a message or committing when the working tree is clean', async () => {
 		const gitService = new TestGitService();
 		gitService.uncommitted = false;
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
 		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
 
-		await assert.rejects(
-			() => handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None),
-			/no uncommitted changes/,
-		);
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
-		assert.deepStrictEqual({ gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+		assert.deepStrictEqual({ message: result.message, gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+			message: { markdown: 'No uncommitted changes to commit.' },
 			gitCalls: ['hasUncommittedChanges'],
 			completionCalls: 0,
 			changesetCalls: [],

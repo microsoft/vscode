@@ -19,6 +19,7 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 	private readonly _contributions = new Set<IChangesetOperationContribution>();
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
+	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
 	private readonly _registry: IChangesetOperationRegistry;
 
 	constructor(
@@ -106,7 +107,18 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 		if (!handler) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.channel}`);
 		}
-		return handler.invoke(params, CancellationToken.None);
+		const operationKey = `${params.channel}\x00${params.operationId}\x00${JSON.stringify(params.target ?? null)}`;
+		const inFlight = this._inFlightOperations.get(operationKey);
+		if (inFlight) {
+			return inFlight;
+		}
+		const invoked = handler.invoke(params, CancellationToken.None).finally(() => {
+			if (this._inFlightOperations.get(operationKey) === invoked) {
+				this._inFlightOperations.delete(operationKey);
+			}
+		});
+		this._inFlightOperations.set(operationKey, invoked);
+		return invoked;
 	}
 
 	private _registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable {

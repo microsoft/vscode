@@ -73,7 +73,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
 		if (!hasUncommitted) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.noChanges', "There are no uncommitted changes to commit."));
+			return { message: { markdown: localize('agentHost.changeset.commit.noChanges', "No uncommitted changes to commit.") } };
 		}
 		this._throwIfCancelled(token);
 
