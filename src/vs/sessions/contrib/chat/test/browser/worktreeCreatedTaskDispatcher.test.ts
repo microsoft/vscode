@@ -112,10 +112,11 @@ class FakeSessionsTasksService implements Partial<ISessionsTasksService> {
 
 class FakeSessionsManagementService implements Partial<ISessionsManagementService> {
 	declare readonly _serviceBrand: undefined;
-	readonly emitter = new Emitter<ISessionsChangeEvent>();
-	readonly onDidChangeSessions = this.emitter.event;
-	sessions: ISession[] = [];
-	getSessions(): ISession[] { return this.sessions; }
+	readonly sessionStartedEmitter = new Emitter<ISession>();
+	readonly sessionsChangedEmitter = new Emitter<ISessionsChangeEvent>();
+	readonly onDidStartSession = this.sessionStartedEmitter.event;
+	readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
+	getSessions(): ISession[] { return []; }
 }
 
 suite('WorktreeCreatedTaskDispatcher', () => {
@@ -141,7 +142,8 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	});
 
 	teardown(() => {
-		mgmt.emitter.dispose();
+		mgmt.sessionStartedEmitter.dispose();
+		mgmt.sessionsChangedEmitter.dispose();
 		store.clear();
 	});
 
@@ -151,19 +153,31 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		await new Promise(r => setTimeout(r, 0));
 	}
 
-	test('runs worktreeCreated tasks once for a newly added session', async () => {
+	test('runs worktreeCreated tasks once for a newly started session', async () => {
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
 		tasks.setTasks(session.sessionId, [
 			entry('setup', 'worktreeCreated'),
 			entry('lint'),
 		]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		await settle();
 		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('does not run for sessions only reported via onDidChangeSessions.added', async () => {
+		createDispatcher();
+		const { session } = makeSession({ id: 'restored' });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+
+		mgmt.sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
 	test('runTask failures are logged but do not abort the loop', async () => {
@@ -174,11 +188,11 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 			entry('setup-a', 'worktreeCreated'),
 			entry('setup-b', 'worktreeCreated'),
 		]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
-		// Both tasks are attempted even though each throws.
 		assert.deepStrictEqual(tasks.ranTasks, [
 			{ label: 'setup-a', sessionId: 'a' },
 			{ label: 'setup-b', sessionId: 'a' },
@@ -189,12 +203,12 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		createDispatcher();
 		const { session, loading } = makeSession({ id: 'a', loading: true });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		await settle();
 
 		loading.set(false, undefined);
 		await settle();
-		// Flip loading back to true and false again — dispatch must not retrigger.
 		loading.set(true, undefined);
 		await settle();
 		loading.set(false, undefined);
@@ -203,208 +217,63 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
 	});
 
-	test('per-session task lists do not cross-contaminate', async () => {
+	test('waits for untitled sessions to start before running', async () => {
 		createDispatcher();
-		const { session: sessionA, workspace: workspaceA } = makeSession({ id: 'a', hasWorktree: false });
-		const { session: sessionB, workspace: workspaceB } = makeSession({ id: 'b', hasWorktree: false });
-		tasks.setTasks(sessionA.sessionId, [entry('setup-a', 'worktreeCreated')]);
-		tasks.setTasks(sessionB.sessionId, [entry('setup-b', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [sessionA, sessionB], removed: [], changed: [] });
-		workspaceA.set(makeWorkspace(true), undefined);
-		workspaceB.set(makeWorkspace(true), undefined);
+		const { session, status } = makeSession({ id: 'a', status: SessionStatus.Untitled });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+
+		mgmt.sessionStartedEmitter.fire(session);
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, []);
+
+		status.set(SessionStatus.InProgress, undefined);
+		await settle();
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('tears down subscription when a started session is removed', async () => {
+		createDispatcher();
+		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
+		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
+
+		mgmt.sessionStartedEmitter.fire(session);
+		mgmt.sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
-		// Each task fires against its own session.
-		assert.deepStrictEqual(
-			[...tasks.ranTasks].sort((x, y) => x.label.localeCompare(y.label)),
-			[
-				{ label: 'setup-a', sessionId: 'a' },
-				{ label: 'setup-b', sessionId: 'b' },
-			]
-		);
+		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
 	test('skips sessions whose runtime already runs worktreeCreated tasks', async () => {
 		createDispatcher();
 		const { session } = makeSession({ id: 'a', runsWorktreeCreatedTasks: true });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
-	test('waits for loading to flip to false before running', async () => {
-		createDispatcher();
-		const { session, loading } = makeSession({ id: 'a', loading: true });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, []);
-
-		loading.set(false, undefined);
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
-	});
-
-	test('ignores tasks without runOn worktreeCreated', async () => {
-		createDispatcher();
-		const { session } = makeSession({ id: 'a' });
-		tasks.setTasks(session.sessionId, [
-			entry('default'),
-			entry('on-open', 'folderOpen'),
-			entry('explicit-default', 'default'),
-		]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, []);
-	});
-
-	test('does not run for sessions present at startup', async () => {
-		const { session } = makeSession({ id: 'a' });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.sessions = [session];
-
-		createDispatcher();
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, []);
-	});
-
-	test('tracks pending untitled sessions present at startup', async () => {
-		const { session, status, workspace } = makeSession({
-			id: 'a',
-			status: SessionStatus.Untitled,
-			hasWorktree: false
-		});
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.sessions = [session];
-
-		createDispatcher();
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, []);
-
-		status.set(SessionStatus.InProgress, undefined);
-		workspace.set(makeWorkspace(true), undefined);
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
-	});
-
-	test('does not run for restored sessions reported as added after startup', async () => {
-		createDispatcher();
-		const { session } = makeSession({ id: 'a' });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, []);
-	});
-
-	test('runs for committed replacement of tracked pending session', async () => {
-		createDispatcher();
-		const { session: pending } = makeSession({ id: 'pending', hasWorktree: false });
-		const { session: committed } = makeSession({ id: 'committed', hasWorktree: true });
-		tasks.setTasks(committed.sessionId, [entry('setup', 'worktreeCreated')]);
-
-		mgmt.emitter.fire({ added: [pending], removed: [], changed: [] });
-		await settle();
-		mgmt.emitter.fire({ added: [], removed: [pending], changed: [committed] });
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'committed' }]);
-	});
-
-	test('does not treat mixed changed sessions as pending replacements', async () => {
-		createDispatcher();
-		const { session: pending } = makeSession({ id: 'pending', hasWorktree: false });
-		const { session: committed } = makeSession({ id: 'committed', hasWorktree: true });
-		const { session: restored } = makeSession({ id: 'restored', hasWorktree: true });
-		tasks.setTasks(committed.sessionId, [entry('setup-committed', 'worktreeCreated')]);
-		tasks.setTasks(restored.sessionId, [entry('setup-restored', 'worktreeCreated')]);
-
-		mgmt.emitter.fire({ added: [pending], removed: [], changed: [] });
-		await settle();
-		mgmt.emitter.fire({ added: [], removed: [pending], changed: [committed, restored] });
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, []);
-	});
-
-	test('does not treat dispatched sessions as pending replacements', async () => {
-		createDispatcher();
-		const { session: dispatched, workspace } = makeSession({ id: 'dispatched', hasWorktree: false });
-		const { session: changed } = makeSession({ id: 'changed', hasWorktree: true });
-		tasks.setTasks(dispatched.sessionId, [entry('setup-dispatched', 'worktreeCreated')]);
-		tasks.setTasks(changed.sessionId, [entry('setup-changed', 'worktreeCreated')]);
-
-		mgmt.emitter.fire({ added: [dispatched], removed: [], changed: [] });
-		workspace.set(makeWorkspace(true), undefined);
-		await settle();
-		mgmt.emitter.fire({ added: [], removed: [dispatched], changed: [changed] });
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup-dispatched', sessionId: 'dispatched' }]);
-	});
-
-	test('waits for a worktree before running', async () => {
-		createDispatcher();
-		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, []);
-
-		workspace.set(makeWorkspace(true), undefined);
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
-	});
-
-	test('waits for untitled sessions to start before running', async () => {
-		createDispatcher();
-		const { session, status } = makeSession({ id: 'a', status: SessionStatus.Untitled });
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, []);
-
-		status.set(SessionStatus.InProgress, undefined);
-		await settle();
-		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
-	});
-
-	test('tears down subscription when a session is removed', async () => {
-		createDispatcher();
-		const { session } = makeSession({ id: 'a' });
-		// No tasks yet — autorun should be subscribed but inert.
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
-		await settle();
-
-		mgmt.emitter.fire({ added: [], removed: [session], changed: [] });
-		// Now publish tasks; if the subscription still exists, it would run.
-		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		await settle();
-
-		assert.deepStrictEqual(tasks.ranTasks, []);
-	});
-
-	test('skips agent host sessions when the agent host setting is disabled (default)', async () => {
+	test('skips agent host sessions when the setting is disabled (default)', async () => {
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, []);
 	});
 
-	test('runs agent host sessions when the agent host setting is enabled', async () => {
+	test('runs agent host sessions when the setting is enabled', async () => {
 		await configurationService.setUserConfiguration(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING, true);
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
@@ -412,11 +281,11 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	});
 
 	test('does not gate non-agent-host sessions on the agent host setting', async () => {
-		// Setting is `false` by default; non-agent-host sessions should still run.
 		createDispatcher();
 		const { session, workspace } = makeSession({ id: 'a', providerId: 'non-agent-host', hasWorktree: false });
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
-		mgmt.emitter.fire({ added: [session], removed: [], changed: [] });
+
+		mgmt.sessionStartedEmitter.fire(session);
 		workspace.set(makeWorkspace(true), undefined);
 		await settle();
 
