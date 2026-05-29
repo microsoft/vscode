@@ -83,6 +83,7 @@ class MockChatService extends Disposable {
 	async getLocalSessionHistory() { return []; }
 	async removeHistoryEntry(_resource: URI): Promise<void> { }
 	setSessionTitle(_resource: URI, _title: string): void { }
+	async setChatSessionTitle(_resource: URI, _title: string): Promise<void> { }
 
 	fireSubmitRequest(resource: URI): void {
 		this._onDidSubmitRequest.fire({ chatSessionResource: resource });
