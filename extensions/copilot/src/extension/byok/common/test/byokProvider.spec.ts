@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
+import { modelSupportsToolSearch } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { byokKnownModelToAPIInfo, BYOKModelCapabilities, isClientBYOKAllowed, resolveModelInfo } from '../byokProvider';
 
 describe('byokKnownModelToAPIInfo', () => {
@@ -43,6 +44,22 @@ describe('byokKnownModelToAPIInfo', () => {
 
 		expect(info.capabilities.editTools).toBeUndefined();
 	});
+
+	it('preserves supported model ids in registered metadata for tool-search capability matching', () => {
+		const info = byokKnownModelToAPIInfo('TestProvider', 'claude-sonnet-4.6', baseCapabilities);
+
+		expect({
+			id: info.id,
+			family: info.family,
+			idSupportsToolSearch: modelSupportsToolSearch(info.id),
+			familySupportsToolSearch: modelSupportsToolSearch(info.family),
+		}).toEqual({
+			id: 'claude-sonnet-4.6',
+			family: 'claude-sonnet-4.6',
+			idSupportsToolSearch: true,
+			familySupportsToolSearch: true,
+		});
+	});
 });
 
 describe('resolveModelInfo', () => {
@@ -70,6 +87,22 @@ describe('resolveModelInfo', () => {
 
 		expect(info.capabilities.supports.reasoning_effort).toBeUndefined();
 		expect(info.reasoningEffortFormat).toBeUndefined();
+	});
+
+	it('preserves supported model ids in chat endpoint metadata for tool-search capability matching', () => {
+		const info = resolveModelInfo('gpt-5.4', 'TestProvider', undefined, baseCapabilities);
+
+		expect({
+			id: info.id,
+			family: info.capabilities.family,
+			idSupportsToolSearch: modelSupportsToolSearch(info.id),
+			familySupportsToolSearch: modelSupportsToolSearch(info.capabilities.family),
+		}).toEqual({
+			id: 'gpt-5.4',
+			family: 'gpt-5.4',
+			idSupportsToolSearch: true,
+			familySupportsToolSearch: true,
+		});
 	});
 });
 
