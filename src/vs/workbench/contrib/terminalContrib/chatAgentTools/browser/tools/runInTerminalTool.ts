@@ -2493,8 +2493,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// command for use in system notification labels. The command may span
 		// multiple lines (and contain blank lines or backticks), which would
 		// break a naive `` `${command}` `` inline code span and render the
-		// backticks literally (#318601).
-		const commandDisplay = appendEscapedMarkdownInlineCode(buildCommandDisplayText(commandName));
+		// backticks literally (#318601). Truncate to the first line + ellipsis
+		// rather than collapsing newlines, since the label is shown on a single
+		// line of UI chrome where additional lines are not useful.
+		const firstNewline = commandName.search(/\r|\n/);
+		const truncatedCommand = firstNewline === -1
+			? commandName
+			: commandName.substring(0, firstNewline) + '...';
+		const commandDisplay = appendEscapedMarkdownInlineCode(truncatedCommand);
 
 		// Acquire a reference to the ChatModel so it stays alive while we wait
 		// for the background terminal to complete. Without this, the model can
