@@ -1762,6 +1762,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...baseFetchOptions,
 					messages: probeMessages,
 					finishedCb: async (text) => text.length, // stop reading on first chunk
+					userInitiatedRequest: false,
 				}, cts.token);
 			} catch (err) {
 				if (!isCancellationError(err)) {
