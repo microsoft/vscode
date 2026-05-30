@@ -105,6 +105,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
+	let isExtracting = false;
 
 	const listener = token.onCancellationRequested(() => {
 		last.cancel();
@@ -138,6 +139,16 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 				return;
 			}
 
+			// Guard against concurrent entry processing: yauzl in lazyEntries=true
+			// mode only emits one 'entry' at a time and we drive the next emission
+			// via readNextEntry() at the end of each entry's promise chain. The
+			// guard here is a defense-in-depth against re-entrant emission - if it
+			// ever fires, we deliberately drop the duplicate event because
+			// readNextEntry() will be called when the in-flight entry completes.
+			if (isExtracting) {
+				return;
+			}
+
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				readNextEntry(token);
 				return;
@@ -155,7 +166,8 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			const stream = openZipStream(zipfile, entry);
 			const mode = modeFromEntry(entry);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
+			isExtracting = true;
+			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => { isExtracting = false; readNextEntry(token); }))).then(null, err => { isExtracting = false; e(err); }));
 		});
 	}).finally(() => listener.dispose());
 }
@@ -230,9 +242,31 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 function read(zipPath: string, filePath: string): Promise<Readable> {
 	return openZip(zipPath).then(zipfile => {
 		return new Promise<Readable>((c, e) => {
+			const reject = (err: Error) => {
+				zipfile.close();
+				e(err);
+			};
+
+			zipfile.once('error', reject);
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {
-					openZipStream(zipfile, entry).then(stream => c(stream), err => e(err));
+					openZipStream(zipfile, entry).then(stream => {
+						// Close the underlying zipfile handle on any of: end-of-stream,
+						// stream error, or 'close' (which fires for stream.destroy()).
+						// Without 'close', a consumer that calls stream.destroy() would
+						// leak the underlying file descriptor since 'end' never fires.
+						let closed = false;
+						const closeOnce = () => {
+							if (!closed) {
+								closed = true;
+								zipfile.close();
+							}
+						};
+						stream.once('end', closeOnce);
+						stream.once('error', closeOnce);
+						stream.once('close', closeOnce);
+						c(stream);
+					}, err => reject(err));
 				}
 			});
 
