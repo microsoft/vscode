@@ -34,6 +34,11 @@ export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'bracket
  */
 export type EditorAutoClosingEditStrategy = 'always' | 'auto' | 'never';
 
+/**
+ * Configuration options for editor text direction.
+ */
+export type EditorTextDirection = 'ltr' | 'rtl' | 'auto';
+
 type Unknown<T> = { [K in keyof T]: unknown };
 
 /**
@@ -387,6 +392,11 @@ export interface IEditorOptions {
 	 * When wordBreak = 'keepAll', Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal.
 	 */
 	wordBreak?: 'normal' | 'keepAll';
+	/**
+	 * Controls the text direction of the editor.
+	 * Defaults to 'ltr'.
+	 */
+	textDirection?: EditorTextDirection;
 	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
@@ -5918,6 +5928,7 @@ export const enum EditorOption {
 	useShadowDOM,
 	useTabStops,
 	wordBreak,
+	textDirection,
 	wordSegmenterLocales,
 	wordSeparators,
 	wordWrap,
@@ -6757,6 +6768,19 @@ export const EditorOptions = {
 				nls.localize('wordBreak.keepAll', "Word breaks should not be used for Chinese/Japanese/Korean (CJK) text. Non-CJK text behavior is the same as for normal."),
 			],
 			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
+		}
+	)),
+	textDirection: register(new EditorStringEnumOption(
+		EditorOption.textDirection, 'textDirection',
+		'ltr' as EditorTextDirection,
+		['ltr', 'rtl', 'auto'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('textDirection.ltr', "Left-to-right."),
+				nls.localize('textDirection.rtl', "Right-to-left."),
+				nls.localize('textDirection.auto', "Determine direction based on the first strong directional character in the line."),
+			],
+			description: nls.localize('textDirection', "Controls the text direction of the editor."),
 		}
 	)),
 	wordSegmenterLocales: register(new WordSegmenterLocales()),

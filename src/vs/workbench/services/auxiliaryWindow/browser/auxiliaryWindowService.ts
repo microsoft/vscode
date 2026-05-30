@@ -537,7 +537,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// Track attributes
 		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
 		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
-		disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class'])); // only class attribute
+		disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class', 'dir'])); // only class + dir attributes
 
 		mark('code/auxiliaryWindow/didApplyHTML');
 
