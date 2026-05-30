@@ -27,6 +27,9 @@ export type IntegratedBrowserOpenSource =
 	 * is enabled. This happens when clicking localhost (e.g., `localhost`, `127.0.0.1`, `[::1]`) or all-interfaces
 	 * links (e.g., `0.0.0.0`, `[::]`) from the terminal, chat, or other sources. */
 	| 'localhostLinkOpener'
+	/** Opened via the external link opener when the `workbench.browser.openExternalLinks` setting
+	 * is enabled. This happens when clicking non-localhost HTTP(S) links from the terminal, chat, or other sources. */
+	| 'externalLinkOpener'
 	/** Opened when clicking a link inside the Integrated Browser that opens in a new focused editor
 	 * (e.g., links with target="_blank"). */
 	| 'browserLinkForeground'

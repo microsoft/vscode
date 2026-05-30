@@ -27,7 +27,6 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/br
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -44,6 +43,7 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { BrowserLinkOpenerSettingKey, getIntegratedBrowserLinkOpenerSetting } from '../../common/browserLinkOpeners.js';
 import { Schemas } from '../../../../../base/common/network.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
@@ -558,10 +558,10 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
+ * Opens links in the Integrated Browser when the corresponding opener setting is enabled.
  */
-class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
-	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+class BrowserLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
+	static readonly ID = 'workbench.contrib.browserLinkOpener';
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -574,28 +574,26 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+		if (ctx.preferredOpenerId !== undefined) {
 			return false;
 		}
 
-		try {
-			const parsed = new URL(href);
-			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-				return false;
-			}
-			if (!isLocalhostAuthority(parsed.host) && !isAllInterfacesAuthority(parsed.host)) {
-				return false;
-			}
-		} catch {
+		const openerSetting = getIntegratedBrowserLinkOpenerSetting(href);
+		if (openerSetting === undefined) {
 			return false;
 		}
 
-		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
+		if (!this.configurationService.getValue<boolean>(openerSetting)) {
+			return false;
+		}
 
-		// Check whether the setting was explicitly set by the user or is still at its default value.
-		// When it is a default, tag the viewState so that the hint pill can be shown.
-		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
+		logBrowserOpen(this.telemetryService, openerSetting === BrowserLinkOpenerSettingKey.OpenExternalLinks ? 'externalLinkOpener' : 'localhostLinkOpener');
+
+		// Check whether the localhost setting was explicitly set by the user or is still at its default value.
+		// The existing hint pill is localhost-specific, so suppress it for external links.
+		const isDefaultLinkOpen = openerSetting !== BrowserLinkOpenerSettingKey.OpenExternalLinks
+			&& !isConfigured(this.configurationService.inspect(openerSetting));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
@@ -603,7 +601,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
-registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(BrowserLinkOpenerContribution.ID, BrowserLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 
 // ---- Link opened hint pill (URL bar widget) --------------------------------
 
@@ -827,6 +825,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		'workbench.browser.openExternalLinks': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'startup' },
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.openExternalLinks' },
+				'When enabled, non-localhost HTTP(S) links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
+			),
 		}
 	}
 });
