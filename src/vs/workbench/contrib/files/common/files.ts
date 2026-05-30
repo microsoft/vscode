@@ -90,6 +90,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		openEditors: {
 			visible: number;
 			sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
+			showEditorIndex: boolean;
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		autoRevealExclude: IExpression;
