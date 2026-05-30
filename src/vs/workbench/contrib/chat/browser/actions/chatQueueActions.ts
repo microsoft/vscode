@@ -13,6 +13,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
+import { IChatPendingRequest } from '../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
@@ -332,6 +333,10 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 	}
 }
 
+function toPendingRequestDescriptors(pendingRequests: readonly IChatPendingRequest[]) {
+	return pendingRequests.map(r => ({ requestId: r.request.id, kind: r.kind }));
+}
+
 function getReorderContext(accessor: ServicesAccessor, context: unknown) {
 	if (!isRequestVM(context) || context.pendingKind === undefined) {
 		return undefined;
@@ -373,7 +378,7 @@ export class ChatMovePendingRequestUpAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPendingRequest,
-					ChatContextKeys.isFirstPendingRequest.negate()
+					ContextKeyExpr.not(ChatContextKeys.isFirstPendingRequest.key)
 				)
 			}]
 		});
@@ -385,7 +390,7 @@ export class ChatMovePendingRequestUpAction extends Action2 {
 			return;
 		}
 
-		const reordered = ctx.pendingRequests.map(r => ({ requestId: r.request.id, kind: r.kind }));
+		const reordered = toPendingRequestDescriptors(ctx.pendingRequests);
 		const temp = reordered[ctx.targetIndex];
 		reordered[ctx.targetIndex] = reordered[ctx.targetIndex - 1];
 		reordered[ctx.targetIndex - 1] = temp;
@@ -409,7 +414,7 @@ export class ChatMovePendingRequestDownAction extends Action2 {
 				order: 3,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPendingRequest,
-					ChatContextKeys.isLastPendingRequest.negate()
+					ContextKeyExpr.not(ChatContextKeys.isLastPendingRequest.key)
 				)
 			}]
 		});
@@ -421,7 +426,7 @@ export class ChatMovePendingRequestDownAction extends Action2 {
 			return;
 		}
 
-		const reordered = ctx.pendingRequests.map(r => ({ requestId: r.request.id, kind: r.kind }));
+		const reordered = toPendingRequestDescriptors(ctx.pendingRequests);
 		const temp = reordered[ctx.targetIndex];
 		reordered[ctx.targetIndex] = reordered[ctx.targetIndex + 1];
 		reordered[ctx.targetIndex + 1] = temp;
@@ -445,7 +450,7 @@ export class ChatMovePendingRequestToTopAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPendingRequest,
-					ChatContextKeys.isFirstPendingRequest.negate()
+					ContextKeyExpr.not(ChatContextKeys.isFirstPendingRequest.key)
 				)
 			}]
 		});
@@ -460,7 +465,7 @@ export class ChatMovePendingRequestToTopAction extends Action2 {
 		const targetRequest = ctx.pendingRequests[ctx.targetIndex];
 		const reordered = [
 			{ requestId: targetRequest.request.id, kind: targetRequest.kind },
-			...ctx.pendingRequests.filter((_, i) => i !== ctx.targetIndex).map(r => ({ requestId: r.request.id, kind: r.kind }))
+			...toPendingRequestDescriptors(ctx.pendingRequests).filter((_, i) => i !== ctx.targetIndex)
 		];
 
 		ctx.chatService.setPendingRequests(ctx.sessionResource, reordered);
@@ -482,7 +487,7 @@ export class ChatMovePendingRequestToBottomAction extends Action2 {
 				order: 4,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPendingRequest,
-					ChatContextKeys.isLastPendingRequest.negate()
+					ContextKeyExpr.not(ChatContextKeys.isLastPendingRequest.key)
 				)
 			}]
 		});
@@ -496,7 +501,7 @@ export class ChatMovePendingRequestToBottomAction extends Action2 {
 
 		const targetRequest = ctx.pendingRequests[ctx.targetIndex];
 		const reordered = [
-			...ctx.pendingRequests.filter((_, i) => i !== ctx.targetIndex).map(r => ({ requestId: r.request.id, kind: r.kind })),
+			...toPendingRequestDescriptors(ctx.pendingRequests).filter((_, i) => i !== ctx.targetIndex),
 			{ requestId: targetRequest.request.id, kind: targetRequest.kind }
 		];
 

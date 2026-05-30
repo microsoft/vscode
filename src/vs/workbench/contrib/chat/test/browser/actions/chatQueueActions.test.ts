@@ -274,5 +274,42 @@ suite('Queue priority actions execution', () => {
 
 		assert.strictEqual(lastReordered, undefined);
 	});
+
+	test('getReorderContext returns undefined when widget/model is not found', () => {
+		// Override the widget service to return undefined for this session
+		instantiationService.stub(IChatWidgetService, {
+			getWidgetBySessionResource: (_res: URI) => undefined
+		});
+
+		const action = new ChatMovePendingRequestUpAction();
+		const context = {
+			id: 'req2',
+			message: 'test',
+			pendingKind: ChatRequestQueueKind.Queued,
+			sessionResource
+		};
+
+		instantiationService.invokeFunction(accessor => {
+			action.run(accessor, context);
+		});
+
+		assert.strictEqual(lastReordered, undefined);
+	});
+
+	test('getReorderContext returns undefined when request id is not in getPendingRequests', () => {
+		const action = new ChatMovePendingRequestUpAction();
+		const context = {
+			id: 'req-nonexistent',
+			message: 'test',
+			pendingKind: ChatRequestQueueKind.Queued,
+			sessionResource
+		};
+
+		instantiationService.invokeFunction(accessor => {
+			action.run(accessor, context);
+		});
+
+		assert.strictEqual(lastReordered, undefined);
+	});
 });
 
