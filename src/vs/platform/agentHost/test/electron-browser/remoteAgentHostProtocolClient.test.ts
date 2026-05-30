@@ -23,7 +23,7 @@ import { ActionType, type SessionActiveClientChangedAction, type SessionTitleCha
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
+import { CustomizationType, ROOT_STATE_URI, StateComponents, customizationId } from '../../common/state/sessionState.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -642,8 +642,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
-						{ uri: 'file:///plugins/bar', displayName: 'Bar' },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///other/bar'), uri: 'file:///other/bar', name: 'Bar', enabled: true },
 					]
 				},
 			});
@@ -651,9 +651,32 @@ suite('RemoteAgentHostProtocolClient', () => {
 			assert.deepStrictEqual(
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
-					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
-					{ address: 'test.example:1234', uri: 'file:///plugins/bar' },
+					{ address: 'test.example:1234', uri: 'file:///plugins' },
+					{ address: 'test.example:1234', uri: 'file:///other' },
 				],
+			);
+		});
+
+		test('multiple customizations in the same directory dedupe to one grant', () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client } = createClient(undefined, service);
+			const sessionUri = URI.parse('ahp-session:/test');
+
+			client.dispatch(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'c1',
+					tools: [],
+					customizations: [
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/bar'), uri: 'file:///plugins/bar', name: 'Bar', enabled: true },
+					]
+				},
+			});
+
+			assert.deepStrictEqual(
+				calls.map(c => c.uri.toString()),
+				['file:///plugins'],
 			);
 		});
 
@@ -668,7 +691,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
 					]
 				},
 			};
@@ -702,7 +725,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
 					],
 				},
 			});
@@ -715,7 +738,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins/foo'],
+				['file:///plugins'],
 			);
 		});
 	});

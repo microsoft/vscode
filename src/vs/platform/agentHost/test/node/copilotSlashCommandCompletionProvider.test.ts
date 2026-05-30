@@ -12,6 +12,20 @@ import { CopilotSlashCommandCompletionProvider, parseLeadingSlashCommand } from 
 
 suite('CopilotSlashCommandCompletionProvider', () => {
 
+	let _savedRubberDuckEnv: string | undefined;
+	suiteSetup(() => {
+		_savedRubberDuckEnv = process.env['RUBBER_DUCK_AGENT'];
+		process.env['RUBBER_DUCK_AGENT'] = 'true';
+	});
+
+	suiteTeardown(() => {
+		if (_savedRubberDuckEnv === undefined) {
+			delete process.env['RUBBER_DUCK_AGENT'];
+		} else {
+			process.env['RUBBER_DUCK_AGENT'] = _savedRubberDuckEnv;
+		}
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('parseLeadingSlashCommand', () => {
@@ -21,6 +35,30 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('matches lone /compact', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/compact'), { command: 'compact', rest: '' });
+		});
+
+		test('matches lone /research', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research'), { command: 'research', rest: '' });
+		});
+
+		test('captures trailing text after a space for /research', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research How does React work?'), { command: 'research', rest: 'How does React work?' });
+		});
+
+		test('matches lone /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '' });
+		});
+
+		test('captures trailing text after a space for /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck review my approach'), { command: 'rubber-duck', rest: 'review my approach' });
+		});
+
+		test('rejects /rubber-duck-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber-duck-extra'), undefined);
+		});
+
+		test('rejects /rubber alone (incomplete command)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber'), undefined);
 		});
 
 		test('captures trailing text after a space', () => {
@@ -66,9 +104,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items, []);
 		});
 
-		test('returns both items for lone "/"', async () => {
+		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ']);
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
@@ -79,6 +117,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		test('filters to /compact when "/c" typed', async () => {
 			const items = await run('/c');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact']);
+		});
+
+		test('filters to /research and /rubber-duck when "/r" typed', async () => {
+			const items = await run('/r');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ', '/rubber-duck ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -121,6 +164,20 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						description: 'Free up context by compacting the conversation history',
 					},
 				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'research',
+						description: 'Run deep research on a topic using search and web sources',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'rubber-duck',
+						description: 'Get an independent critique of the current approach',
+					},
+				},
 			]);
 		});
 
@@ -129,7 +186,20 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ', '/rubber-duck ']);
+		});
+
+		test('omits /rubber-duck when env var is unset', async () => {
+			const saved = process.env['RUBBER_DUCK_AGENT'];
+			delete process.env['RUBBER_DUCK_AGENT'];
+			try {
+				const items = await run('/');
+				assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ']);
+			} finally {
+				if (saved !== undefined) {
+					process.env['RUBBER_DUCK_AGENT'] = saved;
+				}
+			}
 		});
 
 		test('passes raw session id (no scheme/slash) to hasHistory', async () => {

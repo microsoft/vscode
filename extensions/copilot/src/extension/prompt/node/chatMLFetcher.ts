@@ -28,7 +28,7 @@ import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/c
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
-import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -295,9 +295,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per
 					// OTel GenAI semantic conventions (issue #300318).
-					const toolDefs = toToolDefinitions(requestBody.tools);
-					if (toolDefs) {
-						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
+					const toolDefsJson = stringifyToolDefinitionsForOTel(requestBody.tools);
+					if (toolDefsJson) {
+						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson, this._otelService.config.maxAttributeSizeChars));
 					}
 					// Cache-relevant request options. Anything in this blob, when changed
 					// between two requests, will invalidate the prompt cache even when
@@ -390,11 +390,15 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, topLevelTurnId ?? turnId);
 						}
 
+						// Normalize once so span attributes, metric attributes, and the inference
+						// details event all report the same value (issue #318805).
+						const normalizedResponseModel = normalizeResponseModel(chatEndpoint.model, result.resolvedModel);
+
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,
 							requestModel: chatEndpoint.model,
-							responseModel: result.resolvedModel,
+							responseModel: normalizedResponseModel,
 						};
 						if (result.usage.prompt_tokens) {
 							GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs);
@@ -407,7 +411,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						otelInferenceSpan?.setAttributes({
 							[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 							[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-							[GenAiAttr.RESPONSE_MODEL]: result.resolvedModel ?? chatEndpoint.model,
+							[GenAiAttr.RESPONSE_MODEL]: normalizedResponseModel ?? chatEndpoint.model,
 							[GenAiAttr.RESPONSE_ID]: result.requestId,
 							[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
 							...(result.usage.prompt_tokens_details?.cached_tokens
@@ -419,7 +423,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: timeToFirstToken,
 							...(result.serverRequestId ? { [CopilotChatAttr.SERVER_REQUEST_ID]: result.serverRequestId } : {}),
 							...(result.usage.completion_tokens_details?.reasoning_tokens
-								? { [GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens }
+								? {
+									[GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens,
+									[GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens,
+								}
 								: {}),
 							...(typeof result.usage.copilot_usage?.total_nano_aiu === 'number'
 								? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: result.usage.copilot_usage.total_nano_aiu }
@@ -468,7 +475,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						},
 						result.type === ChatFetchResponseType.Success ? {
 							id: result.requestId,
-							model: result.resolvedModel,
+							model: normalizeResponseModel(chatEndpoint.model, result.resolvedModel),
 							finishReasons: ['stop'],
 							inputTokens: result.usage?.prompt_tokens,
 							outputTokens: result.usage?.completion_tokens,
@@ -1020,9 +1027,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken?.token;
-			// BYOK endpoints may not need a secret key (e.g., Ollama local), they use getExtraHeaders instead.
-			if (!secretKey && !chatEndpointInfo.getExtraHeaders) {
+			// BYOK endpoints that own their `Authorization` (see IChatEndpoint.ownsAuthorization)
+			// opt out of the CAPI Copilot-token fallback to avoid leaking the user's bearer to a
+			// third-party URL and to keep the wire request from carrying an unintended
+			// `Authorization: Bearer …` alongside their own auth header.
+			if (!chatEndpointInfo.ownsAuthorization) {
+				secretKey ??= copilotToken?.token;
+			}
+			if (!secretKey && !chatEndpointInfo.ownsAuthorization) {
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
 				sendCommunicationErrorTelemetry(this._telemetryService, `Failed to send request to ${urlOrRequestMetadata} due to missing key`);
@@ -1163,6 +1175,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
+			if (key === 'tools') {
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
+				continue;
+			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
@@ -1171,7 +1187,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId,
-				messagesJson: JSON.stringify(request.tools),
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
 			}), telemetryData.measurements);
 		}
 
@@ -1437,6 +1453,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
+			if (key === 'tools') {
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
+				continue;
+			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 
@@ -1451,7 +1471,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId: telemetryProperties?.conversationId,
-				messagesJson: JSON.stringify(request.tools),
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
 			}), telemetryData.measurements);
 		}
 
@@ -1550,6 +1570,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestId = modelRequestIdObj.headerRequestId || requestId;
 		modelRequestIdObj.headerRequestId = requestId;
 
+		this._chatQuotaService.processQuotaHeaders(response.headers);
+
 		telemetryData.properties.error = `Response status was ${response.status}`;
 		telemetryData.properties.status = String(response.status);
 		this._telemetryService.sendGHTelemetryEvent('request.shownWarning', telemetryData.properties, telemetryData.measurements);
@@ -1617,7 +1639,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					this._authenticationService.resetCopilotToken(response.status);
 					await this._authenticationService.getCopilotToken();
 				}
-
 
 				const retryAfter = response.headers.get('retry-after');
 
@@ -2127,7 +2148,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				data: { capiError },
 			};
 		}
-		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured') {
+		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
 			// Refresh the copilot token so isChatQuotaExceeded reflects the new state,
 			// matching the HTTP 402 handler behavior.
 			if (!this._authenticationService.copilotToken?.isChatQuotaExceeded) {
@@ -2200,7 +2221,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		if (codePrefix === 'rate_limited' || codePrefix === 'user_model_rate_limited' || codePrefix === 'user_global_rate_limited' || codePrefix === 'integration_rate_limited' || codePrefix === 'model_overloaded' || codePrefix === 'agent_mode_limit_exceeded') {
 			return { type: ChatFetchResponseType.RateLimited, reason: message, requestId, serverRequestId, retryAfter: undefined, rateLimitKey: '', isAuto, capiError };
 		}
-		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured') {
+		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
 			return { type: ChatFetchResponseType.QuotaExceeded, reason: message, requestId, serverRequestId, capiError, retryAfter: undefined };
 		}
 		if (code === 'content_filter') {

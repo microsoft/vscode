@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths } from '../../node/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, formatGitError, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -268,6 +268,67 @@ suite('AgentHostGitService', () => {
 
 	test('exports the well-known empty-tree object SHA', () => {
 		assert.strictEqual(EMPTY_TREE_OBJECT, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+	});
+
+	suite('formatGitError', () => {
+		test('reports timeout when our timer fired and summarises progress-meter stderr', () => {
+			const err = Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' as const });
+			const progress = 'Updating files:   0% (7/14834)\rUpdating files:   0% (149/14834)\r';
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '-b', 'x', '/tmp/y', 'origin/main'], 30_000, true, err, progress),
+				'git worktree timed out after 30000ms: Updating files:   0% (149/14834)',
+			);
+		});
+
+		test('reports kill signal when killed but not by our timer', () => {
+			const err = Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' as const });
+			assert.strictEqual(
+				formatGitError(['worktree', 'add'], 30_000, false, err, ''),
+				'git worktree killed by SIGTERM',
+			);
+		});
+
+		test('reports numeric exit code when git failed normally', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '/tmp/y', 'missing-branch'], 30_000, false, err, 'fatal: invalid reference: missing-branch\n'),
+				'git worktree exited with code 128: fatal: invalid reference: missing-branch',
+			);
+		});
+
+		test('falls back to error message when there is no signal or exit code', () => {
+			const err = new Error('spawn git ENOENT');
+			assert.strictEqual(
+				formatGitError(['status'], 5_000, false, err, ''),
+				'spawn git ENOENT',
+			);
+		});
+	});
+
+	suite('summarizeStderrForError', () => {
+		test('returns empty string for empty input', () => {
+			assert.strictEqual(summarizeStderrForError(''), '');
+		});
+
+		test('returns empty string for whitespace-only input', () => {
+			assert.strictEqual(summarizeStderrForError('  \r\n\r\n  '), '');
+		});
+
+		test('keeps the last non-empty line of a multi-line progress meter', () => {
+			const progress = 'Updating files:   0% (7/14834)\rUpdating files:   0% (149/14834)\r';
+			assert.strictEqual(summarizeStderrForError(progress), 'Updating files:   0% (149/14834)');
+		});
+
+		test('passes through a normal single-line message', () => {
+			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
+		});
+
+		test('truncates very long lines with an ellipsis', () => {
+			const long = `fatal: ${'a'.repeat(500)}`;
+			const result = summarizeStderrForError(long);
+			assert.strictEqual(result.length, 200);
+			assert.ok(result.endsWith('…'), 'expected trailing ellipsis');
+		});
 	});
 });
 

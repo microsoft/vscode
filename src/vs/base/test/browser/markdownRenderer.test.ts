@@ -873,6 +873,20 @@ suite('MarkdownRenderer', () => {
 				const completeTokens = marked.marked.lexer(text + '`');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test('codespan inside <body> wrapped markdown', () => {
+				// The chat content renderer wraps `supportHtml` markdown in
+				// `<body>...</body>` so dompurify keeps leading comments. That
+				// makes `</body>` the literal last token — the paragraph with
+				// the bare backtick is no longer at the end. The fixup must
+				// still close the codespan while preserving the trailing html.
+				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('<body>\n\nCreated isolated worktree for branch `xyz`\n\n</body>');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 		});
 
 		suite('star', () => {

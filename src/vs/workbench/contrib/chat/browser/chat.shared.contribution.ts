@@ -9,7 +9,9 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
+import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -38,7 +40,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { allDiscoverySources, discoverySourceSettingsLabel, McpCollisionBehavior, mcpDiscoverySection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceSettingsLabel, McpCollisionBehavior, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/participants/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import '../common/widget/chatColors.js';
@@ -145,6 +147,7 @@ import { QuickChatService } from './widgetHosts/chatQuick.js';
 import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
 import { HasByokModelsContribution } from './hasByokModelsContribution.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatVariablesService } from './attachments/chatVariables.js';
@@ -163,7 +166,7 @@ import { ToolResultCompressorService } from './tools/toolResultCompressorService
 import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { extraKnownMarketplacesToConfigDict, IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
@@ -445,12 +448,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental', 'advanced'],
 		},
-		[ChatConfiguration.AutopilotEnabled]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.autopilot.enabled', "Controls whether the Autopilot mode is available in the permissions picker. When enabled, Autopilot auto-approves all tool calls and continues until the task is done."),
-			default: true,
-			tags: ['experimental'],
-		},
 		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.planReview.inlineEditor.enabled', "When enabled, the plan review widget mounts an editor inline, as opposed to in a separate editor tab."),
@@ -471,7 +468,6 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
-			tags: ['experimental'],
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -679,6 +675,19 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
 		},
+		[ChatConfiguration.AgentsHandoffTipMode]: {
+			type: 'string',
+			enum: ['hidden', 'default', 'custom'],
+			enumDescriptions: [
+				nls.localize('chat.agentsHandoffTip.mode.hidden', "Never show the handoff tip."),
+				nls.localize('chat.agentsHandoffTip.mode.default', "Show the handoff tip with the default description."),
+				nls.localize('chat.agentsHandoffTip.mode.custom', "Show the handoff tip with an alternate description."),
+			],
+			default: 'hidden',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			description: nls.localize('chat.agentsHandoffTip.mode', "Controls the tip shown above the chat input offering to continue eligible agent sessions in the Agents Window."),
+		},
 		[ChatConfiguration.ChatContextUsageEnabled]: {
 			type: 'boolean',
 			default: true,
@@ -783,6 +792,41 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
+		[mcpEnterpriseManagedAuthIdpSection]: {
+			type: 'object',
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'experimental'],
+			additionalProperties: false,
+			included: false,
+			properties: {
+				issuer: {
+					type: 'string',
+					format: 'uri',
+					markdownDescription: nls.localize('mcp.enterpriseManagedAuth.idp.issuer', "The OAuth/OIDC issuer URL of the SSO authorization server. Must be an `https://` URL."),
+				},
+				clientId: {
+					type: 'string',
+					markdownDescription: nls.localize('mcp.enterpriseManagedAuth.idp.clientId', "The OAuth client ID registered with the SSO issuer for this device."),
+				},
+				clientSecret: {
+					type: 'string',
+					markdownDescription: nls.localize('mcp.enterpriseManagedAuth.idp.clientSecret', "The OAuth client secret paired with `clientId`. Intended for local development only."),
+				},
+			},
+			markdownDescription: nls.localize('mcp.enterpriseManagedAuth.idp', "(Preview) The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) servers. Typically delivered via enterprise policy (Windows Group Policy / macOS managed preferences / Linux `/etc/vscode/policy.json`); developers may hand-edit `settings.json` for local testing. Properties: `issuer` (HTTPS URL), `clientId`, `clientSecret`."),
+			policy: {
+				name: 'McpEnterpriseManagedAuthIdp',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				localization: {
+					description: {
+						key: 'mcp.enterpriseManagedAuth.idp.policy',
+						value: nls.localize('mcp.enterpriseManagedAuth.idp.policy', "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."),
+					}
+				}
+			},
+		},
 		[mcpServerCollisionBehaviorSection]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.collisionBehavior', "Controls behavior when multiple MCP servers are discovered with the same name. 'disable' disables lower-priority duplicates. 'suffix' appends numeric suffixes to disambiguate."),
@@ -873,15 +917,90 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.EnabledPlugins]: {
+			type: 'object',
+			additionalProperties: { type: 'boolean' },
+			markdownDescription: nls.localize('chat.plugins.enabledPlugins', "Enterprise-managed plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form (resolved to Copilot CLI install paths); values enable (`true`) or disable (`false`) the plugin. Discovered alongside the path-keyed entries in {0}. When set by policy, also restricts which marketplace-discovered plugins are allowed to load (only IDs mapped to `true` here pass the gate).", `\`#${ChatConfiguration.PluginLocations}#\``),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			policy: {
+				name: 'ChatEnabledPlugins',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.enabledPlugins ? JSON.stringify(policyData.enabledPlugins) : undefined,
+				localization: {
+					description: {
+						key: 'chat.plugins.enabledPlugins.policy',
+						value: nls.localize('chat.plugins.enabledPlugins.policy', "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."),
+					}
+				},
+			},
+		},
 		[ChatConfiguration.PluginMarketplaces]: {
 			type: 'array',
 			items: {
 				type: 'string',
 			},
-			markdownDescription: nls.localize('chat.plugins.marketplaces', "Plugin marketplaces to query. Entries may be GitHub shorthand (`owner/repo`), direct Git repository URIs (`https://...git`, `ssh://...git`, or `git@host:path.git`), or local repository URIs (`file:///...`). Equivalent GitHub shorthand and URI entries are deduplicated."),
-			default: ['github/copilot-plugins', 'github/awesome-copilot'],
+			markdownDescription: nls.localize('chat.plugins.marketplaces', "Plugin marketplaces to query. Entries may be GitHub shorthand (`owner/repo` or `owner/repo#ref`), direct Git repository URIs (`https://...git`, `ssh://...git`, or `git@host:path.git`, each optionally suffixed with `#ref`), or local repository URIs (`file:///...`). Equivalent GitHub shorthand and URI entries are deduplicated."),
+			default: ['github/copilot-plugins', 'github/awesome-copilot#marketplace'],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.ExtraMarketplaces]: {
+			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
+			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
+			//
+			// Stored as a `{ [name]: url-or-shorthand }` object so that:
+			//   - The Settings Editor (ComplexObject renderer) can display entries inline when
+			//     managed by policy, rather than only showing "Edit in settings.json".
+			//   - Marketplace names are preserved for `enabledPlugins["plugin@<name>"]` resolution.
+			//
+			// `additionalProperties: { type: ['string'] }` uses the single-element array form of
+			// JSON Schema's `type` keyword (equivalent to `type: 'string'`) to trigger VS Code's
+			// ComplexObject renderer, which shows key-value rows inline and hides the
+			// "Edit in settings.json" link when the value is managed by policy.
+			type: 'object',
+			additionalProperties: { type: ['string'] as ['string'] },
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Unioned with {0}.", `\`#${ChatConfiguration.PluginMarketplaces}#\``),
+			policy: {
+				name: 'ChatExtraMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => {
+					const obj = extraKnownMarketplacesToConfigDict(policyData.extraKnownMarketplaces);
+					return obj ? JSON.stringify(obj) : undefined;
+				},
+				localization: {
+					description: {
+						key: 'chat.plugins.extraMarketplaces.policy',
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."),
+					}
+				},
+			},
+		},
+		[ChatConfiguration.StrictMarketplaces]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "When enabled, only marketplaces supplied via enterprise policy are trusted. Plugins from any other marketplace will not load."),
+			default: false,
+			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			policy: {
+				name: 'ChatStrictMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.122',
+				value: (policyData) => policyData.strictKnownMarketplaces,
+				localization: {
+					description: {
+						key: 'chat.plugins.strictMarketplaces.policy',
+						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."),
+					}
+				},
+			},
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',
@@ -983,19 +1102,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
 			default: '',
 		},
-		[AgentHostEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostClaudeAgentSdkPathSettingId]: {
-			type: 'string',
-			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
-			default: '',
-			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
-		},
 		[AgentHostIpcLoggingSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.ipcLogging', "When enabled, logs all IPC traffic for each agent host to a dedicated output channel."),
@@ -1011,43 +1117,6 @@ configurationRegistry.registerConfiguration({
 		[AgentHostCustomTerminalToolEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior."),
-			default: true,
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostOTelEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostOTelExporterTypeSettingId]: {
-			type: 'string',
-			enum: ['otlp-http', 'otlp-grpc', 'console', 'file'],
-			markdownDescription: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
-			default: 'otlp-http',
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostOTelOtlpEndpointSettingId]: {
-			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
-			default: '',
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostOTelCaptureContentSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostOTelOutfileSettingId]: {
-			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
-			default: '',
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
@@ -1066,8 +1135,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolConfirmationCarousel]: {
 			type: 'boolean',
 			description: nls.localize('chat.tools.confirmationCarousel', "When enabled, multiple tool confirmations are batched into a carousel above the input."),
-			default: product.quality !== 'stable',
-			tags: ['experimental'],
+			default: true,
 		},
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',
@@ -1607,16 +1675,14 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 		},
-		[ChatConfiguration.OfflineByok]: {
-			type: 'boolean',
-			description: nls.localize('chat.offlineByok', "Experimental: enable BYOK chat features without GitHub sign-in."),
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.WINDOW,
-			included: false,
-		},
 		[ChatConfiguration.TitleBarSignInEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),
+			default: true,
+		},
+		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
 		},
 		'chat.approvedAccountOrganizations': {
@@ -1641,6 +1707,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
 			default: false,
+			included: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1705,16 +1772,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
-		},
-		[ChatConfiguration.UseChatSessionCustomizationsForCustomAgents]: {
-			type: 'boolean',
-			description: nls.localize('chat.customizations.useChatSessionCustomizationsForCustomAgents', "When enabled, custom agents shown in the chat mode picker are sourced from the customization harness service (scoped per session type) instead of the prompts service."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -2289,6 +2347,7 @@ registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitC
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);

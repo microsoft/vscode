@@ -21,6 +21,7 @@ import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../
 import {
 	buildSubagentSessionUri,
 	getToolFileEdits,
+	MessageKind,
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
@@ -507,7 +508,7 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(subagentSessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId,
-			userMessage: { text: '' },
+			message: { text: '', origin: { kind: MessageKind.User } },
 		});
 
 		this._subagentSessions.set(subagentKey, subagentSessionUri);
@@ -684,6 +685,9 @@ export class AgentSideEffects extends Disposable {
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
+		} else if (effective.state.confirmationTitle) {
+			// Make sure the agent is registered for the eventual `SessionToolCallConfirmed` response.
+			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
@@ -703,7 +707,7 @@ export class AgentSideEffects extends Disposable {
 				// title is still the default placeholder to avoid clobbering a
 				// title set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(channel);
-				const fallbackTitle = action.userMessage.text.trim().replace(/\s+/g, ' ').slice(0, 200);
+				const fallbackTitle = action.message.text.trim().replace(/\s+/g, ' ').slice(0, 200);
 				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
 					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionTitleChanged,
@@ -720,9 +724,9 @@ export class AgentSideEffects extends Disposable {
 					});
 					return;
 				}
-				const attachments = action.userMessage.attachments;
+				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
-				agent.sendMessage(URI.parse(channel), action.userMessage.text, attachments, action.turnId).catch(err => {
+				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction(channel, {
@@ -835,7 +839,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionCustomizationToggled: {
 				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
+				agent?.setCustomizationEnabled?.(action.id, action.enabled);
 				break;
 			}
 			case ActionType.SessionIsReadChanged: {
@@ -940,7 +944,7 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionTurnStarted,
 			turnId,
-			userMessage: msg.userMessage,
+			message: msg.message,
 			queuedMessageId: msg.id,
 		});
 
@@ -954,9 +958,9 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const attachments = msg.userMessage.attachments;
+		const attachments = msg.message.attachments;
 		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
-		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
+		agent.sendMessage(URI.parse(session), msg.message.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.SessionError,

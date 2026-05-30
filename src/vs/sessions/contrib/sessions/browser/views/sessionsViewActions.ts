@@ -18,21 +18,19 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
-import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 //  Constants
 
@@ -349,23 +347,29 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			return;
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const viewsService = accessor.get(IViewsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
+
 		sessionsManagementService.openNewSessionView();
-		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
+
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
 		const folderUri = workspace?.folders[0]?.root;
 		const providerId = session.providerId;
-		if (view && folderUri) {
-			view.selectWorkspace(folderUri, providerId);
+
+		const newSession = sessionsManagementService.activeSession.get();
+		if (folderUri) {
+			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, providerId);
 		}
+
 		// On mobile web, the sidebar drawer covers the viewport; close it so
 		// the new session view becomes visible after creation. Routes through
 		// the drawer-close command to keep the mobile nav/history stack in sync.
 		if (isWeb && isMobile) {
 			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
+
+		sessionsPartService.focusSession(newSession);
 	}
 });
 
@@ -672,7 +676,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.resource, trimmedTitle);
+				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
 			}
 		}
 	}
@@ -734,15 +738,16 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 	}
 });
 
-registerAction2(class OpenSessionInNewWindowAction extends Action2 {
+registerAction2(class OpenSessionToTheSideAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.openInNewWindow',
-			title: localize2('openInNewWindow', "Open in New Window"),
+			id: 'sessionsViewPane.openToTheSide',
+			title: localize2('openToTheSide', "Open to the Side"),
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: 'navigation',
-				order: 0,
+				order: -1,
+				when: IsSessionsWindowContext,
 			}]
 		});
 	}
@@ -751,17 +756,18 @@ registerAction2(class OpenSessionInNewWindowAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const chatWidgetService = accessor.get(IChatWidgetService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-		sessionsManagementService.openNewSessionView(); // running this first to address focus issues
-
-		for (const session of sessions) {
-			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
-				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
-				pinned: true
-			});
+		for (let i = 0; i < sessions.length - 1; i++) {
+			const session = sessions[i];
+			const visible = sessionsManagementService.visibleSessions.get();
+			const lastVisible = visible[visible.length - 1];
+			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+				sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+			}
 		}
+
+		await openSessionToTheSide(sessionsManagementService, sessions[sessions.length - 1]);
 	}
 });
 
@@ -865,37 +871,5 @@ registerAction2(class RestoreSessionAction extends Action2 {
 		}
 
 		await sessionsManagementService.unarchiveSession(activeSession);
-	}
-});
-
-registerAction2(class AddChatAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.addChat',
-			title: localize2('addChat', "New Sub-Session"),
-			icon: Codicon.plus,
-			menu: [{
-				id: Menus.CommandCenter,
-				order: 102,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					ActiveSessionSupportsMultiChatContext
-				)
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
-			return;
-		}
-
-		sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

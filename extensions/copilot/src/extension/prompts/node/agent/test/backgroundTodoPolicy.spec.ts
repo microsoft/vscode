@@ -83,7 +83,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 
 	test('returns Wait when processor is already InProgress', async () => {
 		const processor = new BackgroundTodoProcessor();
-		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
+		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, currentTurnSubstantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
 		processor.start(
 			{ userRequest: 'old', newRounds: [makeMeaningfulRound('r0')], history: [], sessionResource: undefined, metadata: dummyMeta },
 			async () => {
@@ -128,7 +128,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 
 	test('skips when processor has already created todos and no new activity', async () => {
 		const processor = new BackgroundTodoProcessor();
-		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
+		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, currentTurnSubstantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
 		// Simulate a successful pass
 		processor.start(
 			{ userRequest: 'old', newRounds: [makeMeaningfulRound('r0')], history: [], sessionResource: undefined, metadata: dummyMeta },
@@ -199,7 +199,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 
 	test('after first pass, waits until subsequent threshold is met', async () => {
 		const processor = new BackgroundTodoProcessor();
-		const dummyMeta = { newRoundCount: 1, newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, isInitialDelta: true, isRequestOnly: false };
+		const dummyMeta = { newRoundCount: 1, newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, currentTurnSubstantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, isInitialDelta: true, isRequestOnly: false };
 		// Simulate a successful first pass so hasCreatedTodos becomes true.
 		processor.start(
 			{ userRequest: 'old', newRounds: Array.from({ length: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD }, (_, i) => makeMeaningfulRound(`r${i}`)), history: [], sessionResource: undefined, metadata: dummyMeta },
@@ -227,7 +227,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 
 	test('subsequent threshold is met by any mix of substantive calls', async () => {
 		const processor = new BackgroundTodoProcessor();
-		const dummyMeta = { newRoundCount: 1, newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, isInitialDelta: true, isRequestOnly: false };
+		const dummyMeta = { newRoundCount: 1, newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, currentTurnSubstantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD, isInitialDelta: true, isRequestOnly: false };
 		processor.start(
 			{ userRequest: 'old', newRounds: Array.from({ length: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD }, (_, i) => makeMeaningfulRound(`r${i}`)), history: [], sessionResource: undefined, metadata: dummyMeta },
 			async () => ({ outcome: 'success' })
@@ -288,7 +288,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 
 	test('hasCreatedTodos becomes true after successful pass', async () => {
 		const processor = new BackgroundTodoProcessor();
-		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
+		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, currentTurnSubstantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
 		processor.start(
 			{ userRequest: 'test', newRounds: [makeMeaningfulRound('r1')], history: [], sessionResource: undefined, metadata: dummyMeta },
 			async () => ({ outcome: 'success' })
@@ -299,7 +299,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 
 	test('hasCreatedTodos stays false after noop pass', async () => {
 		const processor = new BackgroundTodoProcessor();
-		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
+		const dummyMeta = { newRoundCount: 1, newToolCallCount: 1, substantiveToolCallCount: 1, currentTurnSubstantiveToolCallCount: 1, isInitialDelta: true, isRequestOnly: false };
 		processor.start(
 			{ userRequest: 'test', newRounds: [makeMeaningfulRound('r1')], history: [], sessionResource: undefined, metadata: dummyMeta },
 			async () => ({ outcome: 'noop' })
@@ -319,6 +319,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 			newRoundCount: firstBatchRounds.length,
 			newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
+			currentTurnSubstantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			isInitialDelta: true,
 			isRequestOnly: false,
 		};
@@ -346,6 +347,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 			newRoundCount: firstBatchRounds.length,
 			newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
+			currentTurnSubstantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			isInitialDelta: true,
 			isRequestOnly: false,
 		};
@@ -364,6 +366,27 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 		expect(result.reason).toBe('initialActivity');
 	});
 
+	test('new turns reset initial backoff during policy evaluation', async () => {
+		const processor = new BackgroundTodoProcessor();
+		const firstTurnRounds = Array.from({ length: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD }, (_, i) => makeContextRound(`turn-1-r${i}`));
+		const firstTurnDecision = processor.shouldRun(makeInput({
+			promptContext: makePromptContext({ toolCallRounds: firstTurnRounds }),
+			turnId: 'turn-1',
+		}));
+		expect(firstTurnDecision.decision).toBe(BackgroundTodoDecision.Run);
+
+		processor.start(firstTurnDecision.delta!, async () => ({ outcome: 'noop' }));
+		await processor.waitForCompletion();
+
+		const secondTurnRounds = Array.from({ length: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD }, (_, i) => makeContextRound(`turn-2-r${i}`));
+		const secondTurnDecision = processor.shouldRun(makeInput({
+			promptContext: makePromptContext({ toolCallRounds: secondTurnRounds }),
+			turnId: 'turn-2',
+		}));
+		expect(secondTurnDecision.decision).toBe(BackgroundTodoDecision.Run);
+		expect(secondTurnDecision.reason).toBe('initialActivity');
+	});
+
 	test('threshold is capped at MAX_INITIAL_BACKOFF_THRESHOLD and agent still monitors', async () => {
 		const processor = new BackgroundTodoProcessor();
 
@@ -376,6 +399,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 				newRoundCount: rounds.length,
 				newToolCallCount: threshold,
 				substantiveToolCallCount: threshold,
+				currentTurnSubstantiveToolCallCount: threshold,
 				isInitialDelta: batchIdx === 0,
 				isRequestOnly: false,
 			};

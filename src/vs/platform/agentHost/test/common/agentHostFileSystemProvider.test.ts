@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
-import { ContentEncoding, type ResourceListResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult } from '../../common/state/protocol/commands.js';
+import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
@@ -183,6 +184,50 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 	});
 });
 
+suite('AgentHostFileSystemProvider - authority registrations', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class NamedConnection implements IRemoteFilesystemConnection {
+		readonly listCalls: URI[] = [];
+
+		constructor(private readonly name: string) { }
+
+		async resourceList(uri: URI): Promise<ResourceListResult> {
+			this.listCalls.push(uri);
+			return { entries: [{ name: `${this.name}.txt`, type: 'file' }] };
+		}
+
+		async resourceRead(): Promise<ResourceReadResult> { return { data: '', encoding: ContentEncoding.Utf8 }; }
+		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceCopy(): Promise<{}> { return {}; }
+		async resourceDelete(): Promise<{}> { return {}; }
+		async resourceMove(): Promise<{}> { return {}; }
+		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+			const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri)!;
+			return { uri: uri.toString(), type: ResourceType.File };
+		}
+		async resourceMkdir(): Promise<{}> { return {}; }
+	}
+
+	test('disposing a stale registration does not remove a newer registration for the same authority', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		const firstRegistration = disposables.add(provider.registerAuthority('client', first));
+		disposables.add(provider.registerAuthority('client', second));
+
+		firstRegistration.dispose();
+		const entries = await provider.readdir(agentHostUri('client', '/workspace'));
+
+		assert.deepStrictEqual({ entries, firstCalls: first.listCalls, secondCalls: second.listCalls.map(uri => uri.toString()) }, {
+			entries: [['second.txt', FileType.File]],
+			firstCalls: [],
+			secondCalls: [URI.file('/workspace').toString()],
+		});
+	});
+});
+
 suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -194,6 +239,7 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	class StubConnection implements IRemoteFilesystemConnection {
 		readonly readCalls: URI[] = [];
 		readonly listCalls: URI[] = [];
+		readonly resolveCalls: ResourceResolveParams[] = [];
 		readResult: ResourceReadResult = { data: 'stub-content', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
 
 		async resourceRead(uri: URI): Promise<ResourceReadResult> {
@@ -205,8 +251,15 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 			return { entries: [] };
 		}
 		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceCopy(): Promise<{}> { return {}; }
 		async resourceDelete(): Promise<{}> { return {}; }
 		async resourceMove(): Promise<{}> { return {}; }
+		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+			this.resolveCalls.push(params);
+			const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri)!;
+			return { uri: uri.toString(), type: ResourceType.File };
+		}
+		async resourceMkdir(): Promise<{}> { return {}; }
 	}
 
 	function setup() {
@@ -245,7 +298,7 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		assert.deepStrictEqual(connection.listCalls, []);
 	});
 
-	test('stat still lists parent for ordinary file: URIs', async () => {
+	test('stat uses resourceResolve for ordinary file: URIs', async () => {
 		// Use a non-local authority so the URI actually goes through the
 		// agent-host wrapping (toAgentHostUri short-circuits 'local'
 		// + file:// to return the URI unchanged).
@@ -254,14 +307,9 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		disposables.add(provider.registerAuthority('remote', connection));
 		const wrapped = agentHostUri('remote', '/some/file.ts');
 
-		try {
-			await provider.stat(wrapped);
-		} catch {
-			// Either FileNotFound or EntryNotFound is fine — we only
-			// care that the provider tried to list the parent (rather
-			// than treating this as a synthetic content URI).
-		}
-		assert.strictEqual(connection.listCalls.length, 1);
+		await provider.stat(wrapped);
+		assert.strictEqual(connection.resolveCalls.length, 1);
+		assert.strictEqual(connection.listCalls.length, 0);
 	});
 
 	test('readFile passes the decoded synthetic URI through to the connection', async () => {
@@ -306,6 +354,9 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 		listError: unknown | undefined;
 		deleteError: unknown | undefined;
 		moveError: unknown | undefined;
+		copyError: unknown | undefined;
+		resolveError: unknown | undefined;
+		mkdirError: unknown | undefined;
 		requestError: unknown | undefined;
 		readonly requestCalls: ResourceRequestParams[] = [];
 		hasResourceRequest = true;
@@ -322,12 +373,25 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 			if (this.writeError) { throw this.writeError; }
 			return {};
 		}
+		async resourceCopy(): Promise<{}> {
+			if (this.copyError) { throw this.copyError; }
+			return {};
+		}
 		async resourceDelete(): Promise<{}> {
 			if (this.deleteError) { throw this.deleteError; }
 			return {};
 		}
 		async resourceMove(): Promise<{}> {
 			if (this.moveError) { throw this.moveError; }
+			return {};
+		}
+		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+			if (this.resolveError) { throw this.resolveError; }
+			const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri)!;
+			return { uri: uri.toString(), type: ResourceType.File };
+		}
+		async resourceMkdir(): Promise<{}> {
+			if (this.mkdirError) { throw this.mkdirError; }
 			return {};
 		}
 		// Defined as a property so we can `delete` it to simulate a connection
@@ -459,5 +523,182 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 				FileSystemProviderErrorCode.NoPermissions,
 			);
 		}
+	});
+});
+
+suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class FullConnection implements IRemoteFilesystemConnection {
+		readonly resolveCalls: ResourceResolveParams[] = [];
+		readonly mkdirCalls: ResourceMkdirParams[] = [];
+		readonly copyCalls: ResourceCopyParams[] = [];
+		readonly watchCalls: CreateResourceWatchParams[] = [];
+		nextWatchHandle: { onDidChange: Event<readonly IFileChange[]>; dispose(): void } | undefined;
+		watchError: unknown | undefined;
+		nextResolveResult: ResourceResolveResult = { uri: '', type: ResourceType.File, size: 42, mtime: '2026-01-15T12:34:56.789Z', etag: 'etag-1' };
+
+		async resourceRead(): Promise<ResourceReadResult> { return { data: '', encoding: ContentEncoding.Utf8 }; }
+		async resourceList(): Promise<ResourceListResult> { return { entries: [] }; }
+		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceDelete(): Promise<{}> { return {}; }
+		async resourceMove(): Promise<{}> { return {}; }
+		async resourceCopy(params: ResourceCopyParams): Promise<{}> {
+			this.copyCalls.push(params);
+			return {};
+		}
+		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+			this.resolveCalls.push(params);
+			return { ...this.nextResolveResult, uri: typeof params.uri === 'string' ? params.uri : URI.revive(params.uri).toString() };
+		}
+		async resourceMkdir(params: ResourceMkdirParams): Promise<{}> {
+			this.mkdirCalls.push(params);
+			return {};
+		}
+		async watchResource(params: CreateResourceWatchParams): Promise<{ onDidChange: Event<readonly IFileChange[]>; dispose(): void }> {
+			this.watchCalls.push(params);
+			if (this.watchError) {
+				throw this.watchError;
+			}
+			if (!this.nextWatchHandle) {
+				throw new Error('test forgot to set nextWatchHandle');
+			}
+			return this.nextWatchHandle;
+		}
+	}
+
+	function setup() {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new FullConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		return { provider, connection };
+	}
+
+	test('stat uses resourceResolve when available and maps size/mtime/type', async () => {
+		const { provider, connection } = setup();
+		connection.nextResolveResult = { uri: '', type: ResourceType.Directory, size: 0, mtime: '2026-01-15T00:00:00.000Z' };
+		const wrapped = agentHostUri('remote', '/some/dir');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.type, FileType.Directory);
+		assert.strictEqual(stat.mtime, Date.parse('2026-01-15T00:00:00.000Z'));
+		assert.strictEqual(connection.resolveCalls.length, 1, 'resourceResolve was called');
+	});
+
+	test('mkdir delegates to resourceMkdir', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/new/dir');
+
+		await provider.mkdir(wrapped);
+
+		assert.strictEqual(connection.mkdirCalls.length, 1);
+		assert.strictEqual(connection.mkdirCalls[0].uri, fromAgentHostUri(wrapped).toString());
+	});
+
+	test('copy delegates to resourceCopy with overwrite mapped to !failIfExists', async () => {
+		const { provider, connection } = setup();
+		const from = agentHostUri('remote', '/a');
+		const to = agentHostUri('remote', '/b');
+
+		await provider.copy(from, to, { overwrite: false });
+
+		assert.strictEqual(connection.copyCalls.length, 1);
+		assert.strictEqual(connection.copyCalls[0].source, fromAgentHostUri(from).toString());
+		assert.strictEqual(connection.copyCalls[0].destination, fromAgentHostUri(to).toString());
+		assert.strictEqual(connection.copyCalls[0].failIfExists, true);
+	});
+
+	test('watch starts watchResource, forwards changes to onDidChangeFile, dispose tears down handle', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		let handleDisposed = false;
+		connection.nextWatchHandle = {
+			onDidChange: onDidChange.event,
+			dispose: () => { handleDisposed = true; onDidChange.dispose(); },
+		};
+		const wrapped = agentHostUri('remote', '/watched');
+
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+
+		const watchDisposable = provider.watch(wrapped, { recursive: true, excludes: ['**/node_modules/**'] });
+
+		// Wait one microtask tick so the async watchResource resolves.
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.strictEqual(connection.watchCalls.length, 1);
+		assert.strictEqual(connection.watchCalls[0].recursive, true);
+		assert.deepStrictEqual(connection.watchCalls[0].excludes, { items: ['**/node_modules/**'] });
+
+		// When watchResource reports changes from the underlying filesystem,
+		// they come back with file:// URIs. The provider re-encodes them with
+		// the agent host authority.
+		const incomingChange: IFileChange = { resource: URI.parse('file:///watched/a.txt'), type: FileChangeType.UPDATED };
+		const expectedChange: IFileChange = { resource: toAgentHostUri(URI.parse('file:///watched/a.txt'), 'remote'), type: FileChangeType.UPDATED };
+		onDidChange.fire([incomingChange]);
+
+		assert.deepStrictEqual(received, [[expectedChange]]);
+
+		watchDisposable.dispose();
+		assert.strictEqual(handleDisposed, true, 'underlying handle should be disposed when wrapper is disposed');
+		sub.dispose();
+	});
+
+	test('watch forwards includes patterns to watchResource', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = {
+			onDidChange: onDidChange.event,
+			dispose: () => onDidChange.dispose(),
+		};
+		const wrapped = agentHostUri('remote', '/watched');
+
+		const watchDisposable = provider.watch(wrapped, {
+			recursive: false,
+			excludes: [],
+			includes: ['**/*.ts', { base: '/watched', pattern: '**/*.md' }],
+		});
+
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+		assert.deepStrictEqual(connection.watchCalls[0].includes, { items: ['**/*.ts', '**/*.md'] });
+
+		watchDisposable.dispose();
+	});
+
+	test('watch setup failures are surfaced on onDidWatchError', async () => {
+		const { provider, connection } = setup();
+		connection.watchError = new Error('watch setup failed');
+		const wrapped = agentHostUri('remote', '/watched');
+
+		const errors: string[] = [];
+		const sub = provider.onDidWatchError(message => errors.push(message));
+
+		const watchDisposable = provider.watch(wrapped, { recursive: false, excludes: [] });
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.deepStrictEqual(errors, ['watch setup failed']);
+
+		watchDisposable.dispose();
+		sub.dispose();
+	});
+
+	test('watch disposed before async setup completes still tears down the handle', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		let handleDisposed = false;
+		connection.nextWatchHandle = {
+			onDidChange: onDidChange.event,
+			dispose: () => { handleDisposed = true; onDidChange.dispose(); },
+		};
+		const wrapped = agentHostUri('remote', '/watched');
+
+		const watchDisposable = provider.watch(wrapped, { recursive: false, excludes: [] });
+		// Immediately dispose before the watchResource promise resolves.
+		watchDisposable.dispose();
+
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+		assert.strictEqual(handleDisposed, true);
 	});
 });

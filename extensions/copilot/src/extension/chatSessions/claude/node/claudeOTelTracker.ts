@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { CopilotChatAttr, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, IOTelService, type ISpanHandle, SpanKind, SpanStatusCode, type TraceContext, truncateForOTel } from '../../../../platform/otel/common/index';
+import { IGitService } from '../../../../platform/git/common/gitService';
+import { CopilotChatAttr, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, IOTelService, type ISpanHandle, normalizeResponseModel, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, type TraceContext, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
@@ -20,6 +21,7 @@ export class ClaudeOTelTracker {
 	private _startTime: number | undefined;
 	private _isFirstRequest = true;
 	private _turnCount = 0;
+	private _currentRequestModel: string | undefined;
 	private _parentInputTokens = 0;
 	private _parentOutputTokens = 0;
 	private _parentCacheReadTokens = 0;
@@ -29,6 +31,7 @@ export class ClaudeOTelTracker {
 		private readonly _sessionId: string,
 		private readonly _otelService: IOTelService,
 		private readonly _sessionStateService: IClaudeSessionStateService,
+		private readonly _gitService: IGitService,
 	) { }
 
 	/** The trace context of the current invoke_agent span, used to parent child spans. */
@@ -53,11 +56,14 @@ export class ClaudeOTelTracker {
 				[CopilotChatAttr.SESSION_ID]: this._sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this._sessionId,
 				[GenAiAttr.REQUEST_MODEL]: modelId,
+				[GitHubCopilotAttr.AGENT_TYPE]: 'builtin',
+				...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 			},
 		});
 		this._currentTraceContext = this._currentSpan.getSpanContext();
 		this._startTime = Date.now();
 		this._turnCount = 0;
+		this._currentRequestModel = modelId;
 		this._parentInputTokens = 0;
 		this._parentOutputTokens = 0;
 		this._parentCacheReadTokens = 0;
@@ -157,6 +163,7 @@ export class ClaudeOTelTracker {
 		this._currentSpan = undefined;
 		this._currentTraceContext = undefined;
 		this._startTime = undefined;
+		this._currentRequestModel = undefined;
 		this._sessionStateService.setTraceContextForSession(this._sessionId, undefined);
 	}
 
@@ -193,7 +200,8 @@ export class ClaudeOTelTracker {
 		if (message.total_cost_usd !== undefined) {
 			this._currentSpan.setAttribute(CopilotChatAttr.TOTAL_COST_USD, message.total_cost_usd);
 		}
-		const responseModel = message.modelUsage ? Object.keys(message.modelUsage)[0] : undefined;
+		const rawResponseModel = message.modelUsage ? Object.keys(message.modelUsage)[0] : undefined;
+		const responseModel = normalizeResponseModel(this._currentRequestModel, rawResponseModel);
 		if (responseModel) {
 			this._currentSpan.setAttribute(GenAiAttr.RESPONSE_MODEL, responseModel);
 		}

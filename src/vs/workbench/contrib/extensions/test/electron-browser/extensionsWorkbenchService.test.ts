@@ -424,6 +424,76 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.ok(!testObject.local[0].outdated);
 	});
 
+	test('test isAutoUpdateDelayed returns false when auto update is not set to delayed', async () => {
+		stubConfiguration('on', true);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now());
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test isAutoUpdateDelayed returns true for recently published version when auto update is set to delayed', async () => {
+		stubConfiguration('delayed', true);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
+	});
+
+	test('test isAutoUpdateDelayed returns false for version published more than 6 hours ago', async () => {
+		stubConfiguration('delayed', true);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60 * 7) /* 7 hours ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test isAutoUpdateDelayed returns false for version with a future published timestamp', async () => {
+		stubConfiguration('delayed', true);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() + (1000 * 60 * 60) /* 1 hour in the future */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test getAutoUpdateValue normalizes configured and legacy values', async () => {
+		const result: Record<string, string> = {};
+		for (const value of [true, false, 'on', 'off', 'all', 'onlyEnabledExtensions', 'onlySelectedExtensions', 'delayed', 'none', 'unknown']) {
+			stubConfiguration(value);
+			testObject = await aWorkbenchService();
+			result[String(value)] = testObject.getAutoUpdateValue();
+		}
+
+		assert.deepStrictEqual(result, {
+			'true': 'on',
+			'false': 'off',
+			'on': 'on',
+			'off': 'off',
+			'all': 'on',
+			'onlyEnabledExtensions': 'on',
+			'onlySelectedExtensions': 'off',
+			'delayed': 'delayed',
+			'none': 'off',
+			'unknown': 'on',
+		});
+	});
+
+	test('test getAutoUpdateDelayRemaining returns remaining time within the delay window', async () => {
+		stubConfiguration('delayed', true);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60 * 2) /* 2 hours ago */);
+
+		const remaining = testObject.getAutoUpdateDelayRemaining(testObject.local[0]);
+		// Published 2 hours ago, so ~4 hours of the 6 hour window remain.
+		assert.ok(remaining > (1000 * 60 * 60 * 3) && remaining <= (1000 * 60 * 60 * 4), `unexpected remaining time ${remaining}`);
+	});
+
+	test('test getAutoUpdateDelayRemaining returns 0 when the published timestamp is missing', async () => {
+		stubConfiguration('delayed', true);
+		testObject = await anOutdatedExtensionWorkbenchService(undefined);
+
+		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+	});
+
 	test('test canInstall returns false for extensions with out gallery', async () => {
 		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1516,7 +1586,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('Test disable autoupdate for extension when auto update is enabled for enabled extensions', async () => {
-		stubConfiguration('onlyEnabledExtensions');
+		stubConfiguration('on');
 
 		const extension1 = aLocalExtension('a');
 		const extension2 = aLocalExtension('b');
@@ -1695,9 +1765,21 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return workbenchService;
 	}
 
+	async function anOutdatedExtensionWorkbenchService(lastUpdated: number | undefined): Promise<ExtensionsWorkbenchService> {
+		const local = aLocalExtension('a', { version: '1.0.1' });
+		const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.2', lastUpdated });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		const workbenchService = await aWorkbenchService();
+		await workbenchService.checkForUpdates();
+		return workbenchService;
+	}
+
 	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
 		const values: any = {
-			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
+			[AutoUpdateConfigurationKey]: autoUpdateValue ?? 'on',
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
 		};
 		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());
