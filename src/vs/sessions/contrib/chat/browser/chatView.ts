@@ -14,8 +14,10 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -23,6 +25,20 @@ import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
+
+export function applySessionModelToInputModel(chat: IChat, model: IChatModel, languageModelsService: ILanguageModelsService): void {
+	const modelId = chat.modelId.get();
+	if (!modelId || model.inputModel.state.get()?.selectedModel?.identifier === modelId) {
+		return;
+	}
+
+	const metadata = languageModelsService.lookupLanguageModel(modelId);
+	if (!metadata) {
+		return;
+	}
+
+	model.inputModel.setState({ selectedModel: { identifier: modelId, metadata } });
+}
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -109,6 +125,7 @@ export class ChatView extends AbstractChatView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -181,6 +198,7 @@ export class ChatView extends AbstractChatView {
 			}
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			applySessionModelToInputModel(chat, ref.object, this.languageModelsService);
 			this._widget.setModel(ref.object);
 		}, err => {
 			if (!token.isCancellationRequested) {
