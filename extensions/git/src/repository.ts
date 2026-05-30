@@ -540,7 +540,7 @@ class ResourceCommandResolver {
 				return {
 					command: 'vscode.open',
 					title: l10n.t('Open'),
-					arguments: [resource.rightUri, { override: bothModified ? false : undefined }, title]
+					arguments: [resource.rightUri ?? resource.resourceUri, { override: bothModified ? false : undefined }, title]
 				};
 			}
 		} else {
