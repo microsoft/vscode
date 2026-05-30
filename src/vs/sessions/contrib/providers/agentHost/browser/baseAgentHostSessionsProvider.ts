@@ -627,6 +627,7 @@ class NewSession extends Disposable {
 	readonly workspaceUri: URI;
 
 	private readonly _status: ISettableObservable<SessionStatus>;
+	private readonly _title: ISettableObservable<string>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _loading: ISettableObservable<boolean>;
@@ -694,7 +695,8 @@ class NewSession extends Disposable {
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
-		const title = observableValue<string>(this, '');
+		this._title = observableValue<string>(this, '');
+		const title = this._title;
 		const updatedAt = observableValue(this, new Date());
 		const workspaceObs = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
@@ -777,6 +779,7 @@ class NewSession extends Disposable {
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
+	setTitle(title: string): void { this._title.set(title, undefined); }
 
 	// -- Config --------------------------------------------------------------
 
@@ -1859,6 +1862,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		newSession.setStatus(SessionStatus.InProgress);
 		newSession.clearSelectedModelId();
 		newSession.clearSelectedAgent();
+		// Seed the title from the first line of the query so the new-session
+		// tab shows something meaningful immediately. This skeleton is replaced
+		// by the committed AgentHostSession once it arrives.
+		newSession.setTitle(query.split('\n')[0].substring(0, 100) || localize('new session', "New Session"));
 		const skeleton = newSession.session;
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
