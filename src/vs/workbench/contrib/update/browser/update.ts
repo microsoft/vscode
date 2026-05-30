@@ -36,6 +36,8 @@ import { IVersion, tryParseVersion } from '../common/updateUtils.js';
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
 
+export const SKIP_RESTART_CONFIRMATION_STORAGE_KEY = 'update.skipRestartConfirmation';
+
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
 export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
@@ -44,6 +46,35 @@ export function showReleaseNotesInEditor(instantiationService: IInstantiationSer
 	}
 
 	return releaseNotesManager.show(version, useCurrentFile);
+}
+
+export async function confirmAndRestartToUpdate(accessor: ServicesAccessor): Promise<void> {
+	const updateService = accessor.get(IUpdateService);
+	const dialogService = accessor.get(IDialogService);
+	const storageService = accessor.get(IStorageService);
+	const productService = accessor.get(IProductService);
+
+	if (storageService.getBoolean(SKIP_RESTART_CONFIRMATION_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+		return updateService.quitAndInstall();
+	}
+
+	const { confirmed, checkboxChecked } = await dialogService.confirm({
+		type: 'warning',
+		message: nls.localize('confirmRestartToUpdate.message', "Restart {0} to install the update?", productService.nameLong),
+		detail: nls.localize('confirmRestartToUpdate.detail', "{0} will close and restart immediately. Any unsaved work in terminals, debug sessions, and other in-progress tasks will be lost.", productService.nameLong),
+		primaryButton: nls.localize({ key: 'confirmRestartToUpdate.restart', comment: ['&& denotes a mnemonic'] }, "&&Restart and Update"),
+		checkbox: { label: nls.localize('confirmRestartToUpdate.dontAskAgain', "Don't ask me again"), checked: false }
+	});
+
+	if (!confirmed) {
+		return;
+	}
+
+	if (checkboxChecked) {
+		storageService.store(SKIP_RESTART_CONFIRMATION_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	return updateService.quitAndInstall();
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
@@ -289,7 +320,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		CommandsRegistry.registerCommand('update.downloading', () => { });
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
 		CommandsRegistry.registerCommand('update.updating', () => { });
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		CommandsRegistry.registerCommand('update.restart', accessor => confirmAndRestartToUpdate(accessor));
 		CommandsRegistry.registerCommand('_update.state', () => {
 			return this.state;
 		});
