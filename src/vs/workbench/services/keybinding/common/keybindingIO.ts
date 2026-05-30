@@ -19,14 +19,19 @@ export interface IUserKeybindingItem {
 export class KeybindingIO {
 
 	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem): void {
-		if (!item.resolvedKeybinding) {
-			return;
-		}
-		const quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
+		const keyLabel = item.resolvedKeybinding
+			? item.resolvedKeybinding.getUserSettingsLabel()
+			: null;
+
+		// null means metadata-only default keybinding
+		const quotedSerializedKeybinding = keyLabel
+			? JSON.stringify(keyLabel)
+			: 'null';
+
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
 		const quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
-		const quotedSerializeCommand = JSON.stringify(item.command);
+		const quotedSerializeCommand = JSON.stringify(item.command ?? null);
 		if (quotedSerializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
