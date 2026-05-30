@@ -137,7 +137,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const fauxIndentLength = lineData.minColumn - 1;
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
-		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 		const middotWidth = this._options.middotWidth;
 		const wsmiddotWidth = this._options.wsmiddotWidth;
 		const spaceWidth = this._options.spaceWidth;
@@ -149,6 +148,9 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const renderSpaceCharCode = (wsmiddotDiff < middotDiff ? 0x2E31 : 0xB7);
 
 		const canUseHalfwidthRightwardsArrow = this._options.canUseHalfwidthRightwardsArrow;
+
+		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
+		const { maxAscent, maxDescent } = this._context.viewModel.getLineFontMaxAscentDescentMetrics(lineNumber);
 
 		let result: string = '';
 
@@ -210,25 +212,29 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
+			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
+			// center_y = (H + (A_max - A_i) - (D_max - D_i)) / 2
+			const cy = (lineHeight + (maxAscent - fontInfo.fontAscent) - (maxDescent - fontInfo.fontDescent)) / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
 				if (chCode === CharCode.Tab) {
-					result += this._renderArrow(lineHeight, spaceWidth, visibleRange.left);
+					result += this._renderArrow(2 * cy, spaceWidth, visibleRange.left);
 				} else {
-					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${(lineHeight / 2).toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
+					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${cy.toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
 				}
 			} else {
 				if (chCode === CharCode.Tab) {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${2 * cy}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
 				} else {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${2 * cy}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
 				}
 			}
 		}
 
 		if (USE_SVG) {
 			maxLeft = Math.round(maxLeft + spaceWidth);
+			const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 			return (
 				`<svg style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
 				+ result
