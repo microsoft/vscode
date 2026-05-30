@@ -1159,7 +1159,7 @@ export class ActionListWidget<T> extends Disposable {
 					element.style.width = 'auto';
 					const width = element.getBoundingClientRect().width;
 					element.style.width = '';
-					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
+					itemWidths.push(width);
 				}
 			}
 
@@ -1178,7 +1178,7 @@ export class ActionListWidget<T> extends Disposable {
 				element.style.width = 'auto';
 				const width = element.getBoundingClientRect().width;
 				element.style.width = '';
-				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
+				itemWidths.push(width);
 			}
 		}
 		return clamp(Math.max(...itemWidths));
@@ -1372,19 +1372,6 @@ export class ActionListWidget<T> extends Disposable {
 				this._groupTitleByIndex.set(i, item.group.title);
 			}
 		}
-	}
-
-	private _computeToolbarWidth(item: IActionListItem<T>): number {
-		let actionCount = item.toolbarActions?.length ?? 0;
-		if (item.onRemove) {
-			actionCount++;
-		}
-		if (actionCount === 0) {
-			return 0;
-		}
-		// Each toolbar action button is ~22px (16px icon + padding) plus 6px row gap
-		const actionButtonWidth = 22;
-		return actionCount * actionButtonWidth + 6;
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {
