@@ -441,7 +441,7 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 									`Uploaded ${uploaded} documents in ${elapsed}ms (${docsPerSecond}Hz)`,
 								);
 							}
-						});
+						}).catch(() => { /* rejection is handled via Promise.all(uploading) */ });
 						uploading.add(p);
 
 						if (uploading.size >= ExternalIngestClient.PROMISE_POOL_SIZE) {
