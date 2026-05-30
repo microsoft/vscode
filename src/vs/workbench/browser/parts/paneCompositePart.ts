@@ -616,7 +616,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const visible = !this.getActiveComposite();
 		this.element.classList.toggle('empty', visible);
 		if (visible) {
-			this.titleLabel?.updateTitle('', '');
+			this.titleLabel?.updateTitle(undefined, '');
 		}
 	}
 
