@@ -170,7 +170,7 @@ suite('shouldShowSessionManageModelsAction', () => {
 			shouldShowSessionManageModelsAction(localServices.get(ISessionsManagementService)),
 			shouldShowSessionManageModelsAction(cliServices.get(ISessionsManagementService)),
 			shouldShowSessionManageModelsAction(otherProviderServices.get(ISessionsManagementService)),
-		], [true, false, false]);
+		], [true, false, true]);
 	});
 });
 

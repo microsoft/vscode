@@ -8,11 +8,11 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
-import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ChatExternalEditKind, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -73,6 +73,14 @@ const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task']);
 
 export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
+}
+
+function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string | undefined): IChatProgress | undefined {
+	if (!content) {
+		return undefined;
+	}
+	const value = stringOrMarkdownToString(content, connectionAuthority);
+	return { kind: 'progressMessage', content: typeof value === 'string' ? new MarkdownString(value) : value };
 }
 
 /**
@@ -142,8 +150,19 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
 
 		// Request
-		const variableData = userMessageToVariableData(turn.userMessage, connectionAuthority);
-		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId, variableData });
+		const variableData = messageToVariableData(turn.message, connectionAuthority);
+		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
+		history.push({
+			id: turn.id,
+			type: 'request',
+			prompt: turn.message.text,
+			participant: participantId,
+			modelId,
+			variableData,
+			...(isSystemInitiated ? {
+				isSystemInitiated: true,
+			} : {}),
+		});
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -156,7 +175,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority, { supportHtml: true }) });
+						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority) });
 					}
 					break;
 				case ResponsePartKind.ToolCall: {
@@ -173,6 +192,14 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
 						parts.push({ kind: 'thinking', value: rp.content });
+					}
+					break;
+				case ResponsePartKind.SystemNotification:
+					{
+						const progress = systemNotificationToProgress(rp.content, connectionAuthority);
+						if (progress) {
+							parts.push(progress);
+						}
 					}
 					break;
 				case ResponsePartKind.ContentRef:
@@ -193,13 +220,13 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 }
 
 /**
- * Converts a turn's persisted {@link UserMessage} into the chat-layer
+ * Converts a turn's persisted {@link Message} into the chat-layer
  * {@link IChatRequestVariableData} shape so attachments survive a
  * history replay (and pending/server-initiated turn synthesis). Returns
  * `undefined` when the message has no convertible attachments.
  */
-export function userMessageToVariableData(userMessage: UserMessage, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(userMessage.attachments, connectionAuthority);
+export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority);
 }
 
 export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
@@ -348,6 +375,14 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				}
 				break;
 			}
+			case ResponsePartKind.SystemNotification:
+				{
+					const progress = systemNotificationToProgress(rp.content, connectionAuthority);
+					if (progress) {
+						parts.push(progress);
+					}
+				}
+				break;
 			case ResponsePartKind.ContentRef:
 				break;
 		}
@@ -369,7 +404,14 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 }
 function getTerminalOutput(tc: ToolCallState) {
 	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === 'text')?.text : undefined;
-	return text ? { text } : undefined;
+	if (!text) {
+		return undefined;
+	}
+	// The detached xterm used to render this output treats input as a raw TTY stream,
+	// so a lone `\n` only advances the row without resetting the column (producing a
+	// staircase). SDK terminal tools return plain text with `\n` line endings, so
+	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
+	return { text: text.replace(/\r?\n/g, '\r\n') };
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -717,9 +759,9 @@ function isSkillFileUri(uri: URI): boolean {
  * link URIs through {@link rewriteMarkdownLinks} when a connection authority
  * is provided.
  */
-export function rawMarkdownToString(content: string, connectionAuthority: string | undefined, options?: { supportHtml?: boolean }): MarkdownString {
+export function rawMarkdownToString(content: string, connectionAuthority: string | undefined): MarkdownString {
 	const rewritten = connectionAuthority ? rewriteMarkdownLinks(content, connectionAuthority) : content;
-	return new MarkdownString(rewritten, options);
+	return new MarkdownString(rewritten);
 }
 
 /**

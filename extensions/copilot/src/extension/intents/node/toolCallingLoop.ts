@@ -20,9 +20,9 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
-import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -32,9 +32,10 @@ import { computePromptTokenDetails } from '../../../platform/tokenizer/node/prom
 import { tryFinalizeResponseStream } from '../../../util/common/chatResponseStreamImpl';
 import { ChatExtPerfMark, markChatExt } from '../../../util/common/performance';
 import { DeferredPromise, timeout } from '../../../util/vs/base/common/async';
+import { CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter } from '../../../util/vs/base/common/event';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { Mutable } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -104,7 +105,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number; isKeepAliveProbe?: boolean };
 
 interface StartHookResult {
 	/**
@@ -178,6 +179,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private toolsAvailableEmitted = false;
 	private lastHeaderRequestId: string | undefined;
 	private lastModelCallId: string | undefined;
+
+	/**
+	 * The full {@link ToolCallingLoopFetchOptions} from the most recent fetch.
+	 * Probes reuse this wholesale (overriding only `messages` and `finishedCb`)
+	 * so that the server-side prompt cache key — which includes tool schemas,
+	 * model capabilities, and other request-shape fields — matches.
+	 */
+	private lastFetchOptions: ToolCallingLoopFetchOptions | undefined;
+
+	/** Interval between keep-alive probes while buildPrompt is in flight. */
+	private static readonly KEEP_ALIVE_INTERVAL_MS = 4 * 60 * 1000;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -480,7 +492,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * Whether the loop should auto-retry after a failed fetch in auto-approve/autopilot mode.
 	 * Does not retry rate-limited, quota-exceeded, or cancellation errors.
 	 */
-	private shouldAutoRetry(response: ChatResponse): boolean {
+	protected shouldAutoRetry(response: ChatResponse): boolean {
 		const permLevel = this.options.request.permissionLevel;
 		if (permLevel !== 'autoApprove' && permLevel !== 'autopilot') {
 			return false;
@@ -813,22 +825,19 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					}
 				}
 
+				// Resolve the endpoint once for session start + request model attribute.
+				let requestModel: string | undefined;
+				try {
+					const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+					requestModel = endpoint.model;
+					span.setAttribute(GenAiAttr.REQUEST_MODEL, endpoint.model);
+				} catch { /* endpoint not yet available */ }
+
 				// Emit session start event and metric for top-level agent invocations (not subagents)
 				if (!parentTraceContext) {
 					GenAiMetrics.incrementSessionCount(this._otelService);
-					try {
-						const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
-						emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, endpoint.model, agentName);
-					} catch {
-						emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, 'unknown', agentName);
-					}
+					emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, requestModel ?? 'unknown', agentName);
 				}
-
-				// Set request model from the endpoint
-				try {
-					const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
-					span.setAttribute(GenAiAttr.REQUEST_MODEL, endpoint.model);
-				} catch { /* endpoint not available yet, will be set on response */ }
 
 				// Always capture user input message for the debug panel
 				{
@@ -878,7 +887,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: totalOutputTokens,
 						...(totalCacheReadTokens ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: totalCacheReadTokens } : {}),
 						...(totalCacheCreationTokens ? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: totalCacheCreationTokens } : {}),
-						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: lastResolvedModel } : {}),
+						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: normalizeResponseModel(requestModel, lastResolvedModel) ?? lastResolvedModel } : {}),
 					});
 					// Always capture agent output message and tool definitions for the debug panel
 					{
@@ -893,14 +902,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						// Includes `parameters` (inputSchema) per OTel GenAI semantic convention so
 						// trace viewers can render full tool signatures (issue #300318).
 						if (result.availableTools.length > 0) {
-							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(
-								result.availableTools.map(t => ({
-									type: 'function',
-									name: t.name,
-									description: t.description,
-									parameters: t.inputSchema,
-								}))
-							)));
+							const toolDefsJson = stringifyToolDefinitionsForOTel(result.availableTools);
+							if (toolDefsJson) {
+								span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson));
+							}
 						}
 					}
 					span.setStatus(SpanStatusCode.OK);
@@ -1207,24 +1212,30 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// starts in fetch(). This lets the debug logger write tools_*.json early.
 		if (!this.toolsAvailableEmitted && this.agentSpan && availableTools.length > 0) {
 			this.toolsAvailableEmitted = true;
-			this.agentSpan.addEvent('tools_available', {
-				toolDefinitions: truncateForOTel(JSON.stringify(availableTools.map(t => ({
-					type: 'function',
-					name: t.name,
-					description: t.description,
-					parameters: t.inputSchema,
-				})))),
-				...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
-			});
+			const toolDefsJson = stringifyToolDefinitionsForOTel(availableTools);
+			if (toolDefsJson) {
+				this.agentSpan.addEvent('tools_available', {
+					toolDefinitions: truncateForOTel(toolDefsJson),
+					...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
+				});
+			}
 		}
 
 		const context = this.createPromptContext(availableTools, outputStream);
 		const isContinuation = context.isContinuation || false;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillBuildPrompt);
 		let buildPromptResult: IBuildPromptResult;
+		// Resolve a (cheap, cached) endpoint up front so the keep-alive can decide whether
+		// to arm before buildPrompt2 runs. `startBuildPromptKeepAlive` bails fast on
+		// non-Anthropic families and when the experiment is off, so the flag-off path stays
+		// a no-op. Kept as a *separate* lookup from the tokenizer endpoint below so the
+		// rest of runOne is byte-for-byte identical to upstream.
+		const keepAliveEndpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+		const keepAlive = this.startBuildPromptKeepAlive(token, keepAliveEndpoint);
 		try {
 			buildPromptResult = await this.buildPrompt2(context, outputStream, token);
 		} finally {
+			keepAlive.dispose();
 			markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidBuildPrompt);
 		}
 		this.throwIfCancelled(token);
@@ -1360,7 +1371,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		let phase: string | undefined;
 		let compaction: OpenAIContextManagementResponse | undefined;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillFetch);
-		const fetchResult = await this.fetch({
+		const fetchOptions: ToolCallingLoopFetchOptions = {
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
 			turnId: this.options.request.id,
 			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
@@ -1403,7 +1414,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			modelCapabilities: {
 				enableThinking,
 			},
-		}, token).finally(() => {
+		};
+		const fetchResult = await this.fetch(fetchOptions, token).finally(() => {
 			this.stopHookUserInitiated = false;
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
@@ -1417,6 +1429,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
 			this.lastModelCallId = fetchResult.modelCallId;
 		}
+
+		// Cache the full fetch options so the next iteration's keep-alive probes can
+		// reuse them as a cache-warming prefix while buildPrompt2 is awaiting slow
+		// tool calls. The options include already-post-processed messages so probes
+		// apply the same validation/stripping (e.g. stripOrphanedToolCalls for Gemini).
+		this.lastFetchOptions = fetchOptions;
 
 		const promptTokenDetails = await computePromptTokenDetails({
 			messages: effectiveBuildPromptResult.messages,
@@ -1671,6 +1689,130 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		}
 
 		return filtered;
+	}
+
+	/**
+	 * While `buildPrompt2` is awaiting slow tool calls (e.g. long-running subagents),
+	 * the prompt cache on the model side can expire. This sets up a periodic side-channel
+	 * `fetch` that re-sends the previous turn's messages plus a dummy "Still working"
+	 * user message so that the server keeps the cache prefix warm.
+	 *
+	 * - Fires every {@link KEEP_ALIVE_INTERVAL_MS} starting 4 minutes after `buildPrompt2`
+	 *   is called (so a fast render incurs no probe).
+	 * - Stops after the configured max probes limit is reached.
+	 * - Probes are pure side-channel: results are discarded, no mutation of
+	 *   `toolCallRounds`, `toolCallResults`, or `conversation`. Nothing to "slice off".
+	 * - The first chunk of any probe response causes the network layer to stop reading
+	 *   (we only need the server to ingest the prefix to refresh its cache).
+	 *
+	 * Returns a disposable that clears the timer and cancels any in-flight probe.
+	 */
+	private startBuildPromptKeepAlive(parentToken: CancellationToken, endpoint: IChatEndpoint): IDisposable {
+		// Only Anthropic-family models benefit from this side-channel cache warming today;
+		// other providers' caches behave differently and probes would just be wasted requests.
+		// Checked before the config lookup so non-Anthropic flows skip the experiment evaluation entirely.
+		if (!isAnthropicFamily(endpoint)) {
+			return Disposable.None;
+		}
+
+		if (!this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservation, this._experimentationService)) {
+			return Disposable.None;
+		}
+
+		const baseFetchOptions = this.lastFetchOptions;
+		// Nothing useful to send if we haven't rendered a prompt yet (first iteration).
+		if (!baseFetchOptions || baseFetchOptions.messages.length === 0) {
+			return Disposable.None;
+		}
+
+		// Only keep the cache warm when the round we're currently awaiting includes an
+		// execution subagent, which is the primary source of long tool-call durations
+		// that cause cache expiry. Scoping to the latest round (vs. any past round in the
+		// turn) avoids firing probes for fast tool calls that follow an earlier subagent.
+		const latestRound = this.toolCallRounds[this.toolCallRounds.length - 1];
+		const hasExecutionSubagent = latestRound?.toolCalls.some(tc => tc.name === ToolName.ExecutionSubagent) ?? false;
+		if (!hasExecutionSubagent) {
+			return Disposable.None;
+		}
+
+		const maxProbes = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservationMaxProbes, this._experimentationService);
+		const inFlight = new Set<CancellationTokenSource>();
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let disposed = false;
+		let probeCount = 0;
+
+		const probe = async () => {
+			if (disposed || parentToken.isCancellationRequested) {
+				return;
+			}
+			if (probeCount >= maxProbes) {
+				this._logService.info(`[ToolCallingLoop] Keep-alive: max probes reached (${probeCount}), stopping`);
+				return;
+			}
+			probeCount++;
+
+			const cts = new CancellationTokenSource(parentToken);
+			inFlight.add(cts);
+
+			// Reuse the already-post-processed messages from the last real fetch so
+			// the same validation/stripping (e.g. stripOrphanedToolCalls for Gemini)
+			// is applied. Only append a dummy user message if the last message was
+			// from the assistant.
+			const processedMessages = baseFetchOptions.messages;
+			const lastMessage = processedMessages[processedMessages.length - 1];
+			const probeMessages: Raw.ChatMessage[] = lastMessage.role === Raw.ChatRole.Assistant
+				? [
+					...processedMessages,
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Still working' }],
+					},
+				]
+				: [...processedMessages];
+
+			this._logService.info(`[ToolCallingLoop] Keep-alive: sending probe ${probeCount}/${maxProbes}`);
+			try {
+				await this.fetch({
+					...baseFetchOptions,
+					messages: probeMessages,
+					finishedCb: async () => 1, // returning any number (vs undefined) stops reading on the first chunk; constant 1 avoids the empty-string edge case where text.length would be 0
+					userInitiatedRequest: false,
+					isKeepAliveProbe: true,
+				}, cts.token);
+			} catch (err) {
+				if (!isCancellationError(err)) {
+					this._logService.warn(`[ToolCallingLoop] Keep-alive probe failed: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			} finally {
+				inFlight.delete(cts);
+				cts.dispose();
+			}
+
+			if (!disposed && !parentToken.isCancellationRequested) {
+				schedule();
+			}
+		};
+
+		const schedule = () => {
+			timer = setTimeout(probe, ToolCallingLoop.KEEP_ALIVE_INTERVAL_MS);
+		};
+
+		schedule();
+
+		return {
+			dispose: () => {
+				disposed = true;
+				if (timer) {
+					clearTimeout(timer);
+					timer = undefined;
+				}
+				for (const cts of inFlight) {
+					cts.cancel();
+					cts.dispose();
+				}
+				inFlight.clear();
+			},
+		};
 	}
 
 	private async buildPrompt2(buildPromptContext: IBuildPromptContext, stream: ChatResponseStream | undefined, token: CancellationToken): Promise<IBuildPromptResult> {

@@ -640,11 +640,16 @@ copilot-chat invoke_agent claude               [~33s]
 | `gen_ai.agent.name` | `claude` |
 | `gen_ai.provider.name` | `github` |
 | `gen_ai.request.model` | `claude-haiku-4.5` |
-| `gen_ai.response.model` | `claude-haiku-4-5` |
+| `gen_ai.response.model` | `claude-haiku-4.5` |
 | `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
 | `gen_ai.usage.output_tokens` | `1100` |
 | `gen_ai.usage.cache_read.input_tokens` | `64062` |
 | `gen_ai.usage.cache_creation.input_tokens` | `39629` |
+| `github.copilot.agent.type` | `builtin` |
+| `github.copilot.git.repository` | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | `main` |
+| `github.copilot.git.commit_sha` | `deadbeef...` |
+| `github.copilot.github.org` | `microsoft` |
 | `copilot_chat.turn_count` | `8` |
 | `copilot_chat.total_cost_usd` | `0.067` (session-wide, includes subagents) |
 | `copilot_chat.chat_session_id` | VS Code session ID |
@@ -652,6 +657,18 @@ copilot-chat invoke_agent claude               [~33s]
 **`chat`** — one span per LLM API call, created by `chatMLFetcher` via the Claude language model proxy server. Same attributes as foreground agent `chat` spans (token usage, TTFT, response model, cache breakdown).
 
 **`execute_tool`** — one span per tool invocation. When the tool is `Agent` (subagent), child `chat` and `execute_tool` spans are nested underneath, giving full subagent visibility.
+
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_tool` |
+| `gen_ai.tool.name` | Required | `Edit` |
+| `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools (`Bash`), opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools (`Read`, `Edit`, `MultiEdit`, `Write`, `NotebookEdit`), opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
+| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"file_path":"/src/app.ts",...}` |
 
 **`execute_hook`** — one span per Claude hook execution (e.g., `Stop` hooks).
 

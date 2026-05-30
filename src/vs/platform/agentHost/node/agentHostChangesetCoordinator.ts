@@ -14,7 +14,11 @@ import {
 } from '../common/changesetUri.js';
 import { ChangesetStatus } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
+import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
+import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { ILogService } from '../../log/common/log.js';
 import {
 	buildCatalogueFromLiveState,
 	buildCatalogueFromPersistedDiffs,
@@ -52,9 +56,9 @@ export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
  * {@link IAgentHostChangesetService} (which owns compute / publish /
  * persist primitives).
  *
- * Owns the deferred uncommitted-refresh state machine — refreshes that
- * fire before the session's working directory is known are queued and
- * drained from {@link onSessionMaterialized} / {@link onSessionRestored}.
+ * Owns the deferred static-refresh state machine — refreshes that fire
+ * before the session's working directory is known are queued and drained
+ * from {@link onSessionMaterialized} / {@link onSessionRestored}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
  * overlay, subscribe URI routing) inherently span sessions, so a single
@@ -69,6 +73,12 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * {@link onSessionRestored} once the working directory is set.
 	 */
 	private readonly _pendingUncommittedRefreshes = new Set<string>();
+	/**
+	 * Sessions that subscribed to their session-wide branch changeset before
+	 * the working directory was known. Drained alongside uncommitted refreshes
+	 * once restore / materialization has populated the session summary.
+	 */
+	private readonly _pendingSessionRefreshes = new Set<string>();
 
 	/**
 	 * Per-session set of turn ids that have at least one live subscriber to
@@ -79,13 +89,18 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * pure waste).
 	 */
 	private readonly _subscribedTurns = new Map<string, Set<string>>();
+	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _changesets: IAgentHostChangesetService,
-		private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
+		@IAgentHostGitService gitService: IAgentHostGitService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, logService));
 		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
 	}
 
@@ -134,15 +149,17 @@ export class ChangesetSessionCoordinator extends Disposable {
 		// drain the deferred refresh. Idempotent — the per-session
 		// sequencer collapses overlapping computes.
 		this._drainPendingRefresh(sessionStr);
+		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
 	/**
 	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Drains any uncommitted refresh that was deferred
+	 * becomes known). Drains any static changeset refresh that was deferred
 	 * because the working directory was not yet known.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
 		this._drainPendingRefresh(sessionStr);
+		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
 	/**
@@ -151,15 +168,21 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	onSessionDisposed(sessionStr: string): void {
 		this._pendingUncommittedRefreshes.delete(sessionStr);
+		this._pendingSessionRefreshes.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
+		this._changesetFileMonitor.onSessionDisposed(sessionStr);
+	}
+
+	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
+		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
 
 	/**
-	 * Called on every `addSubscriber` 0→1 transition. When `resource` is
-	 * the uncommitted changeset URI, triggers the first git-diff refresh
-	 * (or queues it for later if the working directory is not yet known).
+	 * Called on every `addSubscriber` 0→1 transition. When `resource` is a
+	 * static changeset URI, triggers the first git-diff refresh (or queues
+	 * it for later if the working directory is not yet known).
 	 *
 	 * Both {@link AgentService.subscribe} and the handshake fast-path
 	 * (`ProtocolServerHandler.initialSubscriptions`) call into
@@ -170,13 +193,12 @@ export class ChangesetSessionCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._triggerUncommittedRefresh(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
-			// Session-changeset compute uses git when a working dir is
-			// available and falls back to the SDK edit-tracker otherwise,
-			// so it doesn't need the same deferral as uncommitted.
-			this._changesets.refreshSessionChangeset(parsed.sessionUri);
+			this._triggerSessionRefresh(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
@@ -201,19 +223,27 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// to the changeset URIs directly, and the user has been
 			// editing files manually in the working tree.
 			this._triggerUncommittedRefresh(resourceStr);
-			this._changesets.refreshSessionChangeset(resourceStr);
+			this._triggerSessionRefresh(resourceStr);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 		}
 	}
 
 	/**
 	 * Called when a resource's last subscriber drops. Cleans up any
-	 * deferred uncommitted refresh queued for that session — if no one is
-	 * subscribed anymore, there's no point firing it on materialize.
+	 * deferred refresh queued for that session — if no one is subscribed anymore,
+	 * there's no point firing it on materialize.
 	 */
 	onLastSubscriber(resource: URI): void {
-		const parsed = parseChangesetUri(resource.toString());
+		const resourceStr = resource.toString();
+		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Session) {
+			this._pendingSessionRefreshes.delete(parsed.sessionUri);
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
@@ -224,6 +254,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 					this._subscribedTurns.delete(parsed.sessionUri);
 				}
 			}
+		}
+		if (!parsed) {
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 		}
 	}
 
@@ -404,9 +437,21 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._changesets.refreshUncommittedChangeset(sessionStr);
 	}
 
+	private _triggerSessionRefresh(sessionStr: string): void {
+		const wd = this._configurationService.getEffectiveWorkingDirectory(sessionStr);
+		if (!wd) {
+			this._pendingSessionRefreshes.add(sessionStr);
+			return;
+		}
+		this._changesets.refreshSessionChangeset(sessionStr);
+	}
+
 	private _drainPendingRefresh(sessionStr: string): void {
 		if (this._pendingUncommittedRefreshes.delete(sessionStr)) {
 			this._triggerUncommittedRefresh(sessionStr);
+		}
+		if (this._pendingSessionRefreshes.delete(sessionStr)) {
+			this._triggerSessionRefresh(sessionStr);
 		}
 	}
 }
