@@ -1656,7 +1656,8 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
-						'@vscode/tree-sitter-wasm' // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // node module allowed even in /common/
+						'@vscode/diff' // type import (loaded at runtime via resolveAmdNodeModulePath)
 					]
 				},
 				{

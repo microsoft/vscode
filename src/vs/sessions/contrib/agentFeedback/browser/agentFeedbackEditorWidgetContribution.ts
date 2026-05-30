@@ -85,6 +85,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		// Create DOM structure
 		this._domNode = $('div.agent-feedback-widget');
 		this._domNode.classList.add('collapsed');
+		// Make focusable so that mousedown in selectable regions can pull focus
+		// away from the editor's textarea, allowing native Ctrl/Cmd+C to copy
+		// the DOM selection of the comment content.
+		this._domNode.tabIndex = -1;
 
 		// Header
 		this._headerNode = $('div.agent-feedback-widget-header');
@@ -257,13 +261,32 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}));
 
 			this._eventStore.add(addDisposableListener(item, 'click', e => {
-				if ((e.target as HTMLElement | null)?.closest('.action-bar')) {
+				const target = e.target as HTMLElement | null;
+				if (target?.closest('.action-bar')) {
 					return;
+				}
+				// Don't navigate if the user just selected text inside the comment.
+				if (target?.closest('.agent-feedback-widget-text, .agent-feedback-widget-suggestion-text')) {
+					const selection = this._domNode.ownerDocument.defaultView?.getSelection();
+					if (selection && !selection.isCollapsed && this._domNode.contains(selection.anchorNode)) {
+						return;
+					}
 				}
 				this.focusFeedback(comment.id);
 				this._agentFeedbackService.setNavigationAnchor(this._sessionResource, comment.id);
 				this._revealComment(comment);
 			}));
+
+			// Pull focus to the widget when starting a selection in selectable
+			// regions so that Ctrl/Cmd+C copies the DOM selection instead of
+			// triggering the editor's copy action.
+			const onSelectableMousedown = (e: MouseEvent) => {
+				const target = e.target as HTMLElement | null;
+				if (target?.closest('.agent-feedback-widget-text, .agent-feedback-widget-suggestion-text')) {
+					this._domNode.focus({ preventScroll: true });
+				}
+			};
+			this._eventStore.add(addDisposableListener(item, 'mousedown', onSelectableMousedown));
 
 			this._bodyNode.appendChild(item);
 		}
