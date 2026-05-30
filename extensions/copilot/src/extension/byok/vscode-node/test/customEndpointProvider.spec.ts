@@ -278,6 +278,23 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			expect(endpoint.ownsAuthorization).toBe(true);
 		});
 
+		it('inherits supportsToolSearch for supported model metadata', () => {
+			const baseMetadata = makeMetadata(undefined);
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				{
+					...baseMetadata,
+					id: 'gpt-5.4',
+					capabilities: {
+						...baseMetadata.capabilities,
+						family: 'gpt-5.4',
+					},
+				},
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+
+			expect(endpoint.supportsToolSearch).toBe(true);
+		});
+
 		it('replaces default Bearer with user-supplied Authorization header on Chat Completions endpoints', () => {
 			const metadata = makeMetadata(undefined);
 			metadata.requestHeaders = { 'Authorization': 'Bearer user-token' };
