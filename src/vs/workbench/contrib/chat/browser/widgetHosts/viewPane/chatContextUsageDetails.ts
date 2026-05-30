@@ -119,7 +119,7 @@ export class ChatContextUsageDetails extends Disposable {
 			this.formatTokenCount(usedTokens, 1),
 			this.formatTokenCount(totalContextWindow, 0)
 		);
-		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", Math.min(100, percentage).toFixed(0));
+		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", Math.round(percentage));
 
 		// Progress bar: actual usage fill + remaining reserved output fill
 		const usageBarWidth = Math.max(0, Math.min(100, percentage));
@@ -147,8 +147,16 @@ export class ChatContextUsageDetails extends Disposable {
 		// Render token details breakdown if available
 		this.renderTokenDetails(promptTokenDetails, percentage);
 
-		// Show/hide warning message
-		this.warningMessage.style.display = percentage >= 75 ? '' : 'none';
+		// Show/hide warning message and update text based on percentage
+		if (percentage >= 100) {
+			this.warningMessage.textContent = localize('contextLimitExceededWarning', "Context limit exceeded. Some older messages or context may be omitted.");
+			this.warningMessage.style.display = '';
+		} else if (percentage >= 75) {
+			this.warningMessage.textContent = localize('qualityWarning', "Quality may decline as limit nears.");
+			this.warningMessage.style.display = '';
+		} else {
+			this.warningMessage.style.display = 'none';
+		}
 	}
 
 	private formatTokenCount(count: number, decimals: number): string {

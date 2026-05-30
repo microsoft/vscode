@@ -274,7 +274,8 @@
 }
 
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
-.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-token-usage {
 	/* Complete response only */
 	display: block;
 	opacity: 0;
@@ -295,6 +296,16 @@
 .interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
+	visibility: visible;
+	transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+}
+
+/* Token usage badge: visible at subdued opacity to distinguish from action buttons */
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-token-usage,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-token-usage,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-token-usage,
+.interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar .chat-footer-token-usage {
+	opacity: 0.7;
 	visibility: visible;
 	transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
 }
@@ -320,6 +331,26 @@
 }
 
 .interactive-item-container .chat-footer-details.hidden {
+	display: none !important;
+}
+
+.interactive-item-container .chat-footer-token-usage {
+	display: none;
+	padding: 0;
+	font-size: var(--vscode-chat-font-size-body-xs);
+	color: var(--vscode-descriptionForeground);
+	line-height: 16px;
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.interactive-item-container .chat-footer-details:not(.hidden) + .chat-footer-token-usage {
+	margin-left: 8px;
+}
+
+.interactive-item-container .chat-footer-token-usage.hidden {
 	display: none !important;
 }
 

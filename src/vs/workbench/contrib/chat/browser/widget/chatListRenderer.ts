@@ -57,6 +57,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
@@ -143,6 +144,7 @@ export interface IChatListItemTemplate {
 	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
 	readonly footerDetailsContainer: HTMLElement;
+	readonly footerTokenUsageContainer: HTMLElement;
 	readonly avatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
@@ -274,6 +276,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -581,6 +584,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
 		footerDetailsContainer.tabIndex = 0;
 
+		const footerTokenUsageContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-token-usage'));
+		footerTokenUsageContainer.tabIndex = 0;
+
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		dom.append(checkpointRestoreContainer, $('.checkpoint-line-left'));
 		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
@@ -631,7 +637,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, footerTokenUsageContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 
 		connectionObserver.onDidDisconnect = () => {
 			template.renderedPartsMounted = false;
@@ -764,6 +770,71 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.footerDetailsContainer.classList.remove('hidden');
 		} else {
 			templateData.footerDetailsContainer.classList.add('hidden');
+		}
+
+		if (isResponseVM(element)) {
+			const usageDisposables = templateData.elementDisposables.add(new DisposableStore());
+			templateData.elementDisposables.add(autorun(reader => {
+				usageDisposables.clear();
+				const usage = element.usageObs.read(reader);
+				if (!usage || (usage.promptTokens === 0 && usage.completionTokens === 0)) {
+					templateData.footerTokenUsageContainer.classList.add('hidden');
+					return;
+				}
+
+				const modelId = element.model.request?.modelId;
+				let creditsText = '';
+				let tooltipMarkdownText = '';
+
+				const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
+				if (modelMetadata && modelMetadata.inputCost !== undefined && modelMetadata.outputCost !== undefined) {
+					const inputCost = modelMetadata.inputCost;
+					const outputCost = modelMetadata.outputCost;
+					const credits = ((usage.promptTokens * inputCost) + (usage.completionTokens * outputCost)) / 1000000;
+					const creditsDisplay = credits.toFixed(4);
+					creditsText = parseFloat(creditsDisplay) === 1
+						? localize('chat.tokenUsage.creditSuffix.singular', " ({0} credit)", creditsDisplay)
+						: localize('chat.tokenUsage.creditSuffix.plural', " ({0} credits)", creditsDisplay);
+
+					const inputCostStr = inputCost === 1
+						? localize('chat.tokenUsage.inputCost.singular', "{0} credit per 1M tokens", inputCost)
+						: localize('chat.tokenUsage.inputCost.plural', "{0} credits per 1M tokens", inputCost);
+					const outputCostStr = outputCost === 1
+						? localize('chat.tokenUsage.outputCost.singular', "{0} credit per 1M tokens", outputCost)
+						: localize('chat.tokenUsage.outputCost.plural', "{0} credits per 1M tokens", outputCost);
+
+					tooltipMarkdownText = localize('chat.tokenUsage.tooltipWithCost',
+						"Prompt tokens: {0} ({1})\n\nCompletion tokens: {2} ({3})\n\nTotal cost: {4} credits",
+						usage.promptTokens,
+						inputCostStr,
+						usage.completionTokens,
+						outputCostStr,
+						creditsDisplay
+					);
+				}
+
+				if (!tooltipMarkdownText) {
+					tooltipMarkdownText = localize('chat.tokenUsage.tooltip',
+						"Prompt tokens: {0}\n\nCompletion tokens: {1}",
+						usage.promptTokens,
+						usage.completionTokens
+					);
+				}
+
+				const totalTokens = usage.promptTokens + usage.completionTokens;
+				const tokenUsageText = totalTokens === 1
+					? localize('chat.tokenUsage.singular', "{0} token{1}", totalTokens, creditsText)
+					: localize('chat.tokenUsage.plural', "{0} tokens{1}", totalTokens, creditsText);
+				templateData.footerTokenUsageContainer.textContent = tokenUsageText;
+				templateData.footerTokenUsageContainer.setAttribute('aria-label', tokenUsageText);
+				templateData.footerTokenUsageContainer.classList.remove('hidden');
+
+				usageDisposables.add(this.hoverService.setupDelayedHover(templateData.footerTokenUsageContainer, () => ({
+					content: new MarkdownString(tooltipMarkdownText)
+				})));
+			}));
+		} else {
+			templateData.footerTokenUsageContainer.classList.add('hidden');
 		}
 
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);

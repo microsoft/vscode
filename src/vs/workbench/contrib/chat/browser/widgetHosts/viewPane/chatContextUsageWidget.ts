@@ -14,17 +14,32 @@ import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
 const $ = dom.$;
+
+// Minimal fallback model metadata used in development mode to prevent the context usage widget from hiding
+const DEV_FALLBACK_MODEL_METADATA: ILanguageModelChatMetadata = {
+	id: 'mock-dev-model',
+	name: 'Mock Dev Model',
+	maxInputTokens: 10000,
+	maxOutputTokens: 6000,
+	extension: new ExtensionIdentifier('mock-dev-extension'),
+	vendor: 'mock-dev-vendor',
+	version: '1.0.0',
+	family: 'mock-dev-family',
+	isDefaultForLocation: {},
+};
 
 /**
  * A reusable circular progress indicator that displays a ring.
@@ -117,6 +132,7 @@ export class ChatContextUsageWidget extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -262,7 +278,10 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		let modelMetadata: ILanguageModelChatMetadata | undefined = this.languageModelsService.lookupLanguageModel(modelId);
+		if (!modelMetadata && !this.environmentService.isBuilt) {
+			modelMetadata = DEV_FALLBACK_MODEL_METADATA;
+		}
 		const maxInputTokens = modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
@@ -295,11 +314,11 @@ export class ChatContextUsageWidget extends Disposable {
 		// Store current data for use in details popup
 		this.currentData = { usedTokens, completionTokens, totalContextWindow, percentage, outputBufferPercentage, promptTokenDetails };
 
-		// Pie chart shows actual usage percentage only
-		this.progressIndicator.setProgress(percentage);
+		// Pie chart shows actual usage percentage only (clamp to 100 to prevent overflow)
+		this.progressIndicator.setProgress(Math.min(100, percentage));
 
-		// Update percentage label and aria-label (clamp display to 100)
-		const roundedPercentage = Math.min(100, Math.round(percentage));
+		// Update percentage label and aria-label (do not clamp to allow showing > 100%)
+		const roundedPercentage = Math.round(percentage);
 		this.percentageLabel.textContent = `${roundedPercentage}%`;
 		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
 
