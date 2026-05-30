@@ -1652,7 +1652,10 @@ class Aligner extends Disposable {
 			if (this.hasIconOrCheckbox(parent)) {
 				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIconOrCheckbox(c));
 			}
-			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIconOrCheckbox(c));
+			// When the parent lacks an icon, don't align leaf items with the
+			// twistie. Doing so shifts leaf items left while collapsible siblings
+			// keep their twistie space, causing inconsistent indentation (#307350).
+			return false;
 		} else {
 			return false;
 		}
