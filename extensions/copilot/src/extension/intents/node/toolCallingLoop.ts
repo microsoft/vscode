@@ -1225,8 +1225,13 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		const isContinuation = context.isContinuation || false;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillBuildPrompt);
 		let buildPromptResult: IBuildPromptResult;
-		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
-		const keepAlive = this.startBuildPromptKeepAlive(token, endpoint);
+		// Resolve a (cheap, cached) endpoint up front so the keep-alive can decide whether
+		// to arm before buildPrompt2 runs. `startBuildPromptKeepAlive` bails fast on
+		// non-Anthropic families and when the experiment is off, so the flag-off path stays
+		// a no-op. Kept as a *separate* lookup from the tokenizer endpoint below so the
+		// rest of runOne is byte-for-byte identical to upstream.
+		const keepAliveEndpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+		const keepAlive = this.startBuildPromptKeepAlive(token, keepAliveEndpoint);
 		try {
 			buildPromptResult = await this.buildPrompt2(context, outputStream, token);
 		} finally {
@@ -1286,6 +1291,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			}
 		}
 
+		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
 		const tokenizer = endpoint.acquireTokenizer();
 		const promptTokenLength = await tokenizer.countMessagesTokens(effectiveBuildPromptResult.messages);
 		const toolTokenCount = availableTools.length > 0 ? await tokenizer.countToolTokens(availableTools) : 0;
