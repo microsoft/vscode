@@ -255,15 +255,20 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
-				const documentOptions = textEditor.options;
-				const textEdits = await getSortTextEdits(textEditor.document, documentOptions.tabSize, documentOptions.insertSpaces);
-				const success = await textEditor.edit(mutator => {
-					for (const edit of textEdits) {
-						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+				try {
+					const documentOptions = textEditor.options;
+					const textEdits = await getSortTextEdits(textEditor.document, documentOptions.tabSize, documentOptions.insertSpaces);
+					const success = await textEditor.edit(mutator => {
+						for (const edit of textEdits) {
+							mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+						}
+					});
+					if (!success) {
+						window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
 					}
-				});
-				if (!success) {
-					window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
+				} catch (e) {
+					const message = e instanceof Error ? e.message : String(e);
+					window.showErrorMessage(l10n.t('Failed to sort the JSON document: {0}', message));
 				}
 			}
 		}
