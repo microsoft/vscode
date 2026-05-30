@@ -837,6 +837,7 @@ export namespace DocumentSymbol {
 		const result: languages.DocumentSymbol = {
 			name: info.name || '!!MISSING: name!!',
 			detail: info.detail,
+			tooltip: info.tooltip,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind),
@@ -855,6 +856,7 @@ export namespace DocumentSymbol {
 			Range.to(info.range),
 			Range.to(info.selectionRange),
 		);
+		result.tooltip = info.tooltip;
 		if (isNonEmptyArray(info.tags)) {
 			result.tags = info.tags.map(SymbolTag.to);
 		}
