@@ -134,6 +134,11 @@ suite('domainMatcher', () => {
 		test('returns false for invalid pattern', () => {
 			assert.strictEqual(matchesDomainPattern('example.com', ''), false);
 		});
+
+		test('matches localhost pattern', () => {
+			assert.strictEqual(matchesDomainPattern('localhost', 'localhost'), true);
+			assert.strictEqual(matchesDomainPattern('localhost', 'other.com'), false);
+		});
 	});
 
 	suite('extractDomainFromUri', () => {
@@ -183,6 +188,11 @@ suite('domainMatcher', () => {
 		test('subdomain matching in allow/deny', () => {
 			assert.strictEqual(isDomainAllowed('api.example.com', ['*.example.com'], []), true);
 			assert.strictEqual(isDomainAllowed('api.example.com', [], ['*.example.com']), false);
+		});
+
+		test('localhost is allowed when explicitly listed', () => {
+			assert.strictEqual(isDomainAllowed('localhost', ['localhost'], []), true);
+			assert.strictEqual(isDomainAllowed('localhost', [], ['localhost']), false);
 		});
 	});
 });
