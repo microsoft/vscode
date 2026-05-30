@@ -295,6 +295,16 @@ function getVendorFromModelIdentifier(modelIdentifier: string): string | undefin
 	return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
 }
 
+function findModelByIdentifierOrUniqueMetadataId(models: ILanguageModelChatMetadataAndIdentifier[], modelId: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+	const exact = models.find(model => model.identifier === modelId);
+	if (exact) {
+		return exact;
+	}
+
+	const metadataMatches = models.filter(model => model.metadata.id === modelId);
+	return metadataMatches.length === 1 ? metadataMatches[0] : undefined;
+}
+
 /**
  * A model picker widget that persists the selected model per session type and
  * syncs the selection to the active session's provider. Instantiated via DI,
@@ -393,7 +403,7 @@ export class SessionModelPicker extends Disposable {
 
 		const current = this._currentModel.get();
 		const sessionModelId = session?.modelId.get();
-		const sessionModel = sessionModelId ? models.find(m => m.identifier === sessionModelId || m.metadata.id === sessionModelId) : undefined;
+		const sessionModel = sessionModelId ? findModelByIdentifierOrUniqueMetadataId(models, sessionModelId) : undefined;
 		const isNewSession = session?.status.get() === SessionStatus.Untitled;
 		this._settingModelInternally = true;
 		try {

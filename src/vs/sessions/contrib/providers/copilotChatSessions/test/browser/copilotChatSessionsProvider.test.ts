@@ -421,6 +421,26 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('getSessions keeps raw selected model id when metadata id is ambiguous', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
+		const firstModel = makeLanguageModel('copilotcli/model-a', 'shared-model', CopilotCLISessionType.id);
+		const secondModel = makeLanguageModel('other-provider/model-a', 'shared-model', CopilotCLISessionType.id);
+		model.addSession(createMockAgentSession(resource, {
+			metadata: { repositoryPath: '/test/repo', selectedModelId: 'shared-model' },
+		}));
+
+		const provider = createProvider(disposables, model, { languageModels: [firstModel, secondModel] });
+		const session = provider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			modelId: session.modelId.get(),
+			chatModelId: session.mainChat.get().modelId.get(),
+		}, {
+			modelId: 'shared-model',
+			chatModelId: 'shared-model',
+		});
+	});
+
 	test('a local model pick survives refresh until session metadata catches up', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
 		const modelA = makeLanguageModel('copilotcli/model-a', 'model-a', CopilotCLISessionType.id);

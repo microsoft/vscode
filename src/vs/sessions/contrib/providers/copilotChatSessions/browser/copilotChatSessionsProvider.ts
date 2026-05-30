@@ -1109,9 +1109,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return rawModelId;
 		}
 
-		return this._getSessionModels(session.providerType).find(model => {
-			return model.metadata.id === rawModelId || model.identifier.endsWith(`/${rawModelId}`);
-		})?.identifier ?? rawModelId;
+		const matches = this._getSessionModels(session.providerType).filter(model => model.metadata.id === rawModelId);
+		return matches.length === 1 ? matches[0].identifier : rawModelId;
 	}
 
 	private _getSessionModels(sessionType: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
