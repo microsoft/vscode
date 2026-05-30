@@ -884,6 +884,39 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 	}
 }
 
+
+class UnfoldAllBlockCommentsAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.unfoldAllBlockComments',
+			label: nls.localize2('unfoldAllBlockComments.label', "Unfold All Block Comments"),
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: void, languageConfigurationService: ILanguageConfigurationService): void {
+		if (foldingModel.regions.hasTypes()) {
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, false);
+		} else {
+			const editorModel = editor.getModel();
+			if (!editorModel) {
+				return;
+			}
+			const comments = languageConfigurationService.getLanguageConfiguration(editorModel.getLanguageId()).comments;
+			if (comments && comments.blockCommentStartToken) {
+				const regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
+				setCollapseStateForMatchingLines(foldingModel, regExp, false);
+			}
+		}
+	}
+}
+
 class FoldAllRegionsAction extends FoldingAction<void> {
 
 	constructor() {
@@ -1252,6 +1285,7 @@ registerEditorAction(ToggleFoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
 registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
+registerEditorAction(UnfoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
 registerEditorAction(UnfoldAllRegionsAction);
 registerEditorAction(FoldAllExceptAction);
