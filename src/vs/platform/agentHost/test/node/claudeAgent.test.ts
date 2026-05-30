@@ -38,13 +38,14 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, SessionInputAnswerState, SessionInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type SessionInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
@@ -60,6 +61,31 @@ import { createNoopGitService, createNullSessionDataService, createSessionDataSe
 
 interface IStartCall {
 	readonly token: string;
+}
+
+class FakeAgentPluginManager implements IAgentPluginManager {
+	declare readonly _serviceBrand: undefined;
+	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
+
+	syncResult: readonly ISyncedCustomization[] | undefined;
+	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
+
+	async syncCustomizations(
+		clientId: string,
+		customizations: ClientPluginCustomization[],
+		progress?: (status: Customization) => void,
+	): Promise<ISyncedCustomization[]> {
+		this.syncCalls.push({ clientId, customizations: [...customizations] });
+		if (this.syncResult) {
+			if (progress) {
+				for (const synced of this.syncResult) {
+					progress(synced.customization);
+				}
+			}
+			return [...this.syncResult];
+		}
+		return [];
+	}
 }
 
 class FakeClaudeProxyService implements IClaudeProxyService {
@@ -88,6 +114,7 @@ class FakeCopilotApiService implements ICopilotApiService {
 
 	messages(): never { throw new Error('not used in ClaudeAgent tests'); }
 	countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used in ClaudeAgent tests'); }
+	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
 }
 
 // FakeClaudeSubagentResolver removed in the Phase 12 refactor (the
@@ -421,12 +448,29 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
-	supportedCommands(): never { throw new Error('FakeQuery: supportedCommands not modeled'); }
+
+	supportedCommands(): never {
+		return Promise.resolve([]) as never;
+	}
 	supportedModels(): never { throw new Error('FakeQuery: supportedModels not modeled'); }
 	supportedAgents(): never { throw new Error('FakeQuery: supportedAgents not modeled'); }
 	mcpServerStatus(): never { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
 	getContextUsage(): never { throw new Error('FakeQuery: getContextUsage not modeled'); }
-	reloadPlugins(): never { throw new Error('FakeQuery: reloadPlugins not modeled'); }
+	/** Phase 11 — programmable tool-name snapshot returned by `reloadPlugins()`. */
+	reloadPluginsResults: readonly string[][] = [];
+	reloadPluginsCallCount = 0;
+	reloadPlugins(): never {
+		this.reloadPluginsCallCount++;
+		const idx = Math.min(this.reloadPluginsCallCount - 1, this.reloadPluginsResults.length - 1);
+		const names = this.reloadPluginsResults[idx] ?? [];
+		return Promise.resolve({
+			commands: names.map(name => ({ name, description: '', argumentHint: '' })),
+			agents: [],
+			plugins: [],
+			mcpServers: [],
+			error_count: 0,
+		}) as never;
+	}
 	accountInfo(): never { throw new Error('FakeQuery: accountInfo not modeled'); }
 	rewindFiles(): never { throw new Error('FakeQuery: rewindFiles not modeled'); }
 	readFile(): never { throw new Error('FakeQuery: readFile not modeled'); }
@@ -590,6 +634,7 @@ function createTestContext(
 		[IClaudeProxyService, proxy],
 		[ISessionDataService, sessionData],
 		[IClaudeAgentSdkService, sdk],
+		[IAgentPluginManager, new FakeAgentPluginManager()],
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
 	);
@@ -869,6 +914,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -930,6 +976,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -996,6 +1043,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -1062,6 +1110,7 @@ suite('ClaudeAgent', () => {
 			undefined,
 			undefined,
 			undefined,
+			undefined,
 			new PendingRequestRegistry<CallToolResult>(),
 			'default',
 			instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude'),
@@ -1085,6 +1134,7 @@ suite('ClaudeAgent', () => {
 			'test-session',
 			AgentSession.uri('claude', 'test-session'),
 			URI.file('/workspace'),
+			undefined,
 			undefined,
 			undefined,
 			undefined,
@@ -1927,6 +1977,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 		);
@@ -2525,6 +2576,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2594,6 +2646,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2676,6 +2729,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2721,6 +2775,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3025,6 +3080,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, new RecordingProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -3074,6 +3130,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 		);
@@ -3427,6 +3484,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[ISessionDataService, sessionData],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -3434,6 +3492,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			'session-id',
 			URI.parse('claude:/session-id'),
 			URI.file('/workspace'),
+			undefined,
 			undefined,
 			undefined,
 			undefined,
@@ -4266,7 +4325,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const longSend = ctx.agent.sendMessage(sessionUri, 'long task', undefined, 'turn-2');
 		await tick();
 
-		ctx.agent.setPendingMessages!(sessionUri, { id: 'pending-1', userMessage: { text: 'switch topic' } }, []);
+		ctx.agent.setPendingMessages!(sessionUri, { id: 'pending-1', message: { text: 'switch topic', origin: { kind: MessageKind.User } } }, []);
 		await tick();
 		await tick();
 
@@ -4286,7 +4345,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 	test('setPendingMessages with empty steering and non-empty queued is a no-op', async () => {
 		const { ctx, sessionUri, query, advance } = await materialize();
 		const before = query.drainedPrompts.length;
-		ctx.agent.setPendingMessages!(sessionUri, undefined, [{ id: 'q1', userMessage: { text: 'queued' } }]);
+		ctx.agent.setPendingMessages!(sessionUri, undefined, [{ id: 'q1', message: { text: 'queued', origin: { kind: MessageKind.User } } }]);
 		await tick();
 		assert.strictEqual(query.drainedPrompts.length, before);
 		advance.complete();
@@ -4302,7 +4361,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const longSend = ctx.agent.sendMessage(sessionUri, 'long task', undefined, 'turn-2');
 		await tick();
 
-		ctx.agent.setPendingMessages!(sessionUri, { id: 'pending-9', userMessage: { text: 'steer' } }, []);
+		ctx.agent.setPendingMessages!(sessionUri, { id: 'pending-9', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
 		// Microtask cycles let the FakeQuery's background drain pull the
 		// steering entry off `_toYield`; that drain is when our session
 		// fires `steering_consumed` (SDK ack semantics — mirrors Copilot's
@@ -4469,7 +4528,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
 
 		// Inject steering and capture its uuid via the iterable's drain.
-		ctx.agent.setPendingMessages!(created.session, { id: 'pending-steer', userMessage: { text: 'moo' } }, []);
+		ctx.agent.setPendingMessages!(created.session, { id: 'pending-steer', message: { text: 'moo', origin: { kind: MessageKind.User } } }, []);
 		await tick();
 		await tick();
 		const query = ctx.sdk.warmQueries[0].produced!;
@@ -4534,7 +4593,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 
 		// Inject steering so the queue holds [original, steering] when
 		// result#1 lands.
-		ctx.agent.setPendingMessages!(created.session, { id: 'pending-c1', userMessage: { text: 'steer' } }, []);
+		ctx.agent.setPendingMessages!(created.session, { id: 'pending-c1', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
 		await tick();
 		await tick();
 
@@ -4593,7 +4652,7 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 
 		assert.strictEqual(turns.length, 1);
 		assert.strictEqual(turns[0].id, 'u1');
-		assert.strictEqual(turns[0].userMessage.text, 'hi');
+		assert.strictEqual(turns[0].message.text, 'hi');
 		assert.strictEqual(sdk.getSessionMessagesCalls.length, 1);
 		assert.deepStrictEqual(sdk.getSessionMessagesCalls[0], {
 			sessionId,
@@ -4650,6 +4709,312 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 	// `claudeTranscriptService.test.ts`'s integration tests on
 	// `loadParentTranscript`. The `getSessionMessages` integration is
 	// covered indirectly by all the materialized-session tests above.
+});
+
+// #endregion
+
+// #region Phase 11 — customizations / plugins
+
+suite('ClaudeAgent — Phase 11 customizations', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeSyncedRef(uri: string, dir: string): ISyncedCustomization {
+		return {
+			customization: {
+				type: CustomizationType.Plugin,
+				id: customizationId(uri),
+				uri,
+				name: uri,
+				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+			},
+			pluginDir: URI.file(dir),
+		};
+	}
+
+	function makeClientCustomization(uri: string, name: string): ClientPluginCustomization {
+		return {
+			type: CustomizationType.Plugin,
+			id: customizationId(uri),
+			uri,
+			name,
+			enabled: true,
+		};
+	}
+
+	function buildCtxWith(pluginManager: FakeAgentPluginManager): ITestContext {
+		const proxy = new FakeClaudeProxyService();
+		const api = new FakeCopilotApiService();
+		api.models = async () => [...ALL_MODELS];
+		const sdk = new FakeClaudeAgentSdkService();
+		const sessionData = new RecordingSessionDataService(createSessionDataService());
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[ICopilotApiService, api],
+			[IClaudeProxyService, proxy],
+			[ISessionDataService, sessionData],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, pluginManager],
+			[IAgentHostGitService, createNoopGitService()],
+			[IAgentConfigurationService, configService],
+		);
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+		return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService };
+	}
+
+	test('setClientCustomizations forwards each item as a SessionCustomizationUpdated action', async () => {
+		const pm = new FakeAgentPluginManager();
+		pm.syncResult = [makeSyncedRef('https://a', '/p/a'), makeSyncedRef('https://b', '/p/b')];
+		const { agent } = buildCtxWith(pm);
+
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+
+		const updates: { uri: string }[] = [];
+		disposables.add(agent.onDidSessionProgress(s => {
+			if (s.kind === 'action' && s.action.type === ActionType.SessionCustomizationUpdated) {
+				updates.push({ uri: s.action.customization.uri.toString() });
+			}
+		}));
+
+		const synced = await agent.setClientCustomizations(created.session, 'client-1', [
+			makeClientCustomization('https://a', 'A'),
+			makeClientCustomization('https://b', 'B'),
+		]);
+
+		assert.strictEqual(synced.length, 2);
+		assert.ok(updates.some(u => u === undefined ? false : u.uri.includes('a')), `expected an update for plugin a; got ${JSON.stringify(updates)}`);
+		assert.ok(updates.some(u => u === undefined ? false : u.uri.includes('b')), `expected an update for plugin b; got ${JSON.stringify(updates)}`);
+	});
+
+	test('setCustomizationEnabled fans out to every in-memory session', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const s1 = await agent.createSession({ session: AgentSession.uri('claude', 'a'), workingDirectory: URI.file('/work') });
+		const s2 = await agent.createSession({ session: AgentSession.uri('claude', 'b'), workingDirectory: URI.file('/work') });
+
+		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared')];
+		await agent.setClientCustomizations(s1.session, 'c', [makeClientCustomization('https://shared', 'S')]);
+		await agent.setClientCustomizations(s2.session, 'c', [makeClientCustomization('https://shared', 'S')]);
+
+		// One fire per per-session diff change confirms fan-out.
+		let changes = 0;
+		disposables.add(agent.onDidCustomizationsChange(() => changes++));
+		agent.setCustomizationEnabled(customizationId('https://shared'), false);
+
+		assert.strictEqual(changes, 2);
+	});
+
+	test('getCustomizations returns [] — provider-level catalogue, not a cross-session aggregator', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const s1 = await agent.createSession({ session: AgentSession.uri('claude', 'one'), workingDirectory: URI.file('/work') });
+		const s2 = await agent.createSession({ session: AgentSession.uri('claude', 'two'), workingDirectory: URI.file('/work') });
+
+		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared'), makeSyncedRef('https://a', '/p/a')];
+		await agent.setClientCustomizations(s1.session, 'c', []);
+		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared'), makeSyncedRef('https://b', '/p/b')];
+		await agent.setClientCustomizations(s2.session, 'c', []);
+
+		// `IAgent.getCustomizations()` is the provider-level catalogue
+		// (host-configured), NOT an aggregator across sessions. Claude has
+		// no host-configured customizations today, so [] is the contract.
+		// Client-pushed refs flow through `getSessionCustomizations` instead.
+		assert.deepStrictEqual(agent.getCustomizations(), []);
+	});
+
+	test('getSessionCustomizations resolves against a provisional session', async () => {
+		const pm = new FakeAgentPluginManager();
+		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		assert.strictEqual(created.provisional, true);
+
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+
+		const customizations = await agent.getSessionCustomizations!(created.session);
+		assert.strictEqual(customizations.length, 1);
+	});
+
+	test('send pre-flight: dirty customizations triggers a rebind (SDK plugin URI set is captured at startup, so any change must restart the Query)', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Stage 2 turns and park the iterator after turn 1's `result` so
+		// `_query` stays bound (mirroring the "reuse query" pattern).
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (idx: number) => { if (idx === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.startupCallCount, 1);
+
+		// Customization sync flips dirty; the next sendMessage's
+		// pre-flight rebinds so `Options.plugins` on the new Query
+		// includes the new path.
+		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		const firstQuery = sdk.warmQueries[0].produced!;
+
+		const p2 = agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+		await tick();
+		advance.complete();
+		await p2;
+
+		assert.deepStrictEqual({
+			reloadsOnFirstQuery: firstQuery.reloadPluginsCallCount,
+			startups: sdk.startupCallCount,
+			warmQueries: sdk.warmQueries.length,
+		}, { reloadsOnFirstQuery: 0, startups: 2, warmQueries: 2 });
+	});
+
+	test('mid-turn setCustomizationEnabled does not affect the in-flight send (race coverage)', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Materialize, then drain the dirty bit from a customization
+		// sync so the pre-flight for the SECOND turn is clean.
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		pm.syncResult = [makeSyncedRef('https://x', '/p/x')];
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://x', 'X')]);
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		const session = agent.getSessionForTesting(created.session)!;
+		// First-turn materialize consumed the dirty bit from the sync
+		// above (plugin path baked into `Options.plugins` of the
+		// startup `Query`), so the pre-flight for the second turn
+		// starts clean.
+		assert.strictEqual(session.clientCustomizationsDiff.hasDifference, false);
+
+		// Block the SECOND turn mid-iterator so a toggle can land while
+		// the SDK is mid-yield.
+		const gate = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await gate.p; } };
+
+		const inflight = agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+		await new Promise(r => setImmediate(r));
+
+		// Toggle a SYNCED customization during the in-flight turn. The
+		// diff flips dirty (state changed) but no SDK action drains
+		// during the current send — its pre-flight already passed.
+		const startupsBefore = sdk.startupCallCount;
+		agent.setCustomizationEnabled(customizationId('https://x'), false);
+		assert.strictEqual(session.clientCustomizationsDiff.hasDifference, true);
+		assert.strictEqual(sdk.startupCallCount, startupsBefore, 'no rebind during the in-flight turn');
+
+		gate.complete();
+		await inflight;
+	});
+
+	test('getSessionCustomizations swallows SDK snapshot failure and returns the client-pushed projection', async () => {
+		// `snapshotResolvedCustomizations` calls `supportedAgents()` and
+		// `mcpServerStatus()` in `Promise.all`; the FakeQuery throws on
+		// both. The session should warn-log and still return the
+		// client-pushed slice rather than blanking the UI.
+		const pm = new FakeAgentPluginManager();
+		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
+		const { agent, sdk } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		const customizations = await agent.getSessionCustomizations!(created.session);
+		assert.strictEqual(customizations.length, 1, 'client-pushed projection survives SDK snapshot failure');
+		assert.strictEqual(customizations[0].uri, 'https://a');
+	});
+
+	test('changeAgent on a provisional session stashes the selection (no SDK contact) and lands on Options.agent at materialize', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		await agent.changeAgent!(created.session, { uri: 'file:///foo/agents/code-reviewer.md' });
+		assert.strictEqual(sdk.startupCallCount, 0, 'no SDK startup from changeAgent on provisional');
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'code-reviewer', 'agent name resolved from file URI basename');
+	});
+
+	test('changeAgent on a materialized session triggers a rebind with the new Options.agent on the rebuilt Query', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, undefined, 'no agent on first startup');
+
+		// Mid-session agent change: flips dirty, next send rebinds
+		// (SDK has no working runtime hook to swap the agent in place).
+		await agent.changeAgent!(created.session, { uri: 'file:///foo/agents/planner.md' });
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.strictEqual(sdk.startupCallCount, 2, 'rebind on agent change');
+		assert.strictEqual(sdk.capturedStartupOptions[1]?.agent, 'planner', 'agent baked into rebuilt Options');
+	});
+
+	test('changeAgent(undefined) clears the selection: rebind, Options.agent omitted', async () => {
+		const pm = new FakeAgentPluginManager();
+		const ctx = buildCtxWith(pm);
+		const { agent, sdk } = ctx;
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({
+			workingDirectory: URI.file('/work'),
+			agent: { uri: 'file:///foo/agents/planner.md' },
+		});
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'planner');
+
+		await agent.changeAgent!(created.session, undefined);
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.strictEqual(sdk.startupCallCount, 2);
+		assert.strictEqual(sdk.capturedStartupOptions[1]?.agent, undefined, 'cleared agent omitted from rebuilt Options');
+	});
 });
 
 // #endregion
