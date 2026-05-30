@@ -818,6 +818,18 @@ export class CopilotAgentSession extends Disposable {
 			mode = 'plan';
 			prompt = slashCommand.rest;
 		}
+		if (slashCommand?.command === 'rubber-duck') {
+			if (!process.env['RUBBER_DUCK_AGENT']) {
+				// Feature not enabled — pass the remaining text through as a plain
+				// message rather than injecting agent instructions for an unavailable agent.
+				prompt = slashCommand.rest;
+			} else {
+				const userPrompt = slashCommand.rest;
+				prompt = userPrompt
+					? `The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.\n\nAdditional instructions: ${userPrompt}`
+					: 'The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.';
+			}
+		}
 
 		const sdkAttachments = attachments?.length
 			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
