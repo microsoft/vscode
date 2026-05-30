@@ -197,6 +197,16 @@ export class SessionsPart extends Part {
 			slot.view.setActive(isActive);
 		}
 
+		// Exit the grid's maximized state when the active session lands in a
+		// different slot than the maximized one. Opening a session into the
+		// currently-maximized slot preserves the maximized state.
+		if (this._gridWidget.hasMaximizedView()) {
+			const maximizedSlot = this._slots.find(s => this._gridWidget!.isViewMaximized(s.view));
+			if (maximizedSlot && maximizedSlot.boundSessionId !== activeId) {
+				this._gridWidget.exitMaximizedView();
+			}
+		}
+
 		this._updateContextKeys(visible);
 	}
 

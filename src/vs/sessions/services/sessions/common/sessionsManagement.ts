@@ -211,7 +211,7 @@ export interface ISessionsManagementService {
 	 */
 	closeSession(session: ISession | undefined): void;
 
-	setActive(session: IActiveSession): void;
+	setActive(session: IActiveSession | undefined): void;
 
 	/**
 	 * Select an existing session as the active session.

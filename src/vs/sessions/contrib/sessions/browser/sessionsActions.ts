@@ -316,5 +316,6 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
+		accessor.get(ISessionsManagementService).setActive(session);
 	}
 });
