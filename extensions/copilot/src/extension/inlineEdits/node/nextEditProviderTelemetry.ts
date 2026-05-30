@@ -961,6 +961,15 @@ export class TelemetrySender implements IDisposable {
 				this._removeEntry(nextEditResult, data);
 			}
 		}
+		this.sendTelemetryForBuilderWithEnhanced(builder);
+	}
+
+	/**
+	 * Send both the non-enhanced and enhanced telemetry events for this builder immediately.
+	 * Use this when there is no {@link INextEditResult} lifecycle (e.g. a chat-lib host) and no
+	 * idle/jump scheduling is needed.
+	 */
+	public sendTelemetryForBuilderWithEnhanced(builder: NextEditProviderTelemetryBuilder): void {
 		const telemetry = builder.build(true);
 		if (!builder.isSent) {
 			this._doSendTelemetry(telemetry);
