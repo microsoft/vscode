@@ -3,6 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* ---- Line-Height Normalization ---- */
+
+/**
+ * The main workbench sets `line-height: 1.4em` which computes to a fixed 18.2px
+ * (at font-size 13px) and is inherited as that fixed pixel value by ALL descendants,
+ * regardless of their own font-size. This causes disproportionate vertical spacing
+ * in elements that use smaller font sizes (11px, 12px) — they all get 18.2px
+ * line-height instead of a proportional value.
+ *
+ * By overriding with a unitless `1.4`, each element inherits the *ratio* and computes
+ * its own line-height from its own font-size (e.g. 12px × 1.4 = 16.8px instead of
+ * 18.2px). This makes sizing and padding more consistent across platforms where
+ * different system fonts (Segoe UI on Windows, SF Pro on Mac) have different metrics
+ * at the same CSS pixel size.
+ */
+.agent-sessions-workbench {
+	line-height: 1.4;
+}
+
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
 .agent-sessions-workbench .part.sidebar {
