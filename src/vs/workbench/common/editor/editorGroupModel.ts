@@ -12,6 +12,25 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { dispose, Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+
+export interface IEditorTabGroup {
+	readonly id: string;
+	name: string;
+	color: string;
+	collapsed: boolean;
+	startIndex: number;
+	count: number;
+}
+
+export interface ISerializedEditorTabGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly color: string;
+	readonly collapsed: boolean;
+	readonly startIndex: number;
+	readonly count: number;
+}
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -47,6 +66,7 @@ export interface ISerializedEditorGroupModel {
 	readonly mru: number[];
 	readonly preview?: number;
 	sticky?: number;
+	readonly tabGroups?: ISerializedEditorTabGroup[];
 }
 
 export function isSerializedEditorGroupModel(group?: unknown): group is ISerializedEditorGroupModel {
@@ -159,6 +179,7 @@ export interface IReadonlyEditorGroupModel {
 	readonly activeEditor: EditorInput | null;
 	readonly previewEditor: EditorInput | null;
 	readonly selectedEditors: EditorInput[];
+	readonly tabGroups: readonly IEditorTabGroup[];
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[];
 	getEditorByIndex(index: number): EditorInput | undefined;
@@ -172,9 +193,23 @@ export interface IReadonlyEditorGroupModel {
 	isLast(editor: EditorInput, editors?: EditorInput[]): boolean;
 	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
 	contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
+	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined;
 }
 
-interface IEditorGroupModel extends IReadonlyEditorGroupModel {
+export interface ITabGroupMutations {
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup | undefined;
+	collapseTabGroup(groupId: string): void;
+	expandTabGroup(groupId: string): void;
+	addToTabGroup(groupId: string, editor: EditorInput): void;
+	includeInTabGroup(groupId: string, editor: EditorInput): void;
+	removeFromTabGroup(groupId: string, editor: EditorInput): void;
+	renameTabGroup(groupId: string, name: string): void;
+	recolorTabGroup(groupId: string, color: string): void;
+	dissolveTabGroup(groupId: string): void;
+	moveTabGroup(groupId: string, toIndex: number): void;
+}
+
+interface IEditorGroupModel extends IReadonlyEditorGroupModel, ITabGroupMutations {
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult;
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
@@ -212,6 +247,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	private preview: EditorInput | null = null; 			// editor in preview state
 	private sticky = -1;									// index of first editor in sticky state
 	private readonly transient = new Set<EditorInput>(); 	// editors in transient state
+	private _tabGroups: IEditorTabGroup[] = [];				// tab groups (sorted by startIndex, non-overlapping)
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -617,6 +653,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this.editors.splice(index, 1);
 		this.editors.splice(toIndex, 0, editor);
 
+		// Adjust tab groups for the move
+		this.adjustTabGroupsForMove(index, toIndex);
+
 		// Move Event
 		const event: IGroupEditorMoveEvent = {
 			kind: GroupModelChangeKind.EDITOR_MOVE,
@@ -1012,6 +1051,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			this.sticky--;
 		}
 
+		// Adjust tab groups for insertions and removals
+		if (del && !editor) {
+			this.adjustTabGroupsForRemove(index);
+		} else if (!del && editor) {
+			this.adjustTabGroupsForInsert(index);
+		}
+
 		// Perform on editors array
 		if (editor) {
 			this.editors.splice(index, del ? 1 : 0, editor);
@@ -1142,6 +1188,386 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 	}
 
+	//#region Tab Groups
+
+	get tabGroups(): readonly IEditorTabGroup[] {
+		return this._tabGroups;
+	}
+
+	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined {
+		const index = typeof editorOrIndex === 'number' ? editorOrIndex : this.indexOf(editorOrIndex);
+		if (index < 0) {
+			return undefined;
+		}
+
+		return this._tabGroups.find(g => index >= g.startIndex && index < g.startIndex + g.count);
+	}
+
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup | undefined {
+		// Build a list of (editor, index) pairs, filter, and sort by index
+		const editorEntries = editors
+			.map(e => ({ editor: e, index: this.indexOf(e) }))
+			.filter(entry => entry.index >= 0 && !this.isSticky(entry.index))
+			.sort((a, b) => a.index - b.index);
+
+		if (editorEntries.length === 0) {
+			return undefined;
+		}
+
+		// Remove editors from any existing groups to prevent overlap
+		for (const entry of editorEntries) {
+			this.removeFromTabGroupByIndex(entry.index);
+		}
+		// Re-derive indices after potential group removals
+		for (const entry of editorEntries) {
+			entry.index = this.indexOf(entry.editor);
+		}
+		editorEntries.sort((a, b) => a.index - b.index);
+
+		// Move editors to be contiguous starting at the first editor's position
+		const targetStart = editorEntries[0].index;
+		for (let i = 1; i < editorEntries.length; i++) {
+			const entry = editorEntries[i];
+			if (entry.index !== targetStart + i) {
+				this.moveEditor(entry.editor, targetStart + i);
+				// Re-derive indices after move
+				for (let j = i + 1; j < editorEntries.length; j++) {
+					editorEntries[j].index = this.indexOf(editorEntries[j].editor);
+				}
+			}
+		}
+
+		const indices = editorEntries.map(e => e.index);
+
+		const tabGroupColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
+		const randomColor = tabGroupColors[Math.floor(Math.random() * tabGroupColors.length)];
+
+		const tabGroup: IEditorTabGroup = {
+			id: generateUuid(),
+			name: name ?? '',
+			color: color ?? randomColor,
+			collapsed: false,
+			startIndex: targetStart,
+			count: indices.length
+		};
+
+		this._tabGroups.push(tabGroup);
+		this._tabGroups.sort((a, b) => a.startIndex - b.startIndex);
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CREATED });
+
+		return tabGroup;
+	}
+
+	includeInTabGroup(groupId: string, editor: EditorInput): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const editorIndex = this.indexOf(editor);
+		if (editorIndex < 0 || this.isSticky(editorIndex)) {
+			return;
+		}
+
+		// Already in this group
+		if (editorIndex >= group.startIndex && editorIndex < group.startIndex + group.count) {
+			return;
+		}
+
+		// Only allow absorption of adjacent editors to maintain contiguity
+		if (editorIndex !== group.startIndex + group.count && editorIndex !== group.startIndex - 1) {
+			return;
+		}
+
+		// Remove from any other group
+		this.removeFromTabGroupByIndex(editorIndex);
+
+		// Expand the group to include the adjacent editor
+		if (editorIndex === group.startIndex + group.count) {
+			group.count++;
+		} else if (editorIndex === group.startIndex - 1) {
+			group.startIndex--;
+			group.count++;
+		}
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED });
+	}
+
+	addToTabGroup(groupId: string, editor: EditorInput): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const editorIndex = this.indexOf(editor);
+		if (editorIndex < 0 || this.isSticky(editorIndex)) {
+			return;
+		}
+
+		// Already in this group
+		if (editorIndex >= group.startIndex && editorIndex < group.startIndex + group.count) {
+			return;
+		}
+
+		// Remove from any other group first (adjusts source group count)
+		this.removeFromTabGroupByIndex(editorIndex);
+
+		// After removing from a group, recalculate the editor's current index
+		// and the target group's position (removeFromTabGroupByIndex only adjusts
+		// the source group, not other groups or the editors array)
+		const currentIndex = this.indexOf(editor);
+
+		// Compute target: place at end of target group
+		// After the source group removal, if the editor was before the target
+		// group, the target group's startIndex hasn't shifted (editors array unchanged)
+		const insertAt = group.startIndex + group.count;
+
+		// Physically move the editor in the array
+		this.editors.splice(currentIndex, 1);
+		// After removal, adjust insert position
+		const adjustedInsert = insertAt > currentIndex ? insertAt - 1 : insertAt;
+		this.editors.splice(adjustedInsert, 0, editor);
+
+		// Adjust all tab group indices for the move
+		for (const other of this._tabGroups) {
+			if (other.id === groupId) {
+				continue;
+			}
+			// Editor was removed from currentIndex
+			if (currentIndex < other.startIndex) {
+				other.startIndex--;
+			}
+			// Editor was inserted at adjustedInsert
+			if (adjustedInsert <= other.startIndex) {
+				other.startIndex++;
+			}
+		}
+
+		// Adjust target group for the removal effect on its own startIndex
+		if (currentIndex < group.startIndex) {
+			group.startIndex--;
+		}
+
+		// Add to the target group
+		group.count++;
+
+		// Fire move event so UI redraws tabs
+		const moveEvent: IGroupEditorMoveEvent = {
+			kind: GroupModelChangeKind.EDITOR_MOVE,
+			editor,
+			oldEditorIndex: currentIndex,
+			editorIndex: this.indexOf(editor)
+		};
+		this._onDidModelChange.fire(moveEvent);
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED });
+	}
+
+	removeFromTabGroup(groupId: string, editor: EditorInput): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const editorIndex = this.indexOf(editor);
+		if (editorIndex < group.startIndex || editorIndex >= group.startIndex + group.count) {
+			return;
+		}
+
+		if (group.count <= 1) {
+			this._tabGroups = this._tabGroups.filter(g => g.id !== groupId);
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_REMOVED });
+			return;
+		}
+
+		// Move the editor to just after the group to maintain contiguity
+		const groupEnd = group.startIndex + group.count - 1;
+		if (editorIndex < groupEnd) {
+			// Move to the end of the group first, then shrink
+			this.editors.splice(editorIndex, 1);
+			this.editors.splice(groupEnd, 0, editor);
+			// Adjust other groups between editorIndex and groupEnd
+			for (const other of this._tabGroups) {
+				if (other.id === groupId) {
+					continue;
+				}
+				if (other.startIndex > editorIndex && other.startIndex <= groupEnd) {
+					other.startIndex--;
+				}
+			}
+
+			// Emit EDITOR_MOVE so other listeners (Open Editors, extension host) stay in sync
+			const moveEvent: IGroupEditorMoveEvent = {
+				kind: GroupModelChangeKind.EDITOR_MOVE,
+				editor,
+				oldEditorIndex: editorIndex,
+				editorIndex: groupEnd
+			};
+			this._onDidModelChange.fire(moveEvent);
+		}
+
+		// Shrink the group from the end
+		group.count--;
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_REMOVED });
+	}
+
+	dissolveTabGroup(groupId: string): void {
+		this._tabGroups = this._tabGroups.filter(g => g.id !== groupId);
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_REMOVED });
+	}
+
+	collapseTabGroup(groupId: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group && !group.collapsed) {
+			group.collapsed = true;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	expandTabGroup(groupId: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group && group.collapsed) {
+			group.collapsed = false;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	renameTabGroup(groupId: string, name: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group) {
+			group.name = name;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	recolorTabGroup(groupId: string, color: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group) {
+			group.color = color;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	moveTabGroup(groupId: string, toIndex: number): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const oldStart = group.startIndex;
+		const count = group.count;
+
+		// Clamp target index to valid range (after sticky tabs, within array)
+		toIndex = Math.max(this.sticky + 1, Math.min(toIndex, this.editors.length));
+		if (toIndex === oldStart) {
+			return;
+		}
+
+		// Step 1: Snapshot each group's first editor before any mutation
+		const groupFirstEditors = new Map<string, EditorInput>();
+		for (const tg of this._tabGroups) {
+			groupFirstEditors.set(tg.id, this.editors[tg.startIndex]);
+		}
+
+		// Step 2: Extract editors belonging to this group
+		const groupEditors = this.editors.splice(oldStart, count);
+
+		// Step 3: Compute insertion point (adjusted for removal)
+		const insertAt = toIndex > oldStart ? toIndex - count : toIndex;
+
+		// Step 4: Re-insert at the computed position
+		this.editors.splice(insertAt, 0, ...groupEditors);
+
+		// Step 5: Rebuild all startIndex values by finding each group's
+		// first editor in the new array. Groups remain contiguous.
+		for (const tg of this._tabGroups) {
+			const firstEditor = groupFirstEditors.get(tg.id)!;
+			tg.startIndex = this.editors.indexOf(firstEditor);
+		}
+
+		// Maintain sorted invariant
+		this._tabGroups.sort((a, b) => a.startIndex - b.startIndex);
+
+		// Emit EDITOR_MOVE events so other listeners stay in sync with the new order
+		for (let i = 0; i < groupEditors.length; i++) {
+			const moveEvent: IGroupEditorMoveEvent = {
+				kind: GroupModelChangeKind.EDITOR_MOVE,
+				editor: groupEditors[i],
+				oldEditorIndex: oldStart + i,
+				editorIndex: insertAt + i
+			};
+			this._onDidModelChange.fire(moveEvent);
+		}
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+	}
+
+	private removeFromTabGroupByIndex(editorIndex: number): void {
+		const group = this.getTabGroupForEditor(editorIndex);
+		if (!group) {
+			return;
+		}
+
+		group.count--;
+		if (group.count <= 0) {
+			this._tabGroups = this._tabGroups.filter(g => g.id !== group.id);
+		} else if (editorIndex === group.startIndex) {
+			group.startIndex++;
+		}
+	}
+
+	/**
+	 * Adjusts tab group indices when editors are inserted or removed.
+	 * Call after editor list mutations.
+	 */
+	private adjustTabGroupsForInsert(insertIndex: number): void {
+		for (const group of this._tabGroups) {
+			if (insertIndex <= group.startIndex) {
+				group.startIndex++;
+			} else if (insertIndex > group.startIndex && insertIndex < group.startIndex + group.count) {
+				group.count++;
+			}
+		}
+	}
+
+	private adjustTabGroupsForRemove(removeIndex: number): void {
+		for (let i = this._tabGroups.length - 1; i >= 0; i--) {
+			const group = this._tabGroups[i];
+			if (removeIndex < group.startIndex) {
+				group.startIndex--;
+			} else if (removeIndex >= group.startIndex && removeIndex < group.startIndex + group.count) {
+				group.count--;
+				if (group.count <= 0) {
+					this._tabGroups.splice(i, 1);
+				}
+			}
+		}
+	}
+
+	private adjustTabGroupsForMove(fromIndex: number, toIndex: number): void {
+		// Check if moving within the same group (membership preserved, no adjustment needed).
+		// Both indices must be within the same group's range BEFORE any mutation.
+		// Note: after splice, if fromIndex < toIndex, the effective insertion is at toIndex
+		// which was the original position toIndex (since splice removes first, then inserts).
+		// We check if both the source and destination are within the same group's boundaries.
+		for (const group of this._tabGroups) {
+			const end = group.startIndex + group.count;
+			if (fromIndex >= group.startIndex && fromIndex < end &&
+				toIndex >= group.startIndex && toIndex <= end) {
+				// Moving within the same group: no boundary changes needed
+				return;
+			}
+		}
+
+		// Cross-group or ungrouped move: simulate as remove+insert
+		this.adjustTabGroupsForRemove(fromIndex);
+		this.adjustTabGroupsForInsert(toIndex);
+	}
+
+	//#endregion
+
 	clone(): EditorGroupModel {
 		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
 
@@ -1151,6 +1577,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		clone.preview = this.preview;
 		clone.selection = this.selection.slice(0);
 		clone.sticky = this.sticky;
+		clone._tabGroups = this._tabGroups.map(g => ({ ...g }));
 
 		// Ensure to register listeners for each editor
 		for (const editor of clone.editors) {
@@ -1211,7 +1638,15 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editors: serializedEditors,
 			mru: serializableMru,
 			preview: serializablePreviewIndex,
-			sticky: serializableSticky >= 0 ? serializableSticky : undefined
+			sticky: serializableSticky >= 0 ? serializableSticky : undefined,
+			tabGroups: this._tabGroups.length > 0 ? this._tabGroups.map(g => ({
+				id: g.id,
+				name: g.name,
+				color: g.color,
+				collapsed: g.collapsed,
+				startIndex: g.startIndex,
+				count: g.count
+			})) : undefined
 		};
 	}
 
@@ -1259,6 +1694,31 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		if (typeof data.sticky === 'number') {
 			this.sticky = data.sticky;
+		}
+
+		if (data.tabGroups) {
+			const restored = data.tabGroups
+				.filter(g => g.startIndex >= 0 && g.count > 0 && g.startIndex + g.count <= this.editors.length)
+				.map(g => ({
+					id: g.id,
+					name: g.name,
+					color: g.color,
+					collapsed: g.collapsed,
+					startIndex: g.startIndex,
+					count: g.count
+				}));
+			restored.sort((a, b) => a.startIndex - b.startIndex);
+
+			// Drop overlapping groups (keep the first one encountered)
+			const validated: typeof restored = [];
+			let maxEnd = 0;
+			for (const g of restored) {
+				if (g.startIndex >= maxEnd) {
+					validated.push(g);
+					maxEnd = g.startIndex + g.count;
+				}
+			}
+			this._tabGroups = validated;
 		}
 
 		return this._id;
