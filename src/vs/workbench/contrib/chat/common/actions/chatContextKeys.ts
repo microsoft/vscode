@@ -34,6 +34,8 @@ export namespace ChatContextKeys {
 	export const isRequest = new RawContextKey<boolean>('chatRequest', false, { type: 'boolean', description: localize('chatRequest', "The chat item is a request") });
 	export const isFirstRequest = new RawContextKey<boolean>('chatFirstRequest', false, { type: 'boolean', description: localize('chatFirstRequest', "The chat item is the first request in the session.") });
 	export const isPendingRequest = new RawContextKey<boolean>('chatRequestIsPending', false, { type: 'boolean', description: localize('chatRequestIsPending', "True when the chat request item is pending in the queue.") });
+	export const isFirstPendingRequest = new RawContextKey<boolean>('chatRequestIsFirstPending', false, { type: 'boolean', description: localize('chatRequestIsFirstPending', "True when the chat request item is the first pending request in the queue.") });
+	export const isLastPendingRequest = new RawContextKey<boolean>('chatRequestIsLastPending', false, { type: 'boolean', description: localize('chatRequestIsLastPending', "True when the chat request item is the last pending request in the queue.") });
 	export const itemId = new RawContextKey<string>('chatItemId', '', { type: 'string', description: localize('chatItemId', "The id of the chat item.") });
 	export const lastItemId = new RawContextKey<string[]>('chatLastItemId', [], { type: 'string', description: localize('chatLastItemId', "The id of the last chat item.") });
 

@@ -490,10 +490,34 @@ export class ChatListWidget extends Disposable {
 		const target = e.browserEvent.target as HTMLElement;
 		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
 
+		const isResponse = isResponseVM(selected);
+		const isRequest = isRequestVM(selected);
+		const isPending = isRequest && selected.pendingKind !== undefined;
+
+		let isFirstPending = false;
+		let isLastPending = false;
+		if (isPending) {
+			isFirstPending = true;
+			isLastPending = true;
+			const model = this._viewModel?.model;
+			if (model) {
+				const pendingRequests = model.getPendingRequests();
+				const index = pendingRequests.findIndex(r => r.request.id === selected.id);
+				if (index !== -1) {
+					isFirstPending = index === 0;
+					isLastPending = index === pendingRequests.length - 1;
+				}
+			}
+		}
+
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
-			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
-			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
-			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
+			[ChatContextKeys.isResponse.key, isResponse],
+			[ChatContextKeys.responseIsFiltered.key, isResponse && !!selected.errorDetails?.responseIsFiltered],
+			[ChatContextKeys.isKatexMathElement.key, isKatexElement],
+			[ChatContextKeys.isRequest.key, isRequest],
+			[ChatContextKeys.isPendingRequest.key, isPending],
+			[ChatContextKeys.isFirstPendingRequest.key, isFirstPending],
+			[ChatContextKeys.isLastPendingRequest.key, isLastPending],
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
