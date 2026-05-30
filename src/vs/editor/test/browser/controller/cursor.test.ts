@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
@@ -16,20 +17,19 @@ import { Selection } from '../../../common/core/selection.js';
 import { ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
 import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { InputMode } from '../../../common/inputMode.js';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../common/languages.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 import { IndentAction, IndentationRule } from '../../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from '../../../common/model.js';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel, InjectedTextCursorStops } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
-import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InputMode } from '../../../common/inputMode.js';
-import { EditSources } from '../../../common/textModelEditSource.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
 
 // --------- utils
 
@@ -6727,6 +6727,55 @@ suite('Overtype Mode', () => {
 			].join('\n'), 'assert1');
 		});
 
+		model.dispose();
+	});
+});
+
+suite('issue #209417: block cursor navigation over inlay hints', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('block cursor moves right past inlay hint without stopping on it', () => {
+		const model = createTextModel('just some text');
+		withTestCodeEditor(model, { cursorStyle: 'block' }, (editor, viewModel) => {
+			// Add an inlay hint before 's' of 'some' (model col 6)
+			model.deltaDecorations([], [{
+				range: new Range(1, 6, 1, 6),
+				options: {
+					description: 'inlay-hint',
+					before: { content: 'hint', cursorStops: InjectedTextCursorStops.Right },
+					showIfCollapsed: true
+				}
+			}]);
+			// view: "just hintsome text"
+			// Place cursor at col 5 (the space), then press right
+			moveTo(editor, viewModel, 1, 5);
+			moveRight(editor, viewModel);
+			// Block cursor should skip the hint and land on view col 10 ('s' in view)
+			assert.deepStrictEqual(viewModel.getCursorStates()[0].viewState.position, new Position(1, 10));
+		});
+		model.dispose();
+	});
+
+	test('block cursor moves left past inlay hint without stopping on it', () => {
+		const model = createTextModel('just some text');
+		withTestCodeEditor(model, { cursorStyle: 'block' }, (editor, viewModel) => {
+			// Add an inlay hint before 's' of 'some' (model col 6)
+			model.deltaDecorations([], [{
+				range: new Range(1, 6, 1, 6),
+				options: {
+					description: 'inlay-hint',
+					before: { content: 'hint', cursorStops: InjectedTextCursorStops.Right },
+					showIfCollapsed: true
+				}
+			}]);
+			// view: "just hintsome text"
+			// Place cursor at model col 6 ('s'), then press left
+			moveTo(editor, viewModel, 1, 6);
+			moveLeft(editor, viewModel);
+			// Block cursor should skip the hint and land on view col 5 (the space)
+			assert.deepStrictEqual(viewModel.getCursorStates()[0].viewState.position, new Position(1, 5));
+		});
 		model.dispose();
 	});
 });

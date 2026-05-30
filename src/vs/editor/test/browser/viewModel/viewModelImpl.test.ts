@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
+import { EndOfLineSequence, InjectedTextCursorStops, PositionAffinity } from '../../../common/model.js';
 import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 import { ViewEvent } from '../../../common/viewEvents.js';
-import { testViewModel } from './testViewModel.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createTextModel } from '../../common/testTextModel.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../testCodeEditor.js';
+import { testViewModel } from './testViewModel.js';
 
 suite('ViewModel', () => {
 
@@ -405,6 +405,46 @@ suite('ViewModel', () => {
 				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 11), PositionAffinity.Right), new Position(1, 13));
 				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 12), PositionAffinity.Right), new Position(1, 13));
 				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 13), PositionAffinity.Right), new Position(1, 13));
+			}
+		);
+	});
+
+	test('issue #209417: block cursor should skip over inlay hint injected text', () => {
+		testViewModel(
+			[
+				'just some text'
+			],
+			{},
+			(viewModel, model) => {
+				model.deltaDecorations([], [
+					{
+						range: new Range(1, 6, 1, 6),
+						options: {
+							description: 'inlay-hint',
+							before: {
+								content: 'hint',
+								cursorStops: InjectedTextCursorStops.Right,
+							},
+							showIfCollapsed: true
+						}
+					},
+				]);
+
+				// model: "just some text"
+				// view:  "just hintsome text"
+				// cols:   1234 56789...
+
+				// With PositionAffinity.None (line cursor), cursor can stop at left of hint (col 6)
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 5), PositionAffinity.None), new Position(1, 5));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 6), PositionAffinity.None), new Position(1, 6));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 7), PositionAffinity.None), new Position(1, 6));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 10), PositionAffinity.None), new Position(1, 10));
+
+				// With PositionAffinity.RightOfInjectedText (block cursor), cursor skips to right of hint
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 5), PositionAffinity.RightOfInjectedText), new Position(1, 5));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 6), PositionAffinity.RightOfInjectedText), new Position(1, 10));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 7), PositionAffinity.RightOfInjectedText), new Position(1, 10));
+				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 10), PositionAffinity.RightOfInjectedText), new Position(1, 10));
 			}
 		);
 	});
