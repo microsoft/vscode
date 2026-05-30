@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UserMessage } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -169,15 +169,17 @@ interface ISubagentInfo {
  */
 interface ITurnBuilder {
 	id: string;
-	userMessage: UserMessage;
+	message: Message;
 	readonly responseParts: ResponsePart[];
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
 
 function newTurnBuilder(id: string, text: string, attachments?: MessageAttachment[]): ITurnBuilder {
-	const userMessage: UserMessage = attachments?.length ? { text, attachments } : { text };
-	return { id, userMessage, responseParts: [], pendingTools: new Map() };
+	const message: Message = attachments?.length
+		? { text, origin: { kind: MessageKind.User }, attachments }
+		: { text, origin: { kind: MessageKind.User } };
+	return { id, message, responseParts: [], pendingTools: new Map() };
 }
 
 function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined): IToolStartInfo | undefined {
@@ -214,7 +216,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 	return {
 		id: builder.id,
-		userMessage: builder.userMessage,
+		message: builder.message,
 		responseParts: builder.responseParts,
 		usage: undefined,
 		state,
@@ -354,7 +356,7 @@ export async function mapSessionEvents(
 						});
 					}
 					if (attachments?.length) {
-						builder.userMessage = { ...builder.userMessage, attachments };
+						builder.message = { ...builder.message, attachments };
 					}
 				} else {
 					// A new top-level user message starts a new parent turn.

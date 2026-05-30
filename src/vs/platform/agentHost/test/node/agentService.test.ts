@@ -23,7 +23,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -117,7 +117,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -219,7 +219,7 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					type: ActionType.SessionTurnStarted,
 					turnId: 'turn-1',
-					userMessage: { text: 'hello', attachments: attachments as never },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
 				},
 				'test-client', 1,
 			);
@@ -1278,7 +1278,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state, 'session should be in state manager');
 			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
 			assert.strictEqual(state!.turns.length, 1);
-			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
+			assert.strictEqual(state!.turns[0].message.text, 'Hello');
 			const mdPart = state!.turns[0].responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
@@ -1458,7 +1458,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}`);
 
 			const turn = state!.turns[0];
-			assert.strictEqual(turn.userMessage.text, 'Review this code');
+			assert.strictEqual(turn.message.text, 'Review this code');
 
 			// The parent turn should only have the parent tool call — inner
 			// tool calls are excluded from the parent and belong to the
@@ -1509,8 +1509,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = service.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.userMessage.text.substring(0, 40)}"`).join(', ')}`);
-			assert.strictEqual(state!.turns[0].userMessage.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
+			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.message.text.substring(0, 40)}"`).join(', ')}`);
+			assert.strictEqual(state!.turns[0].message.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 
 			// Should have the parent subagent tool call with subagent content
@@ -1568,7 +1568,7 @@ suite('AgentService (node dispatcher)', () => {
 			// mid-response.
 			service.dispatchAction(
 				sessionResource.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
 
@@ -1876,7 +1876,7 @@ suite('AgentService (node dispatcher)', () => {
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					sessionResource.toString(),
-					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
+					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
@@ -2308,7 +2308,7 @@ suite('AgentService (node dispatcher)', () => {
 			sourceState.turns = [{
 				id: sourceTurnId,
 				state: TurnState.Complete,
-				userMessage: { text: 'hi' },
+				message: { text: 'hi', origin: { kind: MessageKind.User } },
 				responseParts: [],
 				usage: undefined,
 			}];

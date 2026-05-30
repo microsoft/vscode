@@ -24,6 +24,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
+	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind,
 	SessionInputResponseKind, ToolResultContentType, isSubagentSession,
 	type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState,
@@ -171,7 +172,7 @@ export function dispatchTurn(c: TestProtocolClient, session: string, turnId: str
 		action: {
 			type: 'session/turnStarted',
 			turnId,
-			userMessage: { text },
+			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
 }
