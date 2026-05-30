@@ -228,11 +228,24 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		if (!model || !(entry instanceof OutlineElement)) {
 			return;
 		}
+		const selection = select ? entry.symbol.range : Range.collapseToStart(entry.symbol.selectionRange);
+
+		// If the outline belongs to the current editor's model and the user does not request
+		// to open the entry side-by-side, apply the selection in place. This avoids trying to
+		// resolve resources via the editor service for editors whose underlying text model URI
+		// is not separately openable (e.g. the search editor's `search-editor:` model URI).
+		if (!sideBySide && isEqual(this._editor.getModel()?.uri, model.uri)) {
+			this._editor.setSelection(selection);
+			this._editor.revealRangeNearTopIfOutsideViewport(selection, ScrollType.Smooth);
+			this._editor.focus();
+			return;
+		}
+
 		await this._codeEditorService.openCodeEditor({
 			resource: model.uri,
 			options: {
 				...options,
-				selection: select ? entry.symbol.range : Range.collapseToStart(entry.symbol.selectionRange),
+				selection,
 				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 			}
 		}, this._editor, sideBySide);
