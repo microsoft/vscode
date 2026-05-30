@@ -1410,7 +1410,8 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 			}
 		}));
 
-		return groups;
+		// Filter out hidden actions from each group and remove empty groups
+		return groups.map(group => group.filter(a => !(a instanceof ExtensionAction) || !a.hidden)).filter(group => group.length);
 	}
 
 	override async run(): Promise<any> {
