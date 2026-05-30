@@ -6,8 +6,8 @@
 import type * as vscode from 'vscode';
 import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -125,7 +125,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
-	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse; cancelListener: IDisposable }>();
+	private readonly _pendingCancelTokens = new Map<number, CancellationTokenSource>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
@@ -141,6 +142,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
 		this._onDidChangeModelProxyAvailability.dispose();
+		for (const [, cts] of this._pendingCancelTokens) {
+			cts.dispose();
+		}
+		this._pendingCancelTokens.clear();
 	}
 
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
@@ -276,6 +281,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			throw new Error(`Language model provider for '${knownModel.metadata.id}' not found.`);
 		}
 
+		// Create a local CTS so the provider's token can be cancelled via
+		// $cancelLanguageModelChatRequest even after the RPC cancel handler
+		// for the original token has been removed.
+		const cts = new CancellationTokenSource(token);
+		this._pendingCancelTokens.set(requestId, cts);
+
+		const providerToken = cts.token;
+
 		const queue: IChatResponsePart[] = [];
 		const sendNow = () => {
 			if (queue.length > 0) {
@@ -296,7 +309,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		};
 
 		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart>(async fragment => {
-			if (token.isCancellationRequested) {
+			if (providerToken.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.identifier.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
 			}
@@ -329,24 +342,35 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				// todo@connor4312: move `core` -> `undefined` after 1.111 Insiders is out
 				{ ...options, modelOptions: options.modelOptions ?? {}, modelConfiguration: options.configuration, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
 				progress,
-				token
+				providerToken
 			);
 
 		} catch (err) {
 			// synchronously failed
+			cts.dispose();
+			this._pendingCancelTokens.delete(requestId);
 			throw err;
 		}
 
 		Promise.resolve(value).then(() => {
 			sendNow();
-			this._proxy.$reportResponseDone(requestId, undefined);
+			const wasCancelled = cts.token.isCancellationRequested;
+			cts.dispose();
+			this._pendingCancelTokens.delete(requestId);
+			this._proxy.$reportResponseDone(requestId, wasCancelled ? transformErrorForSerialization(new CancellationError()) : undefined);
 		}, err => {
 			sendNow();
+			cts.dispose();
+			this._pendingCancelTokens.delete(requestId);
 			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
 
 	//#region --- token counting
+
+	$cancelLanguageModelChatRequest(requestId: number): void {
+		this._pendingCancelTokens.get(requestId)?.cancel();
+	}
 
 	$provideTokenLength(modelId: string, value: string, token: CancellationToken): Promise<number> {
 		const knownModel = this._localModels.get(modelId);
@@ -488,7 +512,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const requestId = (Math.random() * 1e6) | 0;
 		const res = new LanguageModelResponse();
-		this._pendingRequest.set(requestId, { languageModelId, res });
+		const cancelListener = token.onCancellationRequested(() => {
+			this._proxy.$cancelLanguageModelChatRequest(requestId);
+		});
+		this._pendingRequest.set(requestId, { languageModelId, res, cancelListener });
 
 		try {
 			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, new SerializableObjectWithBuffers(internalMessages), options, token);
@@ -496,6 +523,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		} catch (error) {
 			// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
 			// later the response can fail as well. Those failures are communicated via the stream-object
+			cancelListener.dispose();
 			this._pendingRequest.delete(requestId);
 			throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
 		}
@@ -530,6 +558,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return;
 		}
+		data.cancelListener.dispose();
 		this._pendingRequest.delete(requestId);
 		if (error) {
 			// we error the stream because that's the only way to signal
