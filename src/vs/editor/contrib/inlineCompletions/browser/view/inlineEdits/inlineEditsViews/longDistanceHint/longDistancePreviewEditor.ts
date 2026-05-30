@@ -96,8 +96,9 @@ export class LongDistancePreviewEditor extends Disposable {
 				return;
 			}
 			const cursorPosition = this._parentEditorObs.cursorPosition.read(reader);
-			if (cursorPosition) {
-				this.previewEditor.setPosition(this._previewTextModel.validatePosition(cursorPosition), 'longDistanceHintPreview');
+			const currentModel = this._previewEditorObs.model.read(reader);
+			if (cursorPosition && currentModel) {
+				this.previewEditor.setPosition(currentModel.validatePosition(cursorPosition), 'longDistanceHintPreview');
 			}
 		}));
 
@@ -224,7 +225,15 @@ export class LongDistancePreviewEditor extends Disposable {
 
 	public readonly updatePreviewEditorEffect = derived(this, reader => {
 		// this._widgetContent.readEffect(reader);
-		this._previewEditorObs.model.read(reader); // update when the model is set
+		const currentModel = this._previewEditorObs.model.read(reader); // update when the model is set
+		const expectedModel = this._state.read(reader)?.textModel;
+
+		// Guard against the race condition where the effect evaluates before setModel autorun has executed
+		if (!expectedModel || !currentModel || expectedModel.dangerouslyGetUnderlyingModel() !== currentModel) {
+			// Clear hidden areas on the stale model so it doesn't retain invalid ranges when modified
+			this.previewEditor.setHiddenAreas([], undefined, true);
+			return;
+		}
 
 		const range = this._state.read(reader)?.visibleLineRange;
 		if (!range) {
@@ -234,8 +243,8 @@ export class LongDistancePreviewEditor extends Disposable {
 		if (range.startLineNumber > 1) {
 			hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
 		}
-		if (range.endLineNumberExclusive < this._previewTextModel.getLineCount() + 1) {
-			hiddenAreas.push(new Range(range.endLineNumberExclusive, 1, this._previewTextModel.getLineCount() + 1, 1));
+		if (range.endLineNumberExclusive < currentModel.getLineCount() + 1) {
+			hiddenAreas.push(new Range(range.endLineNumberExclusive, 1, currentModel.getLineCount() + 1, 1));
 		}
 		this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
 	});
