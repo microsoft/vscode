@@ -1034,9 +1034,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
 			this._cancelPendingCancellationAbort?.();
-			this._sdkSession.abort();
+			this._sdkSession.abort().catch(() => { /* expected AbortError on cancellation */ });
 		}));
-		disposables.add(toDisposable(() => this._sdkSession.abort()));
+		disposables.add(toDisposable(() => { this._sdkSession.abort().catch(() => { /* expected AbortError on dispose */ }); }));
 
 		try {
 			if ('command' in input && input.command !== 'plan') {
@@ -1153,13 +1153,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						this.logService.trace(`[CopilotCLISession] Unable to mark interrupted response: ${error instanceof Error ? error.message : String(error)}`);
 					}
 				}
-				this._sdkSession.abort();
+				this._sdkSession.abort().catch(() => { /* expected AbortError on cancellation timeout */ });
 			}, 250);
 			this._cancelPendingCancellationAbort?.();
 			this._cancelPendingCancellationAbort = cancelAbort;
 			cancelCancellationAbort = cancelAbort;
 		}));
-		disposables.add(toDisposable(() => this._sdkSession.abort()));
+		disposables.add(toDisposable(() => { this._sdkSession.abort().catch(() => { /* expected AbortError on dispose */ }); }));
 
 		this._status = ChatSessionStatus.InProgress;
 		this._statusChange.fire(this._status);
