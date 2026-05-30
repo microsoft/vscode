@@ -16,7 +16,8 @@ import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryS
 import { createPlatformServices } from '../../../test/node/services';
 import { createResponsesRequestBody, OpenAIResponsesProcessor } from '../responsesApi';
 
-function createMockEndpoint(model: string): IChatEndpoint {
+
+function createMockEndpoint(model: string, overrides: Partial<IChatEndpoint> = {}): IChatEndpoint {
 	return {
 		model,
 		family: model,
@@ -39,6 +40,7 @@ function createMockEndpoint(model: string): IChatEndpoint {
 		makeChatRequest2: () => { throw new Error('Not implemented'); },
 		createRequestBody: () => { throw new Error('Not implemented'); },
 		cloneWithTokenOverride() { return this; },
+		...overrides,
 	} as unknown as IChatEndpoint;
 }
 
@@ -197,6 +199,106 @@ describe('createResponsesRequestBody tools', () => {
 		// All user-listed tools should be sent to the model, not stripped.
 		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
 		expect(tools.find(t => t.name === 'another_mcp_tool')).toBeDefined();
+	});
+
+	it('adds client tool_search for BYOK Responses endpoints even when tool_search is filtered out of the request tool list', () => {
+		const endpoint = createMockEndpoint('gpt-5.4', {
+			ownsAuthorization: true,
+		});
+
+		const options = createMockOptions({
+			location: ChatLocation.Other,
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toMatchObject({
+			type: 'tool_search',
+			execution: 'client',
+		});
+		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeUndefined();
+	});
+
+	it('adds client tool_search for BYOK Responses endpoints on ResponsesProxy when tool_search is filtered out of the request tool list', () => {
+		const endpoint = createMockEndpoint('gpt-5.4', {
+			ownsAuthorization: true,
+		});
+
+		const options = createMockOptions({
+			location: ChatLocation.ResponsesProxy,
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toMatchObject({
+			type: 'tool_search',
+			execution: 'client',
+		});
+		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeUndefined();
+	});
+
+	it('does not add client tool_search for first-party Responses endpoints on Other when tool_search is filtered out of the request tool list', () => {
+		const endpoint = createMockEndpoint('gpt-5.4');
+
+		const options = createMockOptions({
+			location: ChatLocation.Other,
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
+		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
+	});
+
+	it('does not add client tool_search for BYOK Responses endpoint subagents when tool_search is filtered out', () => {
+		const endpoint = createMockEndpoint('gpt-5.4', {
+			ownsAuthorization: true,
+		});
+
+		const options = createMockOptions({
+			telemetryProperties: { subType: 'subagent:worker' },
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
+		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
 	});
 
 	it('always filters tool_search function tool from tools array', () => {
