@@ -68,11 +68,13 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// or the tool picker. Keep the explicit request-tool gate for first-party endpoints, but allow the
 	// actual BYOK Responses request path to opt into client tool_search when the endpoint owns auth.
 	const isByokResponsesEndpoint = endpoint.ownsAuthorization === true;
-	const shouldImplicitlyEnableToolSearch = isByokResponsesEndpoint;
+	const isImplicitByokToolSearchLocation = isByokResponsesEndpoint
+		&& (options.location === ChatLocation.Other || options.location === ChatLocation.ResponsesProxy);
+	const shouldImplicitlyEnableToolSearch = isImplicitByokToolSearchLocation;
 	const toolSearchEnabled = !!endpoint.supportsToolSearch && (hasRequestToolSearch || shouldImplicitlyEnableToolSearch);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent
 		|| options.location === ChatLocation.MessagesProxy
-		|| (isByokResponsesEndpoint && (options.location === ChatLocation.Other || options.location === ChatLocation.ResponsesProxy));
+		|| isImplicitByokToolSearchLocation;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
 	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;

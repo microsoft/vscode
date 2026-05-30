@@ -220,12 +220,38 @@ describe('createResponsesRequestBody tools', () => {
 		);
 
 		const tools = body.tools as any[];
-		expect(tools.find(t => t.type === 'tool_search')).toMatchObject({
+		const toolSearchTool = tools.find(t => t.type === 'tool_search');
+		expect(toolSearchTool).toBeDefined();
+		expect(toolSearchTool).toMatchObject({
 			type: 'tool_search',
 			execution: 'client',
 		});
 		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
 		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeUndefined();
+	});
+
+	it('does not add client tool_search for BYOK Responses endpoints on Agent when tool_search is filtered out of the request tool list', () => {
+		const endpoint = createMockEndpoint('gpt-5.4', {
+			ownsAuthorization: true,
+		});
+
+		const options = createMockOptions({
+			location: ChatLocation.Agent,
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
+		expect(tools.find(t => t.name === 'read_file')).toBeDefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
 	});
 
 	it('adds client tool_search for BYOK Responses endpoints on ResponsesProxy when tool_search is filtered out of the request tool list', () => {
@@ -247,7 +273,9 @@ describe('createResponsesRequestBody tools', () => {
 		);
 
 		const tools = body.tools as any[];
-		expect(tools.find(t => t.type === 'tool_search')).toMatchObject({
+		const toolSearchTool = tools.find(t => t.type === 'tool_search');
+		expect(toolSearchTool).toBeDefined();
+		expect(toolSearchTool).toMatchObject({
 			type: 'tool_search',
 			execution: 'client',
 		});
