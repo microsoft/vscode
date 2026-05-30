@@ -659,12 +659,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
+		let pendingHeightUpdate: IDisposable | undefined;
 		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
 			if (entry) {
-				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
+				const height = entry.borderBoxSize.at(0)?.blockSize;
+				pendingHeightUpdate?.dispose();
+				pendingHeightUpdate = dom.scheduleAtNextAnimationFrame(dom.getWindow(rowContainer), () => {
+					pendingHeightUpdate = undefined;
+					this.fireItemHeightChange(template, height);
+				});
 			}
 		}));
+		templateDisposables.add(toDisposable(() => pendingHeightUpdate?.dispose()));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
 		return template;
