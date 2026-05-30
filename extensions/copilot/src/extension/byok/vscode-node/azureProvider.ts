@@ -6,17 +6,88 @@
 import * as vscode from 'vscode';
 import { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { AzureAuthMode, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isEndpointEditToolName } from '../../../platform/endpoint/common/endpointProvider';
+import { IChatModelInformation, isEndpointEditToolName, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
+import { BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 import { AbstractCustomOAIBYOKModelProvider, CustomOAIModelProviderConfig, hasExplicitApiPath } from './customOAIProvider';
+
+type AzureEntraAuthProvider = typeof AzureAuthMode.MICROSOFT_AUTH_PROVIDER | typeof AzureAuthMode.MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER;
+
+interface AzureBYOKModelProviderConfig extends CustomOAIModelProviderConfig {
+	entraAuthProvider?: AzureEntraAuthProvider;
+	entraScopes?: unknown;
+}
+
+type AzureBYOKModelConfiguration = NonNullable<CustomOAIModelProviderConfig['models']>[number];
+
+/**
+ * Resolves the VS Code authentication provider used for Azure Entra auth.
+ */
+export function resolveAzureEntraAuthProvider(configuration: AzureBYOKModelProviderConfig | undefined): AzureEntraAuthProvider {
+	return configuration?.entraAuthProvider === AzureAuthMode.MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER
+		? AzureAuthMode.MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER
+		: AzureAuthMode.MICROSOFT_AUTH_PROVIDER;
+}
+
+/**
+ * Resolves the Entra scopes requested for Azure auth, ignoring malformed values from JSON configuration.
+ */
+export function resolveAzureEntraScopes(configuration: AzureBYOKModelProviderConfig | undefined): string[] {
+	const scopes = Array.isArray(configuration?.entraScopes)
+		? configuration.entraScopes
+			.map(scope => typeof scope === 'string' ? scope.trim() : undefined)
+			.filter((scope): scope is string => !!scope)
+		: undefined;
+	return scopes?.length ? scopes : [AzureAuthMode.COGNITIVE_SERVICES_SCOPE];
+}
+
+/**
+ * Applies Azure endpoint metadata that is inferred from the resolved request URL.
+ */
+export function applyAzureSupportedEndpoints(modelInfo: IChatModelInformation, url: string): void {
+	if (url.includes('/responses')) {
+		modelInfo.supported_endpoints = Array.from(new Set([
+			...(modelInfo.supported_endpoints ?? []),
+			ModelSupportedEndpoint.ChatCompletions,
+			ModelSupportedEndpoint.Responses
+		]));
+	}
+}
+
+export function applyConfiguredAzureSupportedEndpoints(modelInfo: IChatModelInformation, configuredEndpoints: readonly ModelSupportedEndpoint[] | undefined): void {
+	if (configuredEndpoints?.length) {
+		modelInfo.supported_endpoints = Array.from(new Set([
+			...(modelInfo.supported_endpoints ?? []),
+			...configuredEndpoints
+		]));
+	}
+}
+
+export function resolveAzureModelCapabilities(model: OpenAICompatibleLanguageModelChatInformation<CustomOAIModelProviderConfig>, url: string, modelConfiguration: AzureBYOKModelConfiguration | undefined): BYOKModelCapabilities {
+	return {
+		maxInputTokens: model.maxInputTokens,
+		maxOutputTokens: model.maxOutputTokens,
+		toolCalling: !!model.capabilities?.toolCalling,
+		vision: !!model.capabilities?.imageInput,
+		name: model.name,
+		url,
+		thinking: modelConfiguration?.thinking ?? false,
+		streaming: modelConfiguration?.streaming,
+		requestHeaders: modelConfiguration?.requestHeaders,
+		editTools: modelConfiguration?.editTools ?? model.capabilities?.editTools?.filter(isEndpointEditToolName),
+		zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
+		supportedEndpoints: modelConfiguration?.supportedEndpoints,
+		supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
+		reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
+	};
+}
 
 export function resolveAzureUrl(modelId: string, url: string): string {
 	// The fully resolved url was already passed in
@@ -95,8 +166,8 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		}
 
 		const session: vscode.AuthenticationSession = await vscode.authentication.getSession(
-			AzureAuthMode.MICROSOFT_AUTH_PROVIDER,
-			[AzureAuthMode.COGNITIVE_SERVICES_SCOPE],
+			resolveAzureEntraAuthProvider(model.configuration as AzureBYOKModelProviderConfig | undefined),
+			resolveAzureEntraScopes(model.configuration as AzureBYOKModelProviderConfig | undefined),
 			{
 				createIfNone: true,
 				silent: false
@@ -105,20 +176,10 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 
 		const url = this.resolveUrl(model.id, model.url);
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const modelCapabilities = {
-			maxInputTokens: model.maxInputTokens,
-			maxOutputTokens: model.maxOutputTokens,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
-			name: model.name,
-			url,
-			thinking: modelConfiguration?.thinking,
-			streaming: modelConfiguration?.streaming,
-			requestHeaders: modelConfiguration?.requestHeaders,
-			editTools: model.capabilities?.editTools?.filter(isEndpointEditToolName),
-			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
-		};
+		const modelCapabilities = resolveAzureModelCapabilities(model, url, modelConfiguration);
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		applyConfiguredAzureSupportedEndpoints(modelInfo, modelConfiguration?.supportedEndpoints);
+		applyAzureSupportedEndpoints(modelInfo, url);
 
 		const openAIChatEndpoint = this._instantiationService.createInstance(
 			AzureOpenAIEndpoint,
