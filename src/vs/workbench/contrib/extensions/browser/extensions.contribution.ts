@@ -549,9 +549,9 @@ const CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED = new RawContextKey<boolean>(
 const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPrivateRepositorySigned', false);
 const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
-async function runAction(action: IAction): Promise<void> {
+async function runAction<T = void>(action: IAction): Promise<T> {
 	try {
-		await action.run();
+		return await action.run() as T;
 	} finally {
 		if (isDisposable(action)) {
 			action.dispose();
@@ -1363,12 +1363,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1389,12 +1384,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1415,12 +1405,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetProductIconThemeAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1479,12 +1464,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1507,12 +1487,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1534,12 +1509,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1561,12 +1531,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1586,12 +1551,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				const action = instantiationService.createInstance(ClearLanguageAction);
 				action.extension = extension;
-				// TODO: replace with `using` once available
-				try {
-					return await action.run();
-				} finally {
-					action.dispose();
-				}
+				return runAction(action);
 			}
 		});
 
@@ -1612,12 +1572,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1641,12 +1596,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						isMachineScoped: true,
 					});
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1670,12 +1620,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						preRelease: true
 					});
 					action.extension = extension;
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(action);
 				}
 			}
 		});
@@ -1694,13 +1639,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					const action = instantiationService.createInstance(InstallAnotherVersionAction, extension, false);
-					// TODO: replace with `using` once available
-					try {
-						return await action.run();
-					} finally {
-						action.dispose();
-					}
+					return runAction(instantiationService.createInstance(InstallAnotherVersionAction, extension, false));
 				}
 			}
 		});
