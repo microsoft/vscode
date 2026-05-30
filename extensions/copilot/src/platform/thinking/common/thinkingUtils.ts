@@ -5,6 +5,8 @@
 
 import { EncryptedThinkingDelta, RawThinkingDelta, ThinkingDelta } from './thinking';
 
+let _thinkingIdCounter = 0;
+
 function getThinkingDeltaText(thinking: RawThinkingDelta | undefined): string | undefined {
 	if (!thinking) {
 		return '';
@@ -39,6 +41,14 @@ function getThinkingDeltaId(thinking: RawThinkingDelta | undefined): string | un
 	}
 	if (thinking.signature) {
 		return thinking.signature;
+	}
+	// DeepSeek / Moonshot / Minimax send reasoning_content without an explicit ID.
+	// Generate a synthetic monotonic ID so the thinking data flows through the
+	// pipeline and reasoning_content is echoed back on subsequent turns.
+	// Without this, the callback guard `if (data && data.id)` in OpenAIEndpoint
+	// is always false and DeepSeek rejects the next turn with HTTP 400.
+	if (thinking.reasoning_content) {
+		return `reasoning-${++_thinkingIdCounter}`;
 	}
 	return undefined;
 }
