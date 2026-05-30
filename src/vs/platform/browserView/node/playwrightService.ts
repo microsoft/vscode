@@ -711,7 +711,7 @@ const PAGE_PROXY_MAX_DEPTH = 3;
  * cardinality, while a non-zero count signals Playwright API drift (new or
  * renamed methods) worth investigating.
  */
-const PAGE_API_OTHER = 'other';
+const PAGE_API_OTHER = '<other>';
 
 /**
  * Allowlist of fully-qualified Playwright `page` method names (dotted for

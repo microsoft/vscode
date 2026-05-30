@@ -15,11 +15,9 @@ export interface IInvokeFunctionResult {
 	/** When present the function did not complete within the timeout. Pass this ID to {@link IPlaywrightService.waitForDeferredResult} to keep waiting. */
 	deferredResultId?: string;
 	/**
-	 * Map of fully-qualified method name to the number of times it was called
-	 * on the Playwright `page` proxy during execution. Names of calls made on
-	 * non-function namespaces are dotted (e.g. `keyboard.press`, `mouse.click`,
-	 * `request.get`). Methods outside the known Playwright API allowlist are
-	 * counted under the `other` key.
+	 * Map of dotted Playwright `page` method name to call count during execution
+	 * (e.g. `click`, `keyboard.press`, `request.get`). Methods outside the known
+	 * API allowlist are counted under the `<other>` key.
 	 */
 	pageMethodsCalled?: Readonly<Record<string, number>>;
 }

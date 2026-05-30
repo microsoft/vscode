@@ -173,7 +173,7 @@ type RunPlaywrightCodeEvent = {
 };
 
 type RunPlaywrightCodeClassification = {
-	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order. Names outside the known Playwright API allowlist are bucketed under `other`. Truncated to 100 entries.' };
+	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order. Names outside the known Playwright API allowlist are bucketed under `<other>`. Truncated to 100 entries.' };
 	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked. Full count even when `pageMethodsCalled` is truncated.' };
 	pageMethodsCalledTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total method calls including duplicates (sum of all per-method counts).' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the code completed without error, 0 otherwise.' };
