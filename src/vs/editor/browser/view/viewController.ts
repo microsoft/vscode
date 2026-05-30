@@ -17,6 +17,7 @@ import * as platform from '../../../base/common/platform.js';
 import { StandardTokenType } from '../../common/encodedTokenAttributes.js';
 import { ITextModel } from '../../common/model.js';
 import { containsRTL } from '../../../base/common/strings.js';
+import { CursorColumns } from '../../common/core/cursorColumns.js';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -286,7 +287,7 @@ export class ViewController {
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
 						if (data.inSelectionMode) {
-							this._lastCursorMoveToSelect(data.position, data.revealType);
+							this._lastCursorMoveToSelect(data.position, data.mouseColumn, data.revealType);
 						} else {
 							this._createCursor(data.position, false);
 						}
@@ -300,32 +301,63 @@ export class ViewController {
 						if (columnSelection) {
 							this._columnSelect(data.position, data.mouseColumn, true);
 						} else {
-							this._moveToSelect(data.position, data.revealType);
+							this._moveToSelect(data.position, data.mouseColumn, data.revealType);
 						}
 					}
 				} else {
-					this.moveTo(data.position, data.revealType);
+					this.moveTo(data.position, data.mouseColumn, data.revealType);
 				}
 			}
 		}
 	}
 
-	private _usualArgs(viewPosition: Position, revealType: NavigationCommandRevealType): CoreNavigationCommands.MoveCommandOptions {
+	private _usualArgs(viewPosition: Position, revealType: NavigationCommandRevealType): CoreNavigationCommands.MoveCommandOptions;
+	private _usualArgs(viewPosition: Position, mouseColumn: number, revealType: NavigationCommandRevealType): CoreNavigationCommands.MoveCommandOptions;
+	private _usualArgs(viewPosition: Position, arg2: number | NavigationCommandRevealType, arg3?: NavigationCommandRevealType): CoreNavigationCommands.MoveCommandOptions {
 		viewPosition = this._validateViewColumn(viewPosition);
+		let mouseColumn: number;
+		let revealType: NavigationCommandRevealType;
+		if (arg3 !== undefined) {
+			mouseColumn = arg2 as number;
+			revealType = arg3;
+		} else {
+			mouseColumn = CursorColumns.visibleColumnFromColumn(this.viewModel.getLineContent(viewPosition.lineNumber), viewPosition.column, this.viewModel.model.getOptions().tabSize) + 1;
+			revealType = arg2 as NavigationCommandRevealType;
+		}
+
+		let leftoverVisibleColumns = 0;
+		if (this.configuration.options.get(EditorOption.virtualSpace)) {
+			const maxColumn = this.viewModel.getLineMaxColumn(viewPosition.lineNumber);
+			const maxVisibleColumn = CursorColumns.visibleColumnFromColumn(this.viewModel.getLineContent(viewPosition.lineNumber), maxColumn, this.viewModel.model.getOptions().tabSize);
+			leftoverVisibleColumns = Math.max(0, (mouseColumn - 1) - maxVisibleColumn);
+		}
 		return {
 			source: 'mouse',
 			position: this._convertViewToModelPosition(viewPosition),
 			viewPosition,
+			leftoverVisibleColumns,
 			revealType
 		};
 	}
 
-	public moveTo(viewPosition: Position, revealType: NavigationCommandRevealType): void {
-		CoreNavigationCommands.MoveTo.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, revealType));
+	public moveTo(viewPosition: Position, revealType: NavigationCommandRevealType): void;
+	public moveTo(viewPosition: Position, mouseColumn: number, revealType: NavigationCommandRevealType): void;
+	public moveTo(viewPosition: Position, arg2: number | NavigationCommandRevealType, arg3?: NavigationCommandRevealType): void {
+		if (arg3 !== undefined) {
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, arg2 as number, arg3));
+		} else {
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, arg2 as NavigationCommandRevealType));
+		}
 	}
 
-	private _moveToSelect(viewPosition: Position, revealType: NavigationCommandRevealType): void {
-		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, revealType));
+	private _moveToSelect(viewPosition: Position, revealType: NavigationCommandRevealType): void;
+	private _moveToSelect(viewPosition: Position, mouseColumn: number, revealType: NavigationCommandRevealType): void;
+	private _moveToSelect(viewPosition: Position, arg2: number | NavigationCommandRevealType, arg3?: NavigationCommandRevealType): void {
+		if (arg3 !== undefined) {
+			CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, arg2 as number, arg3));
+		} else {
+			CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, arg2 as NavigationCommandRevealType));
+		}
 	}
 
 	private _columnSelect(viewPosition: Position, mouseColumn: number, doColumnSelect: boolean): void {
@@ -349,8 +381,14 @@ export class ViewController {
 		});
 	}
 
-	private _lastCursorMoveToSelect(viewPosition: Position, revealType: NavigationCommandRevealType): void {
-		CoreNavigationCommands.LastCursorMoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, revealType));
+	private _lastCursorMoveToSelect(viewPosition: Position, revealType: NavigationCommandRevealType): void;
+	private _lastCursorMoveToSelect(viewPosition: Position, mouseColumn: number, revealType: NavigationCommandRevealType): void;
+	private _lastCursorMoveToSelect(viewPosition: Position, arg2: number | NavigationCommandRevealType, arg3?: NavigationCommandRevealType): void {
+		if (arg3 !== undefined) {
+			CoreNavigationCommands.LastCursorMoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, arg2 as number, arg3));
+		} else {
+			CoreNavigationCommands.LastCursorMoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, arg2 as NavigationCommandRevealType));
+		}
 	}
 
 	private _wordSelect(viewPosition: Position, revealType: NavigationCommandRevealType): void {
