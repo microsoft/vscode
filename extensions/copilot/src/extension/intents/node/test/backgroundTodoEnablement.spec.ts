@@ -160,7 +160,7 @@ describe('getAgentTools background todo enablement', () => {
 		expect(hasTodoTool(tools)).toBe(false);
 	});
 
-	test('RED until Phase 2: supported extension-contributed endpoints should expose tool_search in enabled tools', async () => {
+	test('supported extension-contributed endpoints expose tool_search in enabled tools', async () => {
 		const request = new TestChatRequest('fix the bug');
 		const endpoint = instantiationService.createInstance(ExtensionContributedChatEndpoint, makeExtensionLanguageModel('claude-sonnet-4.6'));
 

@@ -267,7 +267,7 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		assert.strictEqual(endpoint.model, 'claude-haiku-4.5');
 	});
 
-	test('RED until Phase 2: supported non-copilot vendor override should expose supportsToolSearch on extension-contributed endpoints', async () => {
+	test('supported non-copilot vendor override exposes supportsToolSearch on extension-contributed endpoints', async () => {
 		setFetcher([makeChatModel('copilot-utility')]);
 		const fakeModel = makeFakeLanguageModelChat({
 			vendor: 'anthropic',
