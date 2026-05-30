@@ -2302,7 +2302,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Clear all state related to locking
+		// Clear all state related to locking unconditionally so the widget cannot
+		// remain stuck in a locked state if this is called before the input part renders.
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 		this._lockedCodingAgentIdContextKey.set('');
@@ -2316,7 +2317,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		this.inputEditor?.updateOptions({ placeholder: undefined });
+		// Only touch the input editor if the active input part has been rendered.
+		// `this.input` may resolve to either the main or inline input part, both of which
+		// use non-null assertions internally and would throw before being initialized.
+		const activeInputPart = this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
+			? this.inlineInputPartDisposable.value
+			: this.inputPartDisposable.value;
+		if (activeInputPart) {
+			this.inputEditor.updateOptions({ placeholder: undefined });
+		}
 		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		if (this.visible) {
 			this.listWidget?.rerender();
