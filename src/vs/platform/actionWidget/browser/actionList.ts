@@ -68,6 +68,12 @@ export interface IActionListItem<T> {
 	readonly detail?: string;
 	readonly description?: string | IMarkdownString;
 	/**
+	 * Optional accessible description used in place of {@link description} for
+	 * screen reader labels. Useful when the visual description contains icons
+	 * or other non-textual content.
+	 */
+	readonly ariaDescription?: string;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -517,6 +523,11 @@ export interface IActionListOptions {
 	 * Optional label shown on the right side of the filter row.
 	 */
 	readonly secondaryHeading?: string;
+
+	/**
+	 * Optional text shown below the action list as a footer.
+	 */
+	readonly footerText?: string;
 }
 
 /**
@@ -551,6 +562,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
+	private readonly _footerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -585,6 +597,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuContainer = document.createElement('div');
 		this._submenuContainer.className = 'action-list-submenu-panel action-widget';
 		this._submenuContainer.style.display = 'none';
+		// Make focusable so clicking the hover panel keeps focus inside the
+		// tracked element instead of moving it to document.body (which would
+		// trigger the blur handler and dismiss the widget).
+		this._submenuContainer.tabIndex = -1;
 		this.domNode.append(this._submenuContainer);
 
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {
@@ -631,7 +647,9 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
 						}
-						if (element.description) {
+						if (element.ariaDescription) {
+							label = label + ', ' + stripNewlines(element.ariaDescription);
+						} else if (element.description) {
 							const descText = typeof element.description === 'string' ? element.description : element.description.value;
 							label = label + ', ' + stripNewlines(descText);
 						}
@@ -704,6 +722,13 @@ export class ActionListWidget<T> extends Disposable {
 				const filterLabelEl = dom.append(filterRow, dom.$('.action-list-filter-label'));
 				filterLabelEl.textContent = this._options.secondaryHeading;
 			}
+		}
+
+		// Create footer text
+		if (this._options?.footerText) {
+			this._footerContainer = document.createElement('div');
+			this._footerContainer.className = 'action-list-footer';
+			this._footerContainer.textContent = this._options.footerText;
 		}
 
 		this._applyFilter();
@@ -788,46 +813,69 @@ export class ActionListWidget<T> extends Disposable {
 			focusedItem = this._list.element(focusedIndexes[0]);
 		}
 
-		for (const item of this._allMenuItems) {
-			if (item.kind === ActionListItemKind.Header) {
-				if (isFiltering) {
-					// When filtering, skip all headers
-					continue;
-				}
-				visible.push(item);
-				continue;
-			}
+		if (isFiltering) {
+			let pendingSeparator: IActionListItem<T> | undefined;
+			let filteredSectionItems: IActionListItem<T>[] = [];
+			let hasMatchingActionInSection = false;
 
-			if (item.kind === ActionListItemKind.Separator) {
-				if (isFiltering) {
-					continue;
+			const flushFilteredSection = () => {
+				if (pendingSeparator && hasMatchingActionInSection) {
+					visible.push(pendingSeparator);
 				}
-				if (item.section && this._collapsedSections.has(item.section)) {
-					continue;
-				}
-				visible.push(item);
-				continue;
-			}
+				visible.push(...filteredSectionItems);
+				pendingSeparator = undefined;
+				filteredSectionItems = [];
+				hasMatchingActionInSection = false;
+			};
 
-			// Action item
-			if (isFiltering) {
-				// Always show items tagged with showAlways
+			const matchesFilter = (item: IActionListItem<T>) => {
+				const label = (item.label ?? '').toLowerCase();
+				const descValue = typeof item.description === 'string' ? item.description : (item.description?.value ?? '');
+				return label.includes(filterLower) || descValue.toLowerCase().includes(filterLower);
+			};
+
+			for (const item of this._allMenuItems) {
+				if (item.kind === ActionListItemKind.Header) {
+					continue;
+				}
+
+				if (item.kind === ActionListItemKind.Separator) {
+					flushFilteredSection();
+					pendingSeparator = item.label ? item : undefined;
+					continue;
+				}
+
 				if (item.showAlways) {
-					visible.push(item);
+					filteredSectionItems.push(item);
 					continue;
 				}
-				// When filtering, skip section toggle items and only match content
+
 				if (item.isSectionToggle) {
 					continue;
 				}
-				// Match against label and description
-				const label = (item.label ?? '').toLowerCase();
-				const descValue = typeof item.description === 'string' ? item.description : item.description?.value ?? '';
-				const desc = descValue.toLowerCase();
-				if (label.includes(filterLower) || desc.includes(filterLower)) {
-					visible.push(item);
+
+				if (matchesFilter(item)) {
+					hasMatchingActionInSection = true;
+					filteredSectionItems.push(item);
 				}
-			} else {
+			}
+
+			flushFilteredSection();
+		} else {
+			for (const item of this._allMenuItems) {
+				if (item.kind === ActionListItemKind.Header) {
+					visible.push(item);
+					continue;
+				}
+
+				if (item.kind === ActionListItemKind.Separator) {
+					if (item.section && this._collapsedSections.has(item.section)) {
+						continue;
+					}
+					visible.push(item);
+					continue;
+				}
+
 				// Update icon for section toggle items based on collapsed state
 				if (item.isSectionToggle && item.section) {
 					const collapsed = this._collapsedSections.has(item.section);
@@ -845,15 +893,39 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		}
 
-		// Remove orphaned separators (leading, trailing, or consecutive)
+		// Remove orphaned separators while keeping labeled separators that act as
+		// section headers above their following action items.
+		const hasActionBefore: boolean[] = [];
+		let seenAction = false;
+		for (let i = 0; i < visible.length; i++) {
+			hasActionBefore[i] = seenAction;
+			if (visible[i].kind === ActionListItemKind.Action) {
+				seenAction = true;
+			}
+		}
+
+		const hasActionBeforeNextSeparator: boolean[] = [];
+		let seenActionInSection = false;
 		for (let i = visible.length - 1; i >= 0; i--) {
+			if (visible[i].kind === ActionListItemKind.Action) {
+				seenActionInSection = true;
+				continue;
+			}
 			if (visible[i].kind !== ActionListItemKind.Separator) {
 				continue;
 			}
-			const isLeading = !visible.slice(0, i).some(v => v.kind === ActionListItemKind.Action);
-			const isTrailing = i === visible.length - 1;
-			const isConsecutive = i < visible.length - 1 && visible[i + 1].kind === ActionListItemKind.Separator;
-			if (isLeading || isTrailing || isConsecutive) {
+			hasActionBeforeNextSeparator[i] = seenActionInSection;
+			seenActionInSection = false;
+		}
+
+		for (let i = visible.length - 1; i >= 0; i--) {
+			const item = visible[i];
+			if (item.kind !== ActionListItemKind.Separator) {
+				continue;
+			}
+			const hasFollowingActionInSection = hasActionBeforeNextSeparator[i];
+			const isLeadingUnlabeledDivider = !item.label && !hasActionBefore[i];
+			if (!hasFollowingActionInSection || isLeadingUnlabeledDivider) {
 				visible.splice(i, 1);
 			}
 		}
@@ -903,6 +975,10 @@ export class ActionListWidget<T> extends Disposable {
 	 */
 	get filterContainer(): HTMLElement | undefined {
 		return this._filterContainer;
+	}
+
+	get footerContainer(): HTMLElement | undefined {
+		return this._footerContainer;
 	}
 
 	get filterInput(): HTMLInputElement | undefined {
@@ -1003,7 +1079,7 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
 			case ActionListItemKind.Separator:
-				return this._separatorLineHeight;
+				return item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
 				return item.detail ? (this._options?.detailItemHeight ?? 48) : this._actionLineHeight;
 		}
@@ -1686,6 +1762,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.filterContainer;
 	}
 
+	get footerContainer(): HTMLElement | undefined {
+		return this._widget.footerContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -1775,10 +1855,23 @@ export class ActionList<T> extends Disposable {
 		return this._widget.hasDynamicHeight;
 	}
 
+	private computeActionWidgetVerticalChromeHeight(): number {
+		const widgetContainer = this.domNode.parentElement?.closest('.action-widget');
+		if (!widgetContainer) {
+			return 0;
+		}
+
+		const style = dom.getWindow(widgetContainer).getComputedStyle(widgetContainer);
+		const toPixels = (value: string): number => Number.parseFloat(value) || 0;
+		return toPixels(style.paddingTop) + toPixels(style.paddingBottom) + toPixels(style.borderTopWidth) + toPixels(style.borderBottomWidth);
+	}
+
 	private computeHeight(): number {
 		const listHeight = this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
+		const footerHeight = this._widget.footerContainer ? 32 : 0;
+		const chromeHeight = filterHeight + footerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -1794,10 +1887,10 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				const fullHeight = filterHeight + this._widget.computeFullHeight();
+				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
-			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
@@ -1807,9 +1900,9 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
-		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + filterHeight), viewportMaxHeight);
-		const height = Math.min(listHeight + filterHeight, maxHeight);
-		return height - filterHeight;
+		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + chromeHeight), viewportMaxHeight);
+		const height = Math.min(listHeight + chromeHeight, maxHeight);
+		return height - chromeHeight;
 	}
 
 	layout(minWidth: number): number {

@@ -19,8 +19,10 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostRubberDuckEnabledSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
+import '../common/agentHost.config.contribution.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
@@ -73,15 +75,35 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			|| process.env[AgentHostClaudeSdkPathEnvVar]
 			|| '';
 
+		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
+		// the agent host process. Any value already present on `process.env` wins
+		// (developer override) — see `buildAgentHostOTelEnv` for the precedence.
+		const otelEnv = buildAgentHostOTelEnv({
+			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
+			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
+		}, process.env);
+
+		// Enable rubber duck critic subagent when the setting is on.
+		const rubberDuckEnabled = this._configurationService.getValue<boolean>(AgentHostRubberDuckEnabledSettingId);
+
+		const args = [
+			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+			'--user-data-dir', this._environmentMainService.userDataPath,
+		];
+		if (this._environmentMainService.disableTelemetry) {
+			args.push('--disable-telemetry');
+		}
+
 		this.utilityProcess.start({
 			type: 'agentHost',
 			name: 'agent-host',
 			entryPoint: 'vs/platform/agentHost/node/agentHostMain',
 			execArgv,
-			args: [
-				'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
-				'--user-data-dir', this._environmentMainService.userDataPath,
-			],
+			args,
 			env: {
 				...deepClone(process.env),
 				...shellEnv,
@@ -89,6 +111,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
+				...otelEnv,
+				...(rubberDuckEnabled ? { RUBBER_DUCK_AGENT: 'true' } : {}),
 			}
 		});
 

@@ -3287,7 +3287,11 @@
           "type": "boolean",
           "scope": "resource",
           "description": "%config.enabled%",
-          "default": true
+          "default": true,
+          "agentsWindow": {
+            "default": true,
+            "readOnly": true
+          }
         },
         "git.path": {
           "type": [
@@ -3438,7 +3442,11 @@
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",
-          "default": true
+          "default": true,
+          "agentsWindow": {
+            "default": false,
+            "readOnly": true
+          }
         },
         "git.confirmCommittedDelete": {
           "type": "boolean",
@@ -3636,13 +3644,21 @@
           ],
           "markdownDescription": "%config.postCommitCommand%",
           "scope": "resource",
-          "default": "none"
+          "default": "none",
+          "agentsWindow": {
+            "default": "none",
+            "readOnly": true
+          }
         },
         "git.rememberPostCommitCommand": {
           "type": "boolean",
           "description": "%config.rememberPostCommitCommand%",
           "scope": "resource",
-          "default": false
+          "default": false,
+          "agentsWindow": {
+            "default": false,
+            "readOnly": true
+          }
         },
         "git.openAfterClone": {
           "type": "string",
@@ -4374,7 +4390,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },

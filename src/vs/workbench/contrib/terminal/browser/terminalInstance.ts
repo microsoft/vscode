@@ -1305,6 +1305,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar = undefined;
 		}
 
+		if (this._pressAnyKeyToCloseListener) {
+			this._pressAnyKeyToCloseListener.dispose();
+			this._pressAnyKeyToCloseListener = undefined;
+		}
+
+		if (this._exitReason === undefined) {
+			this._exitReason = reason ?? TerminalExitReason.Unknown;
+		}
+
+		// Dispose the resize debouncer before the process manager so that no
+		// resize callbacks can fire after ptyProcessReady has been nulled.
+		this._resizeDebouncer?.dispose();
+		this._resizeDebouncer = undefined;
+
+		this._processManager.dispose();
+		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
+		// hasn't happened yet
+		this._onProcessExit(undefined);
+
+		// Fire onDisposed before disposing xterm so that contributions can clean
+		// up their xterm addons while the raw terminal is still alive. Disposing
+		// xterm first would cause AddonManager to remove addons from its list,
+		// and subsequent contribution disposal would fail with "Could not dispose
+		// an addon that has not been loaded".
+		this._onDisposed.fire(this);
+
 		try {
 			this.xterm?.dispose();
 		} catch (err: unknown) {
@@ -1320,22 +1346,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalHasTextContextKey.reset();
 			this._onDidBlur.fire(this);
 		}
-
-		if (this._pressAnyKeyToCloseListener) {
-			this._pressAnyKeyToCloseListener.dispose();
-			this._pressAnyKeyToCloseListener = undefined;
-		}
-
-		if (this._exitReason === undefined) {
-			this._exitReason = reason ?? TerminalExitReason.Unknown;
-		}
-
-		this._processManager.dispose();
-		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
-		// hasn't happened yet
-		this._onProcessExit(undefined);
-
-		this._onDisposed.fire(this);
 
 		super.dispose();
 	}
@@ -1583,8 +1593,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const trusted = await this._trust();
-		// Allow remote and local terminals from remote to be created in untrusted remote workspace
-		if (!trusted && !this.remoteAuthority && !this._workbenchEnvironmentService.remoteAuthority) {
+		// Allow remote terminals in a remote workspace to be created when trust is denied, but
+		// still block local terminals (those without a remoteAuthority) even when the workspace is remote.
+		const isRemoteTerminal = !!this.remoteAuthority;
+		if (!trusted && !(isRemoteTerminal && this._workbenchEnvironmentService.remoteAuthority)) {
 			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && normalizeDriveLetter(this._cwd) !== normalizeDriveLetter(this._userHome)) {
 			// something strange is going on if cwd is not userHome in an empty workspace
@@ -1683,7 +1695,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): Promise<void> {
 		// Prevent dispose functions being triggered multiple times
-		if (this._isExiting) {
+		if (this._isExiting || this.isDisposed) {
 			return;
 		}
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
@@ -1697,6 +1709,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = true;
 
 		await this._flushXtermData();
+
+		// The terminal may have been disposed during the flush await (e.g. user
+		// closed the tab). Bail out to avoid using disposed services below.
+		if (this.isDisposed) {
+			return;
+		}
 
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
@@ -2012,7 +2030,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _resize(immediate?: boolean): Promise<void> {
-		if (!this.xterm) {
+		if (!this.xterm || !this._resizeDebouncer) {
 			return;
 		}
 
@@ -2052,26 +2070,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		TerminalInstance._lastKnownGridDimensions = { cols, rows };
-		this._resizeDebouncer!.resize(cols, rows, immediate ?? false);
+		this._resizeDebouncer?.resize(cols, rows, immediate ?? false);
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
 		if (this.isDisposed) {
 			return;
 		}
-		// `rawXterm.dimensions` proxies to xterm.js' RenderService which throws
-		// `Cannot read properties of undefined (reading 'dimensions')` if the
-		// renderer was disposed between scheduling and invocation (debounced or
-		// idle resize callbacks racing with terminal teardown). Guard against
-		// that here so the optional chaining short-circuits to undefined.
-		let pixelWidth: number | undefined;
-		let pixelHeight: number | undefined;
-		try {
-			pixelWidth = rawXterm.dimensions?.css.canvas.width;
-			pixelHeight = rawXterm.dimensions?.css.canvas.height;
-		} catch {
-			// Renderer disposed mid-flight; fall through with undefined dimensions.
-		}
+		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
+		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
 		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;
 		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;
 		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows, undefined, roundedPixelWidth, roundedPixelHeight);
@@ -2112,7 +2119,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
-		if (!title) {
+		if (title === undefined) {
 			return this._processName;
 		}
 		switch (eventSource) {
@@ -2383,6 +2390,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async rename(title?: string, source?: TitleEventSource) {
+		if (title !== undefined && !title) {
+			title = undefined;
+		}
 		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 

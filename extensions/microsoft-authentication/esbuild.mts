@@ -59,7 +59,7 @@ run({
 	srcDir,
 	outdir: outDir,
 	additionalOptions: {
-		external: ['vscode', './msal-node-runtime'],
+		external: ['vscode', 'electron', './msal-node-runtime'],
 		alias: {
 			'keytar': path.resolve(import.meta.dirname, 'packageMocks', 'keytar', 'index.js'),
 		},

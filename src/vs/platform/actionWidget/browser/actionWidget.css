@@ -89,6 +89,7 @@
 	-webkit-user-select: none;
 	user-select: none;
 	border-radius: 0;
+	pointer-events: none;
 }
 
 .action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator:hover,
@@ -101,6 +102,14 @@
 .action-widget .monaco-list-row.separator:first-of-type {
 	border-top: none;
 	margin-top: 0;
+}
+
+/* Separators with text labels (titled section headers) */
+.action-widget .monaco-list-row.separator > span:not(:empty) {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding-left: 10px;
 }
 
 .action-widget .monaco-list .group-header,
@@ -364,6 +373,14 @@
 	margin-right: 2px;
 }
 
+/* Footer text */
+.action-widget .action-list-footer {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	padding: 4px 10px 2px 10px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
 /* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;
@@ -396,6 +413,7 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
+	outline: none;
 }
 
 .action-list-submenu-hover-header {
@@ -404,6 +422,8 @@
 	font-size: 12px;
 	max-width: 300px;
 	word-wrap: break-word;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .action-list-submenu-hover-header a {

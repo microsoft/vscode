@@ -5,7 +5,8 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
 import type { ITunnelAgentHostMainService, ITunnelRelayMessage } from '../common/tunnelAgentHost.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
@@ -30,8 +31,12 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 	constructor(
 		private readonly _connectionId: string,
 		private readonly _tunnelService: ITunnelAgentHostMainService,
+		private readonly _ahpLogger?: AhpJsonlLogger,
 	) {
 		super();
+		if (this._ahpLogger) {
+			this._register(this._ahpLogger);
+		}
 
 		// Listen for relay messages from the shared process
 		this._register(this._tunnelService.onDidRelayMessage((msg: ITunnelRelayMessage) => {
@@ -56,6 +61,7 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 				}
 				return;
 			}
+			this._ahpLogger?.log(parsed, 's2c', getAhpLogByteLength(msg.data));
 			this._onMessage.fire(parsed);
 		}));
 
@@ -73,8 +79,10 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 		super.dispose();
 	}
 
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
-		this._tunnelService.relaySend(this._connectionId, JSON.stringify(message)).catch(() => {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
+		const text = JSON.stringify(message);
+		this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
+		this._tunnelService.relaySend(this._connectionId, text).catch(() => {
 			// Send failed — connection probably closed
 		});
 	}

@@ -19,7 +19,10 @@ refs that change between runs.
 | 4 (skeleton) | Both providers register; auth reaches `ClaudeAgent`; proxy binds; models surface; first user prompt throws `TODO: Phase 5` (the `createSession` stub fires before `sendMessage`). |
 | 5 (sessions) | Same as Phase 4 PLUS `createSession` succeeds (`claude:/<uuid>` URI in IPC log); first user prompt throws `TODO: Phase 6`. **NOTE: Phase 5 was never run live — see §8.** |
 | 6 (sendMessage, single-turn, no tools) | Same as Phase 4 PLUS `createSession` returns a *provisional* session (no SDK contact yet); first user prompt materializes the SDK subprocess and **renders a real text response** (no `TODO: Phase` match in the snapshot); IPC log carries `session/responsePart`, `session/delta`, `session/usage`, `session/turnComplete` actions. |
-| 7+ | Add per-phase assertion to the table above. |
+| 7 (tool calls + permission + user input) | Same as Phase 6 PLUS: a tool-using prompt fires `pending_confirmation`; approving it lands `SessionToolCallComplete` with the result; flipping `permissionMode → bypassPermissions` skips confirmation; an `AskUserQuestion` invocation surfaces the question carousel and answers reach the model. |
+| 8 (file edit tracking) | Same as Phase 7 PLUS: a `Write`/`Edit`/`MultiEdit` invocation that the user approves lands a `SessionToolCallComplete` whose `result.content` carries a `ToolResultFileEditContent` block (`type: 'file_edit'`) with non-empty `before` and `after` `session-db:` URIs; `Options.enableFileCheckpointing` is `true`, `Options.hooks` stays `undefined`, and file-edit staging is driven by the SDK message stream observer (`ClaudeFileEditObserver`) on assistant/user events. Note: an `Edit`/`MultiEdit` invocation is preceded by a `Read` permission prompt (Claude reads the file to find the target string before editing); both must be approved before the tool runs. |
+| 9 (abort + steering + changeModel) | Same as Phase 8 PLUS: (a) sending a long prompt then clicking **Abort** mid-stream surfaces an aborted state in the UI; the next `sendMessage` rebuilds the SDK plumbing via resume mode (one extra `[Claude] session <id>: resume rebuild` log line) and streams a fresh response. (b) Sending a long prompt and then a steering message preempts the in-flight turn (the SDK's `'now'`-priority path); a `steering_consumed` signal fires in the IPC log carrying the original `PendingMessage.id`. (c) Switching the model mid-conversation via the model picker fires `Query.setModel` (and, when the picker also changes effort, `Query.applyFlagSettings`) at the next yield boundary \u2014 no extra `startup` call. (d) Selecting `'max'` effort mid-session emits the warning substring `'max' effort clamped to 'xhigh'`. (e) Killing the SDK subprocess externally (or simulating a crash) surfaces a turn error; the next `sendMessage` rebinds via resume. |
+| 10+ | Add per-phase assertion to the table above. |
 
 ## Prerequisites
 
@@ -225,6 +228,45 @@ ordering invariant).
 > register its tool list, which is a Phase 10 stub. It does not affect the
 > chat round-trip. Promote this to a check failure in Phase 10.
 
+### 4.1 Phase 7 operator script (tool calls + permission + user input)
+
+Run only after the Phase 6 baseline (above) passes. Steps mirror plan §7.5.
+
+> **Tool kinds vs. `permissionMode`.** In `default` mode the Claude SDK
+> auto-approves reads and only invokes the host's `canUseTool` for
+> writes / shell / network — pick a write-style prompt below so the
+> confirmation card actually surfaces. (See the Claude permission-mode
+> table.) In `acceptEdits` mode writes are also auto-approved; only
+> `bypassPermissions` skips ALL gates.
+
+1. **Permission round-trip — approve.** With Claude selected in the
+   picker, type `create a file named scratch.md with the body "smoke
+   test"`. Wait ≥ 5s for the tool card. Snapshot. Verify a confirmation
+   card appears (`Edit file?` / `Write file?` title with an Approve /
+   Deny button row). Screenshot `tool-confirm.png`. Approve. Snapshot
+   again. Verify the assistant follow-up acknowledges the create.
+   Screenshot `tool-complete.png`. Clean up the file afterwards.
+
+2. **Verify the action stream.** Re-run
+   `./src/vs/platform/agentHost/node/claude/scripts/verify-claude-logs.sh --phase=7`
+   — checks 9–11 must pass (`session/toolCallStart`, `pending_confirmation`,
+   `session/toolCallComplete`).
+
+3. **Permission round-trip — bypass.** Open the workbench Approvals
+   dropdown, switch to `bypassPermissions`. Type `create a file named
+   scratch2.md with the body "no gate"`. Snapshot. Verify NO confirmation
+   card appears; the write result lands directly. Screenshot
+   `bypass-mode.png`. Re-run the verify script; check 13 must pass
+   (the `setPermissionMode("bypassPermissions")` line appears and the
+   post-bypass tool call has no `pending_confirmation`). Clean up the
+   file afterwards.
+
+4. **User-input flow.** Type `Use AskUserQuestion to ask me which package
+   manager I prefer with options npm, pnpm, yarn`. Wait ≥ 5s. Verify a
+   carousel question card surfaces with the three options. Screenshot
+   `ask-user-question.png`. Pick an option. Verify the assistant's
+   follow-up message acknowledges the choice.
+
 ## 5. Verify the session URI scheme
 
 The session URI is observable in the IPC log, **not** as a
@@ -260,6 +302,10 @@ For a phase smoke PR, include in the description:
 - Phases 4–5: `stub-error.png`
 - Phase 6+: `turn-complete.png` AND `response-actions.log` (proves the
   IPC action stream landed, not just the UI render)
+- Phase 7+: `tool-confirm.png`, `tool-complete.png`, `bypass-mode.png`,
+  `ask-user-question.png` AND `tool-actions.log` (proves the
+  `session/toolCall/start` → `pending_confirmation` →
+  `session/toolCall/complete` action sequence)
 - `claude-session-uris.log` (one line per session created)
 
 The other captured artifacts are useful for triage if any check fails but

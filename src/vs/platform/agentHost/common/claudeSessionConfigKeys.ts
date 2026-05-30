@@ -10,7 +10,7 @@
  * Claude collapses the platform's two-axis approval model
  * (`autoApprove` × `mode`) onto a single `permissionMode` axis matching
  * the Claude SDK's native `PermissionMode` (see
- * `@anthropic-ai/claude-agent-sdk` typings). The four values mirror
+ * `@anthropic-ai/claude-agent-sdk` typings). The six values mirror
  * the SDK's enum exactly so that the value flowing back into
  * `query({ permissionMode })` requires no translation layer.
  *
@@ -27,4 +27,23 @@ export const enum ClaudeSessionConfigKey {
  * Permission-mode values advertised in the Claude session-config schema.
  * Mirror of the SDK's `PermissionMode` union for protocol-stable strings.
  */
-export type ClaudePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+export type ClaudePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk' | 'auto';
+
+/**
+ * Single source of truth for narrowing an arbitrary runtime value to the
+ * closed {@link ClaudePermissionMode} union. Returns `undefined` for
+ * non-strings or unmatched strings; callers apply their own fallback.
+ */
+export function narrowClaudePermissionMode(raw: unknown): ClaudePermissionMode | undefined {
+	switch (raw) {
+		case 'default':
+		case 'acceptEdits':
+		case 'bypassPermissions':
+		case 'plan':
+		case 'dontAsk':
+		case 'auto':
+			return raw;
+		default:
+			return undefined;
+	}
+}

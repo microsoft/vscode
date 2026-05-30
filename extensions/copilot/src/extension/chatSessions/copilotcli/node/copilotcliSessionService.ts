@@ -40,11 +40,12 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
-import { formatModelDetails, getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
+import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
@@ -54,6 +55,7 @@ import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgre
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
 const AUTO_MODE_REFRESH_LEAD_TIME_MS = 300 * 1000;
+export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
 type AutoModeResolveArgs = Parameters<SDKAutoModeSessionManager['resolve']>[0];
@@ -335,6 +337,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
 	private showExternalSessions: boolean;
+	private _customAgentLookupChanged: boolean = false;
+	private _customAgentLookupRebuild: Promise<void> | undefined;
+	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
 	constructor(
 		@ILogService protected readonly logService: ILogService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
@@ -363,6 +368,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
+			}
+		}));
+		this._register(this._promptsService.onDidChangeCustomAgents(() => {
+			this._customAgentLookupChanged = true;
+			if (this._cachedSessionItems.size > 0) {
+				void this.createCustomAgentLookup();
 			}
 		}));
 		this.monitorSessionFiles();
@@ -890,7 +901,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		]);
 		const customAgents = agentInfos.map(i => i.agent);
 		const variablesContext = this._promptVariablesService.buildTemplateVariablesContext(options.sessionId, options.debugTargetSessionIds);
-		const systemMessage = variablesContext ? { mode: 'append' as const, content: variablesContext } : undefined;
+		const systemMessage: NonNullable<SessionOptions['systemMessage']> = {
+			mode: 'customize',
+			sections: {
+				identity: {
+					action: 'replace',
+					content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+				},
+			},
+		};
+		if (variablesContext) {
+			systemMessage.content = variablesContext;
+		}
 
 		const allOptions: SessionOptions = {
 			clientName: 'vscode',
@@ -924,15 +946,31 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (copilotUrl) {
 			allOptions.copilotUrl = copilotUrl;
 		}
-		if (systemMessage) {
-			allOptions.systemMessage = systemMessage;
-		}
+		allOptions.systemMessage = systemMessage;
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
 
+		const sandboxConfig = this.getSandboxConfig();
+		if (sandboxConfig) {
+			allOptions.sandboxConfig = sandboxConfig;
+		}
+
 		return allOptions as Readonly<SessionOptions>;
+	}
+
+	private getSandboxConfig(): SessionOptions['sandboxConfig'] {
+		const sandboxSettingId = process.platform === 'win32' ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled';
+		const rawSandboxSetting = this.configurationService.getNonExtensionConfig<unknown>(sandboxSettingId);
+		const sandboxSetting = typeof rawSandboxSetting === 'string'
+			? rawSandboxSetting
+			: rawSandboxSetting === true ? 'on' : rawSandboxSetting === false ? 'off' : undefined;
+		const rawFileSystemSetting = this.configurationService.getNonExtensionConfig<unknown>('chat.agent.sandbox.fileSystem');
+		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
+			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
+			: undefined;
+		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting);
 	}
 
 	public async getSession(options: IGetSessionOptions, token: CancellationToken): Promise<RefCountedSession | undefined> {
@@ -1017,6 +1055,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				shutdown = sessionManager.closeSession(sessionId).catch(error => {
 					this.logService.error(`[CopilotCLISession] Failed to close session ${sessionId} after fetching chat history: ${error}`);
 				});
+			} catch (error) {
+				this.logService.error(`[CopilotCLISession] Failed to read session ${sessionId}, it may be corrupted: ${error}`);
+				return { history: [], events: [] };
 			} finally {
 				await shutdown;
 			}
@@ -1025,18 +1066,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const [agentId, storedDetails] = await Promise.all([agentIdPromise, requestDetailsPromise]);
 
 		// Build lookup from copilotRequestId → RequestDetails for the callback
-		const customAgentLookup = await this.createCustomAgentLookup();
 		const legacyMappings: RequestDetails[] = [];
 		const detailsByCopilotId = new Map<string, RequestIdDetails>();
-		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId, customAgentLookup) : undefined;
+		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId) : undefined;
 
 		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
-				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
+				// Agents from older requests isn't useful, hence to save time.
+				// Re-use the same custom agent from last request for all previous requests.
+				const modeInstructions = defaultModeInstructions;
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed });
 			}
 		}
-
 		const getVSCodeRequestId = (sdkRequestId: string) => {
 			const stored = detailsByCopilotId.get(sdkRequestId);
 			if (stored) {
@@ -1064,37 +1105,53 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				this.logService.error(`[CopilotCLISession] Failed to update chat session metadata store with legacy mappings for session ${sessionId}`, error);
 			});
 		}
-
 		return { history, events };
 	}
 
-	private async createCustomAgentLookup(): Promise<Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>> {
-		const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
-		const lookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
-		for (const agent of agents) {
-			if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
-				continue;
-			}
-			const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
-			const keys = [
-				agent.name?.trim(),
-				agent.uri.toString(),
-				getAgentFileNameFromFilePath(agent.uri),
-			];
-			for (const key of keys) {
-				if (key && !lookup.has(key)) {
-					lookup.set(key, [agent, lazyContent]);
-				}
-			}
+	private createCustomAgentLookup(): Promise<void> {
+		if (!this._customAgentLookupChanged && this._customAgentLookup.size) {
+			return Promise.resolve();
 		}
-		return lookup;
+		if (this._customAgentLookupRebuild) {
+			return this._customAgentLookupRebuild;
+		}
+		this._customAgentLookupRebuild = (async () => {
+			this._customAgentLookupChanged = false;
+			try {
+				const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
+
+				for (const agent of agents) {
+					if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
+						continue;
+					}
+					const keys = coalesce([
+						agent.name?.trim(),
+						agent.uri.toString(),
+						getAgentFileNameFromFilePath(agent.uri),
+					]);
+
+					const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
+					for (const key of keys) {
+						this._customAgentLookup.set(key, [agent, lazyContent]);
+					}
+				}
+			} catch (error) {
+				this._customAgentLookupChanged = true;
+				throw error;
+			}
+		})().finally(() => { this._customAgentLookupRebuild = undefined; });
+		return this._customAgentLookupRebuild;
 	}
 
-	private async resolveAgentModeInstructions(agentId: string | undefined, customAgentLookup: Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>): Promise<StoredModeInstructions | undefined> {
+	private async resolveAgentModeInstructions(agentId: string | undefined): Promise<StoredModeInstructions | undefined> {
 		if (!agentId) {
 			return undefined;
 		}
-		const agentEntry = customAgentLookup.get(agentId);
+		let agentEntry = this._customAgentLookup.get(agentId);
+		if (!agentEntry || this._customAgentLookupChanged) {
+			await this.createCustomAgentLookup();
+			agentEntry = this._customAgentLookup.get(agentId);
+		}
 		if (!agentEntry) {
 			return undefined;
 		}
@@ -1106,14 +1163,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, ModelDetailsInfo>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const detailsById = new Map<string, string>();
+		const detailsById = new Map<string, ModelDetailsInfo>();
 		for (const model of models) {
-			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+			detailsById.set(model.id.trim().toLowerCase(), { name: model.name, multiplier: model.multiplier });
 		}
 		return detailsById;
 	}
@@ -1501,4 +1558,79 @@ export class RefCountedSession extends RefCountedDisposable implements IReferenc
 	dispose(): void {
 		this.release();
 	}
+}
+
+export interface IAgentSandboxFileSystemSetting {
+	allowRead?: string[];
+	allowWrite?: string[];
+	denyRead?: string[];
+	denyWrite?: string[];
+}
+
+export interface IAgentSandboxFileSystemSettings {
+	linux?: IAgentSandboxFileSystemSetting;
+	mac?: IAgentSandboxFileSystemSetting;
+	windows?: IAgentSandboxFileSystemSetting;
+}
+
+/**
+ * Maps the workbench `chat.agent.sandbox.*` settings onto the SDK's
+ * {@link SessionOptions.sandboxConfig}.
+ *
+ * When the same path appears in multiple settings, the most restrictive
+ * setting wins: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`. Each
+ * path is emitted in exactly one of `deniedPaths` / `readonlyPaths` /
+ * `readwritePaths`, regardless of how many settings reference it.
+ */
+export function buildSandboxConfigForCLI(
+	platform: NodeJS.Platform,
+	sandboxSetting: string | undefined,
+	fileSystemSetting: IAgentSandboxFileSystemSettings | undefined,
+): SessionOptions['sandboxConfig'] {
+	const sandboxEnabled = platform === 'win32'
+		? sandboxSetting === 'allowNetwork'
+		: sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
+	if (!sandboxEnabled) {
+		return undefined;
+	}
+
+	const fs = (platform === 'win32'
+		? fileSystemSetting?.windows
+		: platform === 'darwin'
+			? fileSystemSetting?.mac
+			: fileSystemSetting?.linux) ?? {};
+	const denied = new Set<string>(fs.denyRead ?? []);
+	const readonly = new Set<string>();
+	const readwrite = new Set<string>();
+	// `denyWrite` only blocks writes (mxc's `readonlyPaths`), losing only to `denyRead`.
+	for (const p of fs.denyWrite ?? []) {
+		if (!denied.has(p)) {
+			readonly.add(p);
+		}
+	}
+	for (const p of fs.allowWrite ?? []) {
+		if (!denied.has(p) && !readonly.has(p)) {
+			readwrite.add(p);
+		}
+	}
+	// `allowRead` is covered by `allowWrite`, so only add it when not already granted write access.
+	for (const p of fs.allowRead ?? []) {
+		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
+			readonly.add(p);
+		}
+	}
+
+	return {
+		enabled: true,
+		userPolicy: {
+			filesystem: {
+				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+				...(denied.size ? { deniedPaths: [...denied] } : {}),
+			},
+			network: {
+				allowOutbound: sandboxSetting === 'allowNetwork',
+			},
+		},
+	};
 }

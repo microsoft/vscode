@@ -173,14 +173,9 @@
 	padding: 6px 0 10px 0;
 }
 
-/* Override the shared `flex: 1` on the link-button container so the single
-	entry sizes to its content height instead of stretching to fill the
-	flex-column toolbar. */
+/* Disable the shared `flex: 1` so the single entry doesn't stretch to fill
+	the flex-column toolbar. Width is handled by the inherited `margin: 0 10px`
+	and the parent's default `align-items: stretch`. */
 .ai-customization-toolbar.single-entry .customization-link-button-container {
 	flex: none;
-	width: 100%;
-}
-
-.ai-customization-toolbar.single-entry .customization-link-button {
-	width: 100%;
 }

@@ -59,15 +59,6 @@ declare module 'vscode' {
 		 */
 		readonly isUserSelectable?: boolean;
 
-		/**
-		 * Optional category to group models by in the model picker.
-		 * The lower the order, the higher the category appears in the list.
-		 * Has no effect if `isUserSelectable` is `false`.
-		 *
-		 * WONT BE FINALIZED
-		 */
-		readonly category?: { label: string; order: number };
-
 		readonly statusIcon?: ThemeIcon;
 
 		/**

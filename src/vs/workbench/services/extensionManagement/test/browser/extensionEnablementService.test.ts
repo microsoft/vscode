@@ -30,7 +30,7 @@ import { IHostService } from '../../../host/browser/host.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IExtensionBisectService } from '../../browser/extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { EXTENSIONS_SUPPORT_SESSIONS_WINDOW, ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
 import { TestChatEntitlementService, TestContextService, TestProductService, TestWorkspaceTrustEnablementService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ExtensionManagementService } from '../../common/extensionManagementService.js';
@@ -1267,7 +1267,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test configured extensions are enabled in sessions window', async () => {
-		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_SUPPORT_SESSIONS_WINDOW, { 'pub.withMain': true, 'pub.nonThemeContrib': true });
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.withMain': true, 'pub.nonThemeContrib': true });
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 

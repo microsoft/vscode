@@ -24,7 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationService } from '../../browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
-import { getWorkspaceIdentifier } from '../../../../../workbench/services/workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 
@@ -77,6 +77,12 @@ suite('Sessions ConfigurationService', () => {
 					'default': false,
 					scope: ConfigurationScope.RESOURCE,
 					agentsWindow: { default: true }
+				},
+				'sessionsConfigurationService.agentsWindowObjectDefault': {
+					'type': 'object',
+					'default': {},
+					scope: ConfigurationScope.RESOURCE,
+					agentsWindow: { default: { '*.md': 'vscode.markdown.preview.editor' } }
 				},
 			}
 		});
@@ -456,6 +462,27 @@ suite('Sessions ConfigurationService', () => {
 
 	test('agentsWindow.default with boolean value', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.agentsWindowDefaultOnly'), true);
+	});
+
+	test('agentsWindow.default with object value', () => {
+		assert.deepStrictEqual(testObject.getValue('sessionsConfigurationService.agentsWindowObjectDefault'), { '*.md': 'vscode.markdown.preview.editor' });
+	});
+
+	test('agentsWindow.default with object value survives schema re-registration', () => {
+		const node = {
+			'id': '_test_sessions_object_reregister',
+			'type': 'object' as const,
+			'properties': {
+				'sessionsConfigurationService.agentsWindowObjectDefault': {
+					'type': 'object' as const,
+					'default': {},
+					scope: ConfigurationScope.RESOURCE,
+					agentsWindow: { default: { '*.md': 'vscode.markdown.preview.editor' } }
+				},
+			}
+		};
+		configurationRegistry.updateConfigurations({ add: [node], remove: [node] });
+		assert.deepStrictEqual(testObject.getValue('sessionsConfigurationService.agentsWindowObjectDefault'), { '*.md': 'vscode.markdown.preview.editor' });
 	});
 
 	test('agentsWindow.readOnly setting uses overridden default', () => {

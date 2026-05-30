@@ -25,6 +25,8 @@ export interface IDiffComputeService {
 
 	/**
 	 * Computes line-level diff counts between two text strings.
+	 * @param original - The original text.
+	 * @param modified - The modified text to compare against the original.
 	 * @param timeoutMs - Maximum time in milliseconds before aborting. Defaults to {@link DEFAULT_DIFF_TIMEOUT_MS}.
 	 */
 	computeDiffCounts(original: string, modified: string, timeoutMs?: number): Promise<IDiffCountResult>;

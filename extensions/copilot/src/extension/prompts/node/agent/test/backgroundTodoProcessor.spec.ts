@@ -22,8 +22,8 @@ function makeDelta(rounds: string[] = []): IBackgroundTodoDelta {
 		metadata: {
 			newRoundCount: rounds.length,
 			newToolCallCount: 0,
-			meaningfulToolCallCount: 0,
-			contextToolCallCount: 0,
+			substantiveToolCallCount: 0,
+			currentTurnSubstantiveToolCallCount: 0,
 			isInitialDelta: true,
 			isRequestOnly: rounds.length === 0,
 		},
@@ -45,12 +45,14 @@ function makeLogService(logMessages?: string[]) {
 
 function makeExecutionContext(rounds: string[] = [], options: IExecutionContextTestOptions = {}): IBackgroundTodoExecutionContext {
 	return {
-		instantiationService: { invokeFunction: async () => {
-			if (options.endpointDelayMs !== undefined) {
-				await new Promise(resolve => setTimeout(resolve, options.endpointDelayMs));
+		instantiationService: {
+			invokeFunction: async () => {
+				if (options.endpointDelayMs !== undefined) {
+					await new Promise(resolve => setTimeout(resolve, options.endpointDelayMs));
+				}
+				throw new Error('no endpoint');
 			}
-			throw new Error('no endpoint');
-		} } as any,
+		} as any,
 		logService: makeLogService(options.logMessages),
 		toolsService: { invokeTool: async () => undefined } as any,
 		telemetryService: { sendMSFTTelemetryEvent: (eventName: string) => options.telemetryEvents?.push(eventName) } as any,
@@ -215,37 +217,25 @@ describe('BackgroundTodoProcessor', () => {
 
 	// ── requestFinalReview ──────────────────────────────────────
 
-	test('requestFinalReview is a no-op when no context has been recorded', () => {
-		const processor = new BackgroundTodoProcessor();
-		processor.requestFinalReview('turn-1');
-		expect(processor.state).toBe(BackgroundTodoProcessorState.Idle);
-	});
-
 	test('requestFinalReview is a no-op when no todos have been created', async () => {
 		const processor = new BackgroundTodoProcessor();
-		// Simulate a noop pass so a context exists but hasCreatedTodos remains false
+		// Simulate a noop pass so hasCreatedTodos remains false.
 		processor.start(makeDelta(['r1']), async () => ({ outcome: 'noop' }));
 		await processor.waitForCompletion();
 		expect(processor.hasCreatedTodos).toBe(false);
-		processor.requestFinalReview('turn-1');
+		processor.requestFinalReview('turn-1', makeExecutionContext(['r1']));
 		expect(processor.state).toBe(BackgroundTodoProcessorState.Idle);
 	});
 
 	test('requestFinalReview runs when processor is idle and todos exist', async () => {
 		const processor = new BackgroundTodoProcessor();
-		// Use requestRegularPass so _lastExecutionContext is recorded
-		processor.requestRegularPass(makeDelta(['r1']), makeExecutionContext(['r1']));
-		// Force hasCreatedTodos
-		await processor.waitForCompletion();
-		// The work threw because the mock context has no real endpoint, but
-		// we need hasCreatedTodos = true. Use the low-level start() for that.
-		processor.start(makeDelta(['r2']), async () => ({ outcome: 'success' }));
+		processor.start(makeDelta(['r1']), async () => ({ outcome: 'success' }));
 		await processor.waitForCompletion();
 		expect(processor.hasCreatedTodos).toBe(true);
 		expect(processor.state).toBe(BackgroundTodoProcessorState.Idle);
 
 		// Now request final review — it should transition to InProgress
-		processor.requestFinalReview('turn-1');
+		processor.requestFinalReview('turn-1', makeExecutionContext(['r1']));
 		expect(processor.state).toBe(BackgroundTodoProcessorState.InProgress);
 		await processor.waitForCompletion();
 	});
@@ -254,18 +244,31 @@ describe('BackgroundTodoProcessor', () => {
 		const processor = new BackgroundTodoProcessor();
 		processor.start(makeDelta(['r1']), async () => ({ outcome: 'success' }));
 		await processor.waitForCompletion();
-		// Record a context
-		processor.requestRegularPass(makeDelta(['r2']), makeExecutionContext(['r2']));
-		await processor.waitForCompletion();
-
 		// First request should be accepted
-		processor.requestFinalReview('turn-1');
+		processor.requestFinalReview('turn-1', makeExecutionContext(['r1']));
 		expect(processor.state).toBe(BackgroundTodoProcessorState.InProgress);
 		await processor.waitForCompletion();
 
 		// Second request with same turn ID should be a no-op
-		processor.requestFinalReview('turn-1');
+		processor.requestFinalReview('turn-1', makeExecutionContext(['r1']));
 		expect(processor.state).toBe(BackgroundTodoProcessorState.Idle);
+	});
+
+	test('requestFinalReview runs with current context even when regular work last ran in another turn', async () => {
+		const processor = new BackgroundTodoProcessor();
+		// Simulate a successful pass so hasCreatedTodos becomes true
+		processor.start(makeDelta(['r1']), async () => ({ outcome: 'success' }));
+		await processor.waitForCompletion();
+		expect(processor.hasCreatedTodos).toBe(true);
+
+		// Record context for turn-1
+		processor.requestRegularPass(makeDelta(['r2']), makeExecutionContext(['r2']), undefined, 'turn-1');
+		await processor.waitForCompletion();
+
+		// The final turn never queued a regular pass, but it still has a current render context.
+		processor.requestFinalReview('turn-2', makeExecutionContext(['turn-2-round']));
+		expect(processor.state).toBe(BackgroundTodoProcessorState.InProgress);
+		await processor.waitForCompletion();
 	});
 
 	test('requestFinalReview drains after a regular pass completes', async () => {
@@ -287,7 +290,7 @@ describe('BackgroundTodoProcessor', () => {
 
 		// While in progress, record context and request final review
 		processor.requestRegularPass(makeDelta(['r2']), makeExecutionContext(['r1', 'r2'], { telemetryEvents }));
-		processor.requestFinalReview('turn-1');
+		processor.requestFinalReview('turn-1', makeExecutionContext(['r1', 'r2'], { telemetryEvents }));
 
 		await processor.waitForCompletion();
 

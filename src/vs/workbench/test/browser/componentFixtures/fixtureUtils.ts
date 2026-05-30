@@ -112,6 +112,7 @@ import './fixtures.css';
 // Import color registrations to ensure colors are available
 import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
 import { buildHistoryFromTasks, renderSwimlanes } from '../../../../base/test/common/executionGraph.js';
+import { pushRandomOverwrite } from '../../../../base/test/common/randomOverwrite.js';
 import {
 	captureGlobalTimeApi,
 	createLoggingTimeApi,
@@ -583,8 +584,11 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
+		managedSettingsFetchStatus: null,
+		managedSettingsFetchedAt: null,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
+		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
 		setDefaultAccountProvider: () => { },
 		refresh: async () => null,
 		signIn: async () => null,
@@ -620,10 +624,16 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
 		onDidChangeNavigation: Event.None,
+		onDidAddFeedback: Event.None,
+		onDidConvertFeedback: Event.None,
+		onDidAddReply: Event.None,
+		onDidSubmitFeedback: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		addReply: () => { },
 		getFeedback: () => [],
+		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
 		revealSessionComment: async () => { },
@@ -632,6 +642,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		setNavigationAnchor: () => { },
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
+		submitFeedback: async () => { },
 		addFeedbackAndSubmit: async () => { },
 	});
 
@@ -866,6 +877,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
 
+			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
+			disposableStore.add(pushRandomOverwrite(42));
+
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
 			// Detect disposable leaks the same way unit tests do (`ensureNoDisposablesAreLeakedInTestSuite`).
@@ -889,7 +903,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// during dispose to drain async cleanup work (e.g. `Promise.race`
 			// guards behind `timeout(1000)` that hold references until they
 			// settle) before the leak tracker checks for undisposed objects.
-			const clock = new VirtualClock(Date.now());
+			//
+			// Seed the clock with a fixed wall-clock time so any code under
+			// test that reads `Date.now()` / `new Date()` produces the same
+			// values run after run. Real time would otherwise leak in
+			// through this seed and make screenshots that include
+			// time-derived labels (e.g. "1 hour ago", "Today") drift
+			// across days, hour boundaries, and DST changes.
+			const clock = new VirtualClock(new Date('2026-05-14T12:00:00Z').getTime());
 			const p = new VirtualTimeProcessor(
 				clock,
 				drainMicrotasksEmbedding(realTimeApi),
@@ -1021,6 +1042,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
+
 			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
 				const history = buildHistoryFromTasks(p.history, startTime);
@@ -1042,7 +1064,7 @@ interface ThemedFixtureGroupOptions {
 	readonly labels?: ThemedFixtureGroupLabels;
 }
 
-type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures | ReturnType<typeof defineFixtureGroup>>;
 
 /**
  * Creates a nested fixture group from themed fixtures.

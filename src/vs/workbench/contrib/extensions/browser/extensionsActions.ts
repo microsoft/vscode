@@ -1087,7 +1087,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() !== 'off' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
 			return;
 		}
 		this.enabled = true;
@@ -2771,17 +2771,32 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
 		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
 	update(): void {
-		this.updateThrottler.queue(() => this.computeAndUpdateStatus());
+		this.recomputeStatus();
+	}
+
+	/**
+	 * Recomputes the status and returns a promise that resolves when the
+	 * computation is done. Use this when callers need to await time-sensitive
+	 * status content (e.g. the delayed auto-update message) before reading it.
+	 */
+	recomputeStatus(): Promise<void> {
+		return this.updateThrottler.queue(() => this.computeAndUpdateStatus());
 	}
 
 	private async computeAndUpdateStatus(): Promise<void> {
@@ -2829,8 +2844,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.outdated) {
+			let hasConsentWarning = false;
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
+				hasConsentWarning = true;
 				const markdown = new MarkdownString();
 				markdown.appendMarkdown(`${message} `);
 				markdown.appendMarkdown(
@@ -2842,6 +2859,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 								: createCommandUri('extension.open', this.extension.identifier.id).toString()
 					));
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
+			}
+			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
+				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
+				// Do not override the higher-priority warning class with the info class.
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because extension auto updates are configured to be delayed by 6 hours. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
 			}
 		}
 

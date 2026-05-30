@@ -9,9 +9,10 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ErrorUtils } from '../../../util/common/errors';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { byokKnownModelsToAPIInfo, resolveModelInfo } from '../common/byokProvider';
+import { resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
+import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
 
 interface OllamaModelInfoAPIResponse {
@@ -119,7 +120,7 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 				};
 			}
 
-			return byokKnownModelsToAPIInfo(this._name, this._knownModels).map(model => ({
+			return byokKnownModelsToAPIInfoWithEffort(this._name, this._knownModels).map(model => ({
 				...model,
 				url: ollamaBaseUrl
 			}));
