@@ -435,21 +435,36 @@ export function buildModelPickerItems(
 			? buildModelToProviderGroupMap(languageModelsService)
 			: new Map<string, IProviderGroupInfo>();
 		if (models.length) {
-			// Collect all available models into lookup maps
+			// Collect all available models into lookup maps. `modelsByMetadataId`
+			// is a fallback for legacy MRU entries that stored a `metadata.id`
+			// instead of an identifier; on a cross-vendor collision we keep
+			// the first seen entry rather than letting later models overwrite
+			// it (Copilot is registered first in practice).
 			const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 			const modelsByMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 			for (const model of models) {
 				allModelsMap.set(model.identifier, model);
-				modelsByMetadataId.set(model.metadata.id, model);
+				if (!modelsByMetadataId.has(model.metadata.id)) {
+					modelsByMetadataId.set(model.metadata.id, model);
+				}
 			}
 
-			const placed = new Set<string>();
+			// Track placed entries in two distinct namespaces so we don't
+			// silently hide models that share a `metadata.id` with another
+			// vendor's model. `model.identifier` is globally unique (e.g.
+			// `copilot/gpt-4o`, `byok-openai/gpt-4o`); `model.metadata.id`
+			// is vendor-defined and may collide across vendors but is the
+			// key used by `controlModels`.
+			const placedIdentifiers = new Set<string>();
+			const placedControlEntryIds = new Set<string>();
 
-			const markPlaced = (identifierOrId: string, metadataId?: string) => {
-				placed.add(identifierOrId);
-				if (metadataId) {
-					placed.add(metadataId);
-				}
+			const markModelPlaced = (model: ILanguageModelChatMetadataAndIdentifier) => {
+				placedIdentifiers.add(model.identifier);
+				placedControlEntryIds.add(model.metadata.id);
+			};
+
+			const markEntryPlaced = (entryId: string) => {
+				placedControlEntryIds.add(entryId);
 			};
 
 			const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
@@ -468,7 +483,7 @@ export function buildModelPickerItems(
 			// --- 1. Auto ---
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
-				markPlaced(autoModel.identifier, autoModel.metadata.id);
+				markModelPlaced(autoModel);
 				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
@@ -490,12 +505,12 @@ export function buildModelPickerItems(
 			const pinnedSet = new Set(pinnedModelIds);
 			const pinnedModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 			for (const id of pinnedModelIds) {
-				if (placed.has(id)) {
+				if (placedIdentifiers.has(id) || placedControlEntryIds.has(id)) {
 					continue;
 				}
 				const model = resolveModel(id);
-				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
+				if (model && !placedIdentifiers.has(model.identifier)) {
+					markModelPlaced(model);
 					pinnedModels.push(model);
 				}
 			}
@@ -522,12 +537,12 @@ export function buildModelPickerItems(
 
 			// Try to place a model by id. Returns true if handled.
 			const tryPlaceModel = (id: string): boolean => {
-				if (placed.has(id)) {
+				if (placedIdentifiers.has(id) || placedControlEntryIds.has(id)) {
 					return false;
 				}
 				const model = resolveModel(id);
-				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
+				if (model && !placedIdentifiers.has(model.identifier)) {
+					markModelPlaced(model);
 					const entry = controlModels[model.metadata.id];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						promotedItems.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
@@ -539,7 +554,7 @@ export function buildModelPickerItems(
 				if (!model) {
 					const entry = controlModels[id];
 					if (entry && !entry.exists) {
-						markPlaced(id);
+						markEntryPlaced(id);
 						promotedItems.push({ kind: 'unavailable', id, entry, reason: getUnavailableReason(entry) });
 						return true;
 					}
@@ -560,23 +575,23 @@ export function buildModelPickerItems(
 			// Featured models from control manifest
 			if (showFeatured) {
 				for (const [entryId, entry] of Object.entries(controlModels)) {
-					if (!entry.featured || placed.has(entryId)) {
+					if (!entry.featured || placedControlEntryIds.has(entryId)) {
 						continue;
 					}
 					const model = resolveModel(entryId);
-					if (model && !placed.has(model.identifier)) {
+					if (model && !placedIdentifiers.has(model.identifier)) {
 						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							if (showUnavailableFeatured) {
-								markPlaced(model.identifier, model.metadata.id);
+								markModelPlaced(model);
 								promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 							}
 						} else {
-							markPlaced(model.identifier, model.metadata.id);
+							markModelPlaced(model);
 							promotedItems.push({ kind: 'available', model });
 						}
 					} else if (!model && !entry.exists) {
 						if (showUnavailableFeatured) {
-							markPlaced(entryId);
+							markEntryPlaced(entryId);
 							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
 						}
 					}
@@ -615,7 +630,10 @@ export function buildModelPickerItems(
 			}
 
 			// --- 3. Other Models (collapsible, grouped by provider group) ---
-			otherModels = models.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id));
+			// Filter only by identifier — metadata.id is not unique across
+			// vendors, so a BYOK model with the same metadata.id as an
+			// already-placed Copilot model must still be surfaced here.
+			otherModels = models.filter(m => !placedIdentifiers.has(m.identifier));
 
 			if (otherModels.length > 0) {
 				if (items.length > 0) {

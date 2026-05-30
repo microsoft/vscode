@@ -1073,6 +1073,48 @@ suite('buildModelPickerItems', () => {
 		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
 		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
 	});
+
+	/**
+	 * Regression: two models contributed by different vendors that happen to
+	 * share the same `metadata.id` (e.g. Copilot's `gpt-4o` and a BYOK
+	 * provider's `gpt-4o`) must both surface in the picker. Earlier the
+	 * picker tracked placement using a `Set` keyed by both `identifier` and
+	 * `metadata.id`, which silently hid the BYOK model whenever the Copilot
+	 * model with the colliding `metadata.id` was placed first.
+	 */
+	test('BYOK model sharing a metadata.id with a placed Copilot model still appears', () => {
+		const auto = createAutoModel();
+		const copilotGpt = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const byokGpt = createModel('gpt-4o', 'GPT-4o (BYOK)', 'my-vendor');
+		const items = callBuild([auto, copilotGpt, byokGpt], {
+			selectedModelId: copilotGpt.identifier,
+		});
+		const labels = getActionLabels(items);
+		assert.ok(labels.includes('GPT-4o'), 'Copilot model should appear');
+		assert.ok(labels.includes('GPT-4o (BYOK)'), 'BYOK model with colliding metadata.id should still appear');
+	});
+
+	/**
+	 * Regression: the bug must also be fixed when the colliding placement
+	 * comes from the featured-models loop rather than from a selected/MRU
+	 * id. With a featured control entry for `gpt-4o`, Copilot's `gpt-4o`
+	 * is promoted; the BYOK model that shares the `metadata.id` must still
+	 * appear in Other Models (previously it was silently dropped because
+	 * `placed` contained the shared `metadata.id`).
+	 */
+	test('BYOK model still appears when a featured control entry promotes a Copilot model with the same metadata.id', () => {
+		const auto = createAutoModel();
+		const copilotGpt = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const byokGpt = createModel('gpt-4o', 'GPT-4o (BYOK)', 'my-vendor');
+		const items = callBuild([auto, copilotGpt, byokGpt], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+			},
+		});
+		const labels = getActionLabels(items);
+		assert.ok(labels.includes('GPT-4o'), 'Copilot model promoted via featured should appear');
+		assert.ok(labels.includes('GPT-4o (BYOK)'), 'BYOK model with colliding metadata.id should still appear in Other Models');
+	});
 });
 
 suite('formatTokenCount', () => {
