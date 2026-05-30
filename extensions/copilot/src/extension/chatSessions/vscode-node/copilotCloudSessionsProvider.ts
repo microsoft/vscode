@@ -5,6 +5,7 @@
 
 import * as pathLib from 'path';
 import * as vscode from 'vscode';
+import type { AgentTaskSessionEvent } from '@vscode/copilot-api';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -17,6 +18,7 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { AuthOptions, CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
+import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../conversation/common/languageModelAccess';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -36,6 +38,7 @@ import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, Ses
 import { CloudAgentBackend, PullArtifactRef } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
+import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
 import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
@@ -736,7 +739,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const backend = this._backend;
 		if (backend.kind !== 'pr') {
 			// Task backend has no per-session info endpoint; task entries don't participate in
-			// this poller (they use `waitForTaskUpdate` via active response callbacks instead).
+			// this poller (they live-stream via `runTaskLiveStream` from active response callbacks instead).
 			return;
 		}
 
@@ -995,13 +998,57 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 
 			if (models.status === 'fulfilled' && models.value.length > 0) {
-				const modelItems: vscode.ChatSessionProviderOptionItem[] = models.value.map(model => ({
-					id: model.id,
-					name: model.name,
-					...(model.billing?.multiplier !== undefined ? { description: `${model.billing.multiplier}x` } : {}),
-				}));
+				const isUBB = !!this._authenticationService.copilotToken?.isUsageBasedBilling;
+
+				const modelItems: vscode.ChatSessionProviderOptionItem[] = models.value.map(model => {
+					const limits = model.capabilities?.limits;
+					const multiplier = model.billing?.multiplier;
+					const pricing = normalizeTokenPrices(model.billing?.token_prices);
+					const family = model.capabilities?.family ?? model.id;
+					const tooltip = getModelCapabilitiesDescription({ name: model.name, family });
+
+					return {
+						id: model.id,
+						name: model.name,
+						...(!isUBB && multiplier !== undefined ? { description: `${multiplier}x` } : {}),
+						tooltip,
+						modelMetadata: {
+							name: model.name,
+							id: model.id,
+							vendor: model.vendor,
+							version: model.version,
+							family,
+							tooltip,
+							multiplierNumeric: multiplier,
+							pricing: !isUBB && multiplier !== undefined ? `${multiplier}x` : undefined,
+							maxInputTokens: limits?.max_prompt_tokens ?? 0,
+							maxOutputTokens: limits?.max_output_tokens ?? 0,
+							inputCost: pricing?.default.inputPrice,
+							outputCost: pricing?.default.outputPrice,
+							cacheCost: pricing?.default.cachePrice,
+							longContextInputCost: pricing?.longContext?.inputPrice,
+							longContextOutputCost: pricing?.longContext?.outputPrice,
+							longContextCacheCost: pricing?.longContext?.cachePrice,
+							priceCategory: model.model_picker_price_category,
+							capabilities: {
+								vision: model.capabilities?.supports?.vision ?? false,
+								toolCalling: model.capabilities?.supports?.tool_calls ?? false,
+							},
+						},
+					};
+				});
 				if (!models.value.find(m => m.id === DEFAULT_MODEL_ID)) {
-					modelItems.unshift({ id: DEFAULT_MODEL_ID, name: vscode.l10n.t('Auto'), description: vscode.l10n.t('Automatically select the best model') });
+					modelItems.unshift({
+						id: DEFAULT_MODEL_ID,
+						name: vscode.l10n.t('Auto'),
+						description: vscode.l10n.t('Automatically select the best model'),
+						tooltip: vscode.l10n.t('Automatically select the best model'),
+						modelMetadata: {
+							name: vscode.l10n.t('Auto'),
+							id: DEFAULT_MODEL_ID,
+							tooltip: vscode.l10n.t('Automatically select the best model'),
+						},
+					});
 				}
 				optionGroups.push({
 					id: MODELS_OPTION_GROUP_ID,
@@ -1152,8 +1199,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 			// Track active sessions for background polling. Only PR-keyed (Jobs API) entries
 			// participate — task-keyed entries (v2) have their own active-response callback path
-			// via `createTaskActiveResponseCallback`, which uses `waitForTaskUpdate`. Polling task
-			// ids through `getSessionInfo` would throw on the Task backend.
+			// via `createTaskActiveResponseCallback`, which live-streams events through
+			// `runTaskLiveStream`. Polling task ids through `getSessionInfo` would throw on the
+			// Task backend.
 			const newActiveSessionIds = new Set<string>();
 			for (const entry of sessionList) {
 				if (entry.pullArtifact || entry.latestSession.resource_type === 'task') {
@@ -1406,7 +1454,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return (this.sessionReferencesMap.get(resource) ?? []).concat(summaryRef ? [summaryRef] : []);
 		});
 
-		const sessionContentBuilder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService);
+		const sessionContentBuilder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService);
 		const history = await sessionContentBuilder.buildSessionHistory(getProblemStatement(pr.repository.owner.login, pr.repository.name, sortedSessions), sortedSessions, pr, (sessionId: string) => backend.getSessionLogsSSE(sessionId), storedReferences);
 
 		// const selectedCustomAgent = undefined; /* TODO: Needs API to support this. */
@@ -1454,15 +1502,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
-		const builder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService);
+		const builder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService);
 		const history = await builder.buildTaskHistory(taskContent.task, events, pullRequest, storedReferences);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];
 		const activeResponseCallback = latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
-			? this.createTaskActiveResponseCallback(taskId, {
-				turnCount: taskContent.task.sessions?.length ?? 0,
-				updatedAt: taskContent.task.updated_at,
-			})
+			? this._createTaskStreamCallback(taskId, { mode: 'current', seedEventIds: new Set(events.map(e => e.id)) })
 			: undefined;
 
 		return {
@@ -1473,15 +1518,22 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		};
 	}
 
-	private createTaskActiveResponseCallback(taskId: string, since: { turnCount: number; updatedAt?: string }): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
-		return async (_stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => {
+	/**
+	 * Build the `activeResponseCallback` / follow-up streaming closure used to drive a
+	 * {@link TaskTurnStreamer}. Centralised so both call sites share lifecycle behaviour
+	 * (notably the `refresh()` after the turn settles, which repaints history with the
+	 * canonical event ordering and updates the sessions list).
+	 */
+	private _createTaskStreamCallback(taskId: string, baseline: StreamBaseline): (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void> {
+		return async (stream, token) => {
 			const backend = this._backend;
 			if (backend.kind !== 'task') {
 				return;
 			}
-			// Poll until the active turn settles (new turn, in-place state change, or updated_at moves).
-			const updated = await backend.waitForTaskUpdate(taskId, since, token);
-			if (updated) {
+			try {
+				const streamer = new TaskTurnStreamer(backend, new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService), this.logService);
+				await streamer.stream(stream, taskId, baseline, token);
+			} finally {
 				this.refresh();
 			}
 		};
@@ -2292,27 +2344,32 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			stream.warning(vscode.l10n.t('Task follow-up is not available on the current backend.'));
 			return {};
 		}
-		const before = await backend.fetchTaskContent(taskId);
+
+		// Snapshot prior turn count + event ids BEFORE steering so the streamer can
+		// (a) wait for the new turn to actually appear in `task.sessions[]` and
+		// (b) skip the events already rendered as history.
+		const [before, priorEvents] = await Promise.all([
+			backend.fetchTaskContent(taskId),
+			backend.fetchTaskEvents(taskId).catch(e => {
+				this.logService.warn(`[handleTaskFollowUp] fetchTaskEvents failed for ${taskId}: ${e}`);
+				return [] as readonly AgentTaskSessionEvent[];
+			}),
+		]);
 		if (!before) {
 			stream.warning(vscode.l10n.t('Could not find the task for this chat session.'));
 			return {};
 		}
+		const priorTurnCount = before.task.sessions?.length ?? 0;
+		const seedEventIds = new Set(priorEvents.map(e => e.id));
+
 		stream.progress(vscode.l10n.t('Delegating'));
 		const result = await backend.sendFollowUpToTask(taskId, prompt);
 		if (!result) {
 			stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
 			return {};
 		}
-		stream.markdown(vscode.l10n.t('Cloud agent has begun work on your follow-up'));
-		stream.markdown('\n\n');
-		stream.progress(vscode.l10n.t('Waiting for new turn'));
-		const updated = await backend.waitForTaskUpdate(taskId, {
-			turnCount: before.task.sessions?.length ?? 0,
-			updatedAt: before.task.updated_at,
-		}, token);
-		if (updated) {
-			this.refresh();
-		}
+
+		await this._createTaskStreamCallback(taskId, { mode: 'next', seedEventIds, priorTurnCount })(stream, token);
 		return {};
 	}
 
@@ -2574,7 +2631,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 
 			// Parse the new log content
-			const contentBuilder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService);
+			const contentBuilder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService);
 			const logChunks = parseSessionLogChunksSafely(newLogContent, this.logService, value => contentBuilder.parseSessionLogs(value));
 			let hasStreamedContent = false;
 			let hasSetupStepProgress = false;

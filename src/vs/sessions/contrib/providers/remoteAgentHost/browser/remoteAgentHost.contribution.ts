@@ -6,8 +6,6 @@
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -18,42 +16,34 @@ import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/com
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
-import { AgentCustomizationSyncProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationSyncProvider.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LoggingAgentConnection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { resolveCustomizationRefs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { IAgentHostFileSystemService } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
-import { createRemoteAgentCustomizationItemProvider, createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
+import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
-import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -130,6 +120,44 @@ export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err);
 }
 
+/**
+ * Connection key passed to {@link ISSHRemoteAgentHostService.disconnect} for
+ * an SSH-backed remote agent host entry. Mirrors the key the SSH service
+ * itself constructs when it stores the connection.
+ */
+export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): string {
+	return connection.sshConfigHost
+		? `ssh:${connection.sshConfigHost}`
+		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
+}
+
+/**
+ * Sequence the steps to disconnect an SSH-backed remote agent host entry
+ * triggered by the user (e.g. clicking X in the workspace picker).
+ *
+ * Order matters: `removeRemoteAgentHost` MUST run before the SSH tunnel
+ * teardown. `sshService.disconnect()` fires `onDidCloseConnection`
+ * synchronously, which the renderer translates into `onDidChangeConnections`
+ * and the contribution's `_reconcile` → `_reconnectSSHEntries`. If the entry
+ * is still in configured storage at that point, the auto-reconnect path
+ * immediately reconnects the host we just told it to disconnect.
+ *
+ * `removeRemoteAgentHost` itself runs the entry's transport disposable
+ * (which calls `_mainService.disconnect(connectionId)`), so the underlying
+ * SSH tunnel is already closed when this returns. The explicit
+ * `sshService.disconnect(connectionKey)` is belt-and-suspenders to clear
+ * the connection by its connection key as well, matching the prior
+ * teardown behavior.
+ */
+export async function disconnectSSHEntry(
+	connection: IRemoteAgentHostSSHConnection,
+	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
+	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
+): Promise<void> {
+	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
+	await sshService.disconnect(sshConnectionKey(connection));
+}
+
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
@@ -183,20 +211,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 		@ISSHRemoteAgentHostService private readonly _sshService: ISSHRemoteAgentHostService,
-		@IAICustomizationWorkspaceService private readonly _customizationWorkspaceService: IAICustomizationWorkspaceService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 
@@ -261,16 +284,18 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Update connection status on all providers (including those
 		// that are reconnecting and don't have an active connection).
 		for (const [address, provider] of this._providerInstances) {
-			// Preserve incompatible state — set by the SSH catch and the
-			// generic WebSocket connect failure path. Otherwise this loop
-			// would overwrite it back to `disconnected` on the next event.
-			if (RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
-				continue;
-			}
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (connectionInfo) {
+				// Service has an entry for this address — its status is
+				// authoritative (including the `incompatible` set by the
+				// WebSocket connect failure path, and the `connecting`
+				// status of a fresh reconnect attempt after an upgrade).
 				provider.setConnectionStatus(connectionInfo.status);
-			} else {
+			} else if (!RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+				// No service entry. Preserve incompatible state set by
+				// the SSH reconnect catch (where the failure happens
+				// before the service ever sees an entry); otherwise fall
+				// back to disconnected.
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 			}
 		}
@@ -410,13 +435,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private async _disconnectSSHOnDemand(connection: IRemoteAgentHostSSHConnection): Promise<void> {
-		const connectionKey = connection.sshConfigHost
-			? `ssh:${connection.sshConfigHost}`
-			: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
 		if (connection.sshConfigHost) {
 			this._sshReconnectStates.deleteAndDispose(connection.sshConfigHost);
 		}
-		await this._sshService.disconnect(connectionKey);
+		await disconnectSSHEntry(connection, this._remoteAgentHostService, this._sshService);
 	}
 
 	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
@@ -746,40 +768,37 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 
 		// Customization harness for this remote agent
-		const pluginController = agentStore.add(new RemoteAgentPluginController(
+		const pluginController = agentStore.add(this._instantiationService.createInstance(RemoteAgentPluginController,
 			hostLabel,
 			sanitized,
 			loggedConnection,
-			this._fileDialogService,
-			this._notificationService,
-			this._customizationWorkspaceService,
 		));
-		const itemProvider = agentStore.add(createRemoteAgentCustomizationItemProvider(agent, loggedConnection, sanitized, pluginController, this._fileService, this._logService));
-		const syncProvider = agentStore.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
+		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
+			sanitized,
+			(customization, clientId) => {
+				if (clientId !== undefined) {
+					// Customization came from the client; we don't allow actions on these since they're read-only reflections of client state.
+					return undefined;
+				}
+				return [{
+					id: 'remoteAgentHost.removeConfiguredPlugin',
+					label: nls.localize('remoteAgentHost.removeConfiguredPlugin', "Remove from Remote Host"),
+					icon: Codicon.trash,
+					run: () => pluginController.removeConfiguredPlugin(customization),
+				}];
+			}
+		));
+
+		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
+		const syncProvider = agentRegistration.syncProvider;
+
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
-
-		// Bundler for packaging individual files into a virtual Open Plugin
-		const bundler = agentStore.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
-
-		// Agent-level customizations observable
-		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
-		const updateCustomizations = async () => {
-			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
-			customizations.set(refs, undefined);
-		};
-		agentStore.add(syncProvider.onDidChange(() => updateCustomizations()));
-		agentStore.add(Event.any(
-			this._promptsService.onDidChangeCustomAgents,
-			this._promptsService.onDidChangeSlashCommands,
-			this._promptsService.onDidChangeSkills,
-			this._promptsService.onDidChangeInstructions,
-		)(() => updateCustomizations()));
-		updateCustomizations(); // resolve initial state
 
 		// Session handler (unified)
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
@@ -796,7 +815,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveWorkingDirectory,
 			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, loggedConnection, resources),
-			customizations,
 		}));
 		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -958,3 +976,5 @@ import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostModelPicker.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
+import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { Codicon } from '../../../../../base/common/codicons.js';

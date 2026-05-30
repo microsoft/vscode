@@ -391,7 +391,9 @@ class PlaywrightSession extends Disposable {
 		const page = await this._openContext.newPage();
 		const viewId = await this._onPageAdded(page);
 
-		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		if (url && url !== 'about:blank' && page.url() !== url) {
+			await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		}
 
 		const summary = await this._getSummary(viewId);
 		return { pageId: viewId, summary };

@@ -6,7 +6,7 @@
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { LocalChatSessionsProvider, LOCAL_SESSION_ENABLED_SETTING, LocalSessionType } from './localChatSessionsProvider.js';
+import { LocalChatSessionsProvider, LOCAL_SESSION_ENABLED_SETTING } from './localChatSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
@@ -67,12 +67,10 @@ registerAction2(class extends ForkConversationAction {
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
 			}
 
-			if (parentSession.sessionType !== LocalSessionType.id) {
-				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
-			}
-
-			// Local sessions — wait for the forked session to appear, but
-			// bound the wait so a missing session does not hang forever.
+			// Wait for the forked session to appear, but bound the wait so a
+			// missing session does not hang forever. Applies to local and
+			// contributed (agent-host) sessions alike — both surface via
+			// `sessionsManagementService` in the Agents window.
 			if (!sessionsManagementService.getSession(forkedSessionResource)) {
 				let listener: IDisposable | undefined;
 				const appeared = await raceTimeout(new Promise<boolean>(resolve => {
