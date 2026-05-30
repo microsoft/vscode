@@ -42,6 +42,7 @@ import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { formatTokenCount } from '../widget/input/chatModelPicker.js';
 
 const $ = DOM.$;
 
@@ -978,14 +979,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 
 
 
-function formatTokenCount(count: number): string {
-	if (count >= 1000000) {
-		return `${(count / 1000000).toFixed(1)}M`;
-	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
-	}
-	return count.toString();
-}
+
 
 export class ChatModelsWidget extends Disposable {
 

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../dom.js';
+import { getWindow, h, onDidUnregisterWindow } from '../../dom.js';
+import { CodeWindow } from '../../window.js';
+import { IDisposable } from '../../../common/lifecycle.js';
 import './pixelSpinner.css';
 
 export interface IPixelSpinnerOptions {
@@ -49,5 +51,54 @@ export function createPixelSpinner(parent?: HTMLElement, options?: IPixelSpinner
 		root.appendChild(h('span.monaco-pixel-spinner-dot').root);
 	}
 	parent?.appendChild(root);
+	trackSpinner(root);
 	return root;
 }
+
+
+const PAUSED_CLASS = 'monaco-pixel-spinner-paused';
+const observersByWindow = new Map<CodeWindow, IntersectionObserver>();
+let unregisterWindowListener: IDisposable | undefined;
+
+function getObserverFor(targetWindow: CodeWindow): IntersectionObserver | undefined {
+	if (typeof targetWindow.IntersectionObserver !== 'function') {
+		return undefined;
+	}
+	let observer = observersByWindow.get(targetWindow);
+	if (!observer) {
+		observer = new targetWindow.IntersectionObserver(entries => {
+			for (const entry of entries) {
+				const target = entry.target as HTMLElement;
+				if (!target.isConnected) {
+					observer!.unobserve(target);
+					continue;
+				}
+				target.classList.toggle(PAUSED_CLASS, !entry.isIntersecting);
+			}
+		});
+		observersByWindow.set(targetWindow, observer);
+
+		if (!unregisterWindowListener) {
+			unregisterWindowListener = onDidUnregisterWindow(window => {
+				const obs = observersByWindow.get(window);
+				if (obs) {
+					obs.disconnect();
+					observersByWindow.delete(window);
+				}
+			});
+		}
+	}
+	return observer;
+}
+
+function trackSpinner(root: HTMLElement): void {
+	const observer = getObserverFor(getWindow(root));
+	if (!observer) {
+		return;
+	}
+	// Start paused; the observer delivers an initial notification that resumes
+	// the spinner if it is actually on screen.
+	root.classList.add(PAUSED_CLASS);
+	observer.observe(root);
+}
+

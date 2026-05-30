@@ -19,8 +19,8 @@ import { IChatSessionsService, localChatSessionType } from '../../../../workbenc
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { NewChatWidget } from './newChatViewPane.js';
-import { NewChatInSessionWidget } from './newChatInSessionViewPane.js';
+import { NewChatWidget } from './newChatWidget.js';
+import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
@@ -64,6 +64,18 @@ export class NewChatView extends AbstractChatView {
 	override selectWorkspace(folderUri: URI, providerId?: string): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.selectWorkspace(folderUri, providerId);
+		}
+	}
+
+	override prefillInput(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.prefillInput(text);
+		}
+	}
+
+	override sendQuery(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.sendQuery(text);
 		}
 	}
 }

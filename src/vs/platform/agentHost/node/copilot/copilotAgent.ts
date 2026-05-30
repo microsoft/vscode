@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
+import { CopilotClient, ResumeSessionConfig, RuntimeConnection, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -20,7 +20,7 @@ import { basename as resourceBasename, dirname as resourceDirname } from '../../
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -49,6 +49,7 @@ import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
+import { getEffectiveAgents } from '../../common/customAgents.js';
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -492,7 +493,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
-			env['RUBBER_DUCK_AGENT'] = 'true';
 
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
@@ -511,15 +511,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
 
-			const clientOptions: CopilotClientOptions & { remote?: boolean } = {
+			const clientOptions: CopilotClientOptions = {
 				gitHubToken: tokenAtStartup,
 				useLoggedInUser: false,
-				useStdio: true,
-				autoStart: true,
+				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
-				cliPath,
 				telemetry,
-				remote: this._isSessionSyncEnabled(),
+				enableRemoteSessions: this._isSessionSyncEnabled(),
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
@@ -634,12 +632,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * the active client snapshot's parsed plugin agents. Falls back to `undefined`
 	 * when no matching plugin agent is found.
 	 */
-	private _resolveAgentName(snapshot: IActiveClientSnapshot, agent: AgentSelection): string | undefined {
+	private async _resolveAgentName(sessionUri: URI, snapshot: IActiveClientSnapshot, agent: AgentSelection): Promise<string | undefined> {
 		for (const plugin of snapshot.plugins) {
 			const found = plugin.agents.find(a => a.uri.toString() === agent.uri);
 			if (found) {
 				return found.name;
 			}
+		}
+		const customizations = await this.getSessionCustomizations(sessionUri);
+		const agents = getEffectiveAgents(customizations);
+		const found = agents.find(a => a.uri.toString() === agent.uri);
+		if (found) {
+			return found.name;
 		}
 		return undefined;
 	}
@@ -661,7 +665,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project = await this._resolveSessionProject(s.context, projectLimiter, projectByContext);
 				void this._storeSessionProjectResolution(session, project);
 			}
-			const workingDirectory = metadata.workingDirectory ?? (typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : undefined);
+			const workingDirectory = metadata.workingDirectory ?? (typeof s.context?.workingDirectory === 'string' ? URI.file(s.context.workingDirectory) : undefined);
 			const result: IAgentSessionMetadata = {
 				session,
 				startTime: s.startTime.getTime(),
@@ -700,7 +704,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void this._storeSessionProjectResolution(session, project);
 		}
 
-		const workingDirectory = storedMetadata?.workingDirectory ?? (typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined);
+		const workingDirectory = storedMetadata?.workingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
 		return {
 			session,
 			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
@@ -917,7 +921,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
 
 		const factory: SessionWrapperFactory = async callbacks => {
-			const resolvedAgentName = provisional.agent ? this._resolveAgentName(snapshot, provisional.agent) : undefined;
+			const resolvedAgentName = provisional.agent ? await this._resolveAgentName(provisional.sessionUri, snapshot, provisional.agent) : undefined;
 			const raw = await client.createSession({
 				model: provisional.model?.id,
 				reasoningEffort: this._getReasoningEffort(provisional.model),
@@ -1391,8 +1395,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// plugin snapshot. If the agent is no longer present (plugin
 			// removed, never loaded), pass `undefined` so the SDK clears its
 			// selection rather than silently keeping the previous one.
-			const resolvedAgentName = agent ? this._resolveAgentName(entry.appliedSnapshot, agent) : undefined;
-			await entry.setAgent(agent, resolvedAgentName);
+			const resolvedAgentName = agent ? await this._resolveAgentName(session, entry.appliedSnapshot, agent) : undefined;
+			await entry.setAgent(resolvedAgentName);
 		}
 		await this._storeSessionAgentMetadata(session, agent);
 	}
@@ -1542,6 +1546,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				tools: [...shellTools, ...callbacks.clientTools],
+				// Pass the GitHub token at the session level. The SDK's
+				// client-level `gitHubToken` authenticates the CLI process,
+				// but each session also needs its own token resolved into a
+				// GitHub identity (login, Copilot plan, endpoints) to drive
+				// model routing and quota — without this the session
+				// errors with "Session was not created with authentication
+				// info or custom provider" on first send. See #318693.
+				gitHubToken: this._githubToken,
 				// Enable infinite sessions so the SDK provisions a workspace
 				// directory (containing `plan.md`, `checkpoints/`, `files/`).
 				// The workspace is required for plan mode to work — without
@@ -1584,7 +1596,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
 			return undefined;
 		});
-		const workingDirectory = storedMetadata.workingDirectory ?? (typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined);
+		const workingDirectory = storedMetadata.workingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
@@ -1594,7 +1606,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const config = await sessionConfig(callbacks);
-			const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
+			const resolvedAgentName = storedMetadata.agent ? await this._resolveAgentName(sessionUri, snapshot, storedMetadata.agent) : undefined;
 			try {
 				this._logService.info(`[Copilot:${sessionId}] Calling SDK resumeSession...`);
 				const raw = await client.resumeSession(sessionId, {
@@ -1920,6 +1932,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private _customizations: readonly DirectoryCustomization[] = [];
 	private _plugin: IParsedPlugin | undefined;
 	private _settled: Promise<void>;
+	private readonly _fileService: IFileService;
 
 	constructor(
 		workingDirectory: URI,
@@ -1932,6 +1945,7 @@ class SessionDiscoveredEntry extends Disposable {
 		super();
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
 		this._bundler = this._register(instantiationService.createInstance(SessionPluginBundler, workingDirectory));
+		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		this._settled = this._refresh();
 		this._register(this._discovery.onDidChange(() => {
 			this._settled = this._refresh().finally(() => this._onDidRefresh());
@@ -1953,7 +1967,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private async _refresh(): Promise<void> {
 		try {
 			const directories = await this._discovery.directories();
-			this._customizations = toDiscoveredDirectoryCustomizations(directories);
+			this._customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
 			this._plugin = undefined;
 
 			const bundleResult = await this._bundler.bundle(directories);
@@ -1970,8 +1984,8 @@ class SessionDiscoveredEntry extends Disposable {
 	}
 }
 
-function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[]): DirectoryCustomization[] {
-	return directories.map(directory => {
+function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
+	return Promise.all(directories.map(async directory => {
 		const protocolUri = directory.uri.toString();
 		return {
 			type: CustomizationType.Directory,
@@ -1982,9 +1996,9 @@ function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDi
 			contents: toDirectoryContentsType(directory.type),
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
-			children: directory.files.map(file => toDiscoveredChildCustomization(file, directory.type)),
+			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file, directory.type, fileService))),
 		};
-	});
+	}));
 }
 
 function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
@@ -1998,15 +2012,16 @@ function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
 	}
 }
 
-function toDiscoveredChildCustomization(file: URI, type: DiscoveredType): ChildCustomization {
+async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, fileService: IFileService): Promise<ChildCustomization> {
 	const uri = file.toString();
 	const id = customizationId(uri);
 	if (type === DiscoveredType.Agent) {
+		const agentInfo = await parseAgentFile(file, fileService);
 		return {
 			type: CustomizationType.Agent,
 			id,
 			uri,
-			name: resourceBasename(file) // todo parse metadata and get the name from there
+			name: agentInfo.name,
 		};
 	}
 	if (type === DiscoveredType.Skill) {

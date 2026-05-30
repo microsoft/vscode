@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo } from '../common/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type UserMessage, type ResponsePart, type ToolCallResult, type ToolResultContent, type ToolDefinition, type SessionActiveClient, type Customization, type SessionInputAnswer, type SessionInputRequest, type SessionInputResponseKind, type ConfirmationOption, type AgentSelection } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ToolDefinition, type SessionActiveClient, type Customization, type SessionInputAnswer, type SessionInputRequest, type SessionInputResponseKind, type ConfirmationOption, type AgentSelection } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 import type { ChangesetSummary } from '../channels-changeset/state.js';
 
@@ -62,7 +62,9 @@ export interface SessionCreationFailedAction {
 }
 
 /**
- * User sent a message; server starts agent processing.
+ * A new message has been sent to the agent, and a new turn starts.
+ *
+ * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Session Actions
  * @version 1
@@ -72,8 +74,8 @@ export interface SessionTurnStartedAction {
 	type: ActionType.SessionTurnStarted;
 	/** Turn identifier */
 	turnId: string;
-	/** User's message */
-	userMessage: UserMessage;
+	/** The new message */
+	message: Message;
 	/** If this turn was auto-started from a queued message, the ID of that message */
 	queuedMessageId?: string;
 }
@@ -225,7 +227,7 @@ export interface SessionToolCallDeniedAction extends ToolCallActionBase {
 	/** Why the tool was cancelled */
 	reason: ToolCallCancellationReason.Denied | ToolCallCancellationReason.Skipped;
 	/** What the user suggested doing instead */
-	userSuggestion?: UserMessage;
+	userSuggestion?: Message;
 	/** Optional explanation for the denial */
 	reasonMessage?: StringOrMarkdown;
 	/** ID of the selected confirmation option, if the server provided options */
@@ -684,6 +686,8 @@ export interface SessionTruncatedAction {
  * idle when a queued message is set, the server SHOULD immediately consume it
  * and start a new turn.
  *
+ * A client is only allowed to send {@link MessageKind.User} messages.
+ *
  * @category Session Actions
  * @version 1
  * @clientDispatchable
@@ -695,7 +699,7 @@ export interface SessionPendingMessageSetAction {
 	/** Unique identifier for this pending message */
 	id: string;
 	/** The message content */
-	userMessage: UserMessage;
+	message: Message;
 }
 
 /**

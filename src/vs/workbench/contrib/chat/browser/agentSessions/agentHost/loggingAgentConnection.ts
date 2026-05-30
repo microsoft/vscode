@@ -12,7 +12,8 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import { StateComponents, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IRemoteWatchHandle } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -251,6 +252,25 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	async resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._logCall('resourceMove', params, () => this._inner.resourceMove(params));
+	}
+
+	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		return this._logCall('resourceResolve', params, () => this._inner.resourceResolve(params));
+	}
+
+	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		return this._logCall('resourceMkdir', params, () => this._inner.resourceMkdir(params));
+	}
+
+	async createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return this._logCall('createResourceWatch', params, () => this._inner.createResourceWatch(params));
+	}
+
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> {
+		// Watcher setup is a single round-trip; the running watcher
+		// produces events on its own channel which is logged separately
+		// via the action stream, so no need to wrap the handle.
+		return this._logCall('watchResource', params, () => this._inner.watchResource(params));
 	}
 
 	// ---- Public logging API for callers' catch blocks -----------------------

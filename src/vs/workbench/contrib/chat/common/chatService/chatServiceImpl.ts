@@ -608,7 +608,6 @@ export class ChatService extends Disposable implements IChatService {
 		{
 			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
-				providedSession.dispose();
 				return existingRef;
 			}
 		}
@@ -740,7 +739,9 @@ export class ChatService extends Disposable implements IChatService {
 					false, // Do not treat as requests completed, else edit pills won't show.
 					message.modelId,
 					undefined,
-					message.id
+					message.id,
+					message.isSystemInitiated,
+					message.systemInitiatedLabel
 				);
 			} else {
 				// response
@@ -792,7 +793,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData, isSystemInitiated, systemInitiatedLabel }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						lastRequest.response.complete();
@@ -801,7 +802,22 @@ export class ChatService extends Disposable implements IChatService {
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(chatSessionType);
 					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
-					lastRequest = model.addRequest(parsedRequest, variableData ?? { variables: [] }, 0, undefined, agent);
+					lastRequest = model.addRequest(parsedRequest,
+						variableData ?? { variables: [] },
+						0, // attempt
+						undefined, // modeInfo
+						agent,
+						undefined, // slashCommand
+						undefined, // confirmation
+						undefined, // locationData
+						undefined, // attachments
+						undefined, // isCompleteAddedRequest
+						undefined, // modelId
+						undefined, // userSelectedTools
+						undefined, // id
+						isSystemInitiated,
+						systemInitiatedLabel
+					);
 
 					// Reset progress tracking for the new turn
 					lastProgressLength = 0;
