@@ -32,4 +32,10 @@ export class BlockedExtensionService implements IBlockedExtensionService {
 	isExtensionBlocked(extensionId: string): boolean {
 		return this.blockedExtensions.has(extensionId);
 	}
+
+	dispose(): void {
+		for (const timer of this.blockedExtensions.values()) {
+			clearTimeout(timer);
+		}
+	}
 }
