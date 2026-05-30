@@ -24,6 +24,7 @@ import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILog
 import { AbstractDiskFileSystemProvider } from '../common/diskFileSystemProvider.js';
 import { UniversalWatcherClient } from './watcher/watcherClient.js';
 import { NodeJSWatcherClient } from './watcher/nodejs/nodejsClient.js';
+import { markAsErrorNoTelemetry } from '../../../base/common/errors.js';
 
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
@@ -846,6 +847,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let resultError: Error | string = error;
 		let code: FileSystemProviderErrorCode;
+		let isExpected = false;
 		switch (error.code) {
 			case 'ENOENT':
 				code = FileSystemProviderErrorCode.FileNotFound;
@@ -865,13 +867,25 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				break;
 			case 'ERR_UNC_HOST_NOT_ALLOWED':
 				resultError = `${error.message}. Please update the 'security.allowedUNCHosts' setting if you want to allow this host.`;
-				code = FileSystemProviderErrorCode.Unknown;
+				// Treat UNC host restriction as a permission denial: it is a
+				// security policy preventing access to the host, not an
+				// unknown failure. The error is also marked as expected so it
+				// is not reported as an unhandled error in telemetry — the
+				// host allowlist is user-configured and access denials are a
+				// normal outcome rather than a bug.
+				code = FileSystemProviderErrorCode.NoPermissions;
+				isExpected = true;
 				break;
 			default:
 				code = FileSystemProviderErrorCode.Unknown;
 		}
 
-		return createFileSystemProviderError(resultError, code);
+		const providerError = createFileSystemProviderError(resultError, code);
+		if (isExpected) {
+			markAsErrorNoTelemetry(providerError);
+		}
+
+		return providerError;
 	}
 
 	private async toFileSystemProviderWriteError(resource: URI | undefined, error: NodeJS.ErrnoException): Promise<FileSystemProviderError> {
