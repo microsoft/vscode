@@ -709,7 +709,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	}
 
 	async renameChat(_sessionId: string, chatUri: URI, title: string): Promise<void> {
-		this.chatService.setSessionTitle(chatUri, title);
+		await this.chatService.setChatSessionTitle(chatUri, title);
 		const session = this._findSessionByResource(chatUri);
 		if (session) {
 			session.setTitle(title);
