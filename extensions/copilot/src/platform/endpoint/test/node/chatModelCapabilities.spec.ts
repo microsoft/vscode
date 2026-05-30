@@ -26,16 +26,16 @@ describe('modelSupportsPDFDocuments', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('Anthropic-custom'))).toBe(true);
 	});
 
-	test('returns true for gpt-5.4 and gpt-5.5 families', () => {
+	test('returns true for gpt-5 plus families', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.4'))).toBe(true);
 		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.4-mini'))).toBe(true);
 		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.5'))).toBe(true);
 		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.5-mini'))).toBe(true);
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-4'))).toBe(false);
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.1'))).toBe(true);
 	});
 
 	test('returns false for other families', () => {
-		expect(modelSupportsPDFDocuments(fakeModel('gpt-4'))).toBe(false);
-		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.1'))).toBe(false);
 		expect(modelSupportsPDFDocuments(fakeModel('gemini-2.0-flash'))).toBe(false);
 		expect(modelSupportsPDFDocuments(fakeModel('o4-mini'))).toBe(false);
 	});
