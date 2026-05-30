@@ -217,6 +217,68 @@ type Entry =
 const LF = VSBuffer.fromString('\n');
 
 /**
+ * Per-string cap applied when {@link stringifyEntryWithFallback} retries after
+ * `JSON.stringify` throws `RangeError: Invalid string length` (V8's max string
+ * length is ~512 MiB on 64-bit). Any single string longer than this is
+ * replaced with a marker on retry. Generous so it triggers only on outliers.
+ */
+export const PERSIST_ENTRY_MAX_STRING_BYTES = 1 * 1024 * 1024;
+
+/**
+ * Total-size budget for the retry of {@link stringifyEntryWithFallback}. Once
+ * cumulative tracked size during serialization exceeds this, remaining values
+ * are replaced with a marker. Sized well under V8's max string length so the
+ * retry is guaranteed to succeed even on pathologically large entries.
+ */
+export const PERSIST_ENTRY_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+
+const TRUNCATION_MARKER_PREFIX = '[VS Code: value truncated for persistence';
+const TRUNCATION_MARKER_TOTAL = `${TRUNCATION_MARKER_PREFIX}; entry exceeded size budget]`;
+
+/**
+ * Wraps `JSON.stringify(entry)` with a safety net for the V8 max-string-length
+ * limit. The common path is a single `JSON.stringify` with zero overhead. If
+ * stringification throws `RangeError` (the resulting JSON would exceed V8's
+ * ~512 MiB max string length — see microsoft/vscode#308843), retry with a
+ * replacer that truncates oversized strings. Extensions sometimes put very
+ * large content (browser dumps, command output, …) into chat result metadata;
+ * losing the tail of one such value is dramatically better than losing the
+ * entire chat session.
+ */
+export function stringifyEntryWithFallback(entry: unknown): string {
+	try {
+		return JSON.stringify(entry);
+	} catch (e) {
+		if (!(e instanceof RangeError)) {
+			throw e;
+		}
+		return JSON.stringify(entry, makeTruncatingReplacer(PERSIST_ENTRY_MAX_STRING_BYTES, PERSIST_ENTRY_MAX_TOTAL_BYTES));
+	}
+}
+
+/**
+ * Exported for testing only. Builds the stateful `JSON.stringify` replacer
+ * used by {@link stringifyEntryWithFallback} on its retry path.
+ */
+export function makeTruncatingReplacer(maxStringBytes: number, maxTotalBytes: number): (key: string, value: unknown) => unknown {
+	let total = 0;
+	return (_key, val) => {
+		if (total >= maxTotalBytes) {
+			return TRUNCATION_MARKER_TOTAL;
+		}
+		if (typeof val === 'string') {
+			if (val.length > maxStringBytes) {
+				const marker = `${TRUNCATION_MARKER_PREFIX}; original ${val.length} chars]`;
+				total += marker.length + 2;
+				return marker;
+			}
+			total += val.length + 2;
+		}
+		return val;
+	};
+}
+
+/**
  * An implementation of an append-based mutation logger. Given a `Transform`
  * definition of an object, it can recreate it from a file on disk. It is
  * then stateful, and given a `write` call it can update the log in a minimal
@@ -255,7 +317,7 @@ export class ObjectMutationLog<TFrom, TTo> {
 		this._entryCount = 1;
 		this._clearPending();
 		const entry: Entry = { kind: EntryKind.Initial, v: value };
-		return VSBuffer.fromString(JSON.stringify(entry) + '\n');
+		return VSBuffer.fromString(stringifyEntryWithFallback(entry) + '\n');
 	}
 
 	/**
@@ -335,7 +397,7 @@ export class ObjectMutationLog<TFrom, TTo> {
 			this._pendingPrevious = currentValue;
 			this._pendingEntryCount = 1;
 			const entry: Entry = { kind: EntryKind.Initial, v: currentValue };
-			return { op: 'replace', data: VSBuffer.fromString(JSON.stringify(entry) + '\n') };
+			return { op: 'replace', data: VSBuffer.fromString(stringifyEntryWithFallback(entry) + '\n') };
 		}
 
 		// Generate diff entries
@@ -364,7 +426,7 @@ export class ObjectMutationLog<TFrom, TTo> {
 		// Append entries - build string directly
 		let data = '';
 		for (const e of entries) {
-			data += JSON.stringify(e) + '\n';
+			data += stringifyEntryWithFallback(e) + '\n';
 		}
 		return { op: 'append', data: VSBuffer.fromString(data) };
 	}

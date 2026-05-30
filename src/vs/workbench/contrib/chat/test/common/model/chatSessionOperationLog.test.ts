@@ -673,4 +673,81 @@ suite('ChatSessionOperationLog', () => {
 			assert.strictEqual(result.count, 2);
 		});
 	});
+
+	suite('persistence size safety net', () => {
+		test('makeTruncatingReplacer truncates an oversized string', () => {
+			const big = 'x'.repeat(2 * 1024 * 1024);
+			const obj = { content: big, label: 'ok' };
+			const json = JSON.stringify(obj, Adapt.makeTruncatingReplacer(1024 * 1024, 10 * 1024 * 1024));
+			const parsed = JSON.parse(json);
+			assert.notStrictEqual(parsed.content, big);
+			assert.ok(parsed.content.startsWith('[VS Code:'));
+			assert.strictEqual(parsed.label, 'ok');
+		});
+
+		test('makeTruncatingReplacer respects total budget', () => {
+			const medium = 'y'.repeat(200 * 1024); // under per-string cap
+			const obj: any = {};
+			for (let i = 0; i < 20; i++) {
+				obj[`k${i}`] = medium;
+			}
+			const json = JSON.stringify(obj, Adapt.makeTruncatingReplacer(1024 * 1024, 1024 * 1024));
+			const parsed = JSON.parse(json);
+			assert.ok(json.length < 2 * 1024 * 1024, `expected < 2 MiB, got ${json.length}`);
+			// Leading keys intact, later replaced with total-budget marker
+			assert.strictEqual(parsed.k0, medium);
+			assert.ok(Object.values(parsed).some(v => typeof v === 'string' && (v as string).includes('entry exceeded size budget')));
+		});
+
+		test('stringifyEntryWithFallback succeeds with no overhead on small entries', () => {
+			const entry = { kind: 0, v: { foo: 'bar', n: 42 } };
+			const out = Adapt.stringifyEntryWithFallback(entry);
+			assert.strictEqual(out, JSON.stringify(entry));
+		});
+
+		test('stringifyEntryWithFallback rethrows non-RangeError', () => {
+			const circular: any = {};
+			circular.self = circular; // JSON.stringify throws TypeError on circulars
+			assert.throws(() => Adapt.stringifyEntryWithFallback(circular), TypeError);
+		});
+
+		test('stringifyEntryWithFallback recovers when JSON.stringify throws RangeError', () => {
+			// Use toJSON to force a RangeError on the first stringify pass,
+			// then succeed on the retry. Avoids needing 500+ MiB of allocations.
+			let calls = 0;
+			const entry = {
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { content: 'recovered' };
+				},
+			};
+			const out = Adapt.stringifyEntryWithFallback(entry);
+			assert.strictEqual(calls, 2, 'should have been called twice (initial + retry)');
+			assert.deepStrictEqual(JSON.parse(out), { content: 'recovered' });
+		});
+
+		test('stringifyEntryWithFallback applies truncating replacer on RangeError retry', () => {
+			// Same trick, but the recovered payload contains an oversized
+			// string that must be truncated by the replacer on the retry.
+			const big = 'x'.repeat(2 * 1024 * 1024); // 2 MiB, over the 1 MiB per-string cap
+			let calls = 0;
+			const entry = {
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { content: big, label: 'ok' };
+				},
+			};
+			const out = Adapt.stringifyEntryWithFallback(entry);
+			const parsed = JSON.parse(out);
+			assert.notStrictEqual(parsed.content, big);
+			assert.ok(parsed.content.startsWith('[VS Code:'), `unexpected: ${parsed.content.slice(0, 80)}`);
+			assert.strictEqual(parsed.label, 'ok');
+		});
+	});
 });
