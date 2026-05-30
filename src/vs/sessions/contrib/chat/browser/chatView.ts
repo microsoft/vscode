@@ -14,6 +14,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
@@ -109,6 +110,7 @@ export class ChatView extends AbstractChatView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -180,8 +182,11 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			this._modelRef.value = ref;
-			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			const sessionType = getChatSessionType(ref.object.sessionResource);
+			this._syncAuthoritativeChatModel(chat, ref, resource, sessionType, 'beforeWidgetModel');
+			this._updateWidgetLockState(sessionType);
 			this._widget.setModel(ref.object);
+			this._syncAuthoritativeChatModel(chat, ref, resource, sessionType, 'afterWidgetModel');
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
@@ -190,6 +195,31 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+	}
+
+	private _syncAuthoritativeChatModel(chat: IChat, ref: IChatModelReference, resource: URI, sessionType: string, phase: 'beforeWidgetModel' | 'afterWidgetModel'): void {
+		const authoritativeModelId = chat.modelId.get();
+		if (!authoritativeModelId) {
+			return;
+		}
+
+		const currentInputModelId = ref.object.inputModel.state.get()?.selectedModel?.identifier;
+		const currentWidgetModelId = phase === 'afterWidgetModel' ? this._widget.input.currentLanguageModel : undefined;
+		if (currentInputModelId === authoritativeModelId && (!currentWidgetModelId || currentWidgetModelId === authoritativeModelId)) {
+			return;
+		}
+
+		const languageModel = this.languageModelsService.lookupLanguageModel(authoritativeModelId);
+		if (!languageModel) {
+			return;
+		}
+
+		if (phase === 'afterWidgetModel') {
+			this._widget.input.setCurrentLanguageModel({ identifier: authoritativeModelId, metadata: languageModel });
+			return;
+		}
+
+		ref.object.inputModel.setState({ selectedModel: { identifier: authoritativeModelId, metadata: languageModel } });
 	}
 
 	private _updateWidgetLockState(sessionType: string): void {
