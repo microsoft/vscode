@@ -36,10 +36,11 @@ suite('AuthenticationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let authenticationService: AuthenticationService;
+	let authenticationAccessService: AuthenticationAccessService;
 
 	setup(() => {
 		const storageService = disposables.add(new TestStorageService());
-		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
+		authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
 		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService()));
 	});
 
@@ -371,6 +372,89 @@ suite('AuthenticationService', () => {
 			authenticationService.registerAuthenticationProvider(provider.id, provider);
 			assert.rejects(() => authenticationService.getSessions(provider.id, [], { authorizationServer: URI.parse('https://example.com') }));
 			assert.ok(!isCalled);
+		});
+
+		test('getAccounts caches accounts per provider', async () => {
+			let getSessionsCallCount = 0;
+			const provider = createProvider({
+				getSessions: async () => {
+					getSessionsCallCount++;
+					const session = createSession();
+					return [
+						session,
+						{ ...session, id: 'session2', scopes: ['email'] }
+					];
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+			const accounts = await authenticationService.getAccounts(provider.id);
+			const cachedAccounts = await authenticationService.getAccounts(provider.id);
+
+			assert.strictEqual(getSessionsCallCount, 1);
+			assert.deepStrictEqual(accounts, [{ id: 'account', label: 'Account' }]);
+			assert.deepStrictEqual(cachedAccounts, accounts);
+		});
+
+		test('getAccounts invalidates cache before firing session change event', async () => {
+			const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
+			const firstSession = createSession();
+			const secondSession = { ...createSession(), id: 'session2', account: { id: 'account2', label: 'Account 2' } };
+			let sessions = [firstSession];
+			let getSessionsCallCount = 0;
+			const provider = createProvider({
+				onDidChangeSessions: emitter.event,
+				getSessions: async () => {
+					getSessionsCallCount++;
+					return sessions;
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+			assert.deepStrictEqual(await authenticationService.getAccounts(provider.id), [firstSession.account]);
+
+			const changed = new Promise<void>((resolve, reject) => {
+				const listener = authenticationService.onDidChangeSessions(async () => {
+					listener.dispose();
+					try {
+						assert.deepStrictEqual(await authenticationService.getAccounts(provider.id), [secondSession.account]);
+						resolve();
+					} catch (error) {
+						reject(error);
+					}
+				});
+			});
+			sessions = [secondSession];
+			emitter.fire({ added: [secondSession], removed: [], changed: [] });
+
+			await changed;
+			assert.strictEqual(getSessionsCallCount, 2);
+		});
+
+		test('getAccounts invalidates cache on extension session access change', async () => {
+			const firstSession = createSession();
+			const secondSession = { ...createSession(), id: 'session2', account: { id: 'account2', label: 'Account 2' } };
+			let sessions = [firstSession];
+			let getSessionsCallCount = 0;
+			const provider = createProvider({
+				getSessions: async () => {
+					getSessionsCallCount++;
+					return sessions;
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+			assert.deepStrictEqual(await authenticationService.getAccounts(provider.id), [firstSession.account]);
+
+			sessions = [secondSession];
+			authenticationAccessService.updateAllowedExtensions(provider.id, firstSession.account.label, [{
+				id: 'test.extension',
+				name: 'Test Extension',
+				allowed: true
+			}]);
+
+			assert.deepStrictEqual(await authenticationService.getAccounts(provider.id), [secondSession.account]);
+			assert.strictEqual(getSessionsCallCount, 2);
 		});
 
 		test('createSession', async () => {
