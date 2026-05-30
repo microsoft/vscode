@@ -734,6 +734,13 @@ export namespace ConfigKey {
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
 
+		/**
+		 * When enabled, periodic keep-alive probes are sent during long-running tool calls
+		 * to keep the server-side prompt cache warm.
+		 */
+		export const LongToolCallCachePreservation = defineSetting<boolean>('chat.agent.longToolCallCachePreservation.enabled', ConfigType.ExperimentBased, false);
+		export const LongToolCallCachePreservationMaxProbes = defineSetting<number>('chat.agent.longToolCallCachePreservation.maxProbes', ConfigType.ExperimentBased, 1);
+
 		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Applied to Claude Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants. */
 		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
 
