@@ -74,6 +74,7 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from './parts/sessionsPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options
@@ -94,7 +95,7 @@ enum LayoutClasses {
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
-	CHATBAR_HIDDEN = 'nochatbar',
+	SESSIONS_HIDDEN = 'nosessionspart',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	SHELL_GRADIENT_BACKGROUND = 'shell-gradient-background',
 	FULLSCREEN = 'fullscreen',
@@ -111,13 +112,13 @@ interface IPartVisibilityState {
 	auxiliaryBar: boolean;
 	editor: boolean;
 	panel: boolean;
-	chatBar: boolean;
+	sessions: boolean;
 }
 
 interface IPartSizesState {
 	sidebar?: number;
 	auxiliaryBar?: number;
-	chatBar?: number;
+	sessions?: number;
 	editor?: number;
 	panel?: number;
 }
@@ -272,14 +273,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private auxiliaryBarPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 
-	private chatBarPartView!: ISerializableView;
+	private sessionsPartView!: ISerializableView;
 
 	private readonly partVisibility: IPartVisibilityState = {
 		sidebar: true,
 		auxiliaryBar: true,
 		editor: false,
 		panel: false,
-		chatBar: true
+		sessions: true
 	};
 
 	private mainWindowFullscreen = false;
@@ -315,6 +316,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private paneCompositeService!: IPaneCompositePartService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private sessionsManagementService!: ISessionsManagementService;
+	private sessionsPartService!: ISessionsPartService;
 	private instantiationService!: IInstantiationService;
 	private storageService!: IStorageService;
 
@@ -637,6 +639,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+		if (this.layoutPolicy.viewportClass.get() === 'phone') {
+			return {};
+		}
+
 		const raw = storageService.get(Workbench._PART_VISIBILITY_KEY, StorageScope.WORKSPACE);
 		if (raw) {
 			try {
@@ -650,6 +656,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private _savePartVisibility(): void {
+		if (this.layoutPolicy.viewportClass.get() === 'phone') {
+			return;
+		}
+
 		this.storageService.store(Workbench._PART_VISIBILITY_KEY, JSON.stringify({
 			editor: this.partVisibility.editor,
 			auxiliaryBar: this.partVisibility.auxiliaryBar,
@@ -689,7 +699,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const sizes: IPartSizesState = {
 			sidebar: getSize(this.sideBarPartView, 'width', this.partVisibility.sidebar),
 			auxiliaryBar: getSize(this.auxiliaryBarPartView, 'width', this.partVisibility.auxiliaryBar),
-			chatBar: getSize(this.chatBarPartView, 'width', this.partVisibility.chatBar),
+			sessions: getSize(this.sessionsPartView, 'width', this.partVisibility.sessions),
 			editor: getSize(this.editorPartView, 'width', this.partVisibility.editor),
 			panel: getSize(this.panelPartView, 'height', this.partVisibility.panel),
 		};
@@ -713,7 +723,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.sidebar = visibilityDefaults.sidebar;
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
-		this.partVisibility.chatBar = visibilityDefaults.chatBar;
+		this.partVisibility.sessions = visibilityDefaults.sessions;
 		const savedPartVisibility = this._loadPartVisibility(storageService);
 		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
 		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
@@ -751,7 +761,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', 'left'] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', 'right'] },
-			{ id: Parts.CHATBAR_PART, role: 'main', classes: ['chatbar', 'basepanel', 'right'] },
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
 		]) {
 			const partContainer = this.createPartContainer(id, role, classes);
@@ -763,6 +772,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Create Editor Part (hidden by default)
 		this.createEditorPart();
+
+		// Create Sessions Part
+		this.createSessionsPart();
 
 		// Notification Handlers
 		this.createNotificationsHandlers(instantiationService, notificationService, configurationService);
@@ -925,6 +937,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mainContainer.appendChild(editorPartContainer);
 	}
 
+	private createSessionsPart(): void {
+		const sessionsPartContainer = document.createElement('div');
+		sessionsPartContainer.classList.add('part', 'sessionspart', 'basepanel', 'right');
+		sessionsPartContainer.id = Parts.SESSIONS_PART;
+		sessionsPartContainer.setAttribute('role', 'main');
+
+		mark(`code/willCreatePart/${Parts.SESSIONS_PART}`);
+		this.getPart(Parts.SESSIONS_PART).create(sessionsPartContainer);
+		mark(`code/didCreatePart/${Parts.SESSIONS_PART}`);
+
+		this.mainContainer.appendChild(sessionsPartContainer);
+	}
+
 	private restore(lifecycleService: ILifecycleService): void {
 		// Update perf marks
 		mark('code/didStartWorkbench');
@@ -957,7 +982,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			{ location: ViewContainerLocation.Sidebar, visible: this.partVisibility.sidebar },
 			{ location: ViewContainerLocation.Panel, visible: this.partVisibility.panel },
 			{ location: ViewContainerLocation.AuxiliaryBar, visible: this.partVisibility.auxiliaryBar },
-			{ location: ViewContainerLocation.ChatBar, visible: this.partVisibility.chatBar },
 		];
 
 		for (const { location, visible } of partsToRestore) {
@@ -982,6 +1006,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.sessionsManagementService = accessor.get(ISessionsManagementService);
+		// Forces eager creation of the sessions part so it registers itself with the
+		// layout service before renderWorkbench() looks it up via getPart().
+		this.sessionsPartService = accessor.get(ISessionsPartService);
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
 		accessor.get(ITitleService);
@@ -1021,7 +1048,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.sidebar = visDefaults.sidebar;
 		this.partVisibility.auxiliaryBar = visDefaults.auxiliaryBar;
 		this.partVisibility.panel = visDefaults.panel;
-		this.partVisibility.chatBar = visDefaults.chatBar;
+		this.partVisibility.sessions = visDefaults.sessions;
 		this.partVisibility.editor = visDefaults.editor;
 	}
 
@@ -1081,14 +1108,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const panelPart = this.getPart(Parts.PANEL_PART);
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
-		const chatBarPart = this.getPart(Parts.CHATBAR_PART);
+		const sessionsPart = this.getPart(Parts.SESSIONS_PART);
 
 		// View references for parts in the grid
 		this.titleBarPartView = titleBar;
 		this.sideBarPartView = sideBar;
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
-		this.chatBarPartView = chatBarPart;
+		this.sessionsPartView = sessionsPart;
 		this.editorPartView = editorPart;
 
 		const viewMap: { [key: string]: ISerializableView } = {
@@ -1096,7 +1123,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
-			[Parts.CHATBAR_PART]: this.chatBarPartView,
+			[Parts.SESSIONS_PART]: this.sessionsPartView,
 			[Parts.EDITOR_PART]: this.editorPartView
 		};
 
@@ -1113,7 +1140,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
 
 		// Listen for part visibility changes (for parts in grid)
-		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, chatBarPart, editorPart]) {
+		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, sessionsPart, editorPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				if (part === sideBar) {
 					this.setSideBarHidden(!visible);
@@ -1121,8 +1148,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 					this.setPanelHidden(!visible);
 				} else if (part === auxiliaryBarPart) {
 					this.setAuxiliaryBarHidden(!visible);
-				} else if (part === chatBarPart) {
-					this.setChatBarHidden(!visible);
+				} else if (part === sessionsPart) {
+					this.setSessionsHidden(!visible);
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible);
 				}
@@ -1155,6 +1182,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Welcome — must be created early in layout so the widget can gate
 		// other UI until sign-in / chat setup is complete.
 		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
+
+		// Wire the sessions part to the sessions management service now that
+		// the part has been created via renderWorkbench().
+		this.sessionsPartService.init();
 	}
 
 	/**
@@ -1203,7 +1234,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// is preserved across reloads. Fall back to the remainder of the right
 		// section, which the grid distributes proportionally when the saved
 		// sizes don't fit the current container.
-		const chatBarWidth = this._savedPartSizes.chatBar
+		const sessionsWidth = this._savedPartSizes.sessions
 			?? Math.max(0, rightSectionWidth - effectiveAuxBarWidth - effectiveEditorWidth);
 
 		const contentHeight = Math.max(0, height - titleBarHeight);
@@ -1232,11 +1263,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			visible: this.partVisibility.auxiliaryBar
 		};
 
-		const chatBarNode: ISerializedLeafNode = {
+		const sessionsNode: ISerializedLeafNode = {
 			type: 'leaf',
-			data: { type: Parts.CHATBAR_PART },
-			size: chatBarWidth,
-			visible: this.partVisibility.chatBar
+			data: { type: Parts.SESSIONS_PART },
+			size: sessionsWidth,
+			visible: this.partVisibility.sessions
 		};
 
 		const editorNode: ISerializedLeafNode = {
@@ -1256,7 +1287,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Top right section: Chat Bar | Editor | Auxiliary Bar (horizontal)
 		const topRightSection: ISerializedNode = {
 			type: 'branch',
-			data: [chatBarNode, editorNode, auxiliaryBarNode],
+			data: [sessionsNode, editorNode, auxiliaryBarNode],
 			size: topRightHeight
 		};
 
@@ -1337,8 +1368,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				if (this.partVisibility.sidebar !== defaults.sidebar) {
 					this.setSideBarHidden(!defaults.sidebar);
 				}
-				if (this.partVisibility.chatBar !== defaults.chatBar) {
-					this.setChatBarHidden(!defaults.chatBar);
+				if (this.partVisibility.sessions !== defaults.sessions) {
+					this.setSessionsHidden(!defaults.sessions);
 				}
 				if (this.partVisibility.auxiliaryBar !== defaults.auxiliaryBar) {
 					this.setAuxiliaryBarHidden(!defaults.auxiliaryBar);
@@ -1351,7 +1382,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			// Re-run updateStyles() on pane composite parts so that
 			// mobile Part subclasses can re-apply or clear card-chrome
 			// inline styles based on the new `.phone-layout` class.
-			for (const partId of [Parts.CHATBAR_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART]) {
+			for (const partId of [Parts.SESSIONS_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART]) {
 				this.parts.get(partId)?.updateStyles();
 			}
 		}
@@ -1431,7 +1462,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			!this.partVisibility.editor ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.partVisibility.panel ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.partVisibility.auxiliaryBar ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
-			!this.partVisibility.chatBar ? LayoutClasses.CHATBAR_HIDDEN : undefined,
+			!this.partVisibility.sessions ? LayoutClasses.SESSIONS_HIDDEN : undefined,
 			LayoutClasses.STATUSBAR_HIDDEN, // agents window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.layoutPolicy.viewportClass.get() === 'phone' ? LayoutClasses.PHONE_LAYOUT : undefined,
@@ -1486,8 +1517,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			case Parts.AUXILIARYBAR_PART:
 				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.focus();
 				break;
-			case Parts.CHATBAR_PART:
-				this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.ChatBar)?.focus();
+			case Parts.SESSIONS_PART:
+				// TODO: focus chat bar content once it is wired up
+				this.getPart(Parts.SESSIONS_PART).getContainer()?.focus();
 				break;
 			default: {
 				const container = this.getContainer(targetWindow, part);
@@ -1497,7 +1529,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	focus(): void {
-		this.focusPart(Parts.CHATBAR_PART);
+		this.focusPart(Parts.SESSIONS_PART);
 	}
 
 	//#endregion
@@ -1554,8 +1586,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				return this.partVisibility.editor;
 			case Parts.PANEL_PART:
 				return this.partVisibility.panel;
-			case Parts.CHATBAR_PART:
-				return this.partVisibility.chatBar;
+			case Parts.SESSIONS_PART:
+				return this.partVisibility.sessions;
 			case Parts.ACTIVITYBAR_PART:
 			case Parts.STATUSBAR_PART:
 			case Parts.BANNER_PART:
@@ -1578,8 +1610,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			case Parts.PANEL_PART:
 				this.setPanelHidden(hidden);
 				break;
-			case Parts.CHATBAR_PART:
-				this.setChatBarHidden(hidden);
+			case Parts.SESSIONS_PART:
+				this.setSessionsHidden(hidden);
 				break;
 		}
 	}
@@ -1686,7 +1718,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// chat bar width before showing so we can size the editor to half
 		// of it afterwards. The editor is hidden by default, so without this
 		// initial split it would appear too small
-		const mainAreaWidth = this.workbenchGrid.getViewSize(this.chatBarPartView).width + this.workbenchGrid.getViewSize(this.editorPartView).width;
+		const mainAreaWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width + this.workbenchGrid.getViewSize(this.editorPartView).width;
 		const targetEditorWidth = Math.max(300, Math.floor(mainAreaWidth / 2));
 		const currentEditorSize = this.workbenchGrid.getViewSize(this.editorPartView);
 		this.workbenchGrid.resizeView(this.editorPartView, {
@@ -1725,7 +1757,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			// Focus the chat bar when hiding the panel if it had focus
 			if (panelHadFocus) {
-				this.focusPart(Parts.CHATBAR_PART);
+				this.focusPart(Parts.SESSIONS_PART);
 			}
 		}
 
@@ -1743,30 +1775,16 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
-	private setChatBarHidden(hidden: boolean): void {
-		if (this.partVisibility.chatBar === !hidden) {
+	private setSessionsHidden(hidden: boolean): void {
+		if (this.partVisibility.sessions === !hidden) {
 			return;
 		}
 
-		this.partVisibility.chatBar = !hidden;
-		this.mainContainer.classList.toggle(LayoutClasses.CHATBAR_HIDDEN, hidden);
+		this.partVisibility.sessions = !hidden;
+		this.mainContainer.classList.toggle(LayoutClasses.SESSIONS_HIDDEN, hidden);
 
 		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.chatBarPartView, !hidden);
-
-		// If chat bar becomes hidden, also hide the current active pane composite
-		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.ChatBar)) {
-			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.ChatBar);
-		}
-
-		// If chat bar becomes visible, show last active pane composite or default
-		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.ChatBar)) {
-			const paneCompositeToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.ChatBar) ??
-				this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.ChatBar)?.id;
-			if (paneCompositeToOpen) {
-				this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.ChatBar);
-			}
-		}
+		this.workbenchGrid.setViewVisible(this.sessionsPartView, !hidden);
 	}
 
 	//#endregion
@@ -1837,8 +1855,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				return this.editorPartView;
 			case Parts.PANEL_PART:
 				return this.panelPartView;
-			case Parts.CHATBAR_PART:
-				return this.chatBarPartView;
+			case Parts.SESSIONS_PART:
+				return this.sessionsPartView;
 			default:
 				return undefined;
 		}
@@ -1909,7 +1927,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				auxiliaryBar: this.partVisibility.auxiliaryBar,
 				editor: this.partVisibility.editor,
 				panel: this.partVisibility.panel,
-				chatBar: this.partVisibility.chatBar,
+				sessions: this.partVisibility.sessions,
 			};
 
 			// Ensure editor is visible
@@ -1921,8 +1939,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			if (this.partVisibility.sidebar) {
 				this.setSideBarHidden(true);
 			}
-			if (this.partVisibility.chatBar) {
-				this.setChatBarHidden(true);
+			if (this.partVisibility.sessions) {
+				this.setSessionsHidden(true);
 			}
 
 			this._editorMaximized = true;
@@ -1931,7 +1949,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			// Restore previous visibility state
 			this.setSideBarHidden(!state?.sidebar);
-			this.setChatBarHidden(!state?.chatBar);
+			this.setSessionsHidden(!state?.sessions);
 
 			this._editorMaximized = false;
 		}
@@ -2024,8 +2042,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		if (neighborView === this.panelPartView) {
 			return Parts.PANEL_PART;
 		}
-		if (neighborView === this.chatBarPartView) {
-			return Parts.CHATBAR_PART;
+		if (neighborView === this.sessionsPartView) {
+			return Parts.SESSIONS_PART;
 		}
 
 		return undefined;

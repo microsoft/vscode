@@ -4,21 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { coalesce } from '../../../../../base/common/arrays.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { IReader, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuRegistry, isIMenuItem, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -291,7 +287,7 @@ export function modelPickerStorageKey(sessionType: string): string {
 
 export function shouldShowSessionManageModelsAction(sessionsManagementService: ISessionsManagementService): boolean {
 	const session = sessionsManagementService.activeSession.get();
-	return session?.providerId === COPILOT_PROVIDER_ID && session.sessionType === SessionType.Local;
+	return session?.sessionType === SessionType.Local;
 }
 
 function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
@@ -515,75 +511,6 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 registerWorkbenchContribution2(CopilotPickerActionViewItemContribution.ID, CopilotPickerActionViewItemContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(CopilotActiveSessionContribution.ID, CopilotActiveSessionContribution, WorkbenchPhase.AfterRestored);
-
-/**
- * Bridges extension-contributed context menu actions from {@link MenuId.AgentSessionsContext}
- * to {@link SessionItemContextMenuId} for the new sessions view.
- * Registers wrapper commands that resolve {@link ISession} → {@link IAgentSession}
- * and forward to the original command with marshalled context.
- */
-class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'copilotChatSessions.contextMenuBridge';
-
-	private readonly _bridgedIds = new Set<string>();
-
-	constructor(
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@ICommandService private readonly commandService: ICommandService,
-	) {
-		super();
-		this._bridgeItems();
-		this._register(MenuRegistry.onDidChangeMenu(menuIds => {
-			if (menuIds.has(MenuId.AgentSessionsContext)) {
-				this._bridgeItems();
-			}
-		}));
-	}
-
-	private _bridgeItems(): void {
-		const items = MenuRegistry.getMenuItems(MenuId.AgentSessionsContext).filter(isIMenuItem);
-		for (const item of items) {
-			const commandId = item.command.id;
-			if (!commandId.startsWith('github.copilot.')) {
-				continue;
-			}
-			if (commandId === 'github.copilot.cli.sessions.delete') {
-				continue; // Delete is handled natively via sessionsManagementService
-			}
-			if (this._bridgedIds.has(commandId)) {
-				continue;
-			}
-			this._bridgedIds.add(commandId);
-
-			const wrapperId = `sessionsViewPane.bridge.${commandId}`;
-			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, context?: ISession | ISession[]) => {
-				if (!context) {
-					return;
-				}
-				const sessions = Array.isArray(context) ? context : [context];
-				const agentSessions = coalesce(sessions.map(s => this.agentSessionsService.getSession(s.resource)));
-				if (agentSessions.length === 0) {
-					return;
-				}
-				return this.commandService.executeCommand(commandId, {
-					session: agentSessions[0],
-					sessions: agentSessions,
-					$mid: MarshalledId.AgentSessionContext,
-				});
-			}));
-
-			const providerWhen = ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
-			this._register(MenuRegistry.appendMenuItem(SessionItemContextMenuId, {
-				command: { ...item.command, id: wrapperId },
-				group: item.group,
-				order: item.order,
-				when: item.when ? ContextKeyExpr.and(providerWhen, item.when) : providerWhen,
-			}));
-		}
-	}
-}
-
-registerWorkbenchContribution2(CopilotSessionContextMenuBridge.ID, CopilotSessionContextMenuBridge, WorkbenchPhase.AfterRestored);
 
 registerAction2(class DeleteSessionAction extends Action2 {
 	constructor() {

@@ -18,6 +18,7 @@ import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { createPngBytes } from '../../../image/common/test/testImageData';
 import { ICAPIClientService } from '../../common/capiClient';
 import { AutomodeService } from '../automodeService';
 
@@ -1099,7 +1100,7 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'describe this image',
 				sessionId: 'session-telemetry-vision',
-				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array([1, 2, 3]), isPasted: true } }] as any
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: createPngBytes(7, 11), isPasted: true } }] as any
 			};
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
@@ -1114,8 +1115,12 @@ describe('AutomodeService', () => {
 			});
 			expect(selectionEvent![2]).toMatchObject({
 				imageCount: 1,
-				totalImageBytes: 3,
-				maxImageBytes: 3,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
 				imagePngCount: 1,
 				imageClipboardCount: 1,
 			});

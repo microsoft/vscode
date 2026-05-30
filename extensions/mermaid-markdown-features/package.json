@@ -250,7 +250,7 @@
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.0",
-    "@types/node": "^22.18.10",
+    "@types/node": "24.x",
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@vscode/codicons": "^0.0.36"
   },

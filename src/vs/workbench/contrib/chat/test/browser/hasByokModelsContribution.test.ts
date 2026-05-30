@@ -12,7 +12,6 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -36,7 +35,6 @@ suite('HasByokModelsContribution', () => {
 			readonly nonCopilotUserSelectable?: boolean;
 		};
 		readonly configuration?: {
-			readonly offlineByok?: boolean;
 			readonly aiDisabled?: boolean;
 		};
 		readonly storage?: {
@@ -80,7 +78,6 @@ suite('HasByokModelsContribution', () => {
 
 	function createScenario(store: DisposableStore, options: IScenarioOptions = {}): IScenario {
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.OfflineByok, options.configuration?.offlineByok ?? true);
 		configurationService.setUserConfiguration(ChatConfiguration.AIDisabled, options.configuration?.aiDisabled ?? false);
 
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
@@ -106,7 +103,6 @@ suite('HasByokModelsContribution', () => {
 		instantiation.stub(IExtensionService, new TestExtensionService());
 		instantiation.stub(IContextKeyService, contextKeyService);
 		instantiation.stub(IConfigurationService, configurationService);
-		instantiation.stub(IProductService, { quality: 'dev' } as IProductService);
 		instantiation.stub(ILanguageModelsConfigurationService, configService as unknown as ILanguageModelsConfigurationService);
 
 		const hasByokModels = ChatEntitlementContextKeys.hasByokModels.bindTo(contextKeyService);
@@ -146,18 +142,6 @@ suite('HasByokModelsContribution', () => {
 		const scenario = createScenario(store, {
 			groups: [{ vendor: 'ollama', name: 'Ollama' }],
 			configuration: { aiDisabled: true },
-			storage: { lastKnown: true },
-		});
-		await flush();
-
-		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
-	});
-
-	test('feature disabled (offlineByok=false) → result is false', async () => {
-		const store = disposables.add(new DisposableStore());
-		const scenario = createScenario(store, {
-			groups: [{ vendor: 'ollama', name: 'Ollama' }],
-			configuration: { offlineByok: false },
 			storage: { lastKnown: true },
 		});
 		await flush();

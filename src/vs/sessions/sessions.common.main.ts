@@ -142,6 +142,7 @@ import '../workbench/services/inlineCompletions/common/inlineCompletionsUnificat
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostPermissionService.js';
+import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -312,7 +313,10 @@ import '../workbench/contrib/externalUriOpener/common/externalUriOpener.contribu
 // Extensions Management
 import { IExtensionsWorkbenchService } from '../workbench/contrib/extensions/common/extensions.js';
 import { ExtensionsWorkbenchService } from '../workbench/contrib/extensions/browser/extensionsWorkbenchService.js';
+import { IExtensionRecommendationNotificationService } from '../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { NullExtensionRecommendationNotificationService } from './services/extensionRecommendations/common/extensionRecommendationNotificationService.js';
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
+registerSingleton(IExtensionRecommendationNotificationService, NullExtensionRecommendationNotificationService, InstantiationType.Delayed);
 
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';
@@ -443,6 +447,7 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
+import './browser/parts/sessionsPartService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 

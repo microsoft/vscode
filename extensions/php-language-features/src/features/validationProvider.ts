@@ -134,6 +134,11 @@ export default class PHPValidationProvider {
 
 		this.config = await getConfig();
 
+		if (this.delayers) {
+			for (const key in this.delayers) {
+				this.delayers[key].cancel();
+			}
+		}
 		this.delayers = Object.create(null);
 		if (this.pauseValidation) {
 			this.pauseValidation = oldExecutable === this.config.executable;

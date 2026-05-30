@@ -10,9 +10,9 @@ import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
-import type { CustomizationRef } from '../../common/state/sessionState.js';
-import type { URI as ProtocolURI } from '../../common/state/protocol/state.js';
-import { DiscoveredType, type IDiscoveredFile } from '../copilot/sessionCustomizationDiscovery.js';
+import { customizationId, type ClientPluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationType, type URI as ProtocolURI } from '../../common/state/protocol/state.js';
+import { DiscoveredType, type IDiscoveredDirectory } from '../copilot/sessionCustomizationDiscovery.js';
 
 const DISPLAY_NAME = 'VS Code Synced Data';
 const HOST_DISCOVERY_DIR = 'host-discovery';
@@ -35,7 +35,7 @@ function pluginDirForType(type: DiscoveredType): string {
 }
 
 interface IBundleResult {
-	readonly ref: CustomizationRef;
+	readonly ref: ClientPluginCustomization;
 }
 
 /**
@@ -80,11 +80,11 @@ export class SessionPluginBundler extends Disposable {
 	 * Bundles the given files into the on-disk plugin directory.
 	 *
 	 * Overwrites any previous bundle for this working directory. Returns a
-	 * {@link CustomizationRef} pointing at the on-disk plugin root with a
-	 * content-based nonce, or `undefined` when there are no files.
+	 * {@link ClientPluginCustomization} pointing at the on-disk plugin root
+	 * with a content-based nonce, or `undefined` when there are no files.
 	 */
-	async bundle(files: readonly IDiscoveredFile[]): Promise<IBundleResult | undefined> {
-		if (files.length === 0) {
+	async bundle(directories: readonly IDiscoveredDirectory[]): Promise<IBundleResult | undefined> {
+		if (directories.length === 0) {
 			return undefined;
 		}
 
@@ -99,37 +99,42 @@ export class SessionPluginBundler extends Disposable {
 
 		const hashParts: string[] = [];
 
-		for (const file of files) {
-			const dir = pluginDirForType(file.type);
-			const fileName = basename(file.uri);
+		for (const discoveredDirectory of directories) {
+			const dir = pluginDirForType(discoveredDirectory.type);
+			for (const file of discoveredDirectory.files) {
+				const fileName = basename(file);
 
-			let destUri: URI;
-			let hashKey: string;
-			if (file.type === DiscoveredType.Skill) {
-				// Skills are conventionally `<skillName>/SKILL.md`. Preserve the
-				// containing directory name so multiple skills don't collide.
-				const skillDirName = basename(dirname(file.uri));
-				destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
-				hashKey = `${dir}/${skillDirName}/${fileName}`;
-			} else {
-				destUri = URI.joinPath(this._rootUri, dir, fileName);
-				hashKey = `${dir}/${fileName}`;
+				let destUri: URI;
+				let hashKey: string;
+				if (discoveredDirectory.type === DiscoveredType.Skill) {
+					// Skills are conventionally `<skillName>/SKILL.md`. Preserve the
+					// containing directory name so multiple skills don't collide.
+					const skillDirName = basename(dirname(file));
+					destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
+					hashKey = `${dir}/${skillDirName}/${fileName}`;
+				} else {
+					destUri = URI.joinPath(this._rootUri, dir, fileName);
+					hashKey = `${dir}/${fileName}`;
+				}
+
+				const content = await this._fileService.readFile(file);
+				await this._fileService.writeFile(destUri, content.value);
+				hashParts.push(`${hashKey}:${content.value.toString()}`);
 			}
-
-			const content = await this._fileService.readFile(file.uri);
-			await this._fileService.writeFile(destUri, content.value);
-			hashParts.push(`${hashKey}:${content.value.toString()}`);
 		}
 
 		hashParts.sort();
 		const nonce = String(hash(hashParts.join('\n')));
 		this._lastNonce = nonce;
 
+		const rootUriString = this._rootUri.toString() as ProtocolURI;
 		return {
 			ref: {
-				uri: this._rootUri.toString() as ProtocolURI,
-				displayName: DISPLAY_NAME,
-				description: `${files.length} customization(s) discovered for this session`,
+				type: CustomizationType.Plugin,
+				id: customizationId(rootUriString),
+				uri: rootUriString,
+				name: DISPLAY_NAME,
+				enabled: true,
 				nonce,
 			},
 		};

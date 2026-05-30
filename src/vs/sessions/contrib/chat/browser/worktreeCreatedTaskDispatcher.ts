@@ -4,14 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
+
+/**
+ * Setting that controls whether `runOptions.runOn === 'worktreeCreated'`
+ * tasks are auto-dispatched for agent host sessions when a new worktree is
+ * created. Defaults to `true`. Manual `Run Task` invocations are unaffected.
+ */
+export const AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING = 'chat.agentHost.runWorktreeCreatedTasks';
 
 /**
  * Workbench contribution that runs all tasks tagged with
@@ -32,43 +41,26 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	// Track per-session disposables (one per in-flight session subscription) so
 	// we tear them down when the session is removed.
 	private readonly _sessionDisposables = this._register(new DisposableMap<string>());
-	private readonly _dispatchedSessions = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
-		for (const session of this._sessionsManagementService.getSessions()) {
-			this._trackSession(session);
-		}
-
-		this._register(this._sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
+		this._register(this._sessionsManagementService.onDidStartSession(session => this._trackSession(session)));
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => this._onDidRemoveSessions(e.removed)));
 	}
 
-	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
-		const removedTrackedSessions: ISession[] = [];
-		for (const session of e.removed) {
-			if (this._sessionDisposables.get(session.sessionId) && !this._dispatchedSessions.has(session.sessionId)) {
-				removedTrackedSessions.push(session);
-			}
+	private _onDidRemoveSessions(removed: readonly ISession[]): void {
+		for (const session of removed) {
 			this._sessionDisposables.deleteAndDispose(session.sessionId);
-			this._dispatchedSessions.delete(session.sessionId);
-		}
-		for (const session of e.added) {
-			this._trackSession(session);
-		}
-		const replacement = e.added.length === 0 && e.changed.length === 1 && removedTrackedSessions.length === 1
-			? removedTrackedSessions[0]
-			: undefined;
-		for (const session of e.changed) {
-			this._trackSession(session, replacement?.providerId === session.providerId && replacement.sessionType === session.sessionType);
 		}
 	}
 
-	private _trackSession(session: ISession, allowReadySession = false): void {
+	private _trackSession(session: ISession): void {
 		if (session.capabilities.runsWorktreeCreatedTasks) {
 			// The session's runtime already runs these tasks itself.
 			return;
@@ -76,20 +68,15 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		if (this._sessionDisposables.get(session.sessionId)) {
 			return;
 		}
-		if (!allowReadySession && !this._isPendingWorktreeSession(session)) {
-			return;
-		}
 
 		const store = new DisposableStore();
 		this._sessionDisposables.set(session.sessionId, store);
 
 		// Wait for the session to finish loading and report an actual worktree,
-		// then dispatch any pending worktreeCreated tasks once. Set
-		// `dispatched` synchronously before the await so any re-firing of the
-		// autorun observes it and bails.
-		let dispatched = false;
-		store.add(autorun(reader => {
-			if (session.loading.read(reader) || dispatched) {
+		// then dispatch any pending worktreeCreated tasks once. When dispatched,
+		// dispose the per-session subscription store to tear down this autorun.
+		registerAutorunSelfDisposable(store, reader => {
+			if (session.loading.read(reader)) {
 				return;
 			}
 			if (session.status.read(reader) === SessionStatus.Untitled) {
@@ -98,21 +85,17 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			if (!session.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri)) {
 				return;
 			}
-			dispatched = true;
-			this._dispatchedSessions.add(session.sessionId);
-			void this._dispatchWorktreeCreatedTasks(session);
-		}));
-	}
-
-	private _isPendingWorktreeSession(session: ISession): boolean {
-		return session.status.get() === SessionStatus.Untitled || session.loading.get() || !this._hasWorktree(session);
-	}
-
-	private _hasWorktree(session: ISession): boolean {
-		return session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri) ?? false;
+			this._sessionDisposables.deleteAndDispose(session.sessionId);
+			this._dispatchWorktreeCreatedTasks(session);
+		});
 	}
 
 	private async _dispatchWorktreeCreatedTasks(session: ISession): Promise<void> {
+		if (isAgentHostProviderId(session.providerId) && !this._configurationService.getValue<boolean>(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING)) {
+			this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated tasks for agent host session '${session.sessionId}' — '${AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING}' is disabled.`);
+			return;
+		}
+
 		let tasks;
 		try {
 			tasks = await this._sessionsTasksService.getSessionTasksOnce(session);
