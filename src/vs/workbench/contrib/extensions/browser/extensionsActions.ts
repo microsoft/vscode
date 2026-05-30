@@ -1779,6 +1779,11 @@ export class DisableGloballyAction extends ExtensionAction {
 			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
 				return;
 			}
+			// When the extension is only running due to a workspace enablement override while still
+			// globally disabled, "Disable" is redundant with "Disable (Workspace)" (see #244138).
+			if (this.extension.enablementState === EnablementState.EnabledWorkspace && this.extensionEnablementService.isDisabledGlobally(this.extension.local)) {
+				return;
+			}
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
