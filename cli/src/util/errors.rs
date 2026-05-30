@@ -268,7 +268,7 @@ impl std::fmt::Display for InvalidRequestedVersion {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
             f,
-            "The reqested version is invalid, expected one of 'stable', 'insiders', version number (x.y.z), or absolute path.",
+            "The requested version is invalid, expected one of 'stable', 'insiders', version number (x.y.z), or absolute path.",
         )
 	}
 }
