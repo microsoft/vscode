@@ -246,7 +246,7 @@ export class ContiguousTokensStore {
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (
-		(topLevelLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+		((topLevelLanguageId & MetadataConsts.LANGUAGEID_MASK) << MetadataConsts.LANGUAGEID_OFFSET)
 		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
 		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
 		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
