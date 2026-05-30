@@ -118,7 +118,7 @@ async function copyCopilotCliPrebuildFiles() {
 					if (normalizedSrc.includes('/prebuilds/linuxmusl-')) {
 						return false;
 					}
-					return src.endsWith('computer.node') || src.endsWith('runtime.node');
+					return src.endsWith('computer.node') || src.endsWith('runtime.node') || src.endsWith('cli-native.node');
 				}
 				return true;
 			} catch {
