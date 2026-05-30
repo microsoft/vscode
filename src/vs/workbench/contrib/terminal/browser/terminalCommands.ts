@@ -26,4 +26,16 @@ function registerOpenTerminalAtIndexCommands(): void {
 			}
 		});
 	}
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'workbench.action.terminal.focusLast',
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: 0,
+		handler: accessor => {
+			const terminalIndex = accessor.get(ITerminalGroupService).instances.length - 1;
+			accessor.get(ITerminalGroupService).setActiveInstanceByIndex(terminalIndex);
+			return accessor.get(ITerminalGroupService).showPanel(true);
+		}
+	});
 }
