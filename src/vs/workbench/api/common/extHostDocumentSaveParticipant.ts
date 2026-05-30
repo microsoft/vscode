@@ -168,7 +168,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			}
 
 			if (version === document.version) {
-				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto));
+				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto), extension.identifier.value);
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));
