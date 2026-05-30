@@ -1682,6 +1682,7 @@ export interface IChatService {
 	processPendingRequests(sessionResource: URI): void;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
+	readonly onDidChangeSessionTitle: Event<{ readonly sessionResource: URI; readonly title: string }>;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
 	clearAllHistoryEntries(): Promise<void>;
 	removeHistoryEntry(sessionResource: URI): Promise<void>;

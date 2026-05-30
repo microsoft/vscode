@@ -32,6 +32,13 @@ export class MockChatService implements IChatService {
 	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidChangeSessionTitle = new Emitter<{ readonly sessionResource: URI; readonly title: string }>();
+	readonly onDidChangeSessionTitle = this._onDidChangeSessionTitle.event;
+
+	fireDidChangeSessionTitle(sessionResource: URI, title: string): void {
+		this._onDidChangeSessionTitle.fire({ sessionResource, title });
+	}
+
 	fireDidDisposeSession(sessionResources: URI[]): void {
 		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
 	}
