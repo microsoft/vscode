@@ -124,7 +124,7 @@ suite(`ipynb serializer`, () => {
 	});
 
 	test('Serialize', async () => {
-		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1\n![img](attachment:image.png)', 'markdown');
 		markdownCell.metadata = {
 			attachments: {
 				'image.png': {
@@ -150,7 +150,7 @@ suite(`ipynb serializer`, () => {
 			}
 		});
 
-		const markdownCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		const markdownCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1\n![img](attachment:image.png)', 'markdown');
 		markdownCell2.metadata = {
 			id: '123',
 			metadata: {
@@ -169,13 +169,78 @@ suite(`ipynb serializer`, () => {
 
 		assert.deepStrictEqual(nbMarkdownCell, {
 			cell_type: 'markdown',
-			source: ['# header1'],
+			source: ['# header1\n', '![img](attachment:image.png)'],
 			metadata: {
 				foo: 'bar',
 			},
 			attachments: {
 				'image.png': {
 					'image/png': 'abc'
+				}
+			},
+			id: '123'
+		});
+	});
+
+	test('Serialize with unused attachments should not include them', async () => {
+		// Test case: markdown cell has attachment metadata but no attachment reference in content
+		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		markdownCell.metadata = {
+			attachments: {
+				'unused-image.png': {
+					'image/png': 'unusedImageData'
+				}
+			},
+			id: '123',
+			metadata: {
+				foo: 'bar'
+			}
+		};
+
+		const nbMarkdownCell = createMarkdownCellFromNotebookCell(markdownCell);
+
+		// Should not include attachments since they're not referenced in the content
+		assert.deepStrictEqual(nbMarkdownCell, {
+			cell_type: 'markdown',
+			source: ['# header1'],
+			metadata: {
+				foo: 'bar',
+			},
+			id: '123'
+		});
+	});
+
+	test('Serialize with used attachments should include them', async () => {
+		// Test case: markdown cell has attachment metadata and attachment reference in content
+		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, 
+			'# header1\n![alt text](attachment:used-image.png)', 'markdown');
+		markdownCell.metadata = {
+			attachments: {
+				'used-image.png': {
+					'image/png': 'usedImageData'
+				},
+				'unused-image.png': {
+					'image/png': 'unusedImageData'
+				}
+			},
+			id: '123',
+			metadata: {
+				foo: 'bar'
+			}
+		};
+
+		const nbMarkdownCell = createMarkdownCellFromNotebookCell(markdownCell);
+
+		// Should only include attachments that are referenced in the content
+		assert.deepStrictEqual(nbMarkdownCell, {
+			cell_type: 'markdown',
+			source: ['# header1\n', '![alt text](attachment:used-image.png)'],
+			metadata: {
+				foo: 'bar',
+			},
+			attachments: {
+				'used-image.png': {
+					'image/png': 'usedImageData'
 				}
 			},
 			id: '123'
