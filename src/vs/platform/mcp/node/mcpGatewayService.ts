@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
-import { DeferredPromise } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { JsonRpcMessage, JsonRpcProtocol } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
@@ -286,9 +286,9 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 			this._handleRequest(req, res);
 		});
 
-		const portTimeout = setTimeout(() => {
+		const portTimeout = disposableTimeout(() => {
 			deferredPromise.error(new Error('[McpGatewayService] Timeout waiting for server to start'));
-		}, 5000);
+		}, 5000, this._store);
 
 		this._server.on('listening', () => {
 			const address = this._server!.address();
@@ -297,12 +297,12 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 			} else if (address instanceof Object) {
 				this._port = address.port;
 			} else {
-				clearTimeout(portTimeout);
+				portTimeout.dispose();
 				deferredPromise.error(new Error('[McpGatewayService] Unable to determine port'));
 				return;
 			}
 
-			clearTimeout(portTimeout);
+			portTimeout.dispose();
 			this._logger.info(`[McpGatewayService] Server started on port ${this._port}`);
 			deferredPromise.complete();
 		});
@@ -314,7 +314,7 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 				this._server!.listen(0, '127.0.0.1');
 				return;
 			}
-			clearTimeout(portTimeout);
+			portTimeout.dispose();
 			this._logger.error(`[McpGatewayService] Server error: ${err}`);
 			deferredPromise.error(err);
 		});
