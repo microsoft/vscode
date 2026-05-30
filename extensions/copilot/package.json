@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.50.0",
+  "version": "0.51.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.122.0",
+    "vscode": "^1.123.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -4044,6 +4044,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -4614,6 +4623,26 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.agent.longToolCallCachePreservation.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.agent.longToolCallCachePreservation.enabled%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.agent.longToolCallCachePreservation.maxProbes": {
+            "type": "number",
+            "default": 1,
+            "markdownDescription": "%github.copilot.config.agent.longToolCallCachePreservation.maxProbes%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
             "type": "boolean",
             "default": true,
@@ -4694,7 +4723,7 @@
           },
           "github.copilot.chat.executionSubagent.model": {
             "type": "string",
-            "default": "",
+            "default": "gemini-3-flash",
             "markdownDescription": "%github.copilot.config.executionSubagent.model%",
             "tags": [
               "advanced",

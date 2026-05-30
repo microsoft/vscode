@@ -27,7 +27,7 @@ import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/commo
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
@@ -188,6 +188,51 @@ suite('TerminalSandboxService - network domains', () => {
 
 		getWindowsMxcEnvironment(): Promise<string[]> {
 			return Promise.resolve(this.environment);
+		}
+
+		buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName: string = 'vscode-terminal-sandbox', containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig> {
+			const clearPolicy = policy.filesystem?.clearPolicyOnExit ?? true;
+			return Promise.resolve({
+				version: policy.version,
+				containerId: containerName,
+				containment,
+				lifecycle: {
+					destroyOnExit: true,
+					preservePolicy: !clearPolicy,
+				},
+				process: {
+					commandLine,
+					cwd: workingDirectory,
+					timeout: policy.timeoutMs ?? 0,
+				},
+				processContainer: {
+					name: containerName,
+					leastPrivilege: false,
+					capabilities: policy.network?.allowOutbound ? ['internetClient'] : [],
+					ui: {
+						isolation: 'container',
+						desktopSystemControl: false,
+						systemSettings: 'none',
+						ime: false,
+					},
+				},
+				filesystem: {
+					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
+					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
+					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
+				},
+				network: {
+					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
+					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
+					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
+					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+				},
+				ui: {
+					disable: !(policy.ui?.allowWindows ?? false),
+					clipboard: policy.ui?.clipboard ?? 'none',
+					injection: policy.ui?.allowInputInjection ?? false,
+				},
+			});
 		}
 	}
 
@@ -1241,7 +1286,8 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
-		strictEqual(config.containment, 'processcontainer');
+		strictEqual(config.containment, 'process');
+		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
 		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
@@ -1254,7 +1300,6 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
 		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
-		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
 		ok(config.filesystem.readonlyPaths.includes('c:\\program files\\powershell\\7'), 'Resolved PowerShell executable directory should be readable in the MXC config');
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');

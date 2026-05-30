@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
+import { MessageKind } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	isJsonRpcNotification,
@@ -313,7 +314,7 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: 'session/turnStarted',
 			turnId,
-			userMessage: { text },
+			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
 }

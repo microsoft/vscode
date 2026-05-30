@@ -35,8 +35,7 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 	PromptsStorage.plugin,
-	PromptsStorage.extension,
-	PromptsStorage.user,
+	PromptsStorage.extension
 ];
 
 export interface ILocalCustomizationFile {
