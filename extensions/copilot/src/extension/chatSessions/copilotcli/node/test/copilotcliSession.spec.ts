@@ -1199,6 +1199,24 @@ describe('CopilotCLISession', () => {
 		expect(stream.output.join('\n')).toContain('Usage: /remote, /remote on, /remote off');
 	});
 
+	it('handles /remote arguments when command metadata is missing', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: '/remote wat' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(stream.output.join('\n')).toContain('Usage: /remote, /remote on, /remote off');
+	});
+
 	it('accepts /remote arguments when the prompt includes the slash command text', async () => {
 		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
 		const session = await createSession();

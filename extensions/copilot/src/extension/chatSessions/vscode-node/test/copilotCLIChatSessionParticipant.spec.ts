@@ -2042,6 +2042,21 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			expect((participant as any).contextForRequest.size).toBe(0);
 		});
 
+		it('preserves CLI command metadata through delegated request context', async () => {
+			const request = new TestChatRequest('on');
+			request.command = 'remote';
+			const context = { chatSessionContext: undefined } as vscode.ChatContext;
+			const stream = new MockChatResponseStream();
+			const token = disposables.add(new CancellationTokenSource()).token;
+
+			await participant.createHandler()(request, context, stream, token);
+			await callbackDone;
+
+			expect(cliSessions.length).toBe(1);
+			expect(cliSessions[0].requests.length).toBe(1);
+			expect(cliSessions[0].requests[0].input).toEqual({ command: 'remote', prompt: 'on' });
+		});
+
 		it('does not attempt workaround for non-copilotcli resource and proceeds with normal delegation', async () => {
 			const request = new TestChatRequest('do some work');
 			// Default sessionResource is test://session/... (not copilotcli scheme),
