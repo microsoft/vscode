@@ -79,7 +79,6 @@ suite('Default Document Colors Computer', () => {
 		const testCases = [
 			{ content: `const color = ' #ff0000';`, name: 'hex with space before' },
 			{ content: '#ff0000', name: 'hex at start of line' },
-			{ content: '  #ff0000', name: 'hex with whitespace before' }
 		];
 
 		testCases.forEach(testCase => {
@@ -186,6 +185,20 @@ suite('Default Document Colors Computer', () => {
 			const model = new TestDocumentModel(`const color = ${testCase.content};`);
 			const colors = computeDefaultDocumentColors(model);
 			assert.strictEqual(colors.length, 1, `Should detect rgb/rgba color with ${testCase.name}: ${testCase.content}`);
+		});
+	});
+
+	test('JavaScript private fields with # should not be recognized as colors', () => {
+		// Test case from issue #297799
+		const testCases = [
+			{ content: 'class Foo {\n\t#facade\n}', name: 'private field #facade should not be a color' },
+			{ content: 'class Component {\n\treadonly #facade = inject(Facade);\n}', name: 'private field #facade with injection should not be a color' },
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(testCase.content);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 0, `Should not detect color with ${testCase.name}: ${testCase.content}`);
 		});
 	});
 });
