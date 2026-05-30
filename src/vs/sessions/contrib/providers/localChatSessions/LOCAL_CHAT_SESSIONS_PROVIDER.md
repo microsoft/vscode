@@ -63,7 +63,7 @@ interface IStoredLocalSession {
 - **Remove** (`_removeStoredSession`) — called from `deleteSession`.
 - **Load** (`_loadPersistedSessions`) — on provider construction; reads stored entries and creates `LocalSession` instances from them.
 
-Storage is self-contained: no `IChatService` calls are needed to list sessions, since title and timing are stored inline.
+Storage is self-contained: no `IChatService` calls are needed to list sessions, since title and timing are stored inline. Metadata is stored in `StorageScope.APPLICATION` so it remains available across profile/auth transitions; older `StorageScope.PROFILE` entries are merged forward on load.
 
 ### One-time migration
 
