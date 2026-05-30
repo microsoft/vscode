@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, Chunk, PrioritizedList, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
-import { computeRoundPriority, escapeForPromptTag, IBackgroundTodoHistory, IBackgroundTodoHistoryRound, renderBackgroundTodoRound } from './backgroundTodoProcessor';
+import { computeRoundPriority, escapeForPromptTag, IBackgroundTodoHistory, IBackgroundTodoHistoryRound, renderBackgroundTodoRound, renderRoundsGroupedByTurn } from './backgroundTodoProcessor';
 
 export interface BackgroundTodoPromptProps extends BasePromptElementProps {
 	/** Current todo list state as rendered markdown, or undefined if no todos exist yet. */
@@ -27,7 +27,14 @@ Trajectory format:
 - The agent trajectory is split into two sections:
   - <previous-context> contains rounds from before this background pass. They provide continuity context only — do not treat them as new work.
   - <new-activity> contains the rounds that happened since your previous background pass. Use these to decide whether the todo list should change.
+- Each <round> block carries an index attribute. Rounds are grouped inside <turn index="N"> wrappers. A turn is one user message plus all the agent work that follows it. When the turn number changes, a new user message was sent. Rounds from earlier turns represent completed previous interactions.
 - Each <round> block may contain the agent's optional <thinking>, a <tool-calls> list (with file path or category target and an optional intent note), and a <response> with the assistant text that followed.
+
+Cross-turn rules:
+- Work from previous turns is already finished. Their rounds are context for what was accomplished before, not new activity.
+- If a todo list already exists and all rounds in <new-activity> belong to the same turn as the latest user message, compare the new work against the current list. Only call the tool if statuses or items need updating based on the new work in the current turn.
+- Never recreate or re-emit a todo list just because previous turns' rounds are visible in <previous-context>. The current todo list already reflects that work.
+- If the new turn's activity is trivial (e.g. a greeting, a question, or a simple acknowledgment with no substantive tool calls), do NOT update the todo list.
 
 Do NOT call tools when:
 - The current todo list already accurately reflects the work: same items, same statuses, same order. This is the most common case — most rounds require no update.
@@ -109,7 +116,13 @@ Default to silence. Before calling manage_todo_list, ask yourself: "Would the up
 
 Trajectory format:
 - The agent trajectory is presented inside a single <full-trajectory> block containing a chronological list of <round> blocks. Each round may contain the agent's optional <thinking>, a <tool-calls> list (with file path or category target and an optional intent note), and a <response> with the assistant text that followed.
-- This is a final review — reason about the entire trajectory.
+- Each <round> carries an index attribute. Rounds are grouped inside <turn index="N"> wrappers. A turn is one user message plus all the agent work that follows it. When the turn number changes, a new user message was sent.
+- This is a final review — reason about the entire trajectory, but focus completion evidence on the current (latest) turn.
+
+Cross-turn rules:
+- Rounds from earlier turns represent work that was already completed in previous interactions. Their outcomes should already be reflected in the current todo list.
+- Only use rounds from the current (latest) turn to determine whether new items should be marked completed or in-progress.
+- If the current turn had no substantive tool calls (e.g. the user just sent a greeting or asked a question), do NOT call the tool — the existing todo list is already accurate.
 
 Do NOT call tools when:
 - No todo list exists.
@@ -139,14 +152,19 @@ interface PreviousContextRoundChunkProps extends BasePromptElementProps {
 /**
  * Prompt element rendering a single previous-context round as its own
  * Chunk so that prompt-tsx can drop older rounds independently under
- * budget pressure.
+ * budget pressure.  Each chunk is self-contained: it wraps its round
+ * in `<turn>` tags so that pruning any subset of rounds never produces
+ * unbalanced or mis-nested tags.
  */
 class PreviousContextRoundChunk extends PromptElement<PreviousContextRoundChunkProps> {
 	render() {
 		const priority = computeRoundPriority(this.props.round, this.props.totalPreviousRounds);
+		const { round } = this.props;
 		return (
 			<Chunk priority={priority} flexGrow={1}>
-				{renderBackgroundTodoRound(this.props.round)}
+				{`<turn index="${round.turnIndex}">\n`}
+				{renderBackgroundTodoRound(round)}
+				{'\n</turn>'}
 			</Chunk>
 		);
 	}
@@ -225,7 +243,7 @@ export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProp
 				{!isFinalReview && hasNew && (
 					<UserMessage priority={880}>
 						{'<new-activity>\nUse these rounds to decide whether the todo list needs updating:\n'}
-						{history.newRounds.map(round => renderBackgroundTodoRound(round)).join('\n')}
+						{renderRoundsGroupedByTurn(history.newRounds)}
 						{'\n</new-activity>'}
 					</UserMessage>
 				)}

@@ -31,7 +31,8 @@ import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
 import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
-import { CustomModel, IChatModelInformation, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
@@ -112,28 +113,6 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
-const AIC_DIVISOR = 1_000_000_000;
-const TOKENS_PER_MILLION = 1_000_000;
-
-/**
- * Converts raw billing token prices into normalized AICs per million tokens.
- *
- * Raw prices are divided by {@link AIC_DIVISOR} to get AICs, then scaled
- * so the result is always "per 1M tokens" regardless of the original batch_size.
- */
-function normalizeTokenPricing(tokenPrices: IModelTokenPrices | undefined): IChatEndpointTokenPricing | undefined {
-	if (!tokenPrices) {
-		return undefined;
-	}
-	const { batch_size, input_price, output_price, cache_price } = tokenPrices;
-	const scale = TOKENS_PER_MILLION / batch_size;
-	return {
-		inputPrice: (input_price / AIC_DIVISOR) * scale,
-		outputPrice: (output_price / AIC_DIVISOR) * scale,
-		cacheReadTokenPrice: (cache_price / AIC_DIVISOR) * scale,
-	};
-}
-
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
@@ -190,7 +169,11 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
-		this.tokenPricing = normalizeTokenPricing(modelMetadata.billing?.token_prices);
+		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
+		this.tokenPricing = normalized ? {
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice ?? 0, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice ?? 0, contextMax: normalized.longContext.contextMax } : undefined,
+		} : undefined;
 		this.priceCategory = modelMetadata.model_picker_price_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;

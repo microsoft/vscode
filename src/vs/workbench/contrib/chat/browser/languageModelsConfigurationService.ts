@@ -11,8 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -28,6 +28,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 
 type LanguageModelsProviderGroups = Mutable<ILanguageModelsProviderGroup>[];
 
@@ -48,7 +49,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
@@ -153,7 +154,14 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	}
 
 	async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
-		const editor = await this.editorService.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
+		// Mirror the surface that the chat models editor is currently shown in: if
+		// it lives inside the modal editor part, open the JSON in the modal too;
+		// otherwise fall back to the default group resolution (regular editor area).
+		const preferredGroup = this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === this.editorGroupsService.activeModalEditorPart ? MODAL_GROUP : undefined;
+		const editor = await this.editorService.openEditor({
+			resource: this.modelsConfigurationFile,
+			options: { override: DEFAULT_EDITOR_ASSOCIATION.id }
+		}, preferredGroup);
 		if (!editor || !options?.group) {
 			return;
 		}

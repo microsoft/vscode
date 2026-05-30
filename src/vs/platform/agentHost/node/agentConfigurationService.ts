@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
+import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -125,10 +126,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		// than replacing it.
 		const existing = this._stateManager.rootState.config;
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
+		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -266,7 +268,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		try {
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
-			return agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults);
+			return {
+				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
+				...sandboxConfigSchema.validateOrDefault(parsed, {}),
+			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
 			if (code !== 'ENOENT') {

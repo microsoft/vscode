@@ -42,6 +42,7 @@ import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { formatTokenCount } from '../widget/input/chatModelPicker.js';
 
 const $ = DOM.$;
 
@@ -53,7 +54,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}@${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
 	} else {
 		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
 	}
@@ -91,6 +92,30 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				? localize('models.cacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
 				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
 			markdown.appendText(`\n`);
+		}
+
+		if (model.metadata.longContextInputCost !== undefined || model.metadata.longContextOutputCost !== undefined || model.metadata.longContextCacheCost !== undefined) {
+			markdown.appendText(`\n`);
+			markdown.appendMarkdown(`**${localize('models.longContextPricing', 'Long Context Pricing')}**`);
+			markdown.appendText(`\n`);
+			if (model.metadata.longContextInputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextInputCost === 1
+					? localize('models.longContextInputCost.singular', 'Input Cost: {0} credit per 1M tokens', model.metadata.longContextInputCost)
+					: localize('models.longContextInputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.longContextInputCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextOutputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
+					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
+					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextCacheCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
+					? localize('models.longContextCacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
+					: localize('models.longContextCacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
 		}
 	}
 
@@ -466,7 +491,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
 		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}@${entry.model.metadata.version}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
 		} else {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
 		}
@@ -882,7 +907,12 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
 		const secondaryActions: IAction[] = [...configActions];
 
-		if (configActions.length > 0 || entry.model.metadata.configurationSchema) {
+		// Only offer the JSON-based "Configure..." entry for non-default vendors that are
+		// configured via the language models JSON file. The default vendor (Copilot) and
+		// vendors with a `managementCommand` are configured elsewhere, so this entry would
+		// do nothing useful for their models.
+		const vendor = entry.model.provider.vendor;
+		if (!vendor.isDefault && !vendor.managementCommand && (configActions.length > 0 || entry.model.metadata.configurationSchema)) {
 			secondaryActions.push(toAction({
 				id: 'configureModel',
 				label: localize('models.configureModel', 'Configure...'),
@@ -949,14 +979,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 
 
 
-function formatTokenCount(count: number): string {
-	if (count >= 1000000) {
-		return `${(count / 1000000).toFixed(1)}M`;
-	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
-	}
-	return count.toString();
-}
+
 
 export class ChatModelsWidget extends Disposable {
 

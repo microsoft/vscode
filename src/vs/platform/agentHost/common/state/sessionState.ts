@@ -10,17 +10,21 @@
 // (synced from the agent-host-protocol repo). This file adds VS Code-specific
 // helpers and re-exports.
 
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import {
 	SessionLifecycle,
+	TerminalState,
 	ToolResultContentType,
 	ToolResultFileEditContent,
 	type ActiveTurn,
 	type ChangesetState,
+	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
 	type SessionSummary,
+	type TextRange,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
 	type ToolCallResult,
@@ -28,37 +32,35 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
-	type URI as ProtocolURI,
-	type UserMessage,
-	TerminalState,
+	type Message,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
 export {
-	type ActiveTurn,
-	type AgentInfo,
-	type ConfigPropertySchema,
+	ChangesetOperationScope, ChangesetStatus, CustomizationLoadStatus,
+	CustomizationType, MessageAttachmentKind, MessageKind,
+	PendingMessageKind,
+	PolicyState,
+	ResponsePartKind,
+	SessionInputAnswerState,
+	SessionInputAnswerValueKind,
+	SessionInputQuestionKind,
+	SessionInputResponseKind,
+	SessionLifecycle,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus,
+	ToolResultContentType,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type ChangesetFile,
+	type ChangesetOperation, type ChangesetState, type ChangesetSummary, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
-	type ContentRef,
-	type ErrorInfo,
-	type ProjectInfo,
-	type MarkdownResponsePart,
-	type MessageAttachment,
-	type MessageResourceAttachment,
-	type ReasoningResponsePart,
+	type ContentRef, type Customization, type CustomizationDegradedState,
+	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
+	type MessageResourceAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
-	type RootState,
-	type SessionActiveClient,
-	type SessionConfigState,
-	type FileEdit as ISessionFileDiff,
-	type ModelSelection,
-	type AgentSelection,
-	type CustomizationAgentRef,
-	type SessionModelInfo,
+	type RootState, type RuleCustomization, type SessionActiveClient,
+	type SessionConfigState, type SessionInputAnswer,
+	type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type SessionModelInfo,
 	type SessionState,
-	type SessionSummary,
-	type Snapshot,
-	type TerminalState,
+	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState,
 	type ToolAnnotations,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
@@ -69,52 +71,16 @@ export {
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
-	type ToolDefinition,
-	type CustomizationRef,
-	type SessionCustomization,
-	type ToolResultEmbeddedResourceContent as IToolResultBinaryContent,
-	type ToolResultContent,
+	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
-	type Turn,
-	type UsageInfo,
-	type UserMessage,
-	type PendingMessage,
-	type StringOrMarkdown,
-	type URI,
-	type SessionInputRequest,
-	type SessionInputQuestion,
-	type SessionInputAnswer,
-	type SessionInputOption,
-	type ChangesetSummary,
-	type ChangesetState,
-	type ChangesetFile,
-	type ChangesetOperation,
-	CustomizationStatus,
-	MessageAttachmentKind,
-	PendingMessageKind,
-	PolicyState,
-	ResponsePartKind,
-	SessionInputAnswerState,
-	SessionInputAnswerValueKind,
-	SessionInputQuestionKind,
-	SessionInputResponseKind,
-	SessionLifecycle,
-	SessionStatus,
-	ToolCallConfirmationReason,
-	ToolCallCancellationReason,
-	ToolCallStatus,
-	ToolResultContentType,
-	TurnState,
-	ChangesetStatus,
-	ChangesetOperationScope,
+	type Turn, type URI, type UsageInfo,
+	type Message
 } from './protocol/state.js';
 
 export {
-	type ChangesetOperationTarget,
-	type ChangesetOperationFollowUp,
-	ChangesetOperationTargetKind,
+	ChangesetOperationTargetKind, type ChangesetOperationFollowUp, type ChangesetOperationTarget
 } from './protocol/commands.js';
 
 // ---- File edit kind ---------------------------------------------------------
@@ -142,6 +108,86 @@ export const ROOT_STATE_URI = 'ahp-root://';
 /** Scheme used by {@link ROOT_STATE_URI}. */
 export const AHP_ROOT_SCHEME = 'ahp-root';
 
+/** Scheme used by resource-watch channel URIs (`ahp-resource-watch:/<encoded>`). */
+export const AHP_RESOURCE_WATCH_SCHEME = 'ahp-resource-watch';
+
+/**
+ * Encode a resource-watch descriptor into its canonical channel URI. The
+ * descriptor is serialised into the URI path so the receiver can recover
+ * the watch parameters without any server-side bookkeeping — subscribe is
+ * the only point where state is materialised (an `IFileService` watcher
+ * is attached on the first subscriber and held through a grace window
+ * after the last drops).
+ */
+export function buildResourceWatchChannelUri(descriptor: {
+	readonly root: string;
+	readonly recursive?: boolean;
+	readonly excludes?: { items: readonly string[] };
+	readonly includes?: { items: readonly string[] };
+}): string {
+	const payload: Record<string, unknown> = { root: descriptor.root };
+	if (descriptor.recursive) { payload.recursive = true; }
+	if (descriptor.excludes && descriptor.excludes.items.length > 0) {
+		payload.excludes = [...descriptor.excludes.items];
+	}
+	if (descriptor.includes && descriptor.includes.items.length > 0) {
+		payload.includes = [...descriptor.includes.items];
+	}
+
+	const json = encodeBase64(VSBuffer.fromString(JSON.stringify(payload)), false, true);
+	return `${AHP_RESOURCE_WATCH_SCHEME}://r/${json}`;
+}
+
+/**
+ * Inverse of {@link buildResourceWatchChannelUri}. Returns `undefined` if
+ * `uri` is not a well-formed `ahp-resource-watch:` URI — callers should
+ * surface that as a not-found error to the client.
+ */
+export function parseResourceWatchChannelUri(uri: string): {
+	root: string;
+	recursive: boolean;
+	excludes?: { items: string[] };
+	includes?: { items: string[] };
+} | undefined {
+	let parsed: ResourceURI;
+	try {
+		parsed = ResourceURI.parse(uri);
+	} catch {
+		return undefined;
+	}
+	if (parsed.scheme !== AHP_RESOURCE_WATCH_SCHEME) {
+		return undefined;
+	}
+	const encoded = parsed.path.replace(/^\//, '');
+	if (!encoded) {
+		return undefined;
+	}
+	try {
+		const payload = JSON.parse(decodeBase64(encoded).toString()) as { root?: unknown; recursive?: unknown; excludes?: unknown; includes?: unknown };
+		if (typeof payload.root !== 'string') {
+			return undefined;
+		}
+
+		return {
+			root: payload.root,
+			recursive: payload.recursive === true,
+			...(Array.isArray(payload.excludes) ? { excludes: { items: payload.excludes.filter((x): x is string => typeof x === 'string') } } : {}),
+			...(Array.isArray(payload.includes) ? { includes: { items: payload.includes.filter((x): x is string => typeof x === 'string') } } : {}),
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/** Returns `true` when `uri` identifies a resource-watch channel. */
+export function isAhpResourceWatchChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_RESOURCE_WATCH_SCHEME;
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Returns `true` when `uri` identifies the root channel, regardless of
  * whether the caller passes the canonical wire form (`'ahp-root://'`) or a
@@ -159,6 +205,25 @@ export function isAhpRootChannel(uri: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+/**
+ * Mints a session-unique opaque id for a customization, derived from its
+ * source URI and (when present) its `range` within the source. Plugins MAY
+ * declare multiple children (e.g. MCP servers, hooks) inside the same
+ * manifest file; including the range disambiguates them without an extra
+ * mapping table.
+ *
+ * The range is appended as a reserved `#range=` query-style suffix; any
+ * existing `#` in the URI is percent-encoded first so a source URI that
+ * already contains a fragment cannot collide with a ranged id.
+ */
+export function customizationId(uri: string, range?: TextRange): string {
+	if (!range) {
+		return uri;
+	}
+	const safeUri = uri.replace(/#/g, '%23');
+	return `${safeUri}#range=${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
 }
 
 // ---- VS Code-specific derived types -----------------------------------------
@@ -305,10 +370,10 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	};
 }
 
-export function createActiveTurn(id: string, userMessage: UserMessage): ActiveTurn {
+export function createActiveTurn(id: string, message: Message): ActiveTurn {
 	return {
 		id,
-		userMessage,
+		message,
 		responseParts: [],
 		usage: undefined,
 	};

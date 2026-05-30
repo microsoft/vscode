@@ -35,7 +35,6 @@ import product from '../../../../platform/product/common/product.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatMessageRole, ILanguageModelsService, getTextResponseFromStream } from '../../chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -89,7 +88,6 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IIssueFormService private readonly issueFormService: IIssueFormService,
 		@IProcessService private readonly processService: IProcessService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
@@ -484,15 +482,6 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.wizard?.updateModel({
 				isInstallationPure: data.isInstallationPure,
 			});
-		}
-
-		// User settings
-		try {
-			const settingsUri = this.userDataProfileService.currentProfile.settingsResource;
-			const settingsContent = await this.fileService.readFile(settingsUri);
-			this.wizard?.setSettingsContent(settingsContent.value.toString());
-		} catch {
-			// Ignore — no settings file
 		}
 	}
 

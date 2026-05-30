@@ -319,7 +319,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 				_authenticationService.onDidAuthenticationChange,
 			),
 			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
-				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
+				// True is a fallback because the input group state currently doesn't support updating the values after initialization
+				// This is a temporary workaround until the input group state can be updated dynamically.
+				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true),
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes

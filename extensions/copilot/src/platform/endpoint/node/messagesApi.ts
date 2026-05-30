@@ -66,6 +66,10 @@ interface AnthropicStreamEvent {
 			output_tokens: number;
 			cache_creation_input_tokens?: number;
 			cache_read_input_tokens?: number;
+			cache_creation?: {
+				ephemeral_1h_input_tokens?: number;
+				ephemeral_5m_input_tokens?: number;
+			};
 		};
 	};
 	index?: number;
@@ -92,6 +96,10 @@ interface AnthropicStreamEvent {
 		input_tokens?: number;
 		cache_creation_input_tokens?: number;
 		cache_read_input_tokens?: number;
+		cache_creation?: {
+			ephemeral_1h_input_tokens?: number;
+			ephemeral_5m_input_tokens?: number;
+		};
 	};
 	copilot_usage?: {
 		total_nano_aiu: number;
@@ -666,6 +674,8 @@ interface AnthropicCompletionState {
 	readonly inputTokens: number;
 	readonly outputTokens: number;
 	readonly cacheCreationTokens: number;
+	readonly cacheCreation1hTokens: number | undefined;
+	readonly cacheCreation5mTokens: number | undefined;
 	readonly cacheReadTokens: number;
 	readonly requestId: string;
 	readonly ghRequestId: string;
@@ -724,6 +734,14 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 			prompt_tokens_details: {
 				cached_tokens: state.cacheReadTokens,
 				cache_creation_input_tokens: state.cacheCreationTokens,
+				...(state.cacheCreation1hTokens !== undefined || state.cacheCreation5mTokens !== undefined
+					? {
+						anthropic_cache_creation: {
+							...(state.cacheCreation1hTokens !== undefined ? { ephemeral_1h_input_tokens: state.cacheCreation1hTokens } : {}),
+							...(state.cacheCreation5mTokens !== undefined ? { ephemeral_5m_input_tokens: state.cacheCreation5mTokens } : {}),
+						},
+					}
+					: {}),
 			},
 			completion_tokens_details: {
 				reasoning_tokens: 0,
@@ -776,6 +794,10 @@ type AnthropicNonStreamingResponse =
 			output_tokens: number;
 			cache_creation_input_tokens?: number;
 			cache_read_input_tokens?: number;
+			cache_creation?: {
+				ephemeral_1h_input_tokens?: number;
+				ephemeral_5m_input_tokens?: number;
+			};
 		};
 	}
 	| {
@@ -908,6 +930,8 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			inputTokens: usage?.input_tokens ?? 0,
 			outputTokens: usage?.output_tokens ?? 0,
 			cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
+			cacheCreation1hTokens: usage?.cache_creation?.ephemeral_1h_input_tokens,
+			cacheCreation5mTokens: usage?.cache_creation?.ephemeral_5m_input_tokens,
 			cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
 			requestId,
 			ghRequestId,
@@ -956,6 +980,8 @@ export class AnthropicMessagesProcessor {
 	private inputTokens: number = 0;
 	private outputTokens: number = 0;
 	private cacheCreationTokens: number = 0;
+	private cacheCreation1hTokens: number | undefined;
+	private cacheCreation5mTokens: number | undefined;
 	private cacheReadTokens: number = 0;
 	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
@@ -1036,6 +1062,8 @@ export class AnthropicMessagesProcessor {
 					this.inputTokens = chunk.message.usage.input_tokens ?? 0;
 					this.outputTokens = chunk.message.usage.output_tokens ?? 0;
 					this.cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
+					this.cacheCreation1hTokens = chunk.message.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
+					this.cacheCreation5mTokens = chunk.message.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
 				}
 				return;
@@ -1146,6 +1174,8 @@ export class AnthropicMessagesProcessor {
 					this.outputTokens = chunk.usage.output_tokens;
 					this.inputTokens = chunk.usage.input_tokens ?? this.inputTokens;
 					this.cacheCreationTokens = chunk.usage.cache_creation_input_tokens ?? this.cacheCreationTokens;
+					this.cacheCreation1hTokens = chunk.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
+					this.cacheCreation5mTokens = chunk.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
 				}
 				if (chunk.copilot_usage && typeof chunk.copilot_usage.total_nano_aiu === 'number') {
@@ -1239,6 +1269,8 @@ export class AnthropicMessagesProcessor {
 					inputTokens: this.inputTokens,
 					outputTokens: this.outputTokens,
 					cacheCreationTokens: this.cacheCreationTokens,
+					cacheCreation1hTokens: this.cacheCreation1hTokens,
+					cacheCreation5mTokens: this.cacheCreation5mTokens,
 					cacheReadTokens: this.cacheReadTokens,
 					requestId: this.requestId,
 					ghRequestId: this.ghRequestId,

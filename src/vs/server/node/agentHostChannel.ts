@@ -21,6 +21,8 @@ import { IServerLifetimeService } from './serverLifetimeService.js';
 import type * as wsTypes from 'ws';
 import type * as netTypes from 'net';
 
+const agentHostProxyUnavailableMessage = 'Agent host proxy is not available because no upstream agent host endpoint was configured.';
+
 /**
  * Endpoint description for the upstream agent host. One of `port` or
  * `socketPath` must be set, matching how `setWebSocketConfig` is called
@@ -60,6 +62,34 @@ export interface IUpstreamConnection extends IDisposable {
 }
 
 export type UpstreamConnectionFactory = (endpoint: IAgentHostUpstreamEndpoint) => IUpstreamConnection;
+
+/**
+ * IPC channel registered when the remote server has no agent host upstream.
+ * Keeping the channel present lets renderers fail explicitly without making
+ * the IPC layer report `Unknown channel: agentHostProxy`.
+ */
+export class UnavailableAgentHostChannel<TContext> implements IServerChannel<TContext> {
+
+	listen<T>(_ctx: TContext, event: string): Event<T> {
+		switch (event) {
+			case 'frame':
+			case 'close':
+				return Event.None;
+		}
+		throw new Error(`Invalid listen: ${event}`);
+	}
+
+	call<T>(_ctx: TContext, command: string): Promise<T> {
+		switch (command) {
+			case 'connect':
+				return Promise.reject(new Error(agentHostProxyUnavailableMessage));
+			case 'send':
+			case 'close':
+				return Promise.resolve(undefined as T);
+		}
+		return Promise.reject(new Error(`Invalid call: ${command}`));
+	}
+}
 
 /**
  * Default upstream factory: opens an AHP WebSocket to the local agent host.

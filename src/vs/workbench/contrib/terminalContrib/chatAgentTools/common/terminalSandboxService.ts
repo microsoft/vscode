@@ -14,7 +14,7 @@ import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { arch } from '../../../../../base/common/process.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -22,9 +22,10 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
-import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
+import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
@@ -34,7 +35,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
 
 export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 
 /**
  * Context passed to the password prompt during dependency installation.
@@ -49,6 +50,10 @@ interface ISandboxDependencyInstallTerminalContext {
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
 
+function affectsSandboxSettings(e: IConfigurationChangeEvent): boolean {
+	return SANDBOX_SETTING_KEYS.some(key => e.affectsConfiguration(key));
+}
+
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 
@@ -58,10 +63,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private readonly _onDidChangeRoots = this._register(new Emitter<void>());
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IProductService private readonly _productService: IProductService,
@@ -72,6 +77,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	) {
 		super();
 		this._remoteEnvDetailsPromise = this._remoteAgentService.getEnvironment();
+
+		const onDidChangeSandboxSettings = Event.filter(this._configurationService.onDidChangeConfiguration, affectsSandboxSettings);
 
 		const host: ITerminalSandboxEngineHost = {
 			getOS: () => this._resolveOS(),
@@ -84,6 +91,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			checkSandboxDependencies: () => this._resolveSandboxDependencyStatus(),
 			getWindowsMxcFilesystemPolicy: () => this._resolveWindowsMxcFilesystemPolicy(),
 			getWindowsMxcEnvironment: () => this._resolveWindowsMxcEnvironment(),
+			buildWindowsMxcSandboxPayload: (commandLine, policy, workingDirectory, containerName, containment) => this._resolveWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment),
+			getSandboxSetting: <T>(settingId: string): T | undefined => this._readSandboxSetting<T>(settingId),
+			onDidChangeSandboxSettings: Event.map(onDidChangeSandboxSettings, () => undefined),
 		};
 		this._engine = this._register(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -103,12 +113,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	// ---- ITerminalSandboxService forwarders ---------------------------------
 
-	isEnabled(): Promise<boolean> {
-		return this._engine.isEnabled();
+	isEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		return this._engine.isEnabled(precheckInputs);
 	}
 
-	isSandboxAllowNetworkEnabled(): Promise<boolean> {
-		return this._engine.isSandboxAllowNetworkEnabled();
+	isSandboxAllowNetworkEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean> {
+		return this._engine.isSandboxAllowNetworkEnabled(precheckInputs);
 	}
 
 	getOS(): Promise<OperatingSystem> {
@@ -119,12 +129,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._engine.wrapCommand(command, requestUnsandboxedExecution, shell, cwd, commandDetails);
 	}
 
-	checkForSandboxingPrereqs(forceRefresh: boolean = false): Promise<ITerminalSandboxPrerequisiteCheckResult> {
-		return this._engine.checkForSandboxingPrereqs(forceRefresh);
+	checkForSandboxingPrereqs(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult> {
+		return this._engine.checkForSandboxingPrereqs(forceRefresh, precheckInputs);
 	}
 
-	getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
-		return this._engine.getSandboxConfigPath(forceRefresh);
+	getSandboxConfigPath(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined> {
+		return this._engine.getSandboxConfigPath(forceRefresh, precheckInputs);
 	}
 
 	getTempDir(): URI | undefined {
@@ -155,6 +165,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private async _resolveOS(): Promise<OperatingSystem> {
 		const remoteEnv = await this._resolveRemoteEnv();
 		return remoteEnv ? remoteEnv.os : OS;
+	}
+
+	private _readSandboxSetting<T>(settingId: string): T | undefined {
+		return readSandboxSetting<T>(this._configurationService, this._logService, settingId);
 	}
 
 	private async _resolveRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
@@ -252,6 +266,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			});
 		}
 		return this._sandboxHelperService.getWindowsMxcEnvironment();
+	}
+
+	private async _resolveWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined> {
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
+				const sandboxHelper = new SandboxHelperChannelClient(channel);
+				return sandboxHelper.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
+			});
+		}
+		return this._sandboxHelperService.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
 	}
 
 	// ---- workbench-only flows -----------------------------------------------

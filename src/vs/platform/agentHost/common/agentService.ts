@@ -6,17 +6,20 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
+import { isWeb } from '../../../base/common/platform.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
+import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
+import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -40,6 +43,11 @@ export const enum AgentHostIpcChannels {
 /** Configuration key that controls whether the local agent host process is spawned. */
 export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 
+/** Whether the local/process-backed agent host is enabled in this runtime. */
+export function isAgentHostEnabled(configurationService: IConfigurationService): boolean {
+	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
+}
+
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
@@ -48,6 +56,9 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 
 /** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
+
+/** Configuration key that controls whether the rubber duck critic subagent is enabled for Copilot SDK sessions. */
+export const AgentHostRubberDuckEnabledSettingId = 'chat.agentHost.rubberDuck.enabled';
 
 /**
  * Configuration key that holds the absolute path to a locally-installed
@@ -448,7 +459,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `SessionToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -629,17 +640,19 @@ export interface IAgent {
 	readonly onDidCustomizationsChange?: Event<void>;
 
 	/**
-	 * Returns the host-owned customization refs this agent currently exposes.
+	 * Returns the host-owned customizations this agent currently exposes.
 	 *
 	 * Used to publish baseline customization metadata on {@link AgentInfo}.
+	 * Always container customizations ({@link PluginCustomization} or
+	 * {@link DirectoryCustomization}).
 	 */
-	getCustomizations?(): readonly CustomizationRef[];
+	getCustomizations?(): readonly Customization[];
 
 	/**
 	 * Returns the effective customization list for a session, including
 	 * source, enablement, and loading/error status.
 	 */
-	getSessionCustomizations?(session: URI): Promise<readonly SessionCustomization[]>;
+	getSessionCustomizations?(session: URI): Promise<readonly Customization[]>;
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
@@ -669,7 +682,7 @@ export interface IAgent {
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Receives client-provided tool definitions to make available in a
@@ -698,8 +711,10 @@ export interface IAgent {
 	/**
 	 * Notifies the agent that a customization has been toggled on or off.
 	 * The agent MAY restart its client before the next message is sent.
+	 *
+	 * @param id The opaque session-unique customization id.
 	 */
-	setCustomizationEnabled(uri: string, enabled: boolean): void;
+	setCustomizationEnabled(id: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -862,6 +877,44 @@ export interface IAgentService {
 	 * Move (rename) a resource from one URI to another on the agent host's filesystem.
 	 */
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+
+	/**
+	 * Resolve a resource (stat + realpath) on the agent host's filesystem.
+	 */
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
+
+	/**
+	 * Create a directory (mkdir -p semantics) on the agent host's filesystem.
+	 */
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+
+	/**
+	 * Create a resource watcher on the agent host's filesystem. Returns the
+	 * `ahp-resource-watch:/<id>` channel URI the caller subscribes to in
+	 * order to receive `resourceWatch/changed` events. The watcher is
+	 * tied to the subscriber refcount on that channel — the implementation
+	 * MUST hold the underlying file-system watcher for a short grace
+	 * period after the last unsubscribe so reconnects don't drop events.
+	 */
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+
+	/**
+	 * Notify the agent service that a client subscribed to the given
+	 * `ahp-resource-watch:` channel so the per-watch refcount is bumped
+	 * (and the underlying {@link IFileService} watcher attached on the
+	 * first subscriber). Returns the decoded watch descriptor when the
+	 * channel parses successfully and the watcher is live; returns
+	 * `undefined` for unknown channels so the caller can surface a
+	 * not-found error.
+	 */
+	onResourceWatchSubscribed(channel: string): ResourceWatchState | undefined;
+
+	/**
+	 * Counterpart to {@link onResourceWatchSubscribed}. Decrements the
+	 * per-watch refcount; on the last drop the watcher is held for a
+	 * short grace period before disposal.
+	 */
+	onResourceWatchUnsubscribed(channel: string): boolean;
 }
 
 /**
@@ -872,7 +925,7 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
-	readonly _serviceBrand: undefined;
+
 	readonly clientId: string;
 
 	// ---- State subscriptions ------------------------------------------------
@@ -922,6 +975,18 @@ export interface IAgentConnection {
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+	/**
+	 * Convenience method that bundles
+	 * {@link createResourceWatch} + {@link subscribe} + a typed
+	 * {@link IFileChange}[] event stream, so consumers (notably
+	 * `AHPFileSystemProvider.watch`) can drive a watcher without
+	 * understanding the underlying channel protocol. Disposing the
+	 * returned handle unsubscribes.
+	 */
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle>;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
@@ -931,6 +996,8 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
  * exposes the proxied service). Consumed by the main process and workbench.
  */
 export interface IAgentHostService extends IAgentConnection {
+
+	readonly _serviceBrand: undefined;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

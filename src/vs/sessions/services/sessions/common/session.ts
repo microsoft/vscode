@@ -134,6 +134,12 @@ export interface IGitHubInfo {
 	};
 }
 
+export interface ISessionChangesSummary {
+	readonly files: number;
+	readonly additions: number;
+	readonly deletions: number;
+}
+
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
 export interface ISessionChangeset {
@@ -250,6 +256,8 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Summary of file changes produced by the session. */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
@@ -269,8 +277,8 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
 }

@@ -57,6 +57,7 @@ Each provider lives in its own subfolder and implements `ISessionsProvider`:
 src/vs/sessions/contrib/providers/
 ├── agentHost/            # Local agent host provider
 ├── copilotChatSessions/  # Copilot chat sessions provider (wraps ChatSessionsService)
+├── localChatSessions/    # Local in-process VS Code chat sessions provider
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
 
@@ -65,6 +66,7 @@ Providers can import from all layers below them (core, services, non-provider co
 ### Provider-Specific Documentation
 
 - [Copilot Chat Sessions Provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) — wraps `ChatSessionsService`, metadata contract, workspace derivation
+- [Local Chat Sessions Provider](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) — local in-process VS Code chat, self-managed session list via storage
 - [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
 
 ### Related Specifications
@@ -81,14 +83,14 @@ A **session** groups one or more **chats** (conversations) that share the same w
 
 ```
 ISession
-├── mainChat: IChat              ← primary (first) chat
-├── chats: IObservable<IChat[]>  ← all chats in creation order
+├── mainChat: IObservable<IChat>   ← primary (first) chat (settable by provider when committing a new session)
+├── chats: IObservable<IChat[]>    ← all chats in creation order
 ├── capabilities.supportsMultipleChats
-└── session-level observables    ← derived from chats
+└── session-level observables      ← derived from chats
 ```
 
 Session-level properties are derived from chats:
-- Most properties (`title`, `changes`, `changesets`, `modelId`, etc.) come from `mainChat`
+- Most properties (`title`, `changes`, `changesets`, `modelId`, etc.) come from the main chat
 - `updatedAt` and `lastTurnEnd` are the latest across all chats
 - `status` is aggregated (`NeedsInput` > `InProgress` > other)
 - `isRead` is `true` only when all chats are read
@@ -101,7 +103,7 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
 
-Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning; untitled placeholders are deferred until they become committed worktree sessions.
+Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
 
 ### Session Types
 
@@ -135,10 +137,18 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
      is also offered by another provider
 
 3. User types a message and sends
-   → SessionsManagementService.sendAndCreateChat(session, {query, attachedContext})
-   → Delegates to provider.sendAndCreateChat(sessionId, options)
+   → SessionsManagementService.sendNewChatRequest(session, {query, attachedContext})
+   → Calls provider.createNewChat(sessionId)
+   → Provider creates the backend chat model and returns an IChat
+   → Management service opens the chat widget with that chat's resource
+   → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
+   → Management service fires onDidStartSession(committedSession)
    → isNewChatSession context → false
+
+Agent-host providers seed new-session config from the last values picked in the
+session-config UI (stored in profile storage), while `chat.permissions.default`
+takes precedence for `autoApprove` (with policy-safe normalization).
 ```
 
 ### Session Change Propagation
@@ -180,3 +190,21 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 5. Use `toSessionId(providerId, resource)` for session IDs
 6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` on untitled→committed transitions
 7. Set `supportsLocalWorkspaces: true` if the provider can resolve local file-system workspaces
+
+---
+
+## Interface Design Guidelines
+
+### `ISessionsProvider` must have no optional methods
+
+Every method on `ISessionsProvider` is part of the mandatory contract. Do **not** declare any method as optional (i.e., using `?`). Every provider must implement the full interface. If a method is not meaningful for a particular provider, implement it as a no-op or return a safe default.
+
+**Rationale:** Optional methods weaken the contract and force call sites to add guard code (`if (provider.method)`). Mandatory methods keep the management service clean and ensure the interface documents the complete capability set of every provider.
+
+### Any addition to `ISession` or `ISessionsProvider` must be consumed in the agents window core workbench
+
+The **agents window core workbench** is defined as all sessions code *outside* `src/vs/sessions/contrib/providers/` — that is, code in `src/vs/sessions/services/`, `src/vs/sessions/browser/`, `src/vs/sessions/common/`, and non-provider `src/vs/sessions/contrib/*` folders (views, UI contributions, toolbars, etc.).
+
+When you add a property or method to `ISession` or `ISessionsProvider`, it **must** be referenced by at least one file in the core workbench, not only within provider implementations.
+
+**Rationale:** If an interface member is only used inside providers, it belongs on the provider's concrete class, not on the shared interface. Interfaces should capture what the orchestration layer (management service, UI) needs from providers — not internal implementation details that leak outward.

@@ -8,7 +8,7 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationAgentRef, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -45,6 +45,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/**
+	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
+	 * flight. Pickers gate on this rather than `session.loading` so they
+	 * stay interactive in the required-values-missing state.
+	 */
+	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
 	/**
@@ -105,7 +111,19 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * an empty array when the session is unknown or no agents have been
 	 * advertised.
 	 */
-	getCustomAgents(sessionId: string): readonly CustomizationAgentRef[];
+	getCustomAgents(sessionId: string): readonly AgentCustomization[];
+
+	readonly onDidChangeCustomizations: Event<void>;
+
+	/**
+	 * Returns the full set of customizations.
+	 */
+	getCustomizations(sessionId: string): readonly Customization[];
+
+	/**
+	 * Returns the working directory for the session, if provided by the host.
+	 */
+	getWorkingDirectory(sessionId: string): string | undefined;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so
@@ -128,7 +146,15 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  * reserved provider ID (`local-agent-host` or `agenthost-*` prefix).
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
-	return provider.id === LOCAL_AGENT_HOST_PROVIDER_ID || provider.id.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
+	return isAgentHostProviderId(provider.id);
+}
+
+/**
+ * Checks whether a provider ID is for an agent host provider
+ * (`local-agent-host` or any `agenthost-*` provider).
+ */
+export function isAgentHostProviderId(providerId: string): boolean {
+	return providerId === LOCAL_AGENT_HOST_PROVIDER_ID || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
 }
 
 /**

@@ -5,9 +5,8 @@
 
 import * as assert from 'assert';
 import * as cp from 'child_process';
-import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
-import { installAllHandlers } from '../../utils';
+import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
  * Per-test scenarios. Each test uses a unique scenario id so that the mock
@@ -23,44 +22,17 @@ const LOCAL_REPLY = 'MOCKED_LOCAL_RESPONSE';
 const CLAUDE_SCENARIO_ID = 'smoke-hello-claude';
 const CLAUDE_REPLY = 'MOCKED_CLAUDE_RESPONSE';
 
-/**
- * Build the `VSCODE_COPILOT_CHAT_TOKEN` env var value the Copilot Chat
- * extension reads at startup to skip GitHub OAuth and use a fake token
- * whose `endpoints.api/proxy` point at our mock server. This is the same
- * mechanism used by `scripts/chat-simulation/common/utils.js#buildEnv`
- * for perf-regression and memory-leak runs.
- */
-function buildCopilotChatToken(mockUrl: string): string {
-	return Buffer.from(JSON.stringify({
-		token: 'smoketest-fake-token',
-		expires_at: Math.floor(Date.now() / 1000) + 3600,
-		refresh_in: 1800,
-		sku: 'free_limited_copilot',
-		individual: true,
-		isNoAuthUser: true,
-		copilot_plan: 'free',
-		organization_login_list: [],
-		endpoints: { api: mockUrl, proxy: mockUrl },
-	})).toString('base64');
-}
-
 export function setup(logger: Logger) {
 
 	describe('Agents Window', () => {
 
-		let mockServer: any;
+		let mockServer: MockLlmServer;
 
 		// Start the mock server BEFORE installAllHandlers' `before` runs so
 		// the mock URL is available when we configure the app's env vars via
 		// `optionsTransform`.
 		before(async function () {
-			// Load mock-llm-server.js from the repo scripts directory.
-			// It is CommonJS so `require` works fine from the compiled TS.
-			const mockLlmServerPath = path.join(
-				__dirname, '..', '..', '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.js'
-			);
-
-			const { startServer, ScenarioBuilder, registerScenario } = require(mockLlmServerPath);
+			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
 
 			// Fallback for ancillary requests (title/branch) that don't carry a [scenario:...] tag.
 			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
@@ -79,18 +51,7 @@ export function setup(logger: Logger) {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				// Mirror the env-var bypass used by `scripts/chat-simulation/common/utils.js#buildEnv`
-				// for perf-regression / memory-leak runs:
-				//   - GITHUB_PAT          → switches copilotTokenManager into FixedCopilotTokenManager,
-				//                           skipping the real GitHub OAuth flow.
-				//   - IS_SCENARIO_AUTOMATION → tells the copilot extension this is an automation run
-				//                              so it suppresses sign-in prompts and uses NoAuth paths.
-				//   - VSCODE_COPILOT_CHAT_TOKEN → fake token whose endpoints.api/proxy point at the
-				//                                 mock LLM server (used by the Local session type which
-				//                                 goes through the regular VS Code chat infrastructure).
-				GITHUB_PAT: 'smoketest-fake-pat',
-				IS_SCENARIO_AUTOMATION: '1',
-				VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+				...getCopilotSmokeTestEnv(mockServer),
 			},
 		}));
 
