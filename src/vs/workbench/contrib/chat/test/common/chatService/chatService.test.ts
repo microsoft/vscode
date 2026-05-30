@@ -1638,7 +1638,7 @@ suite('ChatService', () => {
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
-			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
+			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData; isSystemInitiated?: boolean; systemInitiatedLabel?: string }>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 

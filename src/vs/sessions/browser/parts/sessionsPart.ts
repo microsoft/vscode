@@ -222,21 +222,27 @@ export class SessionsPart extends Part {
 	 * Toggles the maximized state of the session view hosting the given session.
 	 * If the view is already maximized, exits maximized state. Otherwise maximizes
 	 * it (no-op if fewer than two non-placeholder views are present).
+	 *
+	 * Returns the view's maximized state after the toggle, or `undefined` when
+	 * the call was a no-op.
 	 */
-	toggleMaximizeSession(sessionId: string | undefined): void {
+	toggleMaximizeSession(sessionId: string | undefined): boolean | undefined {
 		if (!this._gridWidget) {
-			return;
+			return undefined;
 		}
 		const slot = this._slots.find(s => s.boundSessionId === sessionId);
 		if (!slot) {
-			return;
+			return undefined;
 		}
 		if (this._gridWidget.isViewMaximized(slot.view)) {
 			this._gridWidget.exitMaximizedView();
+			return false;
 		} else if (this._slots.filter(s => s.boundSessionId !== undefined).length >= 2) {
 			this._gridWidget.maximizeView(slot.view);
 			slot.view.focus();
+			return true;
 		}
+		return undefined;
 	}
 
 	/**

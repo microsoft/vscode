@@ -13,10 +13,8 @@ import {
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
-	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
 	sessionChangesetLabel,
-	thisTurnChangesetLabel,
 	uncommittedChangesetLabel,
 	uncommittedChangesetDescription,
 } from '../common/changesetUri.js';
@@ -93,8 +91,7 @@ function defaultCatalogueWithCounts(
 ): ChangesetSummary[] {
 	return [
 		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), sessionDiffs),
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription()),
-		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
+		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription())
 	];
 }
 

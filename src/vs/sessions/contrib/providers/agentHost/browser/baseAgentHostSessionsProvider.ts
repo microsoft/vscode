@@ -54,18 +54,26 @@ function isSafeSessionConfigKey(property: string): boolean {
 	return !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
-function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean, autopilotEnabled: boolean): ChatPermissionLevel | undefined {
+function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
 	if (typeof value !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(value)) {
 		return undefined;
 	}
-	let normalized = value as ChatPermissionLevel;
-	if (!autopilotEnabled && normalized === ChatPermissionLevel.Autopilot) {
-		normalized = ChatPermissionLevel.AutoApprove;
-	}
+	const normalized = value as ChatPermissionLevel;
 	if (policyRestricted && (normalized === ChatPermissionLevel.AutoApprove || normalized === ChatPermissionLevel.Autopilot)) {
 		return ChatPermissionLevel.Default;
 	}
 	return normalized;
+}
+
+function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+}
+
+function normalizeSessionConfigValue(property: string, value: unknown, policyRestricted: boolean): unknown {
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === ChatPermissionLevel.AutoApprove || value === ChatPermissionLevel.Autopilot)) {
+		return ChatPermissionLevel.Default;
+	}
+	return value;
 }
 
 // ============================================================================
@@ -1387,8 +1395,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
-		const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const autopilotEnabled = this._baseConfigurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
 		// Seed session config values from the last user picks.
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
@@ -1399,8 +1406,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted, autopilotEnabled);
-		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted, autopilotEnabled);
+		const normalizedConfiguredAutoApprove = normalizeAutoApproveValue(configured, policyRestricted);
+		const normalizedRememberedAutoApprove = normalizeAutoApproveValue(config[SessionConfigKey.AutoApprove], policyRestricted);
 		if (normalizedConfiguredAutoApprove) {
 			config[SessionConfigKey.AutoApprove] = normalizedConfiguredAutoApprove;
 		} else if (normalizedRememberedAutoApprove) {
@@ -1441,8 +1448,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
+
 		// Remember config picks across sessions
-		if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
+		if (typeof normalizedValue === 'string' && isSafeSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
 			for (const [key, rememberedValue] of Object.entries(rememberedValues)) {
@@ -1450,7 +1460,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					nextRememberedValues[key] = rememberedValue;
 				}
 			}
-			nextRememberedValues[property] = value;
+			nextRememberedValues[property] = normalizedValue;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
@@ -1468,7 +1478,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			newSession.beginResolveConfigSync();
 			newSession.setLoading(true);
-			newSession.setConfigValue(property, value);
+			newSession.setConfigValue(property, normalizedValue);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await this._refreshNewSessionConfig(newSession);
 			return;
@@ -1488,7 +1498,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Update local cache optimistically
 		this._runningSessionConfigs.set(sessionId, {
 			...runningConfig,
-			values: { ...runningConfig.values, [property]: value },
+			values: { ...runningConfig.values, [property]: normalizedValue },
 		});
 		this._onDidChangeSessionConfig.fire(sessionId);
 
@@ -1497,7 +1507,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
 			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
-			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: value } };
+			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: normalizedValue } };
 			connection.dispatch(sessionUri.toString(), action);
 		}
 	}
@@ -1514,11 +1524,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (`sessionMutable: true` and not `readOnly`), otherwise force the
 		// current value through. This guarantees replace semantics never
 		// alter a non-editable property even if the caller included it.
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			const editable = schema.sessionMutable === true && schema.readOnly !== true;
 			if (editable) {
-				nextValues[key] = values[key];
+				nextValues[key] = normalizeSessionConfigValue(key, values[key], policyRestricted);
 			} else if (Object.hasOwn(runningConfig.values, key)) {
 				nextValues[key] = runningConfig.values[key];
 			}
@@ -1685,6 +1696,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	getCustomizations(sessionId: string): Customization[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.customizations ?? [];
+	}
+
+	getWorkingDirectory(sessionId: string): string | undefined {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.summary.workingDirectory;
 	}
 
 	// -- Session actions ------------------------------------------------------

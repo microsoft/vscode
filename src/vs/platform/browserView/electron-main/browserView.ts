@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContentsView, webContents } from 'electron';
+import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -51,6 +51,14 @@ export class BrowserView extends Disposable {
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
+
+	/**
+	 * Resize a full-page screenshot so its largest dimension never exceeds this many pixels. A very tall
+	 * or wide page would otherwise request an enormous bitmap, which is costly to allocate/encode and
+	 * can stress the browser process. We downscale via `scale` (rather than cropping) so the whole page
+	 * still fits in the result.
+	 */
+	private static readonly MAX_FULL_PAGE_SCREENSHOT_DIMENSION = 2576;
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
@@ -612,9 +620,10 @@ export class BrowserView extends Disposable {
 		}
 
 		const quality = options?.quality ?? 80;
+		const format = options?.format ?? 'jpeg';
 
 		if (options?.fullPage && !options.screenRect && !options.pageRect) {
-			return this._captureFullPageScreenshot(quality);
+			return this._captureFullPageScreenshot(format, quality);
 		}
 
 		if (options?.pageRect) {
@@ -634,7 +643,7 @@ export class BrowserView extends Disposable {
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
-		const buffer = image.toJPEG(quality);
+		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
 		if (!options?.screenRect) {
@@ -644,7 +653,7 @@ export class BrowserView extends Disposable {
 	}
 
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
-	private async _captureFullPageScreenshot(quality: number): Promise<VSBuffer> {
+	private async _captureFullPageScreenshot(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
 		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as { cssContentSize?: { width: number; height: number } };
 		// Size in CSS pixels
 		const size = metrics.cssContentSize;
@@ -652,22 +661,35 @@ export class BrowserView extends Disposable {
 			throw new Error('Page.getLayoutMetrics did not return a cssContentSize');
 		}
 		const zoomFactor = this._view.webContents.getZoomFactor();
+		const clipWidth = size.width * zoomFactor;
+		const clipHeight = size.height * zoomFactor;
+		// CDP renders the screenshot at device pixels, so the output bitmap dimensions are roughly
+		// `clip.width * scale * devicePixelRatio`. Divide by DPR here so `MAX_FULL_PAGE_SCREENSHOT_DIMENSION`
+		// is an upper bound on the final image pixel size (not just the CSS-pixel clip size).
+		// We read the DPR from the display hosting the view's window (rather than evaluating
+		// `window.devicePixelRatio` in the page) so this works without a renderer round-trip and
+		// while the page is paused at a breakpoint. Fall back to the primary display if no host
+		// window can be resolved (e.g. during teardown).
+		const hostWindow = this._hostWindow;
+		const display = hostWindow ? screen.getDisplayMatching(hostWindow.getBounds()) : screen.getPrimaryDisplay();
+		const devicePixelRatio = display.scaleFactor;
+		const maxClipDimension = BrowserView.MAX_FULL_PAGE_SCREENSHOT_DIMENSION / Math.max(devicePixelRatio, 1);
+		const scale = Math.min(1, maxClipDimension / Math.max(clipWidth, clipHeight));
 		try {
 			const result = await this.debugger.sendCommand('Page.captureScreenshot', {
-				format: 'jpeg',
-				quality,
+				format,
+				...(format === 'jpeg' ? { quality } : {}),
 				captureBeyondViewport: true,
 				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
 				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
 				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
 				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
 				// visual content from the top at the bottom, instead of showing the bottom of the page.
-				// - Sidenote: Setting the scale here to be zoomFactor or 1/zoomFactor has strange effects and doesn't solve the issue.
 				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
 				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
 				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream
 				//   in Chromium).
-				clip: { x: 0, y: 0, width: size.width * zoomFactor, height: size.height * zoomFactor, scale: 1 }
+				clip: { x: 0, y: 0, width: clipWidth, height: clipHeight, scale }
 			}) as { data: string };
 			return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
 		} finally {
@@ -685,11 +707,14 @@ export class BrowserView extends Disposable {
 		const WAIT_TIMEOUT_MS = 100;
 		try {
 			await Promise.race([
-				this._view.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))'),
+				this.debugger.sendCommand('Runtime.evaluate', {
+					expression: 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))',
+					awaitPromise: true
+				}),
 				new Promise<void>(resolve => setTimeout(resolve, WAIT_TIMEOUT_MS))
 			]);
 		} catch {
-			// `executeJavaScript` can throw if the page navigates while we're waiting;
+			// `Runtime.evaluate` can throw if the page navigates while we're waiting;
 			// just proceed in that case.
 		}
 	}
@@ -780,6 +805,15 @@ export class BrowserView extends Disposable {
 	 */
 	getElectronWindow(): Electron.BrowserWindow | undefined {
 		return this._currentWindow?.win ?? undefined;
+	}
+
+	/**
+	 * The Electron window that currently hosts this view, if any. Before `layout()` is first
+	 * called this is the owner window; after that it's whichever window the view was last moved
+	 * to. Returns `undefined` if no host window can be resolved (e.g. during teardown).
+	 */
+	private get _hostWindow(): Electron.BrowserWindow | undefined {
+		return this._currentWindow?.win ?? this._ownerWindow.win ?? undefined;
 	}
 
 	override dispose(): void {

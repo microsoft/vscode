@@ -53,7 +53,6 @@ export class MobilePermissionPicker extends PermissionPicker {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		const items: IMobilePickerSheetItem[] = [
 			{
@@ -71,17 +70,15 @@ export class MobilePermissionPicker extends PermissionPicker {
 				checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
 				disabled: policyRestricted,
 			},
-		];
-		if (isAutopilotEnabled) {
-			items.push({
+			{
 				id: ChatPermissionLevel.Autopilot,
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 				icon: Codicon.rocket,
 				checked: this._currentLevel === ChatPermissionLevel.Autopilot,
 				disabled: policyRestricted,
-			});
-		}
+			},
+		];
 		items.push({
 			id: LEARN_MORE_ID,
 			label: localize('permissions.learnMore', "Learn more about permissions"),

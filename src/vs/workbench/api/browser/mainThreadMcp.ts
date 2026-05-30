@@ -343,10 +343,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		try {
 			parsed = URI.parse(configuredIssuer);
 		} catch {
-			throw new Error(nls.localize('mcp.enterpriseManaged.issuerInvalid', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to be a valid `https://` URL; got '{0}'.", configuredIssuer));
+			throw new Error(nls.localize('mcp.enterpriseManaged.issuerInvalid', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to be a valid URL; got '{0}'.", configuredIssuer));
 		}
-		if (parsed.scheme !== 'https') {
-			throw new Error(nls.localize('mcp.enterpriseManaged.issuerNotHttps', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to use the `https` scheme; got '{0}'.", configuredIssuer));
+		if (parsed.scheme !== 'https' && parsed.scheme !== 'http') {
+			throw new Error(nls.localize('mcp.enterpriseManaged.issuerNotHttp', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to use the `https` or `http` scheme; got '{0}'.", configuredIssuer));
 		}
 		return parsed;
 	}
