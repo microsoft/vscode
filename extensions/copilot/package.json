@@ -4044,6 +4044,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
