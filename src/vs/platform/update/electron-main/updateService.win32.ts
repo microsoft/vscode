@@ -20,7 +20,7 @@ import { URI } from '../../../base/common/uri.js';
 import { checksum } from '../../../base/node/crypto.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { killTree } from '../../../base/node/processes.js';
-import { getWindowsRelease } from '../../../base/node/windowsVersion.js';
+import { getWindowsRelease, isUACDisabled } from '../../../base/node/windowsVersion.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { IFileService } from '../../files/common/files.js';
@@ -59,6 +59,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	private availableUpdate: IAvailableUpdate | undefined;
 	private updateCancellationTokenSource: CancellationTokenSource | undefined;
+	private _canBackgroundUpdateAdminInstall: Promise<boolean> | undefined;
 
 	@memoize
 	get cachePath(): Promise<string> {
@@ -82,6 +83,33 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, telemetryService, applicationStorageMainService, meteredConnectionService, true);
 
 		lifecycleMainService.setRelaunchHandler(this);
+	}
+
+	/**
+	 * Returns whether background updates can be applied for a system/admin install.
+	 * This is true when UAC is disabled and the process is already running elevated,
+	 * meaning the spawned Inno Setup installer inherits admin privileges and can
+	 * write to Program Files without a UAC prompt.
+	 */
+	private canBackgroundUpdateAdminInstall(): Promise<boolean> {
+		if (!this._canBackgroundUpdateAdminInstall) {
+			this._canBackgroundUpdateAdminInstall = (async () => {
+				if (this.productService.target === 'user') {
+					return false;
+				}
+				try {
+					const [isAdmin, uacDisabled] = await Promise.all([
+						this.nativeHostMainService.isAdmin(undefined),
+						isUACDisabled()
+					]);
+					return isAdmin && uacDisabled;
+				} catch (error) {
+					this.logService.warn('update#canBackgroundUpdateAdminInstall(): failed to determine admin/UAC state, falling back to false', error);
+					return false;
+				}
+			})();
+		}
+		return this._canBackgroundUpdateAdminInstall;
 	}
 
 	handleRelaunch(options?: IRelaunchOptions): boolean {
@@ -110,18 +138,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		type WindowsUpdateInitEvent = {
 			osRelease: string;
 			osNodeRelease: string;
+			isAdminNoUac: boolean;
 		};
 		type WindowsUpdateInitClassification = {
 			osRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from registry.' };
 			osNodeRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from os.release().' };
+			isAdminNoUac: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is an admin install with UAC disabled, enabling background updates.' };
 			owner: 'dmitriv';
 			comment: 'Tracks Windows OS release information during update initialization.';
 		};
 		const osRelease = await getWindowsRelease();
 		const osNodeRelease = release();
-		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease });
+		const isAdminNoUac = await this.canBackgroundUpdateAdminInstall();
+		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease, isAdminNoUac });
 
-		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined) && !await isUACDisabled()) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
 			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
 			return;
@@ -157,8 +188,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		} else {
 			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 			// GC for background updates in system setup happens via inno_setup since it requires
-			// elevated permissions.
-			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
+			// elevated permissions. When UAC is disabled and running as admin, the process
+			// already has write access to Program Files so we can GC directly.
+			if (fastUpdatesEnabled && (this.productService.target === 'user' || await this.canBackgroundUpdateAdminInstall()) && this.productService.commit) {
 				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
 				const exeName = basename(exePath);
@@ -274,13 +306,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
 						});
-					}).then(packagePath => {
+					}).then(async packagePath => {
 						this.availableUpdate = { packagePath };
 						this.saveUpdateMetadata(update);
 						this.setState(State.Downloaded(update, explicit, this._overwrite));
 
 						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-						if (fastUpdatesEnabled && this.productService.target === 'user') {
+						if (fastUpdatesEnabled && (this.productService.target === 'user' || await this.canBackgroundUpdateAdminInstall())) {
 							this.doApplyUpdate();
 						} else {
 							this.setState(State.Ready(update, explicit, this._overwrite));
@@ -536,7 +568,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.availableUpdate = { packagePath };
 		this.setState(State.Downloaded(update, true, false));
 
-		if (fastUpdatesEnabled && this.productService.target === 'user') {
+		if (fastUpdatesEnabled && (this.productService.target === 'user' || await this.canBackgroundUpdateAdminInstall())) {
 			this.doApplyUpdate();
 		} else {
 			this.setState(State.Ready(update, true, false));
