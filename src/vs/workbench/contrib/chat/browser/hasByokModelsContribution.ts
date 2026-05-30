@@ -29,7 +29,9 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
  *
  *  1. On startup, optimistically restore the last persisted answer from
  *     `chat.hasByokModels.lastKnown` so UI surfaces gated by this key are correct on warm
- *     reload before anything else runs.
+ *     reload before anything else runs. If the language-models configuration already contains
+ *     non-Copilot provider groups, treat that as a positive signal too so cold starts don't hide
+ *     configured BYOK models while extension registration is still settling.
  *  2. Whenever the `chatNonCopilotModelsAreUserSelectable` signal flips on — which happens
  *     naturally when something else resolves a BYOK vendor (notably `ChatInputPart`, which
  *     activates the previously selected model's vendor when restoring its persisted selection) —
@@ -107,6 +109,10 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		this._storageService.store(HasByokModelsContribution.STORAGE_KEY_LAST_KNOWN, value, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
+	private _hasConfiguredByokVendor(): boolean {
+		return this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
+	}
+
 	private _update(): void {
 		if (!this._isFeatureEnabled()) {
 			this._setResult(false);
@@ -118,13 +124,15 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 			return;
 		}
 
+		if (this._hasConfiguredByokVendor()) {
+			this._setResult(true);
+			return;
+		}
+
 		if (!this._extensionsRegistered) {
 			return;
 		}
 
-		const hasByokVendor = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
-		if (!hasByokVendor) {
-			this._setResult(false);
-		}
+		this._setResult(false);
 	}
 }
