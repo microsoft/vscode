@@ -60,9 +60,12 @@ export type StreamBaseline =
  *   so the user sees "Thinking…" (or the latest intent) even when no renderable
  *   content has arrived yet.
  * - **Two-phase lifecycle** keyed off {@link StreamBaseline.mode}:
- *     1. (`mode: 'next'` only) wait for the new turn to start, signalled by either
- *        `task.sessions.length` growing past `priorTurnCount` or any unseen event
- *        arriving. Bounded by {@link MAX_WAIT_FOR_TURN_START_MS}.
+ *     1. (`mode: 'next'` only) wait for the new turn to start, signalled by
+ *        `task.sessions.length` growing past `priorTurnCount`. Bounded by
+ *        {@link MAX_WAIT_FOR_TURN_START_MS}. (Earlier versions also accepted
+ *        "any unseen event" as evidence, but a trailing event from the prior
+ *        turn would then trick the main loop into observing the previous,
+ *        now-settled session and exiting before the follow-up streamed.)
  *     2. stream until the latest turn leaves the active state region.
  * - Always returns control once the turn settles or the token cancels; never throws.
  */
@@ -129,8 +132,7 @@ export class TaskTurnStreamer {
 
 			let consecutiveFetchFailures = 0;
 			while (!token.isCancellationRequested) {
-				const task = await this._fetchTask(taskId);
-				const events = await this._fetchEvents(taskId);
+				const [task, events] = await Promise.all([this._fetchTask(taskId), this._fetchEvents(taskId)]);
 
 				if (task === undefined) {
 					consecutiveFetchFailures++;
@@ -172,7 +174,7 @@ export class TaskTurnStreamer {
 	private async _waitForTurnStart(
 		taskId: string,
 		priorTurnCount: number,
-		seen: ReadonlySet<string>,
+		_seen: ReadonlySet<string>,
 		token: vscode.CancellationToken,
 	): Promise<{ events: readonly AgentTaskSessionEvent[] } | undefined> {
 		const startedAt = Date.now();
@@ -182,8 +184,7 @@ export class TaskTurnStreamer {
 				return undefined;
 			}
 
-			const task = await this._fetchTask(taskId);
-			const events = await this._fetchEvents(taskId);
+			const [task, events] = await Promise.all([this._fetchTask(taskId), this._fetchEvents(taskId)]);
 			const turnCount = task?.sessions?.length ?? 0;
 
 			// Only `turnCount > priorTurnCount` is reliable evidence the new turn exists.
@@ -194,7 +195,6 @@ export class TaskTurnStreamer {
 			if (turnCount > priorTurnCount) {
 				return { events };
 			}
-			void seen; // retained for future ordering checks
 
 			await delay(this._pollIntervalMs, token);
 		}
