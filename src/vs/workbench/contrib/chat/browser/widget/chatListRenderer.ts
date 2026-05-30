@@ -585,6 +585,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		footerDetailsContainer.tabIndex = 0;
 
 		const footerTokenUsageContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-token-usage'));
+		footerTokenUsageContainer.tabIndex = 0;
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		dom.append(checkpointRestoreContainer, $('.checkpoint-line-left'));
@@ -790,9 +791,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					const inputCost = modelMetadata.inputCost;
 					const outputCost = modelMetadata.outputCost;
 					const credits = ((usage.promptTokens * inputCost) + (usage.completionTokens * outputCost)) / 1000000;
-					creditsText = credits === 1
-						? localize('chat.tokenUsage.creditSuffix.singular', " ({0} credit)", credits.toFixed(4))
-						: localize('chat.tokenUsage.creditSuffix.plural', " ({0} credits)", credits.toFixed(4));
+					const creditsDisplay = credits.toFixed(4);
+					creditsText = parseFloat(creditsDisplay) === 1
+						? localize('chat.tokenUsage.creditSuffix.singular', " ({0} credit)", creditsDisplay)
+						: localize('chat.tokenUsage.creditSuffix.plural', " ({0} credits)", creditsDisplay);
 
 					const inputCostStr = inputCost === 1
 						? localize('chat.tokenUsage.inputCost.singular', "{0} credit per 1M tokens", inputCost)
@@ -807,7 +809,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						inputCostStr,
 						usage.completionTokens,
 						outputCostStr,
-						credits.toFixed(4)
+						creditsDisplay
 					);
 				}
 
@@ -820,9 +822,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				const totalTokens = usage.promptTokens + usage.completionTokens;
-				templateData.footerTokenUsageContainer.textContent = totalTokens === 1
+				const tokenUsageText = totalTokens === 1
 					? localize('chat.tokenUsage.singular', "{0} token{1}", totalTokens, creditsText)
 					: localize('chat.tokenUsage.plural', "{0} tokens{1}", totalTokens, creditsText);
+				templateData.footerTokenUsageContainer.textContent = tokenUsageText;
+				templateData.footerTokenUsageContainer.setAttribute('aria-label', tokenUsageText);
 				templateData.footerTokenUsageContainer.classList.remove('hidden');
 
 				usageDisposables.add(this.hoverService.setupDelayedHover(templateData.footerTokenUsageContainer, () => ({
