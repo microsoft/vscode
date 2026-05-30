@@ -14,9 +14,8 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/service
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -43,8 +42,6 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		const chatEditingService = accessor.get(IChatEditingService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const codeReviewService = accessor.get(ICodeReviewService);
 
 		const editorGroupsService = accessor.get(IEditorGroupsService);
@@ -54,7 +51,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			?? editorService.visibleEditorPanes[0];
 		const candidates = getActiveResourceCandidates(activePane?.input);
 		for (const candidate of candidates) {
-			const sessionResource = getSessionForResource(candidate, chatEditingService, sessionsManagementService)
+			const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource
 				?? agentFeedbackService.getMostRecentSessionForResource(candidate);
 			if (!sessionResource) {
 				continue;

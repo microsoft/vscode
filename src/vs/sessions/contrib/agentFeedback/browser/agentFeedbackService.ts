@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,12 +15,12 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { changeMatchesResource, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
+import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange, SessionStatus } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -145,6 +146,13 @@ export interface IAgentFeedbackService {
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
 
 	/**
+	 * Resolve the session that owns the given file resource. Returns the
+	 * session that was active when the file's editor was first opened; if the
+	 * file has never been tracked, falls back to the currently active session.
+	 */
+	getSessionForFile(resourceUri: URI): ISession | undefined;
+
+	/**
 	 * Resolve the most recently updated session that has feedback for a given resource.
 	 */
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined;
@@ -216,6 +224,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private _sessionUpdatedSequence = 0;
 	private readonly _navigationAnchorBySession = new Map<string, string>();
 
+	/** fileResource → sessionResource active when the editor for that file was first seen */
+	private readonly _fileToSession = new ResourceMap<URI>();
+
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -224,6 +235,34 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._register(this._editorService.onDidVisibleEditorsChange(() => this._trackVisibleEditorResources()));
+		this._trackVisibleEditorResources();
+	}
+
+	private _trackVisibleEditorResources(): void {
+		const activeSession = this._sessionsManagementService.activeSession.get();
+		if (!activeSession) {
+			return;
+		}
+
+		for (const pane of this._editorService.visibleEditorPanes) {
+			for (const candidate of getActiveResourceCandidates(pane.input)) {
+				this._fileToSession.set(candidate, activeSession.resource);
+			}
+		}
+	}
+
+	getSessionForFile(resourceUri: URI): ISession | undefined {
+		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsManagementService.activeSession.get()?.resource;
+		if (!sessionResource) {
+			return undefined;
+		}
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		if (!session || session.status.get() === SessionStatus.Untitled) {
+			return undefined;
+		}
+		return session;
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = 'user'): IAgentFeedback {
