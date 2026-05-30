@@ -270,6 +270,17 @@ export function shouldResetOnModelListChange(
 	return !availableModels.some(m => m.identifier === currentModelId);
 }
 
+export function shouldPreserveUnavailableSessionModel(
+	currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+	sessionType: string | undefined,
+	isUntitledSession: boolean,
+): boolean {
+	if (!currentModel || isUntitledSession) {
+		return false;
+	}
+	return !!sessionType && currentModel.metadata.targetChatSessionType === sessionType;
+}
+
 /**
  * Determines whether a late-arriving persisted model should be restored.
  * This handles the startup race where the model wasn't available during

@@ -17,6 +17,7 @@ import {
 	isModelValidForSession,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
+	shouldPreserveUnavailableSessionModel,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
 	shouldRestoreLateArrivingModel,
@@ -865,6 +866,16 @@ suite('ChatModelSelectionLogic', () => {
 	});
 
 	suite('onDidChangeLanguageModels race conditions', () => {
+
+		test('preserve unavailable session-scoped model for committed sessions', () => {
+			const model = createSessionModel('gpt', 'GPT', 'copilotcli');
+
+			assert.strictEqual(shouldPreserveUnavailableSessionModel(model, 'copilotcli', false), true);
+			assert.strictEqual(shouldPreserveUnavailableSessionModel(model, 'copilotcli', true), false);
+			assert.strictEqual(shouldPreserveUnavailableSessionModel(model, 'claude-code', false), false);
+			assert.strictEqual(shouldPreserveUnavailableSessionModel(createModel('gpt', 'GPT'), 'copilotcli', false), false);
+			assert.strictEqual(shouldPreserveUnavailableSessionModel(undefined, 'copilotcli', false), false);
+		});
 
 		test('model temporarily removed then re-added loses user choice', () => {
 			const gpt = createModel('gpt', 'GPT');

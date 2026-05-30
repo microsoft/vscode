@@ -88,8 +88,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { filterModelsForSession, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldPreserveUnavailableSessionModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
+import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
@@ -699,10 +699,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		const resetCurrentLanguageModelIfUnavailable = () => {
-			const modelIdentifier = this._currentLanguageModel.get()?.identifier;
+			const currentModel = this._currentLanguageModel.get();
+			const modelIdentifier = currentModel?.identifier;
 			const models = this.getModels();
+			const sessionType = this.getCurrentSessionType();
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			const preserveUnavailableSessionModel = shouldPreserveUnavailableSessionModel(
+				currentModel,
+				sessionType,
+				!!sessionResource && isUntitledChatSession(sessionResource),
+			);
 			if (this._currentSessionType === SessionType.CopilotCLI) {
-				if (shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
+				if (!preserveUnavailableSessionModel && shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
 					if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
 						const mergedModels = this.getAllMergedModels();
 						const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
@@ -734,7 +742,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					this.setCurrentLanguageModelToDefault();
 				}
-			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
+			} else if (!preserveUnavailableSessionModel && shouldResetOnModelListChange(modelIdentifier, models)) {
 				this.setCurrentLanguageModelToDefault();
 			}
 		};
