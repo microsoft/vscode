@@ -47,6 +47,8 @@ suite('StorageMainService', function () {
 		languageModelsResource: joinPath(inMemoryProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
+		skillsHome: joinPath(inMemoryProfileRoot, 'skillsHome'),
+		hooksHome: joinPath(inMemoryProfileRoot, 'hooksHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryProfileRoot, 'cache'),
 		agentPluginsHome: joinPath(inMemoryProfileRoot, 'agentPluginsHome'),
