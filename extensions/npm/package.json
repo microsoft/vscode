@@ -46,6 +46,7 @@
   "activationEvents": [
     "onTaskType:npm",
     "onLanguage:json",
+    "workspaceContains:pnpm-workspace.yaml",
     "workspaceContains:package.json"
   ],
   "capabilities": {

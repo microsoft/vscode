@@ -6,9 +6,11 @@
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
+import { addPnpmWorkspaceHoverProvider } from './features/pnpmWorkspaceHover';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr, undefined));
+	context.subscriptions.push(addPnpmWorkspaceHoverProvider(httpRequest.xhr, undefined));
 }
 
 export function deactivate(): void {
