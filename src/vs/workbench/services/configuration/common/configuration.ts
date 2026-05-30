@@ -101,11 +101,18 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 *
 	 * Only settings declared with `supportsVariableSubstitution: true` in their schema
 	 * will have variables substituted; for all other settings the raw value is returned.
-	 * If resolution fails for any variable the original un-substituted value is returned.
+	 * **Only top-level string values are resolved.** Strings nested inside objects or
+	 * arrays are returned unchanged — use `IConfigurationResolverService.resolveSettingValue()`
+	 * directly for nested resolution.
+	 * If resolution fails for a variable the original un-substituted value is returned.
 	 *
-	 * @param section The dot-separated setting key.
-	 * @param folder  Optional workspace folder context used to resolve `${workspaceFolder}`.
-	 * @param overrides Optional language/resource overrides, same as `getValue()`.
+	 * Note: `T` should be `string` (or a supertype of `string`) for settings with
+	 * `supportsVariableSubstitution: true`. Non-string types (`T extends object | number | boolean`)
+	 * are returned directly from `getValue()` without any substitution regardless of the flag.
+	 *
+	 * @param section   The dot-separated setting key.
+	 * @param folder    Workspace folder context used to resolve `${workspaceFolder}`.
+	 * @param overrides Language/resource overrides, same as `getValue()`.
 	 */
 	getResolvedValue<T>(section: string, folder?: IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T>;
 }

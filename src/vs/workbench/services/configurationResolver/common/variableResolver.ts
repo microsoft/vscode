@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as paths from '../../../../base/common/path.js';
 import { IProcessEnvironment, isWindows } from '../../../../base/common/platform.js';
@@ -97,9 +98,12 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		try {
 			const result = await this.resolveAsync(folder, value);
 			return typeof result === 'string' ? result : value;
-		} catch {
-			// On any resolution error (missing env var, no open folder, etc.) return the
-			// original value so that a bad variable pattern never breaks extension activation.
+		} catch (err) {
+			if (!(err instanceof VariableError)) {
+				// VariableError = expected (missing env var, no open folder, etc.) — silently fall
+				// back. Anything else is a programmer error and should be surfaced for diagnosis.
+				onUnexpectedError(err);
+			}
 			return value;
 		}
 	}
