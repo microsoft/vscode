@@ -162,8 +162,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 	updateAccountPreference(extensionId: string, providerId: string, account: AuthenticationSessionAccount): void {
 		const realExtensionId = ExtensionIdentifier.toKey(extensionId);
-		const parentExtensionId = this._inheritAuthAccountPreferenceChildToParent[realExtensionId] ?? realExtensionId;
-		const key = this._getKey(parentExtensionId, providerId);
+		const key = this._getKey(realExtensionId, providerId);
 
 		// Store the preference in the workspace and application storage. This allows new workspaces to
 		// have a preference set already to limit the number of prompts that are shown... but also allows
@@ -171,22 +170,40 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		this.storageService.store(key, account.label, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.storageService.store(key, account.label, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const childrenExtensions = this._inheritAuthAccountPreferenceParentToChildren[parentExtensionId];
-		const extensionIds = childrenExtensions ? [parentExtensionId, ...childrenExtensions] : [parentExtensionId];
+		const isChild = !!this._inheritAuthAccountPreferenceChildToParent[realExtensionId];
+		let extensionIds: string[];
+		if (isChild) {
+			extensionIds = [realExtensionId];
+		} else {
+			const childrenExtensions = this._inheritAuthAccountPreferenceParentToChildren[realExtensionId];
+			extensionIds = childrenExtensions ? [realExtensionId, ...childrenExtensions] : [realExtensionId];
+		}
 		this._onDidAccountPreferenceChange.fire({ extensionIds, providerId });
 	}
 
 	getAccountPreference(extensionId: string, providerId: string): string | undefined {
 		const realExtensionId = ExtensionIdentifier.toKey(extensionId);
-		const key = this._getKey(this._inheritAuthAccountPreferenceChildToParent[realExtensionId] ?? realExtensionId, providerId);
+		const specificKey = this._getKey(realExtensionId, providerId);
 
-		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
-		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
+		// If a preference is set for the specific extension, use that.
+		const specificPreference = this.storageService.get(specificKey, StorageScope.WORKSPACE) ?? this.storageService.get(specificKey, StorageScope.APPLICATION);
+		if (specificPreference !== undefined) {
+			return specificPreference;
+		}
+
+		// Otherwise, fall back to the parent extension's preference if it exists.
+		const parentExtensionId = this._inheritAuthAccountPreferenceChildToParent[realExtensionId];
+		if (parentExtensionId) {
+			const parentKey = this._getKey(parentExtensionId, providerId);
+			return this.storageService.get(parentKey, StorageScope.WORKSPACE) ?? this.storageService.get(parentKey, StorageScope.APPLICATION);
+		}
+
+		return undefined;
 	}
 
 	removeAccountPreference(extensionId: string, providerId: string): void {
 		const realExtensionId = ExtensionIdentifier.toKey(extensionId);
-		const key = this._getKey(this._inheritAuthAccountPreferenceChildToParent[realExtensionId] ?? realExtensionId, providerId);
+		const key = this._getKey(realExtensionId, providerId);
 
 		// This won't affect any other workspaces that have a preference set, but it will remove the preference
 		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...

@@ -219,8 +219,7 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 	//#region Account/Session Preference
 
 	updateAccountPreference(mcpServerId: string, providerId: string, account: AuthenticationSessionAccount): void {
-		const parentMcpServerId = this._inheritAuthAccountPreferenceChildToParent[mcpServerId] ?? mcpServerId;
-		const key = this._getKey(parentMcpServerId, providerId);
+		const key = this._getKey(mcpServerId, providerId);
 
 		// Store the preference in the workspace and application storage. This allows new workspaces to
 		// have a preference set already to limit the number of prompts that are shown... but also allows
@@ -228,20 +227,38 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 		this.storageService.store(key, account.label, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.storageService.store(key, account.label, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const childrenMcpServers = this._inheritAuthAccountPreferenceParentToChildren[parentMcpServerId];
-		const mcpServerIds = childrenMcpServers ? [parentMcpServerId, ...childrenMcpServers] : [parentMcpServerId];
+		const isChild = !!this._inheritAuthAccountPreferenceChildToParent[mcpServerId];
+		let mcpServerIds: string[];
+		if (isChild) {
+			mcpServerIds = [mcpServerId];
+		} else {
+			const childrenMcpServers = this._inheritAuthAccountPreferenceParentToChildren[mcpServerId];
+			mcpServerIds = childrenMcpServers ? [mcpServerId, ...childrenMcpServers] : [mcpServerId];
+		}
 		this._onDidAccountPreferenceChange.fire({ mcpServerIds, providerId });
 	}
 
 	getAccountPreference(mcpServerId: string, providerId: string): string | undefined {
-		const key = this._getKey(this._inheritAuthAccountPreferenceChildToParent[mcpServerId] ?? mcpServerId, providerId);
+		const specificKey = this._getKey(mcpServerId, providerId);
 
-		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
-		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
+		// If a preference is set for the specific MCP server, use that.
+		const specificPreference = this.storageService.get(specificKey, StorageScope.WORKSPACE) ?? this.storageService.get(specificKey, StorageScope.APPLICATION);
+		if (specificPreference !== undefined) {
+			return specificPreference;
+		}
+
+		// Otherwise, fall back to the parent MCP server's preference if it exists.
+		const parentMcpServerId = this._inheritAuthAccountPreferenceChildToParent[mcpServerId];
+		if (parentMcpServerId) {
+			const parentKey = this._getKey(parentMcpServerId, providerId);
+			return this.storageService.get(parentKey, StorageScope.WORKSPACE) ?? this.storageService.get(parentKey, StorageScope.APPLICATION);
+		}
+
+		return undefined;
 	}
 
 	removeAccountPreference(mcpServerId: string, providerId: string): void {
-		const key = this._getKey(this._inheritAuthAccountPreferenceChildToParent[mcpServerId] ?? mcpServerId, providerId);
+		const key = this._getKey(mcpServerId, providerId);
 
 		// This won't affect any other workspaces that have a preference set, but it will remove the preference
 		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...
