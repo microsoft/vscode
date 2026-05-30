@@ -390,7 +390,7 @@ export class IssueReporterOverlay {
 					if (remaining > 0) {
 						captureBtn.label = `${remaining}...`;
 					} else {
-						intervalDisposable.dispose();
+						this.disposables.delete(intervalDisposable);
 						captureBtn.label = `$(device-camera) ${localize('screenshot', "Screenshot")}`;
 						captureBtn.element.style.minWidth = '';
 						captureBtn.enabled = true;
