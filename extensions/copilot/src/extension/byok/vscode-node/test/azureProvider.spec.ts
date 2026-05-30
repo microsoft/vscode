@@ -44,9 +44,33 @@ describe('AzureBYOKModelProvider', () => {
 			expect(result).toBe('https://my-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2025-01-01-preview');
 		});
 
+		it('should handle Azure Government OpenAI (openai.azure.us) URLs with deployment name', () => {
+			const url = 'https://my-resource.openai.azure.us';
+			const result = resolveAzureUrl('gpt-4-deployment', url);
+			expect(result).toBe('https://my-resource.openai.azure.us/openai/deployments/gpt-4-deployment/chat/completions?api-version=2025-01-01-preview');
+		});
+
+		it('should handle Azure OpenAI URLs for other Azure clouds with deployment name', () => {
+			const url = 'https://my-resource.openai.azure.cn';
+			const result = resolveAzureUrl('gpt-4-deployment', url);
+			expect(result).toBe('https://my-resource.openai.azure.cn/openai/deployments/gpt-4-deployment/chat/completions?api-version=2025-01-01-preview');
+		});
+
 		it('should return URL unchanged if it already has explicit API path', () => {
 			const url = 'https://my-endpoint.example.com/v1/chat/completions';
 			const result = resolveAzureUrl('gpt-4', url);
+			expect(result).toBe(url);
+		});
+
+		it('should return Azure Government Responses URL unchanged', () => {
+			const url = 'https://my-resource.cognitiveservices.azure.us/openai/responses?api-version=2025-04-01-preview';
+			const result = resolveAzureUrl('gpt-5.1', url);
+			expect(result).toBe(url);
+		});
+
+		it('should return Azure Government Chat Completions URL unchanged', () => {
+			const url = 'https://my-resource.openai.azure.us/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview';
+			const result = resolveAzureUrl('gpt-4o', url);
 			expect(result).toBe(url);
 		});
 
