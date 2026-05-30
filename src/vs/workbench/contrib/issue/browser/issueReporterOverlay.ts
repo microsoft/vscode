@@ -7,7 +7,7 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
@@ -132,8 +132,6 @@ export class IssueReporterOverlay {
 	private includeExtensions = true;
 	private includeExperiments = true;
 	private includeExtensionData = false;
-	private includeSettings = true;
-	private settingsContent: string | undefined;
 	private diagnosticBulkToggleButton: Button | undefined;
 	private diagnosticSectionStates: (() => boolean)[] = [];
 	private performanceInfoLoaded = false;
@@ -211,7 +209,7 @@ export class IssueReporterOverlay {
 		append(progressArea, $('span.wizard-step-separator'));
 		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
 
-		append(toolbar, $('div.spacer'));
+		append(toolbar, $('div.wizard-toolbar-spacer'));
 
 		this.updateBanner = append(this.wizardPanel, $('div.wizard-update-banner'));
 		this.updateBanner.setAttribute('role', 'status');
@@ -296,7 +294,7 @@ export class IssueReporterOverlay {
 		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
 		const mountTarget = workbench ?? targetWindow.document.body;
 
-		this.floatingBar = $('div.wizard-floating-bar');
+		this.floatingBar = $('div.issue-reporter-floating-bar');
 
 		// Drag handle
 		const dragArea = append(this.floatingBar, $('div.wizard-floating-drag'));
@@ -387,12 +385,12 @@ export class IssueReporterOverlay {
 				let remaining = this.screenshotDelay;
 				captureBtn.label = `${remaining}...`;
 				const targetWindow = getWindow(this.container);
-				const interval = targetWindow.setInterval(() => {
+				const intervalDisposable = this.disposables.add(disposableWindowInterval(targetWindow, () => {
 					remaining--;
 					if (remaining > 0) {
 						captureBtn.label = `${remaining}...`;
 					} else {
-						targetWindow.clearInterval(interval);
+						this.disposables.delete(intervalDisposable);
 						captureBtn.label = `$(device-camera) ${localize('screenshot', "Screenshot")}`;
 						captureBtn.element.style.minWidth = '';
 						captureBtn.enabled = true;
@@ -401,7 +399,7 @@ export class IssueReporterOverlay {
 						this.updateAttachmentButtons();
 						this._onDidRequestScreenshot.fire();
 					}
-				}, 1000);
+				}, 1000));
 			} else {
 				this._onDidRequestScreenshot.fire();
 			}
@@ -736,9 +734,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTitlePlaceholder(): void {
-		if (!this.titleInput) {
-			return;
-		}
 		switch (this.selectedIssueSource) {
 			case IssueSource.Extension:
 				this.titleInput.setPlaceHolder(localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image"));
@@ -776,9 +771,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateExtensionOptions(): void {
-		if (!this.extensionSelect) {
-			return;
-		}
 		this.extensionOptions = this.getExtensionOptions();
 		this.extensionSelect.setOptions(this.getExtensionSelectItems(), this.getSelectedExtensionIndex());
 		if (!this.selectedExtension && this.data.extensionId) {
@@ -787,9 +779,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateExtensionFieldVisibility(): void {
-		if (!this.extensionField) {
-			return;
-		}
 		this.extensionField.classList.toggle('hidden', this.selectedIssueSource !== IssueSource.Extension);
 	}
 
@@ -805,9 +794,7 @@ export class IssueReporterOverlay {
 			: undefined;
 		this.selectedExtension = extension;
 		this.data.extensionId = extension?.id;
-		if (this.extensionSelect) {
-			this.extensionSelect.select(this.getSelectedExtensionIndex());
-		}
+		this.extensionSelect.select(this.getSelectedExtensionIndex());
 		this.updateExtensionValidation();
 		this.updateIssueSourceFlags();
 
@@ -863,10 +850,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTargetStatus(): void {
-		if (!this.targetStatus) {
-			return;
-		}
-
 		this.targetStatus.textContent = '';
 		this.extensionStatus.textContent = '';
 		if (!this.selectedIssueSource) {
@@ -1078,9 +1061,6 @@ export class IssueReporterOverlay {
 
 	/** Update the guidance text above the description based on selected category */
 	private updateDescriptionGuidance(): void {
-		if (!this.descriptionGuidance) {
-			return;
-		}
 		const markdownHint = localize('markdownSupported', "Markdown formatting is supported.");
 		switch (this.selectedIssueType) {
 			case IssueType.Bug:
@@ -1502,26 +1482,6 @@ export class IssueReporterOverlay {
 			});
 		}
 
-		// Settings
-		if (this.settingsContent) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeSettings);
-			this.createDiagSection(diagContainer, {
-				id: 'settings',
-				label: localize('settings', "Settings"),
-				checked: this.includeSettings,
-				onToggle: (checked) => {
-					this.includeSettings = checked;
-				},
-				renderContent: (container) => {
-					const userLabel = append(container, $('div.review-diag-sublabel'));
-					userLabel.textContent = localize('userSettings', "User Settings");
-					const userPre = append(container, $('pre.review-diag-pre'));
-					userPre.textContent = this.settingsContent!;
-				},
-			});
-		}
-
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			const performanceContainer = append(diagContainer, $('div.review-performance-data'));
 			if (this.performanceInfoRefreshing) {
@@ -1679,7 +1639,6 @@ export class IssueReporterOverlay {
 		this.includeExtensionData = included;
 		this.includeExtensions = included;
 		this.includeExperiments = included;
-		this.includeSettings = included;
 		this.includeProcessInfo = included;
 		this.includeWorkspaceInfo = included;
 		this.model.update({
@@ -1763,10 +1722,10 @@ export class IssueReporterOverlay {
 
 	/** Mark a specific attachment as uploading / done */
 	setAttachmentUploadState(index: number, state: 'pending' | 'uploading' | 'done'): void {
-		const card = this.reviewThumbCards[index];
-		if (!card) {
+		if (index < 0 || index >= this.reviewThumbCards.length) {
 			return;
 		}
+		const card = this.reviewThumbCards[index];
 		card.classList.remove('upload-pending', 'upload-uploading', 'upload-done');
 		card.classList.add(`upload-${state}`);
 
@@ -2058,10 +2017,6 @@ export class IssueReporterOverlay {
 			sections.push(this.createDetails('A/B Experiments', this.createCodeBlock(modelData.experimentInfo)));
 		}
 
-		if (this.includeSettings && this.settingsContent) {
-			sections.push(this.generateSettingsMd());
-		}
-
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			if (this.includeProcessInfo && modelData.processInfo) {
 				sections.push(this.createDetails('Running Processes', this.createCodeBlock(modelData.processInfo)));
@@ -2178,11 +2133,6 @@ export class IssueReporterOverlay {
 		return this.createDetails(`Extensions (${nonThemeExtensions.length})`, details.join('\n\n'));
 	}
 
-	private generateSettingsMd(): string {
-		const details = [`#### User Settings\n\n${this.createCodeBlock(this.settingsContent ?? '', 'json')}`];
-		return this.createDetails('Settings', details.join('\n\n'));
-	}
-
 	private getIssueTypeTitle(issueType: IssueType): string {
 		switch (issueType) {
 			case IssueType.Bug:
@@ -2221,9 +2171,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	setUpdateAvailable(showUpdateBanner: boolean): void {
 		this.showUpdateBanner = showUpdateBanner;
-		if (this.updateBanner) {
-			this.updateBanner.style.display = showUpdateBanner ? '' : 'none';
-		}
+		this.updateBanner.style.display = showUpdateBanner ? '' : 'none';
 	}
 
 	focus(): void {
@@ -2300,13 +2248,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		}
 	}
 
-	setSettingsContent(userSettings: string): void {
-		this.settingsContent = userSettings;
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
-	}
-
 	hasUnsavedChanges(): boolean {
 		if (this.previewOpened && this.previewedDraftKey === this.getDraftKey()) {
 			return false;
@@ -2343,8 +2284,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			includeExtensions: this.includeExtensions,
 			includeExperiments: this.includeExperiments,
 			includeExtensionData: this.includeExtensionData,
-			includeSettings: this.includeSettings,
-			settingsContent: this.settingsContent,
 			screenshots: this.screenshots.map(screenshot => screenshot.annotatedDataUrl ?? screenshot.dataUrl),
 			recordings: this.recordings.map(recording => recording.filePath),
 		});

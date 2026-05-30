@@ -101,6 +101,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
@@ -161,6 +162,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
+		this._containerElement = container;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-picker-slot-mobile-config'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
@@ -221,19 +223,24 @@ class MobileChatInputConfigPicker extends Disposable {
 	}
 
 	private _updateTrigger(): void {
-		if (!this._slotElement || !this._triggerElement) {
+		if (!this._slotElement || !this._triggerElement || !this._containerElement) {
 			return;
 		}
 
 		const ctx = this._getContext();
 		// Hide the chip when there's nothing to pick (no mode AND no
 		// models). In that state the toolbar is more compact rather than
-		// showing a no-op trigger.
+		// showing a no-op trigger. Also collapse the wrapping
+		// `.action-item` that `MenuWorkbenchToolBar` created — hiding
+		// only the inner slot leaves the wrapper occupying its
+		// `min-width` floor and produces a visible empty gap.
 		if (!ctx || (ctx.modeItems.length === 0 && ctx.modelItems.length === 0)) {
 			this._slotElement.style.display = 'none';
+			this._containerElement.style.display = 'none';
 			return;
 		}
 		this._slotElement.style.display = '';
+		this._containerElement.style.display = '';
 
 		// Auto-resolve the model: if the session has no explicit model
 		// selection yet, push the remembered model (or first available)
@@ -278,6 +285,12 @@ class MobileChatInputConfigPicker extends Disposable {
 			"Pick Mode and Model, {0}",
 			ariaParts.join(', '),
 		);
+
+		// Sheet's mode row writes through `setSessionConfigValue`, so
+		// disable the chip while a resolve is in flight.
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
+		this._slotElement.classList.toggle('disabled', isResolving);
+		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
 	/**
@@ -307,13 +320,20 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!this._triggerElement) {
 			return;
 		}
+		// Sheet's mode row writes through `setSessionConfigValue`; the
+		// chip retains its tap target while visually disabled, so
+		// guard explicitly.
+		const ctx = this._getContext();
+		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get()) {
+			return;
+		}
 		// Delegate sheet construction to the shared phone presenter so
 		// the new-session chip and the opened-chat chip render the exact
 		// same Mode + Model rows. The presenter's agent-host branch
 		// reads the active session's config + filtered models and
 		// handles the writes (provider mode/model + shared storage key).
 		const trigger = this._triggerElement;
-		const beforeCtx = this._getContext();
+		const beforeCtx = ctx;
 		const beforeMode = beforeCtx?.currentMode;
 		const beforeModeItem = beforeCtx?.modeItems.find(i => i.value === beforeMode);
 		const beforeModelId = beforeCtx?.currentModelId;

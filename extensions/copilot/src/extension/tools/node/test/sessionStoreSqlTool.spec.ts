@@ -480,12 +480,30 @@ describe('SessionStoreSqlTool', () => {
 
 		it('chronicle slash prompts reference the chronicle skill', () => {
 			const promptDir = path.join(copilotRoot, 'assets', 'prompts');
-			const prompts = ['chronicle-tips.prompt.md', 'chronicle-standup.prompt.md', 'chronicle-search.prompt.md'];
+			const prompts = ['chronicle-tips.prompt.md', 'chronicle-cost-tips.prompt.md', 'chronicle-standup.prompt.md', 'chronicle-search.prompt.md'];
 			const missing = prompts.filter(name => {
 				const body = fs.readFileSync(path.join(promptDir, name), 'utf-8');
 				return !/\*\*chronicle\*\* skill/.test(body);
 			});
 			expect(missing).toEqual([]);
+		});
+
+		it('chronicle SKILL.md Cost Tips section carries required anchors', () => {
+			const skill = fs.readFileSync(
+				path.join(copilotRoot, 'assets', 'prompts', 'skills', 'chronicle', 'SKILL.md'),
+				'utf-8',
+			);
+			const required = [
+				'### Cost Tips',
+				'usage_input_tokens', 'usage_output_tokens', 'usage_model',
+				'agent_name',
+				`'VS Code Chat'`,
+				`'GitHub Copilot Chat'`,
+				'assistant.usage',
+				'local SQLite',
+				'chat.sessionSync.enabled',
+			];
+			expect(required.filter(a => !skill.includes(a))).toEqual([]);
 		});
 	});
 });

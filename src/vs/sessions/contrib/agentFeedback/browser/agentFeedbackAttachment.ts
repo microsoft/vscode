@@ -70,6 +70,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 				codeSelection: f.codeSelection,
 				diffHunks: f.diffHunks,
 				sourcePRReviewCommentId: f.sourcePRReviewCommentId,
+				replies: f.replies,
 			})),
 			value,
 		};
@@ -102,6 +103,11 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 				part += `\nDiff Hunks:\n\`\`\`diff\n${item.diffHunks}\n\`\`\``;
 			}
 			part += `\nComment: ${item.text}`;
+			if (item.replies?.length) {
+				for (const reply of item.replies) {
+					part += `\nReply: ${reply}`;
+				}
+			}
 			parts.push(part);
 		}
 

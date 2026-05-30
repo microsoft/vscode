@@ -556,6 +556,7 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
+		aggressivenessLevel?: AggressivenessLevel;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -592,7 +593,7 @@ describe('getUserPrompt', () => {
 			currentDocLines,
 			'<area>some code</area>',
 			undefined,
-			AggressivenessLevel.Medium,
+			opts.aggressivenessLevel ?? AggressivenessLevel.Medium,
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
@@ -702,6 +703,67 @@ describe('getUserPrompt', () => {
 
 		// No line number prefix — cursor line starts directly with content
 		expect(prompt).toContain(PromptTags.CURSOR_LOCATION.start + '\n' + '  const ' + PromptTags.CURSOR + 'x = 1;' + '\n' + PromptTags.CURSOR_LOCATION.end);
+	});
+
+	describe('Xtab275AggressivenessHighLow', () => {
+		test('medium level does not include aggressive tag', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.Medium,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('Do not skip any lines. Do not be lazy.');
+			expect(prompt).not.toContain('<|aggressive|>');
+			expect(prompt).not.toContain('<|/aggressive|>');
+		});
+
+		test('high level includes aggressive tag with high', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.High,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('<|aggressive|>high<|/aggressive|>');
+		});
+
+		test('low level includes aggressive tag with low', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.Low,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('<|aggressive|>low<|/aggressive|>');
+		});
+
+		test('high level includes xtab275 base postscript text', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.High,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('Do not skip any lines. Do not be lazy.');
+		});
+	});
+
+	describe('Xtab275Aggressiveness', () => {
+		test('medium level includes aggressive tag (unlike HighLow variant)', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275Aggressiveness,
+				aggressivenessLevel: AggressivenessLevel.Medium,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('<|aggressive|>medium<|/aggressive|>');
+		});
 	});
 });
 

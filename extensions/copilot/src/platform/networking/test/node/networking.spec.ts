@@ -73,4 +73,32 @@ suite('Networking test Suite', function () {
 		assert.strictEqual(headerBuffer!['VScode-MachineId'], 'test-machine');
 		assert.strictEqual(headerBuffer!['Editor-Version'], `vscode/test-version`);
 	});
+
+	test('sets Authorization header when secretKey is provided', async function () {
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, new StaticFetcherService());
+		const accessor = testingServiceCollection.createTestingAccessor();
+		await accessor.get(IInstantiationService).invokeFunction(postRequest, {
+			endpointOrUrl: { type: RequestType.Models },
+			secretKey: 'abc',
+			intent: 'test',
+			requestId: 'id',
+		});
+
+		assert.strictEqual(headerBuffer!['Authorization'], 'Bearer abc');
+	});
+
+	test('omits Authorization header when secretKey is undefined', async function () {
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, new StaticFetcherService());
+		const accessor = testingServiceCollection.createTestingAccessor();
+		await accessor.get(IInstantiationService).invokeFunction(postRequest, {
+			endpointOrUrl: { type: RequestType.Models },
+			secretKey: undefined,
+			intent: 'test',
+			requestId: 'id',
+		});
+
+		assert.strictEqual('Authorization' in headerBuffer!, false);
+	});
 });

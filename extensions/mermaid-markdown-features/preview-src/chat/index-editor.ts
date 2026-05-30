@@ -13,7 +13,7 @@ initializeMermaidWebview(vscode, { defaultView: 'fit' }).then(panZoomHandler => 
 		return;
 	}
 
-	const stopClickForEditMode = (e: MouseEvent) => {
+	const stopClickForEditMode = (e: Event) => {
 		e.preventDefault();
 		e.stopPropagation();
 	};

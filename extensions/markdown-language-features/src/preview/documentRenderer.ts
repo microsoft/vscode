@@ -27,7 +27,7 @@ const previewStrings = {
 
 	cspAlertMessageTitle: vscode.l10n.t("Potentially unsafe or insecure content has been disabled in the Markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts"),
 
-	cspAlertMessageLabel: vscode.l10n.t("Content Disabled Security Warning")
+	cspAlertMessageLabel: vscode.l10n.t("Content Disabled Security Warning"),
 };
 
 export interface MarkdownContentProviderOutput {
@@ -44,14 +44,14 @@ export interface ImageInfo {
 export class MdDocumentRenderer {
 
 	readonly #engine: MarkdownItEngine;
-	readonly #context: vscode.ExtensionContext;
+	readonly #context: Pick<vscode.ExtensionContext, 'extensionUri'>;
 	readonly #cspArbiter: ContentSecurityPolicyArbiter;
 	readonly #contributionProvider: MarkdownContributionProvider;
 	readonly #logger: ILogger;
 
 	constructor(
 		engine: MarkdownItEngine,
-		context: vscode.ExtensionContext,
+		context: Pick<vscode.ExtensionContext, 'extensionUri'>,
 		cspArbiter: ContentSecurityPolicyArbiter,
 		contributionProvider: MarkdownContributionProvider,
 		logger: ILogger
@@ -139,7 +139,7 @@ export class MdDocumentRenderer {
 	): Promise<MarkdownContentProviderOutput> {
 		const innerChanges = lineChanges?.innerChanges;
 
-		// If there are inner changes, inject empty marker spans into the source text
+		// If there are inner changes, inject invisible marker text into the source text
 		// before rendering. The webview uses the CSS Custom Highlight API to create
 		// highlights between each marker pair, which works across HTML tag boundaries.
 		const input: vscode.TextDocument | string = innerChanges?.length
