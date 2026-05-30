@@ -12,6 +12,11 @@
 					"type": "string",
 					"description": "The path of the workspace folder inside the container."
 				},
+				"workspaceFile": {
+					"type": "string",
+					"description": "Path to a .code-workspace file to open instead of the workspaceFolder. Relative paths are resolved against the workspaceFolder.",
+					"pattern": ".*\\.code-workspace$"
+				},
 				"forwardPorts": {
 					"type": "array",
 					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
