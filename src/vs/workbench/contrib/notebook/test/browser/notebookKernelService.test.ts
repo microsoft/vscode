@@ -179,6 +179,170 @@ suite('NotebookKernelService', () => {
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);
 		}
 	});
+
+	test('REPL kernel affinity with updateKernelReplAffinity', function () {
+		const notebook = URI.parse('foo:///repl');
+		const repl = { uri: notebook, notebookType: 'repl' };
+
+		const pythonKernel = new TestNotebookKernel({ label: 'Python' });
+		pythonKernel.id = 'python-kernel';
+		pythonKernel.viewType = 'repl';
+		
+		const jupyterKernel = new TestNotebookKernel({ label: 'Jupyter' });
+		jupyterKernel.id = 'jupyter-kernel';
+		jupyterKernel.viewType = 'repl';
+		
+		disposables.add(kernelService.registerKernel(pythonKernel));
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+
+		// Initially both kernels have equal affinity
+		let info = kernelService.getMatchingKernel(repl);
+		assert.strictEqual(info.all.length, 2);
+
+		// Set REPL affinity for Python kernel to be preferred for all REPLs
+		kernelService.updateKernelReplAffinity(pythonKernel, { notebookType: 'repl' }, 2); // Preferred
+
+		// Python kernel should now be first (highest affinity)
+		info = kernelService.getMatchingKernel(repl);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], pythonKernel);
+		assert.strictEqual(info.all[1], jupyterKernel);
+
+		// Remove REPL affinity for Python kernel
+		kernelService.updateKernelReplAffinity(pythonKernel, { notebookType: 'repl' }, undefined);
+
+		// Now both should have default affinity again, ordered by label
+		info = kernelService.getMatchingKernel(repl);
+		assert.strictEqual(info.all.length, 2);
+		// Order should be by label (Jupyter < Python alphabetically)
+		assert.strictEqual(info.all[0], jupyterKernel);
+		assert.strictEqual(info.all[1], pythonKernel);
+	});
+
+	test('REPL kernel affinity with language-specific selector', function () {
+		const notebook = URI.parse('foo:///python-repl');
+		// Create a REPL with Python language metadata
+		const pythonRepl = { 
+			uri: notebook, 
+			notebookType: 'repl',
+			metadata: { language_info: { name: 'python' } }
+		};
+
+		const pythonKernel = new TestNotebookKernel({ label: 'Python' });
+		pythonKernel.id = 'python-kernel';
+		pythonKernel.viewType = 'repl';
+		
+		const jupyterKernel = new TestNotebookKernel({ label: 'Jupyter' });
+		jupyterKernel.id = 'jupyter-kernel';
+		jupyterKernel.viewType = 'repl';
+		
+		disposables.add(kernelService.registerKernel(pythonKernel));
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+
+		// Set language-specific affinity: Python kernel preferred for Python language
+		kernelService.updateKernelReplAffinity(pythonKernel, { language: 'python', notebookType: 'repl' }, 2);
+		
+		// Set generic REPL affinity: Jupyter kernel preferred for all REPLs
+		kernelService.updateKernelReplAffinity(jupyterKernel, { notebookType: 'repl' }, 2);
+
+		// For Python REPL, language-specific affinity should win
+		let info = kernelService.getMatchingKernel(pythonRepl);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], pythonKernel); // Python kernel wins due to language-specific affinity
+
+		// For a generic REPL without language metadata, generic affinity should apply
+		const genericRepl = { uri: URI.parse('foo:///generic-repl'), notebookType: 'repl' };
+		info = kernelService.getMatchingKernel(genericRepl);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], jupyterKernel); // Jupyter kernel wins due to generic REPL affinity
+	});
+
+	test('REPL affinity does not affect non-REPL notebooks', function () {
+		const notebook = URI.parse('foo:///regular');
+		const regular = { uri: notebook, notebookType: 'jupyter' };
+
+		const kernel1 = new TestNotebookKernel({ label: 'Kernel1' });
+		kernel1.id = 'kernel1';
+		kernel1.viewType = 'jupyter';
+		
+		const kernel2 = new TestNotebookKernel({ label: 'Kernel2' });
+		kernel2.id = 'kernel2';
+		kernel2.viewType = 'jupyter';
+		
+		disposables.add(kernelService.registerKernel(kernel1));
+		disposables.add(kernelService.registerKernel(kernel2));
+
+		// Set REPL affinity (should not affect regular notebooks)
+		kernelService.updateKernelReplAffinity(kernel1, { notebookType: 'repl' }, 2);
+
+		// Regular notebook should not be affected by REPL affinity
+		let info = kernelService.getMatchingKernel(regular);
+		assert.strictEqual(info.all.length, 2);
+		// Both should have equal default affinity, so order should be by label
+		assert.strictEqual(info.all[0].label <= info.all[1].label, true);
+
+		// Setting notebook affinity should still work
+		kernelService.updateKernelNotebookAffinity(kernel2, notebook, 2);
+		info = kernelService.getMatchingKernel(regular);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], kernel2); // Higher notebook affinity
+		assert.strictEqual(info.all[1], kernel1);
+	});
+
+	test('REPL kernel affinity works for any notebook type (not just repl)', function () {
+		// Test that REPL affinity is not restricted to 'repl' notebook type
+		const notebook = URI.parse('foo:///interactive-python');
+		const interactiveNotebook = { uri: notebook, notebookType: 'interactive', metadata: { language_info: { name: 'python' } } };
+
+		const pythonKernel = new TestNotebookKernel({ label: 'Python' });
+		pythonKernel.id = 'python-kernel';
+		pythonKernel.viewType = 'interactive';
+		
+		const generalKernel = new TestNotebookKernel({ label: 'General' });
+		generalKernel.id = 'general-kernel';
+		generalKernel.viewType = 'interactive';
+		
+		disposables.add(kernelService.registerKernel(pythonKernel));
+		disposables.add(kernelService.registerKernel(generalKernel));
+
+		// Set language-specific affinity for Python kernel on any notebook type
+		kernelService.updateKernelReplAffinity(pythonKernel, { language: 'python' }, 2);
+
+		// Python kernel should be preferred for Python interactive notebook
+		let info = kernelService.getMatchingKernel(interactiveNotebook);
+		assert.strictEqual(info.all.length, 2);
+		assert.strictEqual(info.all[0], pythonKernel); // Should be first due to affinity
+	});
+
+	test('REPL kernel affinity cleared for untitled documents', function () {
+		const untitledNotebook = URI.parse('untitled:///new-notebook');
+		const untitledREPL = { uri: untitledNotebook, notebookType: 'jupyter-notebook' };
+
+		const kernel = new TestNotebookKernel({ label: 'Test Kernel' });
+		kernel.id = 'test-kernel';
+		kernel.viewType = 'jupyter-notebook';
+		
+		disposables.add(kernelService.registerKernel(kernel));
+
+		// Set REPL affinity for the kernel
+		kernelService.updateKernelReplAffinity(kernel, { notebookType: 'jupyter-notebook' }, 2);
+		
+		// Verify affinity is set initially
+		let info = kernelService.getMatchingKernel(untitledREPL);
+		assert.strictEqual(info.all.length, 1);
+		assert.strictEqual(info.suggestions.length, 1); // Should be suggested due to affinity
+
+		// Select kernel for untitled document - this should clear affinity
+		kernelService.selectKernelForNotebook(kernel, untitledREPL);
+
+		// Create another similar REPL to test if affinity was cleared
+		const anotherREPL = { uri: URI.parse('file:///another-repl'), notebookType: 'jupyter-notebook' };
+		
+		// If affinity was cleared, this kernel should not have preferred status
+		info = kernelService.getMatchingKernel(anotherREPL);
+		assert.strictEqual(info.all.length, 1);
+		assert.strictEqual(info.suggestions.length, 0); // No suggestions since affinity was cleared
+	});
 });
 
 class TestNotebookKernel implements INotebookKernel {
