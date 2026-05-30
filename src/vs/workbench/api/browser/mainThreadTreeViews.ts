@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from '../common/extHost.protocol.js';
-import { ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError, ITreeViewDataProvider } from '../../common/views.js';
+import { ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError, ITreeViewDataProvider, ICustomViewDescriptor } from '../../common/views.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { distinct } from '../../../base/common/arrays.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -31,6 +31,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	private readonly _dataProviders: DisposableMap<string, { dataProvider: TreeViewDataProvider; dispose: () => void }> = this._register(new DisposableMap<string, { dataProvider: TreeViewDataProvider; dispose: () => void }>());
 	private readonly _dndControllers = new Map<string, TreeViewDragAndDropController>();
 
+	private _lastFocusedTreeView: string | undefined;
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -41,6 +43,10 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
+
+		this._register(this.viewsService.onDidChangeFocusedView(() => this.updateFocusedTreeView()));
+
+		this.updateFocusedTreeView();
 	}
 
 	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean }): Promise<void> {
@@ -65,6 +71,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 				}
 				viewer.dataProvider = dataProvider;
 				this.registerListeners(treeViewId, viewer, disposables);
+				this.updateFocusedTreeView();
 				this._proxy.$setVisible(treeViewId, viewer.visible);
 			} else {
 				this.notificationService.error('No view is registered with id: ' + treeViewId);
@@ -140,6 +147,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 
 		this._dataProviders.deleteAndDispose(treeViewId);
+		this.updateFocusedTreeView();
 	}
 
 	$logResolveTreeNodeFailure(extensionId: string): void {
@@ -154,6 +162,25 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this.telemetryService.publicLog2<TreeViewResolveFailureEvent, TreeViewResolveFailureClassification>('treeView.resolveFailure', {
 			extensionId
 		});
+	}
+
+	private updateFocusedTreeView(): void {
+		let next: string | undefined;
+
+		const focusedView = this.viewsService.getFocusedView();
+
+		if (focusedView) {
+			const customView = focusedView as Partial<ICustomViewDescriptor>;
+
+			if (customView.treeView && customView.extensionId) {
+				next = focusedView.id;
+			}
+		}
+
+		if (next !== this._lastFocusedTreeView) {
+			this._lastFocusedTreeView = next;
+			this._proxy.$setFocusedTreeView(next);
+		}
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {

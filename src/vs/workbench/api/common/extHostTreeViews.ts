@@ -54,6 +54,14 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 	private _treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
 	private _treeDragAndDropService: ITreeViewsDnDService<vscode.DataTransfer> = new TreeViewsDnDService<vscode.DataTransfer>();
 
+	private _focusedTreeView: string | undefined;
+	get focusedTreeView(): string | undefined {
+		return this._focusedTreeView;
+	}
+
+	private readonly _onDidChangeFocusedTreeView = new Emitter<string | undefined>();
+	readonly onDidChangeFocusedTreeView = this._onDidChangeFocusedTreeView.event;
+
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
 		private _commands: ExtHostCommands,
@@ -162,6 +170,16 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		};
 		this._register(view);
 		return view as vscode.TreeView<T>;
+	}
+
+	$setFocusedTreeView(treeViewId: string | undefined): void {
+		if (this._focusedTreeView === treeViewId) {
+			return;
+		}
+
+		this._focusedTreeView = treeViewId;
+
+		this._onDidChangeFocusedTreeView.fire(treeViewId);
 	}
 
 	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(readonly (number | ITreeItem)[])[] | undefined> {

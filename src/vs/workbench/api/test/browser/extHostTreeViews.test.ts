@@ -722,6 +722,45 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
+	test('updates focusedTreeView', () => {
+		assert.strictEqual(testObject.focusedTreeView, undefined);
+		testObject.$setFocusedTreeView('testNodeTreeProvider');
+		assert.strictEqual(testObject.focusedTreeView, 'testNodeTreeProvider');
+		testObject.$setFocusedTreeView(undefined);
+		assert.strictEqual(testObject.focusedTreeView, undefined);
+	});
+
+	test('fires onDidChangeFocusedTreeView', () => {
+		const events: Array<string | undefined> = [];
+		store.add(testObject.onDidChangeFocusedTreeView(viewId => {
+			events.push(viewId);
+		}));
+		const toFire: (string | undefined)[] = [
+			'testNodeTreeProvider1',
+			'testNodeTreeProvider2',
+			undefined,
+			'testNodeTreeProvider3'
+		];
+		for (const tf of toFire) {
+			testObject.$setFocusedTreeView(tf);
+		}
+		assert.deepStrictEqual(events, toFire);
+	});
+
+	test('does not fire onDidChangeFocusedTreeView for same value', () => {
+		let callCount = 0;
+		store.add(testObject.onDidChangeFocusedTreeView(() => {
+			callCount++;
+		}));
+		testObject.$setFocusedTreeView('testNodeTreeProvider');
+		testObject.$setFocusedTreeView('testNodeTreeProvider');
+		testObject.$setFocusedTreeView(undefined);
+		testObject.$setFocusedTreeView(undefined);
+		testObject.$setFocusedTreeView('testNodeTreeProvider');
+		testObject.$setFocusedTreeView('testNodeTreeProvider');
+		assert.strictEqual(callCount, 3);
+	});
+
 	function loadCompleteTree(treeId: string, element?: string): Promise<null> {
 		return testObject.$getChildren(treeId, element ? [element] : undefined)
 			.then(elements => {
