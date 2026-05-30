@@ -108,6 +108,15 @@ suite('AgentPluginManager', () => {
 			assert.deepStrictEqual(progressCalls.map(call => call.load?.kind), ['loaded']);
 		});
 
+		test('returns error status when client is not connected', async () => {
+			const ref = makeRef('disconnected-client', 'n1');
+			const results = await manager.syncCustomizations('disconnected-client', [ref]);
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].customization.load?.kind, 'error');
+			assert.strictEqual(results[0].customization.load?.message, 'Client is not connected');
+			assert.strictEqual(results[0].pluginDir, undefined);
+		});
+
 		test('skips copy when nonce matches', async () => {
 			await seedPluginDir('cached', { 'index.js': 'v1' });
 			const ref = makeRef('cached', 'nonce-abc');

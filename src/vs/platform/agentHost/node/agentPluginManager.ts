@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
+import { IFileService, FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type Customization } from '../common/state/sessionState.js';
@@ -113,7 +113,16 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 		this._logService.info(`[AgentPluginManager] Syncing plugin: ${ref.uri} → ${destDir.toString()}`);
 
-		await this._fileService.copy(pluginUri, destDir, true);
+		try {
+			await this._fileService.copy(pluginUri, destDir, true);
+		} catch (err) {
+			// Gracefully handle connection errors when the client is no longer connected
+			if (err instanceof Error && toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.Unavailable) {
+				this._logService.warn(`[AgentPluginManager] Client ${clientId} is not connected, cannot sync plugin ${ref.uri}`);
+				throw new Error(`Client is not connected`, { cause: err });
+			}
+			throw err;
+		}
 
 		if (ref.nonce) {
 			this._cachedNonces.set(ref.uri, ref.nonce);
