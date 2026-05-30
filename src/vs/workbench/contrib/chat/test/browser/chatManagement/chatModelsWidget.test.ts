@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
-import { getModelHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
+import { Separator } from '../../../../../../base/common/actions.js';
+import { ILanguageModelChatMetadata, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
+import { buildAddModelsDropdownActions, getModelHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
 import { ILanguageModel } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
@@ -34,6 +35,10 @@ function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILang
 			group: { name: 'GitHub Copilot' }
 		},
 	} as ILanguageModel;
+}
+
+function createVendor(vendor: string, displayName: string): ILanguageModelProviderDescriptor {
+	return { vendor, displayName, isDefault: false } as ILanguageModelProviderDescriptor;
 }
 
 suite('ChatModelsWidget', () => {
@@ -131,4 +136,123 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('0 credits per 1M tokens'));
 		});
 	});
+
+	suite('buildAddModelsDropdownActions', () => {
+
+		const INSTALL_ACTION_ID = 'workbench.models.installProviderExtensions';
+
+		test('returns no actions when adding models is not supported', () => {
+			const vendors = [createVendor('acme', 'Acme')];
+			let vendorRunCount = 0;
+			let discoveryRunCount = 0;
+
+			const actions = buildAddModelsDropdownActions(
+				vendors,
+				false,
+				() => { vendorRunCount++; },
+				() => { discoveryRunCount++; }
+			);
+
+			assert.deepStrictEqual({
+				ids: actions.map(a => a.id),
+				vendorRunCount,
+				discoveryRunCount,
+			}, {
+				ids: [],
+				vendorRunCount: 0,
+				discoveryRunCount: 0,
+			});
+		});
+
+		test('returns configurable vendor actions before the install/discovery action', async () => {
+			const vendors = [
+				createVendor('zebra', 'Zebra'),
+				createVendor('acme', 'Acme'),
+				createVendor('customoai', 'OpenAI Compatible (Deprecated)'),
+				createVendor('customendpoint', 'Custom Endpoint'),
+			];
+			const ran: string[] = [];
+			let discoveryRunCount = 0;
+
+			const actions = buildAddModelsDropdownActions(
+				vendors,
+				true,
+				v => { ran.push(v.vendor); },
+				() => { discoveryRunCount++; }
+			);
+
+			// Execute every non-separator action to capture which path each one runs.
+			for (const action of actions) {
+				if (!(action instanceof Separator)) {
+					await action.run();
+				}
+			}
+
+			assert.deepStrictEqual({
+				shape: actions.map(a => a instanceof Separator ? 'separator' : a.id),
+				ran,
+				discoveryRunCount,
+			}, {
+				shape: ['enable-acme', 'enable-zebra', 'enable-customoai', 'separator', 'enable-customendpoint', 'separator', INSTALL_ACTION_ID],
+				ran: ['acme', 'zebra', 'customoai', 'customendpoint'],
+				discoveryRunCount: 1,
+			});
+		});
+
+		test('with no configurable vendors: only the install/discovery action is returned', async () => {
+			let discoveryRunCount = 0;
+
+			const actions = buildAddModelsDropdownActions(
+				[],
+				true,
+				() => assert.fail('vendor run should not be called'),
+				() => { discoveryRunCount++; }
+			);
+			for (const action of actions) {
+				if (!(action instanceof Separator)) {
+					await action.run();
+				}
+			}
+
+			assert.deepStrictEqual({
+				shape: actions.map(a => a instanceof Separator ? 'separator' : a.id),
+				discoveryRunCount,
+			}, {
+				shape: [INSTALL_ACTION_ID],
+				discoveryRunCount: 1,
+			});
+		});
+
+		test('with configurable vendors: vendor actions come first followed by a separator and the install/discovery action', async () => {
+			const vendors = [
+				createVendor('acme', 'Acme'),
+				createVendor('customendpoint', 'Custom Endpoint'),
+			];
+			const ran: string[] = [];
+			let discoveryRunCount = 0;
+
+			const actions = buildAddModelsDropdownActions(
+				vendors,
+				true,
+				v => { ran.push(v.vendor); },
+				() => { discoveryRunCount++; }
+			);
+			for (const action of actions) {
+				if (!(action instanceof Separator)) {
+					await action.run();
+				}
+			}
+
+			assert.deepStrictEqual({
+				shape: actions.map(a => a instanceof Separator ? 'separator' : a.id),
+				ran,
+				discoveryRunCount,
+			}, {
+				shape: ['enable-acme', 'separator', 'enable-customendpoint', 'separator', INSTALL_ACTION_ID],
+				ran: ['acme', 'customendpoint'],
+				discoveryRunCount: 1,
+			});
+		});
+	});
 });
+
