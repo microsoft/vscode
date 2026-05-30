@@ -521,6 +521,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineSuggestionItems = derivedOpts({ owner: this }, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
+		if (this.textModel.isDisposed()) { return undefined; }
 		const cursorPosition = this.primaryPosition.read(reader);
 		let inlineEdit: InlineEditItem | undefined = undefined;
 		const visibleCompletions: InlineCompletionItem[] = [];
