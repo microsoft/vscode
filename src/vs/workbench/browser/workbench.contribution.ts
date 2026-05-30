@@ -700,6 +700,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				},
 				'additionalProperties': false
 			},
+			'workbench.fontSize': {
+				'type': 'number',
+				'default': 13,
+				'minimum': 11,
+				'maximum': 16,
+				'description': localize('workbench.fontSize', "Controls the font size in pixels of the workbench UI (sidebar, tabs, status bar, etc.). Does not affect the editor. Requires a reload to update virtual-scroll views such as the file explorer."),
+				'scope': ConfigurationScope.APPLICATION
+			},
+			'workbench.fontFamily': {
+				'type': 'string',
+				'default': '',
+				'description': localize('workbench.fontFamily', "Controls the font family of the workbench UI. When set, overrides the platform default font. Leave empty to use the platform default."),
+				'scope': ConfigurationScope.APPLICATION
+			},
 			'workbench.fontAliasing': {
 				'type': 'string',
 				'enum': ['default', 'antialiased', 'none', 'auto'],
