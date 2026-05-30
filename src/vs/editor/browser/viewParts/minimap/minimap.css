@@ -49,7 +49,7 @@
 	opacity: 0;
 	transition: opacity 0.5s;
 }
-.minimap.minimap-autohide-scroll{
+.minimap.minimap-autohide-scroll {
 	pointer-events: none;
 }
 .minimap.minimap-autohide-mouseover:hover,
@@ -60,8 +60,4 @@
 
 .monaco-editor .minimap {
 	z-index: 5;
-}
-
-.monaco-editor .minimap canvas {
-	opacity: 0.9;
 }
