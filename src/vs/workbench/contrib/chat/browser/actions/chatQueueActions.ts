@@ -13,6 +13,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
+import { IChatPendingRequest } from '../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
@@ -189,7 +190,7 @@ export class ChatRemovePendingRequestAction extends Action2 {
 		const [context] = args;
 
 		// Support both toolbar context (IChatRequestViewModel) and command context (IChatRemovePendingRequestContext)
-		if (isRequestVM(context) && context.pendingKind) {
+		if (isRequestVM(context) && context.pendingKind !== undefined) {
 			chatService.removePendingRequest(context.sessionResource, context.id);
 			return;
 		}
@@ -229,7 +230,7 @@ export class ChatEditPendingRequestAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
 
-		if (!isRequestVM(context) || !context.pendingKind) {
+		if (!isRequestVM(context) || context.pendingKind === undefined) {
 			return;
 		}
 
@@ -265,7 +266,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
 
-		if (!isRequestVM(context) || !context.pendingKind) {
+		if (!isRequestVM(context) || context.pendingKind === undefined) {
 			return;
 		}
 
@@ -332,6 +333,182 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 	}
 }
 
+function toPendingRequestDescriptors(pendingRequests: readonly IChatPendingRequest[]) {
+	return pendingRequests.map(r => ({ requestId: r.request.id, kind: r.kind }));
+}
+
+function getReorderContext(accessor: ServicesAccessor, context: unknown) {
+	if (!isRequestVM(context) || context.pendingKind === undefined) {
+		return undefined;
+	}
+
+	const widgetService = accessor.get(IChatWidgetService);
+	const widget = widgetService.getWidgetBySessionResource(context.sessionResource);
+	const model = widget?.viewModel?.model;
+	if (!model) {
+		return undefined;
+	}
+
+	const pendingRequests = model.getPendingRequests();
+	const targetIndex = pendingRequests.findIndex(r => r.request.id === context.id);
+	if (targetIndex === -1) {
+		return undefined;
+	}
+
+	return {
+		chatService: accessor.get(IChatService),
+		sessionResource: context.sessionResource,
+		pendingRequests,
+		targetIndex
+	};
+}
+
+export class ChatMovePendingRequestUpAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.movePendingRequestUp';
+
+	constructor() {
+		super({
+			id: ChatMovePendingRequestUpAction.ID,
+			title: localize2('chat.movePendingRequestUp', "Move Up"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [{
+				id: MenuId.ChatContext,
+				group: 'queue_priority',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPendingRequest,
+					ContextKeyExpr.not(ChatContextKeys.isFirstPendingRequest.key)
+				)
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const ctx = getReorderContext(accessor, args[0]);
+		if (!ctx || ctx.targetIndex <= 0) {
+			return;
+		}
+
+		const reordered = toPendingRequestDescriptors(ctx.pendingRequests);
+		const temp = reordered[ctx.targetIndex];
+		reordered[ctx.targetIndex] = reordered[ctx.targetIndex - 1];
+		reordered[ctx.targetIndex - 1] = temp;
+
+		ctx.chatService.setPendingRequests(ctx.sessionResource, reordered);
+	}
+}
+
+export class ChatMovePendingRequestDownAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.movePendingRequestDown';
+
+	constructor() {
+		super({
+			id: ChatMovePendingRequestDownAction.ID,
+			title: localize2('chat.movePendingRequestDown', "Move Down"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [{
+				id: MenuId.ChatContext,
+				group: 'queue_priority',
+				order: 3,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPendingRequest,
+					ContextKeyExpr.not(ChatContextKeys.isLastPendingRequest.key)
+				)
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const ctx = getReorderContext(accessor, args[0]);
+		if (!ctx || ctx.targetIndex >= ctx.pendingRequests.length - 1) {
+			return;
+		}
+
+		const reordered = toPendingRequestDescriptors(ctx.pendingRequests);
+		const temp = reordered[ctx.targetIndex];
+		reordered[ctx.targetIndex] = reordered[ctx.targetIndex + 1];
+		reordered[ctx.targetIndex + 1] = temp;
+
+		ctx.chatService.setPendingRequests(ctx.sessionResource, reordered);
+	}
+}
+
+export class ChatMovePendingRequestToTopAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.movePendingRequestToTop';
+
+	constructor() {
+		super({
+			id: ChatMovePendingRequestToTopAction.ID,
+			title: localize2('chat.movePendingRequestToTop', "Move to Top"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [{
+				id: MenuId.ChatContext,
+				group: 'queue_priority',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPendingRequest,
+					ContextKeyExpr.not(ChatContextKeys.isFirstPendingRequest.key)
+				)
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const ctx = getReorderContext(accessor, args[0]);
+		if (!ctx || ctx.targetIndex <= 0) {
+			return;
+		}
+
+		const targetRequest = ctx.pendingRequests[ctx.targetIndex];
+		const reordered = [
+			{ requestId: targetRequest.request.id, kind: targetRequest.kind },
+			...toPendingRequestDescriptors(ctx.pendingRequests).filter((_, i) => i !== ctx.targetIndex)
+		];
+
+		ctx.chatService.setPendingRequests(ctx.sessionResource, reordered);
+	}
+}
+
+export class ChatMovePendingRequestToBottomAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.movePendingRequestToBottom';
+
+	constructor() {
+		super({
+			id: ChatMovePendingRequestToBottomAction.ID,
+			title: localize2('chat.movePendingRequestToBottom', "Move to Bottom"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [{
+				id: MenuId.ChatContext,
+				group: 'queue_priority',
+				order: 4,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isPendingRequest,
+					ContextKeyExpr.not(ChatContextKeys.isLastPendingRequest.key)
+				)
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const ctx = getReorderContext(accessor, args[0]);
+		if (!ctx || ctx.targetIndex >= ctx.pendingRequests.length - 1) {
+			return;
+		}
+
+		const targetRequest = ctx.pendingRequests[ctx.targetIndex];
+		const reordered = [
+			...toPendingRequestDescriptors(ctx.pendingRequests).filter((_, i) => i !== ctx.targetIndex),
+			{ requestId: targetRequest.request.id, kind: targetRequest.kind }
+		];
+
+		ctx.chatService.setPendingRequests(ctx.sessionResource, reordered);
+	}
+}
+
 export function registerChatQueueActions(): void {
 	registerAction2(ChatQueueMessageAction);
 	registerAction2(ChatSteerWithMessageAction);
@@ -339,6 +516,10 @@ export function registerChatQueueActions(): void {
 	registerAction2(ChatEditPendingRequestAction);
 	registerAction2(ChatSendPendingImmediatelyAction);
 	registerAction2(ChatRemoveAllPendingRequestsAction);
+	registerAction2(ChatMovePendingRequestUpAction);
+	registerAction2(ChatMovePendingRequestDownAction);
+	registerAction2(ChatMovePendingRequestToTopAction);
+	registerAction2(ChatMovePendingRequestToBottomAction);
 
 	// Register the queue submenu in the execute toolbar.
 	// The custom ChatQueuePickerActionItem (registered via IActionViewItemService)
