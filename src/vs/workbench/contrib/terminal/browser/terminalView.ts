@@ -503,6 +503,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				dom.reset(label, '');
 				return;
 			}
+			this.element?.classList.add('single-terminal-tab-container');
 			label.classList.add('single-terminal-tab');
 			let colorStyle = '';
 			const primaryStatus = instance.statusList.primary;
