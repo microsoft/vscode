@@ -249,17 +249,20 @@ export class ChatSessionContentBuilder {
 		})();
 	}
 
+	/**
+	 * Renders one Task API turn into a {@link ChatResponseTurn2}. Three rules,
+	 * shared with the live {@link TaskTurnStreamer} so post-stream `refresh()`
+	 * is idempotent:
+	 *
+	 * 1. Render tool cards eagerly from `assistant.message.toolRequests` (deduped
+	 *    by `toolCallId`); `tool.execution_complete` is unreliable for synthesised
+	 *    setup ops like `run_setup`.
+	 * 2. Skip `tool.execution_complete` for tools already rendered by rule 1.
+	 * 3. Render `assistant.message.content` only for the final reply (last message
+	 *    with content, no `parentToolCallId`, no `toolRequests`); intermediate
+	 *    messages carry narration that would clutter the view.
+	 */
 	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined): ChatResponseTurn2[] {
-		// The agent emits multiple `assistant.message` events per logical message (progressive
-		// snapshots) and many of them carry `toolRequests` alongside intermediate narration.
-		// We mirror the live streamer:
-		//   - Render every `toolRequests` entry eagerly (deduped by toolCallId), because the
-		//     matching `tool.execution_complete` doesn't always fire for agent-host-synthesised
-		//     setup ops like `run_setup`. Without this, opening a settled task drops tool cards.
-		//   - Render `content` only for the final assistant reply of the turn — i.e. a message
-		//     with content, no `parentToolCallId`, and no `toolRequests`. Content that arrives
-		//     alongside tool requests is intermediate narration (e.g. raw diffs the model dumps
-		//     before an `edit`) and would render as ugly plain text between tool cards.
 		const lastFinalMessage = findLast(events, e =>
 			!e.dismissed
 			&& e.type === 'assistant.message'
@@ -294,16 +297,12 @@ export class ChatSessionContentBuilder {
 					continue;
 				}
 			} else if (event.type === 'tool.execution_complete') {
-				// Skip completion events for tools we've already eager-rendered, so they don't
-				// double-render as a second card.
 				const toolCallId = (event.data as { toolCallId?: string }).toolCallId;
 				if (toolCallId && renderedToolCallIds.has(toolCallId)) {
 					continue;
 				}
 			}
 
-			// CMC Task API uses `custom_agent.*`; the SDK helper expects `subagent.*`.
-			// Payload shapes match per the CMC OpenAPI spec, so a name swap is enough.
 			appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
 		}
 		flushPendingAssistantMessage(ctx);
