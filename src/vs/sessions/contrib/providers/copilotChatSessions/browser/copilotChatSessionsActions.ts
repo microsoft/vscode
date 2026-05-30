@@ -16,6 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { CachedLanguageModelsKey } from '../../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -352,7 +353,7 @@ export class SessionModelPicker extends Disposable {
 					});
 				}
 			},
-			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
+			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService, this._storageService),
 			useGroupedModelPicker: () => true,
 			showManageModelsAction: () => shouldShowSessionManageModelsAction(this._sessionsManagementService),
 			showUnavailableFeatured: () => false,
@@ -395,7 +396,7 @@ export class SessionModelPicker extends Disposable {
 			this._lastSessionType = sessionType;
 		}
 
-		const models = getAvailableModels(this._languageModelsService, this._sessionsManagementService);
+		const models = getAvailableModels(this._languageModelsService, this._sessionsManagementService, this._storageService);
 		this._modelPicker.setEnabled(models.length > 0);
 		if (models.length === 0) {
 			return;
@@ -423,21 +424,36 @@ export class SessionModelPicker extends Disposable {
 				return;
 			}
 
+			if (sessionModelId && !sessionModel) {
+				this._currentModel.set(undefined, undefined);
+				return;
+			}
+
 			if (!current) {
-				this._delegate.setModel(sessionModel ?? this._getFallbackModel(sessionType, models));
-				this._lastPushedSessionId = session?.sessionId;
-			} else if (session && isNewSession && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
+				if (sessionModel) {
+					this._delegate.setModel(sessionModel);
+					this._lastPushedSessionId = session?.sessionId;
+				} else if (!sessionModelId) {
+					this._delegate.setModel(this._getFallbackModel(sessionType, models));
+					this._lastPushedSessionId = session?.sessionId;
+				}
+				return;
+			} else if (session && isNewSession && !sessionModelId && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
 				// Active session changed (e.g. user switched repository) but the
 				// previously selected model is still available. Re-push it so the
 				// new session's provider receives setModel — otherwise the request
 				// would be sent with the default model even though the picker UI
 				// still shows the user's selection. See #313385.
 				//
+				// If the new session already has a model id, do not replace it with
+				// the picker state while the corresponding model is still loading.
+				// That session model is authoritative for restored Copilot CLI state.
+				//
 				// Gated on sessionId so unrelated re-invocations of _initModel
 				// (e.g. from onDidChangeLanguageModels) don't redundantly write
 				// storage and dispatch provider.setModel for the same session.
 				this._delegate.setModel(current);
-				this._lastPushedSessionId = session.sessionId;
+				this._lastPushedSessionId = session?.sessionId;
 			}
 		} finally {
 			this._settingModelInternally = false;
@@ -468,17 +484,27 @@ export class SessionModelPicker extends Disposable {
 export function getAvailableModels(
 	languageModelsService: ILanguageModelsService,
 	sessionsManagementService: ISessionsManagementService,
+	storageService?: IStorageService,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	const session = sessionsManagementService.activeSession.get();
 	if (!session) {
 		return [];
 	}
-	const allModels = languageModelsService.getLanguageModelIds()
+	const liveModels = languageModelsService.getLanguageModelIds()
 		.map(id => {
 			const metadata = languageModelsService.lookupLanguageModel(id);
 			return metadata ? { metadata, identifier: id } : undefined;
 		})
 		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+	const cachedModels = storageService?.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []) ?? [];
+	const modelsByIdentifier = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+	for (const model of cachedModels) {
+		modelsByIdentifier.set(model.identifier, model);
+	}
+	for (const model of liveModels) {
+		modelsByIdentifier.set(model.identifier, model);
+	}
+	const allModels = Array.from(modelsByIdentifier.values());
 
 	// For 'local' sessions (in-process VS Code chat), use general-purpose
 	// models (those without a targetChatSessionType) since no extension

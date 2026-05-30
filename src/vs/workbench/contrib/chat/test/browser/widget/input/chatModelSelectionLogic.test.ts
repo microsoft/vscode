@@ -22,6 +22,7 @@ import {
 	shouldResetOnModelListChange,
 	shouldRestoreLateArrivingModel,
 	shouldRestorePersistedModel,
+	shouldUseSessionScopedModelStorageKey,
 } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 
 /**
@@ -567,6 +568,23 @@ suite('ChatModelSelectionLogic', () => {
 				sessionType: undefined,
 			});
 			assert.strictEqual(result.action, 'apply');
+		});
+	});
+
+	suite('shouldUseSessionScopedModelStorageKey', () => {
+
+		test('uses scoped storage for contributed sessions before models load', () => {
+			assert.deepStrictEqual({
+				copilotcli: shouldUseSessionScopedModelStorageKey('copilotcli', 'local'),
+				cloud: shouldUseSessionScopedModelStorageKey('copilot-cloud-agent', 'local'),
+				local: shouldUseSessionScopedModelStorageKey('local', 'local'),
+				unknown: shouldUseSessionScopedModelStorageKey(undefined, 'local'),
+			}, {
+				copilotcli: true,
+				cloud: true,
+				local: false,
+				unknown: false,
+			});
 		});
 	});
 

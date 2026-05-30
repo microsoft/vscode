@@ -95,6 +95,8 @@ Session-level properties are derived from chats:
 - `status` is aggregated (`NeedsInput` > `InProgress` > other)
 - `isRead` is `true` only when all chats are read
 
+`IChat.modelId` is the authoritative restored model selection for a chat. When the Agents Window hosts the workbench `ChatWidget`, it seeds the widget input model from this observable so restored sessions send with the same model they display. Providers may surface either a full language-model identifier or a backend/raw model id; the host resolves raw ids to the unique session-scoped language model whose `targetChatSessionType` matches the chat resource type.
+
 The active session (`IActiveSession`) extends `ISession` with an `activeChat` observable that tracks which chat the user is viewing.
 
 ### Workspaces and Folders

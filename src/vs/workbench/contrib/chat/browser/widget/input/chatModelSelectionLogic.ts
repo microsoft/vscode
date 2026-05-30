@@ -6,6 +6,8 @@
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
+export const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
+
 /**
  * Describes the context needed for model selection decisions.
  */
@@ -138,6 +140,10 @@ export function shouldRestorePersistedModel(
 	}
 
 	return { shouldRestore: false, model };
+}
+
+export function shouldUseSessionScopedModelStorageKey(sessionType: string | undefined, localSessionType: string): boolean {
+	return !!sessionType && sessionType !== localSessionType;
 }
 
 /**

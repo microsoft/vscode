@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -17,7 +19,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { CachedLanguageModelsKey } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -26,18 +29,59 @@ import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
-export function applySessionModelToInputModel(chat: IChat, model: IChatModel, languageModelsService: ILanguageModelsService): void {
+function resolveSessionModel(chat: IChat, modelId: string, languageModelsService: ILanguageModelsService, storageService: IStorageService): ILanguageModelChatMetadataAndIdentifier | undefined {
+	const exactMetadata = languageModelsService.lookupLanguageModel(modelId);
+	if (exactMetadata) {
+		return { identifier: modelId, metadata: exactMetadata };
+	}
+
+	const sessionType = getChatSessionType(chat.resource);
+	const liveModels = languageModelsService.getLanguageModelIds()
+		.map(identifier => {
+			const metadata = languageModelsService.lookupLanguageModel(identifier);
+			return metadata ? { identifier, metadata } : undefined;
+		})
+		.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
+	const cachedModels = storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
+	const modelsByIdentifier = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+	for (const model of cachedModels) {
+		modelsByIdentifier.set(model.identifier, model);
+	}
+	for (const model of liveModels) {
+		modelsByIdentifier.set(model.identifier, model);
+	}
+	const exactCachedModel = modelsByIdentifier.get(modelId);
+	if (exactCachedModel?.metadata.targetChatSessionType === sessionType) {
+		return exactCachedModel;
+	}
+	const matches = Array.from(modelsByIdentifier.values())
+		.filter(model => model.metadata.targetChatSessionType === sessionType && model.metadata.id === modelId);
+
+	return matches.length === 1 ? matches[0] : undefined;
+}
+
+export function applySessionModelToInputModel(chat: IChat, model: IChatModel, languageModelsService: ILanguageModelsService, storageService: IStorageService): boolean {
 	const modelId = chat.modelId.get();
-	if (!modelId || model.inputModel.state.get()?.selectedModel?.identifier === modelId) {
-		return;
+	if (!modelId) {
+		return true;
 	}
 
-	const metadata = languageModelsService.lookupLanguageModel(modelId);
-	if (!metadata) {
-		return;
+	const selectedModel = resolveSessionModel(chat, modelId, languageModelsService, storageService);
+	if (!selectedModel) {
+		return false;
 	}
 
-	model.inputModel.setState({ selectedModel: { identifier: modelId, metadata } });
+	if (model.inputModel.state.get()?.selectedModel?.identifier === selectedModel.identifier) {
+		return true;
+	}
+
+	model.inputModel.setState({ selectedModel });
+	return true;
+}
+
+function getSessionModelForInput(chat: IChat, languageModelsService: ILanguageModelsService, storageService: IStorageService): ILanguageModelChatMetadataAndIdentifier | undefined {
+	const modelId = chat.modelId.get();
+	return modelId ? resolveSessionModel(chat, modelId, languageModelsService, storageService) : undefined;
 }
 
 /**
@@ -110,6 +154,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly _sessionModelSyncDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -126,6 +171,7 @@ export class ChatView extends AbstractChatView {
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -181,6 +227,9 @@ export class ChatView extends AbstractChatView {
 
 		// Skip loading if we're already showing this chat
 		if (isEqual(this._currentChatResource, resource)) {
+			if (this._modelRef.value) {
+				this._applySessionModelToWidget(chat, this._modelRef.value.object);
+			}
 			return;
 		}
 
@@ -189,6 +238,7 @@ export class ChatView extends AbstractChatView {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
+		this._sessionModelSyncDisposables.clear();
 		const token = cts.token;
 
 		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
@@ -198,8 +248,23 @@ export class ChatView extends AbstractChatView {
 			}
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
-			applySessionModelToInputModel(chat, ref.object, this.languageModelsService);
+			const sessionModelSyncDisposables = new DisposableStore();
+			this._sessionModelSyncDisposables.value = sessionModelSyncDisposables;
+			const languageModelSyncDisposable = sessionModelSyncDisposables.add(new MutableDisposable());
+			const syncSessionModel = () => {
+				if (this._applySessionModelToWidget(chat, ref.object)) {
+					languageModelSyncDisposable.clear();
+				}
+			};
+			applySessionModelToInputModel(chat, ref.object, this.languageModelsService, this.storageService);
 			this._widget.setModel(ref.object);
+			sessionModelSyncDisposables.add(autorun(reader => {
+				chat.modelId.read(reader);
+				this._applySessionModelToWidget(chat, ref.object);
+			}));
+			if (!this._applySessionModelToWidget(chat, ref.object)) {
+				languageModelSyncDisposable.value = this.languageModelsService.onDidChangeLanguageModels(syncSessionModel);
+			}
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
@@ -208,6 +273,18 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+	}
+
+	private _applySessionModelToWidget(chat: IChat, model: IChatModel): boolean {
+		if (!applySessionModelToInputModel(chat, model, this.languageModelsService, this.storageService)) {
+			return false;
+		}
+
+		const selectedModel = getSessionModelForInput(chat, this.languageModelsService, this.storageService);
+		if (selectedModel && this._widget.inputPart.currentLanguageModel !== selectedModel.identifier) {
+			this._widget.inputPart.setCurrentLanguageModel(selectedModel);
+		}
+		return true;
 	}
 
 	private _updateWidgetLockState(sessionType: string): void {

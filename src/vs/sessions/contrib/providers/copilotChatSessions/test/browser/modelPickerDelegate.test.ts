@@ -24,6 +24,7 @@ import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostS
 import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { CachedLanguageModelsKey } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 
 function makeModel(id: string, sessionType: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -48,6 +49,7 @@ function stubServices(
 	disposables: DisposableStore,
 	opts?: {
 		models?: ILanguageModelChatMetadataAndIdentifier[];
+		cachedModels?: ILanguageModelChatMetadataAndIdentifier[];
 		activeSession?: Partial<IActiveSession>;
 		resolvedVendors?: Set<string>;
 		storedEntries?: Map<string, string>;
@@ -75,6 +77,7 @@ function stubServices(
 
 	instantiationService.stub(IStorageService, {
 		get: (key: string, _scope: StorageScope) => storage.get(key),
+		getObject: <T>(key: string, _scope: StorageScope, fallbackValue: T) => key === CachedLanguageModelsKey ? opts?.cachedModels as T ?? fallbackValue : fallbackValue,
 		store: (key: string, value: string, _scope: StorageScope, _target: StorageTarget) => { storage.set(key, value); },
 	} as Partial<IStorageService>);
 
@@ -146,6 +149,23 @@ suite('getAvailableModels', () => {
 		const sessionsManagementService = instantiationService.get(ISessionsManagementService);
 		const result = getAvailableModels(languageModelsService, sessionsManagementService);
 		assert.deepStrictEqual(result, [models[2]]);
+	});
+
+	test('includes cached models for active session type', () => {
+		const liveModel = makeModel('copilotcli/claude-sonnet-4.6', CopilotCLISessionType.id);
+		const cachedModel = makeModel('copilotcli/gpt-5.5', CopilotCLISessionType.id);
+		const { instantiationService } = stubServices(disposables, {
+			models: [liveModel],
+			cachedModels: [cachedModel],
+			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: CopilotCLISessionType.id },
+		});
+		const languageModelsService = instantiationService.get(ILanguageModelsService);
+		const sessionsManagementService = instantiationService.get(ISessionsManagementService);
+		const storageService = instantiationService.get(IStorageService);
+
+		const result = getAvailableModels(languageModelsService, sessionsManagementService, storageService);
+
+		assert.deepStrictEqual(result.map(model => model.identifier), ['copilotcli/gpt-5.5', 'copilotcli/claude-sonnet-4.6']);
 	});
 });
 
@@ -263,6 +283,29 @@ suite('SessionModelPicker', () => {
 
 		// The new session must receive the same model so the request isn't sent with the default.
 		assert.ok(calls.some(c => c.sessionId === 's2' && c.modelId === 'cli-b'));
+	});
+
+	test('does not overwrite new session model while it is unresolved', () => {
+		const models = [makeModel('copilotcli/claude-sonnet-4.6', CopilotCLISessionType.id)];
+		const storedEntries = new Map([[modelPickerStorageKey(CopilotCLISessionType.id), 'copilotcli/claude-sonnet-4.6']]);
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, storage, fireLanguageModelsChanged } = stubServices(disposables, {
+			models,
+			storedEntries,
+			activeSession: {
+				providerId: 'default-copilot',
+				sessionId: 'new-session',
+				sessionType: CopilotCLISessionType.id,
+				modelId: observableValue<string | undefined>('newSessionRawModelId', 'gpt-5.5'),
+			},
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+		fireLanguageModelsChanged();
+
+		assert.deepStrictEqual(calls, []);
+		assert.strictEqual(storage.get(modelPickerStorageKey(CopilotCLISessionType.id)), 'copilotcli/claude-sonnet-4.6');
 	});
 
 	test('does not re-push model to the same session when language models change', () => {

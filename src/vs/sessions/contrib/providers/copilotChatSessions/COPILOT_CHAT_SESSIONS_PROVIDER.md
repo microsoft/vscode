@@ -101,6 +101,8 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 
 Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service.
 
+`SessionModelPicker` persists the selected model by session type and forwards explicit user/fallback selections to the owning provider. When an active session already exposes a `modelId`, that value is authoritative: the picker must resolve it for display when possible, but must not replace it with a remembered or fallback model while the corresponding language-model metadata is still loading. This prevents restored Copilot CLI sessions from being changed away from their persisted `selectedModelId` during picker initialization.
+
 ### Toolbar Menus
 
 | Menu | Purpose | Examples |
