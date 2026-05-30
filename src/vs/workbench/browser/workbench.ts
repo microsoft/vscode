@@ -231,10 +231,11 @@ export class Workbench extends Layout {
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateWorkbenchTextDirection(e, configurationService)));
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateWorkbenchFontSize(e, configurationService)));
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateWorkbenchFontFamily(e, configurationService)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this.updateFontAliasing(e, configurationService);
+			this.updateWorkbenchFontSize(e, configurationService);
+			this.updateWorkbenchFontFamily(e, configurationService);
+		}));
 
 		// Font Info
 		if (isNative) {
@@ -304,7 +305,7 @@ export class Workbench extends Layout {
 		}
 
 		const raw = configurationService.getValue<number>('workbench.fontSize');
-		const size = (typeof raw === 'number' && raw >= 11 && raw <= 16) ? raw : 13;
+		const size = (typeof raw === 'number' && raw >= 8 && raw <= 30) ? raw : 13;
 		if (this.workbenchFontSize === size) {
 			return;
 		}
@@ -320,7 +321,9 @@ export class Workbench extends Layout {
 		}
 
 		const raw = configurationService.getValue<string>('workbench.fontFamily');
-		const family = typeof raw === 'string' ? raw.trim() : '';
+		// Strip characters that could form CSS injection vectors before embedding
+		// the value into a custom property (semicolons, braces, angle brackets, newlines).
+		const family = typeof raw === 'string' ? raw.trim().replace(/[;{}<>\n\r]/g, '') : '';
 		if (this.workbenchFontFamily === family) {
 			return;
 		}
@@ -333,22 +336,6 @@ export class Workbench extends Layout {
 			this.mainContainer.style.removeProperty('--vscode-workbench-font-family');
 			this.mainContainer.classList.remove('monaco-workbench-custom-font');
 		}
-	}
-
-	private workbenchTextDirection: 'ltr' | 'rtl' | undefined;
-	private updateWorkbenchTextDirection(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
-		if (e && !e.affectsConfiguration('workbench.textDirection')) {
-			return;
-		}
-
-		const raw = configurationService.getValue<string>('workbench.textDirection');
-		const direction: 'ltr' | 'rtl' = raw === 'rtl' ? 'rtl' : 'ltr';
-		if (this.workbenchTextDirection === direction) {
-			return;
-		}
-
-		this.workbenchTextDirection = direction;
-		this.mainContainer.setAttribute('dir', direction);
 	}
 
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -395,9 +382,6 @@ export class Workbench extends Layout {
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
-
-		// Apply text direction
-		this.updateWorkbenchTextDirection(undefined, configurationService);
 
 		// Apply workbench font size and family
 		this.updateWorkbenchFontSize(undefined, configurationService);

@@ -703,9 +703,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.fontSize': {
 				'type': 'number',
 				'default': 13,
-				'minimum': 11,
-				'maximum': 16,
-				'description': localize('workbench.fontSize', "Controls the font size in pixels of the workbench UI (sidebar, tabs, status bar, etc.). Does not affect the editor. Requires a reload to update virtual-scroll views such as the file explorer."),
+				'minimum': 8,
+				'maximum': 30,
+				'description': localize('workbench.fontSize', "Controls the font size in pixels of the workbench UI (sidebar, tabs, status bar, etc.). Does not affect the editor font size (use `editor.fontSize` for that)."),
 				'scope': ConfigurationScope.APPLICATION
 			},
 			'workbench.fontFamily': {
