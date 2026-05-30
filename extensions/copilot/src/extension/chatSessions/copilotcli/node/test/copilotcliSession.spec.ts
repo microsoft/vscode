@@ -137,6 +137,12 @@ class MockSdkSession {
 
 	async compactHistory() { return { success: true }; }
 
+	public chatMessages: Awaited<ReturnType<Session['getChatMessages']>> = [
+		{ role: 'user', content: 'hi' },
+		{ role: 'assistant', content: 'hello' },
+	];
+	async getChatMessages() { return this.chatMessages; }
+
 	async abort() {
 		this.aborted = true;
 	}
@@ -1712,6 +1718,157 @@ describe('CopilotCLISession', () => {
 			expect(sdkSession.currentMode).toBe('interactive');
 			expect(stream.output.join('\n')).toContain('Compacted conversation.');
 		});
+
+		it('reports nothing-to-compact on an empty session', async () => {
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+			sdkSession.chatMessages = [];
+			let compactCalled = false;
+			sdkSession.compactHistory = async () => { compactCalled = true; return { success: true }; };
+
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(compactCalled).toBe(false);
+			expect(stream.output.join('\n')).toContain('Nothing to compact.');
+			expect(stream.output.join('\n')).not.toContain('Error: Nothing to compact.');
+		});
+
+		it('reports already-compacted when no new messages exist since last compaction', async () => {
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+			sdkSession.chatMessages = [{ role: 'assistant', content: 'summary' }];
+			let compactCalled = false;
+			sdkSession.compactHistory = async () => { compactCalled = true; return { success: true }; };
+
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(compactCalled).toBe(false);
+			expect(stream.output.join('\n')).toContain('Conversation already compacted.');
+			expect(stream.output.join('\n')).not.toContain('Error: Nothing to compact.');
+		});
+
+		it('reports context usage from compact result', async () => {
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+			sdkSession.compactHistory = async () => ({
+				success: true,
+				tokensRemoved: 380,
+				messagesRemoved: 2,
+				summaryContent: 'summary',
+				contextWindow: {
+					tokenLimit: 8000,
+					currentTokens: 120,
+					messagesLength: 1,
+					systemTokens: 80,
+					conversationTokens: 40,
+					toolDefinitionsTokens: 0,
+				},
+			});
+
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(stream.usages.at(-1)).toMatchObject({ promptTokens: 120, completionTokens: 0 });
+		});
+
+		it('preserves context usage after compacting twice in a row', async () => {
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 0,
+				lastCallOutputTokens: 0,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 0,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+			sdkSession.compactHistory = async () => {
+				sdkSession.chatMessages = [{ role: 'assistant', content: 'summary' }];
+				return {
+					success: true,
+					tokensRemoved: 380,
+					messagesRemoved: 2,
+					summaryContent: 'summary',
+					contextWindow: {
+						tokenLimit: 8000,
+						currentTokens: 120,
+						messagesLength: 1,
+						systemTokens: 80,
+						conversationTokens: 40,
+						toolDefinitionsTokens: 0,
+					},
+				};
+			};
+
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(stream.output.join('\n')).toContain('Conversation already compacted.');
+			expect(stream.usages.some(usage => usage.promptTokens === 0 && usage.completionTokens === 0)).toBe(false);
+			expect(stream.usages.at(-1)).toMatchObject({ promptTokens: 120, completionTokens: 0 });
+		});
+
+		it('handles SDK nothing-to-compact errors as compact no-ops', async () => {
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+			sdkSession.send = async (options: { prompt: string; mode?: string; source?: string; agentMode?: string }) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 220,
+					tokenLimit: 8000,
+					messagesLength: 2,
+					systemTokens: 120,
+					conversationTokens: 100,
+					toolDefinitionsTokens: 0,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 0,
+				lastCallOutputTokens: 0,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 0,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			sdkSession.chatMessages = [
+				{ role: 'user', content: 'hi' },
+				{ role: 'assistant', content: 'hello' },
+			];
+			sdkSession.compactHistory = async () => { throw new Error('Nothing to compact.'); };
+
+			await session.handleRequest({ id: 'req-2', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(stream.output.join('\n')).toContain('Conversation already compacted.');
+			expect(stream.output.join('\n')).not.toContain('Error: Nothing to compact.');
+			expect(stream.usages.at(-1)).toMatchObject({ promptTokens: 220, completionTokens: 0 });
+		});
+
+		it('handles literal slash compact prompts through the command path', async () => {
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+			sdkSession.chatMessages = [{ role: 'assistant', content: 'summary' }];
+			sdkSession.send = async () => { throw new Error('send should not be called for /compact'); };
+
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: '/compact' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(stream.output.join('\n')).toContain('Conversation already compacted.');
+			expect(stream.output.join('\n')).not.toContain('Error: Nothing to compact.');
+		});
 	});
 
 	describe('steering (sending messages to a busy session)', () => {
@@ -2444,6 +2601,46 @@ describe('CopilotCLISession', () => {
 			// Final usage should use currentTokens (120) not the stale lastCallInputTokens (0)
 			const finalUsage = stream.usages.at(-1);
 			expect(finalUsage!.promptTokens).toBe(120);
+		});
+
+		it('does not reuse stale context usage for a later turn without usage info', async () => {
+			let sendCount = 0;
+			sdkSession.send = async (options: { prompt: string; mode?: string; source?: string; agentMode?: string }) => {
+				sendCount++;
+				sdkSession.emit('user.message', { content: options.prompt });
+				if (sendCount === 1) {
+					sdkSession.emit('session.usage_info', {
+						currentTokens: 500,
+						tokenLimit: 8000,
+						messagesLength: 5,
+						systemTokens: 100,
+						conversationTokens: 350,
+						toolDefinitionsTokens: 50,
+					});
+				}
+				sdkSession.emit('assistant.turn_end', {});
+			};
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 0,
+				lastCallOutputTokens: 0,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 0,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+			const usageCount = stream.usages.length;
+			await session.handleRequest({ id: 'req-2', toolInvocationToken: undefined as never }, { prompt: 'Tool-only turn' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(stream.usages).toHaveLength(usageCount);
 		});
 	});
 });

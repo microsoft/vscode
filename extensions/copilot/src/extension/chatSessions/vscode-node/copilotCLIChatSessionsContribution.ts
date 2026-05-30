@@ -1583,7 +1583,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				const { prompt, attachments } = contextForRequest;
 				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
-			} else if (isCopilotCLICommand && (!isUntitled || request.command === 'remote')) {
+			} else if (isCopilotCLICommand && (!isUntitled || request.command === 'remote' || request.command === 'compact')) {
 				const { prompt, attachments } = request.prompt
 					? await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token)
 					: { prompt: '', attachments: [] };
