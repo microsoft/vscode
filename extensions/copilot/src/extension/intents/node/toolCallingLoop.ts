@@ -20,7 +20,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
-import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
@@ -1225,7 +1225,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		const isContinuation = context.isContinuation || false;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillBuildPrompt);
 		let buildPromptResult: IBuildPromptResult;
-		const keepAlive = this.startBuildPromptKeepAlive(token);
+		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+		const keepAlive = this.startBuildPromptKeepAlive(token, endpoint);
 		try {
 			buildPromptResult = await this.buildPrompt2(context, outputStream, token);
 		} finally {
@@ -1285,7 +1286,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			}
 		}
 
-		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
 		const tokenizer = endpoint.acquireTokenizer();
 		const promptTokenLength = await tokenizer.countMessagesTokens(effectiveBuildPromptResult.messages);
 		const toolTokenCount = availableTools.length > 0 ? await tokenizer.countToolTokens(availableTools) : 0;
@@ -1701,7 +1701,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 *
 	 * Returns a disposable that clears the timer and cancels any in-flight probe.
 	 */
-	private startBuildPromptKeepAlive(parentToken: CancellationToken): IDisposable {
+	private startBuildPromptKeepAlive(parentToken: CancellationToken, endpoint: IChatEndpoint): IDisposable {
+		// Only Anthropic-family models benefit from this side-channel cache warming today;
+		// other providers' caches behave differently and probes would just be wasted requests.
+		// Checked before the config lookup so non-Anthropic flows skip the experiment evaluation entirely.
+		if (!isAnthropicFamily(endpoint)) {
+			return Disposable.None;
+		}
+
 		if (!this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservation, this._experimentationService)) {
 			return Disposable.None;
 		}
@@ -1712,11 +1719,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return Disposable.None;
 		}
 
-		// Only keep the cache warm when waiting on an execution subagent, which is
-		// the primary source of long tool-call durations that cause cache expiry.
-		const hasExecutionSubagent = this.toolCallRounds.some(
-			round => round.toolCalls.some(tc => tc.name === ToolName.ExecutionSubagent)
-		);
+		// Only keep the cache warm when the round we're currently awaiting includes an
+		// execution subagent, which is the primary source of long tool-call durations
+		// that cause cache expiry. Scoping to the latest round (vs. any past round in the
+		// turn) avoids firing probes for fast tool calls that follow an earlier subagent.
+		const latestRound = this.toolCallRounds[this.toolCallRounds.length - 1];
+		const hasExecutionSubagent = latestRound?.toolCalls.some(tc => tc.name === ToolName.ExecutionSubagent) ?? false;
 		if (!hasExecutionSubagent) {
 			return Disposable.None;
 		}
@@ -1761,7 +1769,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				await this.fetch({
 					...baseFetchOptions,
 					messages: probeMessages,
-					finishedCb: async (text) => text.length, // stop reading on first chunk
+					finishedCb: async () => 1, // returning any number (vs undefined) stops reading on the first chunk; constant 1 avoids the empty-string edge case where text.length would be 0
 					userInitiatedRequest: false,
 					isKeepAliveProbe: true,
 				}, cts.token);
