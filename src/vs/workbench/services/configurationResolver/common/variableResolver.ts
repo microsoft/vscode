@@ -93,6 +93,17 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return expr.toObject() as (T extends ConfigurationResolverExpression<infer R> ? R : T);
 	}
 
+	public async resolveSettingValue(folder: IWorkspaceFolderData | undefined, value: string): Promise<string> {
+		try {
+			const result = await this.resolveAsync(folder, value);
+			return typeof result === 'string' ? result : value;
+		} catch {
+			// On any resolution error (missing env var, no open folder, etc.) return the
+			// original value so that a bad variable pattern never breaks extension activation.
+			return value;
+		}
+	}
+
 	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown): Promise<unknown> {
 		throw new Error('resolveWithInteractionReplace not implemented.');
 	}

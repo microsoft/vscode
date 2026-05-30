@@ -256,6 +256,13 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 		 */
 		readOnly?: boolean;
 	};
+
+	/**
+	 * When `true`, string values of this setting support VS Code variable substitution
+	 * (e.g. `${env:HOME}`, `${userHome}`, `${workspaceFolder}`).
+	 * Use `IConfigurationResolverService.resolveSettingValue()` to obtain the resolved value.
+	 */
+	supportsVariableSubstitution?: boolean;
 }
 
 export interface IExtensionInfo {

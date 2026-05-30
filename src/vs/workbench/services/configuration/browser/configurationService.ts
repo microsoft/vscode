@@ -20,6 +20,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationResolverService } from '../../configurationResolver/common/configurationResolver.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration, DefaultConfiguration, ApplicationConfiguration } from './configuration.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
@@ -506,6 +507,30 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 		const allProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
+	}
+
+	async getResolvedValue<T>(section: string, folder?: import('../../../../platform/workspace/common/workspace.js').IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T> {
+		const raw = this.getValue<T>(section, overrides ?? {});
+		const schema = this.configurationRegistry.getConfigurationProperties()[section];
+
+		// Only resolve variables for settings that explicitly opt in.
+		if (!schema?.supportsVariableSubstitution || typeof raw !== 'string') {
+			return raw;
+		}
+
+		if (!this.instantiationService) {
+			return raw;
+		}
+
+		const resolver = this.instantiationService.invokeFunction(accessor => {
+			try { return accessor.get(IConfigurationResolverService); } catch { return undefined; }
+		});
+
+		if (!resolver) {
+			return raw;
+		}
+
+		return resolver.resolveSettingValue(folder, raw) as Promise<T>;
 	}
 
 	private async createWorkspace(arg: IAnyWorkspaceIdentifier): Promise<Workspace> {
