@@ -9,10 +9,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { ColorId, FontStyle, MetadataConsts, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { ColorId, FontStyle, MetadataConsts, StandardTokenType, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ILanguageConfigurationService, LanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { TextModel } from '../../../common/model/textModel.js';
 import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { ContiguousTokensStore } from '../../../common/tokens/contiguousTokensStore.js';
 import { LineTokens } from '../../../common/tokens/lineTokens.js';
 import { SparseMultilineTokens } from '../../../common/tokens/sparseMultilineTokens.js';
 import { SparseTokensStore } from '../../../common/tokens/sparseTokensStore.js';
@@ -583,6 +584,23 @@ suite('TokensStore', () => {
 		// EXPECTED BEHAVIOR: The store should be empty (no pieces with invalid line numbers)
 		// Currently fails because the piece remains with startLineNumber=0, endLineNumber=-1
 		assert.strictEqual(store.isEmpty(), true, 'Store should be empty after all tokens are deleted by encompassing edit');
+	});
+
+	test('issue #319118: default token metadata keeps token type bits clear for high language IDs', () => {
+		const codec = new LanguageIdCodec();
+		const store = new ContiguousTokensStore(codec);
+		let languageId = '';
+		for (let i = 0; i < 255; i++) {
+			languageId = `language-${i}`;
+			codec.register(languageId);
+		}
+
+		const encodedLanguageId = codec.encodeLanguageId(languageId);
+		assert.ok(encodedLanguageId >= 256);
+
+		const lineTokens = store.getTokens(languageId, 0, 'abc');
+		assert.strictEqual(lineTokens.getCount(), 1);
+		assert.strictEqual(TokenMetadata.getTokenType(lineTokens.getMetadata(0)), StandardTokenType.Other);
 	});
 });
 
