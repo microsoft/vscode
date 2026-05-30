@@ -123,6 +123,9 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<script><!--this comment should not give error--> console.log("logging");</script>', 'javascript', '        /* this comment should not give error */ console.log("logging");         ');
 
 		assertEmbeddedLanguageContent('<script>var data=100; <!--this comment should not give error--> </script>', 'javascript', '        var data=100; /* this comment should not give error */          ');
+		assertEmbeddedLanguageContent('<script>/* --> */</script>', 'javascript', '        /* --> */         ');
+		assertEmbeddedLanguageContent('<script>/* --> ----------------------------- */</script>', 'javascript', '        /* --> ----------------------------- */         ');
+		assertEmbeddedLanguageContent('<script><!--commnet1-->\n<!--conment2--></script>', 'javascript', '        /* commnet1 */\n/* conment2 */         ');
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
 		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
 		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
