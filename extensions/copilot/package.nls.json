@@ -347,6 +347,7 @@
 	"github.copilot.config.updated53CodexPrompt.enabled": "Enables the updated prompt for gpt-5.3-codex model.",
 	"github.copilot.config.claude47OpusPrompt.enabled": "Enables the updated system prompt tuned for the Claude Opus 4.7 model.",
 	"github.copilot.config.gpt55GetChangedFilesTool.enabled": "Enables the Get Changed Files tool for gpt-5.5 models.",
+	"github.copilot.config.gemini3GetChangedFilesTool.enabled": "Enables the Get Changed Files tool for gemini-3 models.",
 	"github.copilot.config.gpt55ReadFileTool.enabled": "Enables the Read File tool for gpt-5.5 models.",
 	"github.copilot.config.gpt55EconomicalSearchAndEdit.enabled": "Enables economical search and edit instructions for gpt-5.5 models.",
 	"github.copilot.config.gpt55LargePromptSections.enabled": "Enables additional gpt-5.4 large prompt sections for gpt-5.5 models.",
