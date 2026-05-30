@@ -391,6 +391,21 @@ describe('CopilotCLISession', () => {
 		expect(sdkSession._selectedModel).toBe('modelB');
 	});
 
+	it('persists the selected model once and skips redundant writes', async () => {
+		const setModelSpy = vi.spyOn(chatSessionMetadataStore, 'setSessionSelectedModelId');
+		const session = await createSession();
+		session.attachStream(new MockChatResponseStream());
+
+		// Same model across two requests: only the first should write metadata.
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'First' }, [], { model: 'modelB' }, authInfo, CancellationToken.None);
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Second' }, [], { model: 'modelB' }, authInfo, CancellationToken.None);
+
+		expect({
+			writes: setModelSpy.mock.calls.map(call => call[1]),
+			persisted: await chatSessionMetadataStore.getSessionSelectedModelId(session.sessionId),
+		}).toEqual({ writes: ['modelB'], persisted: 'modelB' });
+	});
+
 	it('fails request when underlying send throws', async () => {
 		// Force send to throw
 		sdkSession.send = async () => { throw new Error('network'); };

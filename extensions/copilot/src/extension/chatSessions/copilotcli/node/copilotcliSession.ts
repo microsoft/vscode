@@ -1699,9 +1699,19 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
 			}
-			await this._chatSessionMetadataStore.setSessionSelectedModelId(this.sessionId, modelId).catch(error => {
-				this.logService.error(`[CopilotCLISession] Failed to persist selected model for session ${this.sessionId}: ${error}`);
+			// Only write when the persisted value actually differs. The read is a
+			// metadata-cache hit in steady state, so this avoids a redundant
+			// read-merge-write on every request while still backfilling sessions
+			// whose metadata is missing the model the SDK already has selected.
+			const persistedModelId = await this._chatSessionMetadataStore.getSessionSelectedModelId(this.sessionId).catch(error => {
+				this.logService.error(`[CopilotCLISession] Failed to read persisted selected model for session ${this.sessionId}: ${error}`);
+				return undefined;
 			});
+			if (persistedModelId !== modelId) {
+				await this._chatSessionMetadataStore.setSessionSelectedModelId(this.sessionId, modelId).catch(error => {
+					this.logService.error(`[CopilotCLISession] Failed to persist selected model for session ${this.sessionId}: ${error}`);
+				});
+			}
 		}
 	}
 

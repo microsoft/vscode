@@ -948,6 +948,18 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 	private readonly _modelId: ReturnType<typeof observableValue<string | undefined>>;
 	readonly modelId: IObservable<string | undefined>;
+
+	/**
+	 * A model selection made locally via {@link setModelId} that the persisted
+	 * session metadata has not yet caught up to. While pending, session refreshes
+	 * must not clobber the user's choice with the (still stale) persisted model.
+	 * `_pendingModelId` always holds the same id-space as {@link _resolveModelId}
+	 * (a full language model identifier), so the catch-up comparison in
+	 * {@link update} is apples-to-apples. Cleared once metadata reflects the pick.
+	 */
+	private _pendingModelId: string | undefined;
+	private _hasPendingModelId = false;
+
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
 
@@ -1047,6 +1059,10 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		throw new Error('Method not implemented.');
 	}
 	setModelId(modelId: string | undefined): void {
+		// Remember this as a local pick so a refresh that still carries the stale
+		// persisted model does not clobber it (see {@link update}).
+		this._pendingModelId = modelId;
+		this._hasPendingModelId = true;
 		this._modelId.set(modelId, undefined);
 	}
 	setMode(chatMode: IChatMode | undefined): void {
@@ -1060,7 +1076,16 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		transaction(tx => {
 			this._title.set(session.label, tx);
 			this._workspace.set(this._buildWorkspace(session), tx);
-			this._modelId.set(this._resolveModelId(session), tx);
+			const resolvedModelId = this._resolveModelId(session);
+			// A locally-set model (via setModelId) is only persisted once a request
+			// reaches the session, so a refresh can still carry the previous model.
+			// Hold the user's pending pick until metadata catches up to it, then
+			// resume following metadata so genuine external changes are picked up.
+			if (!this._hasPendingModelId || resolvedModelId === this._pendingModelId) {
+				this._hasPendingModelId = false;
+				this._pendingModelId = undefined;
+				this._modelId.set(resolvedModelId, tx);
+			}
 			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);

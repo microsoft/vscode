@@ -108,6 +108,11 @@ class MockAgentSessionsModel {
 		}
 	}
 
+	/** Re-fires the change event so the provider refreshes existing adapters in place. */
+	notifyChanged(): void {
+		this._onDidChangeSessions.fire();
+	}
+
 	async resolve(): Promise<void> { }
 
 	dispose(): void {
@@ -414,6 +419,38 @@ suite('CopilotChatSessionsProvider', () => {
 			modelId: selectedModel.identifier,
 			chatModelId: selectedModel.identifier,
 		});
+	});
+
+	test('a local model pick survives refresh until session metadata catches up', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
+		const modelA = makeLanguageModel('copilotcli/model-a', 'model-a', CopilotCLISessionType.id);
+		const modelB = makeLanguageModel('copilotcli/model-b', 'model-b', CopilotCLISessionType.id);
+		const metadata: Record<string, unknown> = { repositoryPath: '/test/repo', selectedModelId: 'model-a' };
+		model.addSession(createMockAgentSession(resource, { metadata }));
+
+		const provider = createProvider(disposables, model, { languageModels: [modelA, modelB] });
+		const session = provider.getSessions()[0];
+
+		const hydrated = session.modelId.get();
+		// User picks model B; not yet persisted to metadata.
+		provider.setModel(session.sessionId, modelB.identifier);
+		const afterPick = session.modelId.get();
+		// A refresh while metadata is still stale must not clobber the pick.
+		model.notifyChanged();
+		const afterStaleRefresh = session.modelId.get();
+		// Once metadata catches up, the override clears...
+		metadata.selectedModelId = 'model-b';
+		model.notifyChanged();
+		const afterCatchUp = session.modelId.get();
+		// ...so a later external change to a different model is followed again.
+		metadata.selectedModelId = 'model-a';
+		model.notifyChanged();
+		const afterExternalChange = session.modelId.get();
+
+		assert.deepStrictEqual(
+			{ hydrated, afterPick, afterStaleRefresh, afterCatchUp, afterExternalChange },
+			{ hydrated: modelA.identifier, afterPick: modelB.identifier, afterStaleRefresh: modelB.identifier, afterCatchUp: modelB.identifier, afterExternalChange: modelA.identifier },
+		);
 	});
 
 	test('getSessions excludes Local sessions (now owned by LocalChatSessionsProvider)', () => {
