@@ -113,8 +113,11 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		}
 
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
+			const allEndpoints = await this.getAllChatEndpoints();
+			if (!allEndpoints.length) {
+				return this.getChatEndpoint('copilot-base');
+			}
 			try {
-				const allEndpoints = await this.getAllChatEndpoints();
 				return this._autoModeService.resolveAutoModeEndpoint(requestOrFamilyOrModel as ChatRequest, allEndpoints);
 			} catch {
 				return this.getChatEndpoint('copilot-utility');
