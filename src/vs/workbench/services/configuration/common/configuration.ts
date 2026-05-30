@@ -5,11 +5,11 @@
 
 import { ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -94,6 +94,27 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 * @param setting
 	 */
 	isSettingAppliedForAllProfiles(setting: string): boolean;
+
+	/**
+	 * Like `getValue()` but resolves VS Code variable substitutions in string values
+	 * (e.g. `${env:HOME}`, `${userHome}`, `${workspaceFolder}`).
+	 *
+	 * Only settings declared with `supportsVariableSubstitution: true` in their schema
+	 * will have variables substituted; for all other settings the raw value is returned.
+	 * **Only top-level string values are resolved.** Strings nested inside objects or
+	 * arrays are returned unchanged — use `IConfigurationResolverService.resolveSettingValue()`
+	 * directly for nested resolution.
+	 * If resolution fails for a variable the original un-substituted value is returned.
+	 *
+	 * Note: `T` should be `string` (or a supertype of `string`) for settings with
+	 * `supportsVariableSubstitution: true`. Non-string types (`T extends object | number | boolean`)
+	 * are returned directly from `getValue()` without any substitution regardless of the flag.
+	 *
+	 * @param section   The dot-separated setting key.
+	 * @param folder    Workspace folder context used to resolve `${workspaceFolder}`.
+	 * @param overrides Language/resource overrides, same as `getValue()`.
+	 */
+	getResolvedValue<T>(section: string, folder?: IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T>;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
