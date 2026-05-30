@@ -1198,6 +1198,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			onDragEnd: () => clearAllTimeouts(),
 			onDrop: () => clearAllTimeouts()
 		}));
+
+		// Make sure pending opener timeouts are cleared when the part is disposed
+		this._register(toDisposable(() => clearAllTimeouts()));
 	}
 
 	centerLayout(active: boolean): void {
