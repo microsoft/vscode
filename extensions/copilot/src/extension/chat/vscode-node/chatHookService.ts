@@ -99,7 +99,7 @@ export class ChatHookService implements IChatHookService {
 		}
 	}
 
-	async executeHook(hookType: vscode.ChatHookType, hooks: vscode.ChatRequestHooks | undefined, input: unknown, sessionId?: string, token?: vscode.CancellationToken): Promise<vscode.ChatHookResult[]> {
+	async executeHook(hookType: vscode.ChatHookType, hooks: vscode.ChatRequestHooks | undefined, input: unknown, sessionId?: string, token?: vscode.CancellationToken, model?: string): Promise<vscode.ChatHookResult[]> {
 		if (!hooks) {
 			return [];
 		}
@@ -128,6 +128,7 @@ export class ChatHookService implements IChatHookService {
 				hook_event_name: hookType,
 				...(sessionId ? { session_id: sessionId } : undefined),
 				...(transcriptPath ? { transcript_path: transcriptPath.fsPath } : undefined),
+				...(model ? { model } : undefined),
 			};
 			const fullInput = (typeof input === 'object' && input !== null)
 				? { ...commonInput, ...input }
@@ -345,7 +346,7 @@ export class ChatHookService implements IChatHookService {
 		}
 	}
 
-	async executePreToolUseHook(toolName: string, toolInput: unknown, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream): Promise<IPreToolUseHookResult | undefined> {
+	async executePreToolUseHook(toolName: string, toolInput: unknown, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream, model?: string): Promise<IPreToolUseHookResult | undefined> {
 		const hookInput: IPreToolUseHookCommandInput = {
 			tool_name: toolName,
 			tool_input: toolInput,
@@ -356,7 +357,8 @@ export class ChatHookService implements IChatHookService {
 			hooks,
 			hookInput,
 			sessionId,
-			token
+			token,
+			model
 		);
 
 		if (results.length === 0) {
@@ -442,7 +444,7 @@ export class ChatHookService implements IChatHookService {
 		return hookResult;
 	}
 
-	async executePostToolUseHook(toolName: string, toolInput: unknown, toolResponseText: string, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream): Promise<IPostToolUseHookResult | undefined> {
+	async executePostToolUseHook(toolName: string, toolInput: unknown, toolResponseText: string, toolCallId: string, hooks: vscode.ChatRequestHooks | undefined, sessionId?: string, token?: vscode.CancellationToken, outputStream?: vscode.ChatResponseStream, model?: string): Promise<IPostToolUseHookResult | undefined> {
 		const hookInput: IPostToolUseHookCommandInput = {
 			tool_name: toolName,
 			tool_input: toolInput,
@@ -454,7 +456,8 @@ export class ChatHookService implements IChatHookService {
 			hooks,
 			hookInput,
 			sessionId,
-			token
+			token,
+			model
 		);
 
 		if (results.length === 0) {
