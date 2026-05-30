@@ -204,7 +204,7 @@ function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboard
 		// As a workaround, we will write (only the plaintext data) to the clipboard in a different way
 		// We will use the clipboard service (which in the native case will go to electron's clipboard API)
 		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), undefined, browser.isFirefox);
-		clipboardService.writeText(dataToCopy.text);
+		clipboardService.writeText(dataToCopy.text.replaceAll(String.fromCharCode(0), ''));
 	}
 }
 
