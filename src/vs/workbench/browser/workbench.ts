@@ -231,7 +231,11 @@ export class Workbench extends Layout {
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this.updateFontAliasing(e, configurationService);
+			this.updateWorkbenchFontSize(e, configurationService);
+			this.updateWorkbenchFontFamily(e, configurationService);
+		}));
 
 		// Font Info
 		if (isNative) {
@@ -294,6 +298,46 @@ export class Workbench extends Layout {
 		}
 	}
 
+	private workbenchFontSize: number | undefined;
+	private updateWorkbenchFontSize(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
+		if (e && !e.affectsConfiguration('workbench.fontSize')) {
+			return;
+		}
+
+		const raw = configurationService.getValue<number>('workbench.fontSize');
+		const size = (typeof raw === 'number' && raw >= 8 && raw <= 30) ? raw : 13;
+		if (this.workbenchFontSize === size) {
+			return;
+		}
+
+		this.workbenchFontSize = size;
+		this.mainContainer.style.setProperty('--vscode-workbench-font-size', `${size}px`);
+	}
+
+	private workbenchFontFamily: string | undefined;
+	private updateWorkbenchFontFamily(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
+		if (e && !e.affectsConfiguration('workbench.fontFamily')) {
+			return;
+		}
+
+		const raw = configurationService.getValue<string>('workbench.fontFamily');
+		// Strip characters that could form CSS injection vectors before embedding
+		// the value into a custom property (semicolons, braces, angle brackets, newlines).
+		const family = typeof raw === 'string' ? raw.trim().replace(/[;{}<>\n\r]/g, '') : '';
+		if (this.workbenchFontFamily === family) {
+			return;
+		}
+
+		this.workbenchFontFamily = family;
+		if (family) {
+			this.mainContainer.style.setProperty('--vscode-workbench-font-family', family);
+			this.mainContainer.classList.add('monaco-workbench-custom-font');
+		} else {
+			this.mainContainer.style.removeProperty('--vscode-workbench-font-family');
+			this.mainContainer.classList.remove('monaco-workbench-custom-font');
+		}
+	}
+
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
 		const storedFontInfoRaw = storageService.get('editorFontInfo', StorageScope.APPLICATION);
 		if (storedFontInfoRaw) {
@@ -338,6 +382,10 @@ export class Workbench extends Layout {
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
+
+		// Apply workbench font size and family
+		this.updateWorkbenchFontSize(undefined, configurationService);
+		this.updateWorkbenchFontFamily(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
