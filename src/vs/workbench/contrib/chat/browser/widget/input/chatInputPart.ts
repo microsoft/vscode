@@ -2938,9 +2938,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const store = new DisposableStore();
 		this.attachedContextDisposables.value = store;
 
-		// Release any pooled resource labels from the previous render.
-		this._contextResourceLabels.clear();
-
 		dom.clearNode(container);
 
 		store.add(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
