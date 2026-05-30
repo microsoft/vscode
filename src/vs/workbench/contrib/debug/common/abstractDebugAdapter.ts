@@ -205,9 +205,9 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		});
 	}
 
-	private clearPendingRequestTimer(request_seq: number): void {
-		clearTimeout(this.pendingRequestTimers.get(request_seq));
-		this.pendingRequestTimers.delete(request_seq);
+	private clearPendingRequestTimer(requestSeq: number): void {
+		clearTimeout(this.pendingRequestTimers.get(requestSeq));
+		this.pendingRequestTimers.delete(requestSeq);
 	}
 
 	getPendingRequestIds(): number[] {
