@@ -348,7 +348,7 @@ export class TaskTurnStreamer {
 		}
 		// Fall back to a generic working label until the agent emits its first `assistant.intent`,
 		// otherwise the user sees no progress text for the first several seconds of a turn.
-		return state.currentIntent ?? vscode.l10n.t('Working...');
+		return state.currentIntent;
 	}
 
 	private async _fetchTask(taskId: string): Promise<AgentTaskGetResponse | undefined> {
