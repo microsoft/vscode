@@ -31,6 +31,24 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
  *     Copilot extension's BYOK secret storage still has the API key, so re-resolving returns
  *     stale models), which would otherwise keep the sign-in UI hidden after removal.
  *
+ *  1. On startup, optimistically restore the last persisted answer from
+ *     `chat.hasByokModels.lastKnown` so UI surfaces gated by this key are correct on warm
+ *     reload before anything else runs. If the language-models configuration already contains
+ *     non-Copilot provider groups, treat that as a positive signal too so cold starts don't hide
+ *     configured BYOK models while extension registration is still settling.
+ *  2. Whenever the `chatNonCopilotModelsAreUserSelectable` signal flips on — which happens
+ *     naturally when something else resolves a BYOK vendor (notably `ChatInputPart`, which
+ *     activates the previously selected model's vendor when restoring its persisted selection) —
+ *     record `true` and persist it.
+ *  3. Once extensions are fully scanned, if there are no configured non-Copilot vendors in the
+ *     language-models configuration, override a stale optimistic `true` with `false`. Same on
+ *     runtime removal of all groups, and when the feature flag flips off.
+ *
+ * The trade-off is the first-time experience: a brand-new user must pick a BYOK model once
+ * before this contribution observes the signal and persists the answer. From then on, the
+ * answer survives reloads without any activation cost — users without BYOK pay nothing.
+ *
+ * Eager so the key is bound at workbench startup before any sign-in UI surfaces render.
  * Eager so the key is bound before any sign-in UI renders.
  */
 export class HasByokModelsContribution extends Disposable implements IWorkbenchContribution {
@@ -93,12 +111,31 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		this._storageService.store(HasByokModelsContribution.STORAGE_KEY_LAST_KNOWN, value, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
+	private _hasConfiguredByokVendor(): boolean {
+		return this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
+	}
+
 	private _update(): void {
 		if (!this._isFeatureEnabled()) {
 			this._setResult(false);
 			return;
 		}
 
+		if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {
+			this._setResult(true);
+			return;
+		}
+
+		if (this._hasConfiguredByokVendor()) {
+			this._setResult(true);
+			return;
+		}
+
+		if (!this._extensionsRegistered) {
+			return;
+		}
+
+		this._setResult(false);
 		if (!this._extensionsRegistered) {
 			// Optimistic flip on the signal; otherwise leave the restored value alone.
 			if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {

@@ -172,6 +172,18 @@ suite('HasByokModelsContribution', () => {
 		assert.strictEqual(scenario.hasByokModels.get(), true);
 	});
 
+	test('configured BYOK groups set result true before extensions register even when persisted false', () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			groups: [{ vendor: 'customendpoint', name: 'Custom Endpoint' }],
+			storage: { lastKnown: false },
+		});
+
+		// Synchronously after construction, persisted state may still be false from an earlier
+		// startup, but configured provider groups are enough to keep BYOK model UI visible.
+		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
 	test('optimistic true preserved when extensions register and BYOK groups exist', async () => {
 		const store = disposables.add(new DisposableStore());
 		const scenario = createScenario(store, {

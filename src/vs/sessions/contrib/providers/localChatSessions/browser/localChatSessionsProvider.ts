@@ -45,6 +45,8 @@ export const LOCAL_SESSION_ENABLED_SETTING = 'sessions.chat.localAgent.enabled';
 const LOCAL_PROVIDER_ID = 'local-chat';
 const STORAGE_KEY_SESSIONS = 'sessions.localChat.sessions';
 const STORAGE_KEY_MIGRATED = 'sessions.localChat.migrated';
+const STORAGE_SCOPE = StorageScope.APPLICATION;
+const LEGACY_STORAGE_SCOPE = StorageScope.PROFILE;
 
 interface IStoredLocalSession {
 	readonly uri: UriComponents;
@@ -396,6 +398,8 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 	private readonly _currentNewSession = this._register(new MutableDisposable<LocalSession>());
 
+	private _legacyStorageMigrationAttempted = false;
+
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -433,7 +437,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	 * that are already in our storage are skipped.
 	 */
 	private async _migrateFromHistory(): Promise<void> {
-		if (this.storageService.getBoolean(STORAGE_KEY_MIGRATED, StorageScope.PROFILE, false)) {
+		const legacyMigrated = this.storageService.getBoolean(STORAGE_KEY_MIGRATED, LEGACY_STORAGE_SCOPE, false);
+		if (this.storageService.getBoolean(STORAGE_KEY_MIGRATED, STORAGE_SCOPE, false) || legacyMigrated) {
+			this._migrateStoredSessionsFromLegacyScope();
+			if (legacyMigrated) {
+				this.storageService.store(STORAGE_KEY_MIGRATED, true, STORAGE_SCOPE, StorageTarget.MACHINE);
+			}
 			return;
 		}
 
@@ -466,7 +475,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			if (changed) {
 				this._writeStoredSessions(sessions);
 			}
-			this.storageService.store(STORAGE_KEY_MIGRATED, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(STORAGE_KEY_MIGRATED, true, STORAGE_SCOPE, StorageTarget.MACHINE);
 		} catch (e) {
 			this.logService.error('[LocalChatSessionsProvider] Failed to migrate local chat history', e);
 			// Do not mark migration complete on failure so it can be retried next time.
@@ -552,7 +561,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	// -- Storage helpers --
 
 	private _readStoredSessions(): IStoredLocalSession[] {
-		const raw = this.storageService.get(STORAGE_KEY_SESSIONS, StorageScope.PROFILE);
+		this._migrateStoredSessionsFromLegacyScope();
+		const raw = this.storageService.get(STORAGE_KEY_SESSIONS, STORAGE_SCOPE);
+		return this._parseStoredSessions(raw);
+	}
+
+	private _parseStoredSessions(raw: string | undefined): IStoredLocalSession[] {
 		if (!raw) {
 			return [];
 		}
@@ -613,9 +627,41 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this.storageService.store(
 			STORAGE_KEY_SESSIONS,
 			JSON.stringify(sessions),
-			StorageScope.PROFILE,
+			STORAGE_SCOPE,
 			StorageTarget.MACHINE,
 		);
+	}
+
+	private _migrateStoredSessionsFromLegacyScope(): void {
+		if (this._legacyStorageMigrationAttempted) {
+			return;
+		}
+		this._legacyStorageMigrationAttempted = true;
+
+		const legacyRaw = this.storageService.get(STORAGE_KEY_SESSIONS, LEGACY_STORAGE_SCOPE);
+		if (!legacyRaw) {
+			return;
+		}
+
+		const storedSessions = this._parseStoredSessions(this.storageService.get(STORAGE_KEY_SESSIONS, STORAGE_SCOPE));
+		const storedKeys = new Set(storedSessions.map(s => URI.revive(s.uri).toString()));
+		const legacySessions = this._parseStoredSessions(legacyRaw);
+		let changed = false;
+
+		for (const session of legacySessions) {
+			const key = URI.revive(session.uri).toString();
+			if (!storedKeys.has(key)) {
+				storedKeys.add(key);
+				storedSessions.push(session);
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			this.storageService.store(STORAGE_KEY_SESSIONS, JSON.stringify(storedSessions), STORAGE_SCOPE, StorageTarget.MACHINE);
+		}
+
+		this.storageService.remove(STORAGE_KEY_SESSIONS, LEGACY_STORAGE_SCOPE);
 	}
 
 	// -- Workspace --
