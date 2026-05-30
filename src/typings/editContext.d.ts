@@ -3,9 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
+/* =========================================================
+   =============== 1. BASIC TYPE DEFINITIONS ===============
+   ========================================================= */
+
 type DOMString = string;
 
+type EventHandler<TEvent extends Event = Event> =
+	(event: TEvent) => void;
+
+type UnderlineStyle =
+	| 'none'
+	| 'solid'
+	| 'dotted'
+	| 'dashed'
+	| 'wavy';
+
+type UnderlineThickness =
+	| 'none'
+	| 'thin'
+	| 'thick';
+
+
+
+/* =========================================================
+   ================= 2. CORE EDIT CONTEXT ==================
+   ========================================================= */
+
 interface EditContext extends EventTarget {
+
+	/* ---------- Editing Methods ---------- */
 
 	updateText(rangeStart: number, rangeEnd: number, text: DOMString): void;
 	updateSelection(start: number, end: number): void;
@@ -15,38 +43,73 @@ interface EditContext extends EventTarget {
 
 	attachedElements(): HTMLElement[];
 
-	get text(): DOMString;
-	get selectionStart(): number;
-	get selectionEnd(): number;
-	get characterBoundsRangeStart(): number;
+	/* ---------- State Accessors ---------- */
+
+	readonly text: DOMString;
+	readonly selectionStart: number;
+	readonly selectionEnd: number;
+	readonly characterBoundsRangeStart: number;
+
 	characterBounds(): DOMRect[];
 
-	get ontextupdate(): EventHandler<TextUpdateEvent> | null;
-	set ontextupdate(value: EventHandler | null);
+	/* ---------- Event Properties ---------- */
 
-	get ontextformatupdate(): EventHandler | null;
-	set ontextformatupdate(value: EventHandler | null);
+	ontextupdate: EventHandler<TextUpdateEvent> | null;
+	ontextformatupdate: EventHandler | null;
+	oncharacterboundsupdate: EventHandler | null;
+	oncompositionstart: EventHandler | null;
+	oncompositionend: EventHandler | null;
 
-	get oncharacterboundsupdate(): EventHandler | null;
-	set oncharacterboundsupdate(value: EventHandler | null);
+	/* ---------- Event Listener API ---------- */
 
-	get oncompositionstart(): EventHandler | null;
-	set oncompositionstart(value: EventHandler | null);
+	addEventListener<K extends keyof EditContextEventHandlersEventMap>(
+		type: K,
+		listener: (
+			this: GlobalEventHandlers,
+			ev: EditContextEventHandlersEventMap[K]
+		) => any,
+		options?: boolean | AddEventListenerOptions
+	): void;
 
-	get oncompositionend(): EventHandler | null;
-	set oncompositionend(value: EventHandler | null);
+	addEventListener(
+		type: string,
+		listener: EventListenerOrEventListenerObject,
+		options?: boolean | AddEventListenerOptions
+	): void;
 
-	addEventListener<K extends keyof EditContextEventHandlersEventMap>(type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-	addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
-	removeEventListener<K extends keyof EditContextEventHandlersEventMap>(type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-	removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+	removeEventListener<K extends keyof EditContextEventHandlersEventMap>(
+		type: K,
+		listener: (
+			this: GlobalEventHandlers,
+			ev: EditContextEventHandlersEventMap[K]
+		) => any,
+		options?: boolean | EventListenerOptions
+	): void;
+
+	removeEventListener(
+		type: string,
+		listener: EventListenerOrEventListenerObject,
+		options?: boolean | EventListenerOptions
+	): void;
 }
+
+
+
+/* =========================================================
+   ================== 3. INITIALIZATION ====================
+   ========================================================= */
 
 interface EditContextInit {
 	text: DOMString;
 	selectionStart: number;
 	selectionEnd: number;
 }
+
+
+
+/* =========================================================
+   ================== 4. EVENT MAP TYPES ===================
+   ========================================================= */
 
 interface EditContextEventHandlersEventMap {
 	textupdate: TextUpdateEvent;
@@ -56,7 +119,11 @@ interface EditContextEventHandlersEventMap {
 	compositionend: Event;
 }
 
-type EventHandler<TEvent extends Event = Event> = (event: TEvent) => void;
+
+
+/* =========================================================
+   ================== 5. TEXT UPDATE EVENT =================
+   ========================================================= */
 
 declare class TextUpdateEvent extends Event {
 	constructor(type: DOMString, options?: TextUpdateEventInit);
@@ -78,6 +145,12 @@ interface TextUpdateEventInit extends EventInit {
 	compositionEnd: number;
 }
 
+
+
+/* =========================================================
+   ================== 6. TEXT FORMAT TYPES =================
+   ========================================================= */
+
 interface TextFormat {
 	new(options?: TextFormatInit): TextFormat;
 
@@ -94,8 +167,11 @@ interface TextFormatInit {
 	underlineThickness: UnderlineThickness;
 }
 
-type UnderlineStyle = 'none' | 'solid' | 'dotted' | 'dashed' | 'wavy';
-type UnderlineThickness = 'none' | 'thin' | 'thick';
+
+
+/* =========================================================
+   =============== 7. TEXT FORMAT UPDATE EVENT =============
+   ========================================================= */
 
 interface TextFormatUpdateEvent extends Event {
 	new(type: DOMString, options?: TextFormatUpdateEventInit): TextFormatUpdateEvent;
@@ -105,6 +181,12 @@ interface TextFormatUpdateEvent extends Event {
 interface TextFormatUpdateEventInit extends EventInit {
 	textFormats: TextFormat[];
 }
+
+
+
+/* =========================================================
+   ============ 8. CHARACTER BOUNDS UPDATE EVENT ==========
+   ========================================================= */
 
 interface CharacterBoundsUpdateEvent extends Event {
 	new(type: DOMString, options?: CharacterBoundsUpdateEventInit): CharacterBoundsUpdateEvent;
@@ -117,6 +199,12 @@ interface CharacterBoundsUpdateEventInit extends EventInit {
 	rangeStart: number;
 	rangeEnd: number;
 }
+
+
+
+/* =========================================================
+   ================== 9. HTML EXTENSION ====================
+   ========================================================= */
 
 interface HTMLElement {
 	editContext?: EditContext;
