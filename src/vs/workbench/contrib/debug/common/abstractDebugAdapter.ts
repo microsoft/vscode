@@ -167,11 +167,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 					const clb = this.pendingRequests.get(response.request_seq);
 					if (clb) {
 						this.pendingRequests.delete(response.request_seq);
-						const timer = this.pendingRequestTimers.get(response.request_seq);
-						if (timer) {
-							clearTimeout(timer);
-							this.pendingRequestTimers.delete(response.request_seq);
-						}
+						this.clearPendingRequestTimer(response.request_seq);
 						clb(response);
 					}
 					break;
@@ -205,12 +201,13 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			};
 			callback(err);
 			this.pendingRequests.delete(request_seq);
-			const timer = this.pendingRequestTimers.get(request_seq);
-			if (timer) {
-				clearTimeout(timer);
-				this.pendingRequestTimers.delete(request_seq);
-			}
+			this.clearPendingRequestTimer(request_seq);
 		});
+	}
+
+	private clearPendingRequestTimer(request_seq: number): void {
+		clearTimeout(this.pendingRequestTimers.get(request_seq));
+		this.pendingRequestTimers.delete(request_seq);
 	}
 
 	getPendingRequestIds(): number[] {
