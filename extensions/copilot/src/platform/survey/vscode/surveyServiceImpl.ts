@@ -126,7 +126,7 @@ export class SurveyService implements ISurveyService {
 	private async getUsageData(): Promise<UsageData> {
 		const usageData = this.vscodeExtensionContext.globalState.get<UsageData>(USAGE_DATA_KEY);
 		if (usageData) {
-			return usageData;
+			return { firstActive: usageData.firstActive ?? 0, activeDays: Array.isArray(usageData.activeDays) ? usageData.activeDays : [] };
 		}
 		return { firstActive: 0, activeDays: [] };
 	}
