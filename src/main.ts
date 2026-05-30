@@ -227,7 +227,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
 		'proxy-bypass-list',
 
-		'remote-debugging-port'
+		'remote-debugging-port',
+
+		// override the list of servers for which Chromium will attempt to use Windows
+		// Integrated Authentication (Kerberos/NTLM) to enable SSO on enrolled machines
+		'auth-server-allowlist',
 	];
 
 	if (process.platform === 'linux') {
@@ -356,6 +360,18 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// use up to 2
 	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
+	// Always include the Microsoft Entra ID / Azure AD Seamless SSO endpoints in the
+	// auth server allowlist so that Chromium will automatically negotiate Windows
+	// Integrated Authentication (Kerberos) for these domains on Azure AD-joined,
+	// hybrid Azure AD-joined, or Azure AD-registered machines, enabling transparent
+	// single-sign-on in the integrated browser.
+	// Users and administrators can extend the allowlist by setting 'auth-server-allowlist'
+	// in argv.json; any user-specified entries are appended after the defaults below.
+	// Refs https://github.com/microsoft/vscode/issues/309814
+	const defaultAuthServers = 'autologon.microsoftazuread-sso.com,autologon.microsoftazuread-sso.us';
+	const userAuthServerAllowlist = app.commandLine.getSwitchValue('auth-server-allowlist');
+	app.commandLine.appendSwitch('auth-server-allowlist', userAuthServerAllowlist ? `${defaultAuthServers},${userAuthServerAllowlist}` : defaultAuthServers);
+
 	return argvConfig;
 }
 
@@ -375,6 +391,7 @@ interface IArgvConfig {
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
 	readonly 'js-flags'?: string;
+	readonly 'auth-server-allowlist'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
