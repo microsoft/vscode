@@ -1680,6 +1680,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),
 			default: true,
 		},
+		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
+			default: true,
+		},
 		'chat.approvedAccountOrganizations': {
 			type: 'array',
 			items: { type: 'string' },
