@@ -7,6 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -121,6 +122,12 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		content.push(AccessibilityHelpNLS.intellisense);
 		content.push(AccessibilityHelpNLS.showOrFocusHover);
 		content.push(AccessibilityHelpNLS.goToSymbol);
+
+		const editorContext = this._contextKeyService.getContext(this._editor.getDomNode()!);
+		if (editorContext.getValue<boolean>(EditorContextKeys.hasCodeLensProvider.key)) {
+			content.push(AccessibilityHelpNLS.codeLens);
+		}
+
 		content.push(AccessibilityHelpNLS.startDebugging);
 		content.push(AccessibilityHelpNLS.setBreakpoint);
 		content.push(AccessibilityHelpNLS.debugExecuteSelection);
