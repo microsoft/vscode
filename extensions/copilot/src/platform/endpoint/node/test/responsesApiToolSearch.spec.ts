@@ -12,7 +12,6 @@ import { IResponseDelta, OpenAiFunctionTool } from '../../../networking/common/f
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
-import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createPlatformServices } from '../../../test/node/services';
 import { createResponsesRequestBody, OpenAIResponsesProcessor } from '../responsesApi';
 
@@ -512,11 +511,10 @@ describe('createResponsesRequestBody tools', () => {
 describe('OpenAIResponsesProcessor tool search events', () => {
 	function createProcessor() {
 		const telemetryData = TelemetryData.createAndMarkAsIssued({}, {});
-		const telemetryService = new SpyingTelemetryService();
 		const ds = new DisposableStore();
 		const services = createPlatformServices(ds);
 		const accessor = services.createTestingAccessor();
-		return accessor.get(IInstantiationService).createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, 'req-123', 'gh-req-456', '', undefined);
+		return accessor.get(IInstantiationService).createInstance(OpenAIResponsesProcessor, telemetryData, 'req-123', 'gh-req-456', '');
 	}
 
 	function collectDeltas(processor: OpenAIResponsesProcessor, events: any[]): IResponseDelta[] {

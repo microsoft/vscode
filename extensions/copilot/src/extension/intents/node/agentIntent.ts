@@ -9,18 +9,20 @@ import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGpt54, isGpt55, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { rawPartAsCompactionData } from '../../../platform/endpoint/common/compactionDataContainer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
+import { isOpenAIContextManagementResponse } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
-import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
+import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -49,18 +51,18 @@ import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIn
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundCompactionResult, IBackgroundResponsesApiCompactionResult, IBackgroundSummarizationResult, isBackgroundResponsesApiCompactionResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { appendTranscriptHintToSummary, computeSummarizationRoundCounts, extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
+import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -70,11 +72,32 @@ import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
 
-function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
-	return endpoint.apiType === 'responses'
-		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
-		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+function isResponsesApiCompactionTriggerModel(endpoint: IChatEndpoint): boolean {
+	return endpoint.apiType === 'responses' && (isGpt54(endpoint) || isGpt55(endpoint));
 }
+
+function getMessagesRetainedAfterResponsesApiCompaction(messages: readonly Raw.ChatMessage[]): Raw.ChatMessage[] | undefined {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (message.role === Raw.ChatRole.Assistant && message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.Opaque && !!rawPartAsCompactionData(part))) {
+			// Match Responses API serialization: a compaction item replaces earlier
+			// conversational history, while current system instructions are retained.
+			return [
+				...messages.slice(0, index).filter(message => message.role === Raw.ChatRole.System),
+				...messages.slice(index),
+			];
+		}
+	}
+	return undefined;
+}
+
+type ResponsesApiCompactionTriggerTelemetry = {
+	readonly contextLengthBefore: number;
+	readonly contextRatio: number;
+	readonly tokenBudget: number;
+	readonly promptTokenLength: number;
+	readonly toolTokenCount: number;
+};
 
 /**
  * Returns true when the user explicitly referenced the todo tool (e.g. typed
@@ -232,7 +255,7 @@ export class AgentIntent extends EditCodeIntent {
 
 	override readonly id = AgentIntent.ID;
 
-	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer>();
+	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer<IBackgroundCompactionResult>>();
 	private readonly _backgroundTodoProcessors = new Map<string, BackgroundTodoProcessor>();
 
 	constructor(
@@ -261,7 +284,7 @@ export class AgentIntent extends EditCodeIntent {
 		});
 	}
 
-	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer {
+	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer<IBackgroundCompactionResult> {
 		let summarizer = this._backgroundSummarizers.get(sessionId);
 		if (summarizer && summarizer.endpointId !== endpointId) {
 			// Endpoint switched mid-session. A summary kicked off against the
@@ -273,7 +296,7 @@ export class AgentIntent extends EditCodeIntent {
 			summarizer = undefined;
 		}
 		if (!summarizer) {
-			summarizer = new BackgroundSummarizer(modelMaxPromptTokens, endpointId);
+			summarizer = new BackgroundSummarizer<IBackgroundCompactionResult>(modelMaxPromptTokens, endpointId);
 			this._backgroundSummarizers.set(sessionId, summarizer);
 		}
 		return summarizer;
@@ -372,10 +395,6 @@ export class AgentIntent extends EditCodeIntent {
 		}
 
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
-		if (isResponsesCompactionContextManagementEnabled(endpoint, this.configurationService, this.expService)) {
-			stream.markdown(l10n.t('Compaction is already managed by context management for this session.'));
-			return {};
-		}
 
 		// Foreground compaction is now authoritative for this session. Cancel any
 		// pending background summarizer so its (potentially stale) result doesn't
@@ -492,7 +511,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	private _backgroundTodoExecutionContext: IBackgroundTodoExecutionContext | undefined;
 
 	/**
-	 * RNG used to jitter the background-summarization trigger threshold around 0.80.
+	 * RNG used to jitter the background-summarization trigger threshold.
 	 * Tests may overwrite this directly (e.g. `(invocation as any)._thresholdRng = () => 0.5`).
 	 */
 	private _thresholdRng: () => number = Math.random;
@@ -564,8 +583,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
-		const responsesCompactionContextManagementEnabled = isResponsesCompactionContextManagementEnabled(this.endpoint, this.configurationService, this.expService);
-		const summarizationEnabled = this.configurationService.getConfig(ConfigKey.SummarizeAgentConversationHistory) && this.prompt === AgentPrompt && !responsesCompactionContextManagementEnabled;
+		const summarizationTriggerEnabled = this.configurationService.getConfig(ConfigKey.SummarizeAgentConversationHistory) && this.prompt === AgentPrompt;
+		const responsesApiCompactionTriggerEnabled = summarizationTriggerEnabled
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, this.expService)
+			&& isResponsesApiCompactionTriggerModel(this.endpoint);
+		const summarizationEnabled = summarizationTriggerEnabled && !responsesApiCompactionTriggerEnabled;
 
 		// When tools are present, apply a 10% safety margin on the message portion
 		// to account for tokenizer discrepancies between our tool-token counter and
@@ -574,10 +596,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// BudgetExceededError from prompt-tsx. When there are no tools the endpoint's
 		// own modelMaxPromptTokens is used unchanged.
 		const messageBudget = Math.max(1, Math.floor((baseBudget - toolTokens) * 0.9));
-		const safeBudget = useTruncation ? Number.MAX_SAFE_INTEGER : messageBudget;
-		const endpoint = toolTokens > 0 ? this.endpoint.cloneWithTokenOverride(safeBudget) : this.endpoint;
+		const useUnlimitedRenderBudget = useTruncation || responsesApiCompactionTriggerEnabled;
+		const safeBudget = useUnlimitedRenderBudget ? Number.MAX_SAFE_INTEGER : messageBudget;
+		const endpoint = (toolTokens > 0 || useUnlimitedRenderBudget) ? this.endpoint.cloneWithTokenOverride(safeBudget) : this.endpoint;
 
-		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
+		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}, responsesApiCompactionTriggerEnabled=${responsesApiCompactionTriggerEnabled}`);
 		let result: RenderPromptResult;
 		// For the Anthropic Messages API, cache_control placement is owned
 		// entirely by messagesApi.ts. Suppress prompt-tsx breakpoints to avoid
@@ -612,17 +635,16 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		//                shouldKickOffBackgroundSummarization) so it is
 		//                ready for a future turn.
 		//
-		const backgroundSummarizer = summarizationEnabled ? this._getOrCreateBackgroundSummarizer(promptContext.conversation?.sessionId) : undefined;
+		const backgroundSummarizer = (summarizationEnabled || responsesApiCompactionTriggerEnabled) ? this._getOrCreateBackgroundSummarizer(promptContext.conversation?.sessionId) : undefined;
 		// Walk back through turns to find the most recent one with token usage
 		// metadata. On iteration 1 of a fresh user turn, the current turn has
 		// no fetch yet, so fall back to the previous turn — otherwise the floor
 		// would be 0 and offer no protection across user-turn boundaries.
 		const lastTurnPromptTokens = findLast(promptContext.conversation?.turns ?? [], turn => !!turn.getMetadata(TurnTokenUsageMetadata))
 			?.getMetadata(TurnTokenUsageMetadata)?.promptTokens;
-		const contextRatio = backgroundSummarizer && baseBudget > 0
+		const contextRatio = (summarizationEnabled || responsesApiCompactionTriggerEnabled) && baseBudget > 0
 			? Math.max(this._lastRenderTokenCount + toolTokens, lastTurnPromptTokens ?? 0) / baseBudget
 			: 0;
-
 		// Track whether this iteration already performed compaction-related work
 		// (including applying a summary or using a foreground fallback path) so
 		// we don't immediately re-trigger background compaction in the post-render check.
@@ -637,7 +659,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		if (summarizationEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
 			if (contextRatio >= BackgroundSummarizationThresholds.applyMinRatio) {
 				const bgResult = backgroundSummarizer.consumeAndReset();
-				if (bgResult) {
+				if (bgResult && !isBackgroundResponsesApiCompactionResult(bgResult)) {
 					this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
 					progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
 					this._applySummaryToRounds(bgResult, promptContext);
@@ -654,6 +676,20 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				backgroundSummarizer.consumeAndReset();
 				this.logService.debug(`[ConversationHistorySummarizer] discarding completed background summary; contextRatio ${(contextRatio * 100).toFixed(0)}% below applyMinRatio ${(BackgroundSummarizationThresholds.applyMinRatio * 100).toFixed(0)}% (likely model switch or context-size override)`);
 				this._sendBackgroundCompactionTelemetry('preRender', 'discardedBelowApplyMinRatio', contextRatio, promptContext);
+			}
+		}
+
+		// A background Responses API request compacted exactly the messages it saw
+		// at kick-off. Attach its opaque boundary before the first assistant round
+		// created afterwards, never to a round already contained in that snapshot.
+		if (responsesApiCompactionTriggerEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
+			const bgResult = backgroundSummarizer.completedResult;
+			if (bgResult && isBackgroundResponsesApiCompactionResult(bgResult) && this._applyResponsesApiCompactionToRounds(bgResult, promptContext)) {
+				backgroundSummarizer.consumeAndReset();
+				this.logService.debug(`[ResponsesApiCompactionTrigger] applied completed background compaction to next context window`);
+				progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
+				this._sendBackgroundCompactionTelemetry('responsesApiPreRender', 'applied', contextRatio, promptContext);
+				didSummarizeThisIteration = true;
 			}
 		}
 
@@ -779,7 +815,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
 					}
 					const bgResult = backgroundSummarizer.consumeAndReset();
-					if (bgResult) {
+					if (bgResult && !isBackgroundResponsesApiCompactionResult(bgResult)) {
 						this.logService.debug(`[ConversationHistorySummarizer] background compaction applied after budget exceeded (roundId=${bgResult.toolCallRoundId})`);
 						this._applySummaryToRounds(bgResult, promptContext);
 						this._persistSummaryOnTurn(bgResult, promptContext, contextLengthBefore);
@@ -842,40 +878,58 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// Post-render: kick off background compaction if idle and over the
 		// threshold. Prompt cache parity with the main agent fetch matters
 		// here — so we gate kick-off on a completed tool call (cache has been
-		// warmed) and jitter the threshold around 0.80 to avoid firing at the
-		// same exact boundary every time.
-		if (summarizationEnabled && backgroundSummarizer && !didSummarizeThisIteration) {
-			const localPostRender = result.tokenCount + toolTokens;
-			const effectivePostRender = Math.max(localPostRender, lastTurnPromptTokens ?? 0);
+		// warmed) before checking the background summarization threshold.
+		if ((summarizationEnabled || responsesApiCompactionTriggerEnabled) && !didSummarizeThisIteration) {
+			const retainedAfterResponsesApiCompaction = responsesApiCompactionTriggerEnabled ? getMessagesRetainedAfterResponsesApiCompaction(result.messages) : undefined;
+			const localPostRenderMessageTokens = retainedAfterResponsesApiCompaction
+				? await this.endpoint.acquireTokenizer().countMessagesTokens(retainedAfterResponsesApiCompaction)
+				: result.tokenCount;
+			const localPostRender = localPostRenderMessageTokens + toolTokens;
+			// Once an opaque compaction boundary is replayed, serialization discards
+			// history before that boundary. Older usage therefore cannot be a floor
+			// for deciding when to start the next background compaction.
+			const effectivePostRender = Math.max(localPostRender, retainedAfterResponsesApiCompaction ? 0 : (lastTurnPromptTokens ?? 0));
 			const postRenderRatio = baseBudget > 0
 				? effectivePostRender / baseBudget
 				: 0;
-
-			const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
-				|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
 
 			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
 
 			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, cacheWarm, this._thresholdRng);
 
-			if (kickOff && idleOrFailed) {
-				// Compute and cache model capabilities from the current render's
-				// messages. These must match the main agent fetch for cache parity.
-				const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
-				const rawEffort = this.request.modelConfiguration?.reasoningEffort;
-				const isSubagent = !!this.request.subAgentInvocationId;
-				// Must match the main agent's enableThinking logic in
-				// toolCallingLoop.ts runOne() — thinking is only disabled
-				// on continuation turns for Anthropic when no thinking
-				// blocks exist yet in the messages.
-				const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
-				this._lastModelCapabilities = {
-					enableThinking: !shouldDisableThinking,
-					reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
-					enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
-					enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
-				};
-				this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+			if (backgroundSummarizer) {
+				const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
+					|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
+
+				if (kickOff && idleOrFailed) {
+					// Compute and cache model capabilities from the current render's
+					// messages. These must match the main agent fetch for cache parity.
+					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
+					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
+					const isSubagent = !!this.request.subAgentInvocationId;
+					// Must match the main agent's enableThinking logic in
+					// toolCallingLoop.ts runOne() — thinking is only disabled
+					// on continuation turns for Anthropic when no thinking
+					// blocks exist yet in the messages.
+					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
+					this._lastModelCapabilities = {
+						enableThinking: !shouldDisableThinking,
+						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
+						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
+						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
+					};
+					if (responsesApiCompactionTriggerEnabled) {
+						this._startBackgroundResponsesApiCompaction(backgroundSummarizer, result.messages, promptContext, token, {
+							contextLengthBefore: effectivePostRender,
+							contextRatio: postRenderRatio,
+							tokenBudget: baseBudget,
+							promptTokenLength: localPostRenderMessageTokens,
+							toolTokenCount: toolTokens,
+						});
+					} else {
+						this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
+					}
+				}
 			}
 		}
 
@@ -904,12 +958,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 
+		const metadata = codebase ? mergeMetadata(result.metadata, codebase.metadatas) : result.metadata;
+
 		return {
 			...result,
 			// The codebase tool is not actually called/referenced in the edit prompt, so we ned to
 			// merge its metadata so that its output is not lost and it's not called repeatedly every turn
 			// todo@connor4312/joycerhl: this seems a bit janky
-			metadata: codebase ? mergeMetadata(result.metadata, codebase.metadatas) : result.metadata,
+			metadata,
 			// Don't report file references that came in via chat variables in an editing session, unless they have warnings,
 			// because they are already displayed as part of the working set
 			// references: result.references.filter((ref) => this.shouldKeepReference(editCodeStep, ref, toolReferences, chatVariables)),
@@ -945,8 +1001,162 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 	}
 
+	private _startBackgroundResponsesApiCompaction(
+		backgroundSummarizer: BackgroundSummarizer<IBackgroundCompactionResult>,
+		mainRenderMessages: Raw.ChatMessage[],
+		promptContext: IBuildPromptContext,
+		token: vscode.CancellationToken,
+		telemetry: ResponsesApiCompactionTriggerTelemetry,
+	): void {
+		const { contextRatio } = telemetry;
+		this.logService.debug(`[ResponsesApiCompactionTrigger] context at ${(contextRatio * 100).toFixed(0)}% — starting background server compaction`);
+
+		// The opaque compaction item represents only rounds present in this
+		// request. Its replay boundary must be placed before a later round.
+		const includedRoundIds = [
+			...promptContext.history.flatMap(turn => turn.rounds.map(round => round.id)),
+			...(promptContext.toolCallRounds ?? []).map(round => round.id),
+		];
+		const availableTools = promptContext.tools?.availableTools;
+		const normalizedTools = availableTools?.length ? normalizeToolSchema(
+			this.endpoint.family,
+			availableTools.map(tool => ({
+				function: {
+					name: tool.name,
+					description: tool.description,
+					parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
+				},
+				type: 'function' as const,
+			})),
+			(tool, rule) => {
+				this.logService.warn(`[ResponsesApiCompactionTrigger] Tool ${tool} failed validation: ${rule}`);
+			},
+		) : undefined;
+		const toolOpts = normalizedTools?.length ? { tools: normalizedTools } : undefined;
+		const conversationId = promptContext.conversation?.sessionId;
+		const associatedRequestId = promptContext.conversation?.getLatestTurn()?.id;
+		const modelCapabilities = this._lastModelCapabilities;
+		const bgStartTime = Date.now();
+
+		backgroundSummarizer.start(async bgToken => {
+			let compaction: OpenAIContextManagementResponse | undefined;
+			this._sendResponsesApiCompactionRequestTelemetry(promptContext, telemetry);
+			const response = await this.endpoint.makeChatRequest2({
+				debugName: 'responsesApiCompactConversationHistory',
+				messages: ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages),
+				finishedCb: async (_text, _index, delta) => {
+					if (delta.contextManagement && isOpenAIContextManagementResponse(delta.contextManagement)) {
+						compaction = delta.contextManagement;
+					}
+					return undefined;
+				},
+				location: ChatLocation.Agent,
+				conversationId,
+				requestOptions: {
+					temperature: 0,
+					...toolOpts,
+				},
+				modelCapabilities,
+				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
+				enableRetryOnFilter: true,
+				interactionTypeOverride: 'conversation-compaction',
+				triggerResponsesApiCompaction: true,
+			}, bgToken);
+			if (response.type !== ChatFetchResponseType.Success) {
+				throw new Error(`Background Responses API compaction request failed: ${response.type}`);
+			}
+			if (!compaction) {
+				throw new Error('Background Responses API compaction request returned no compaction item');
+			}
+			this._sendResponsesApiCompactionResponseTelemetry(promptContext, {
+				promptTokens: response.usage?.prompt_tokens,
+				completionTokens: response.usage?.completion_tokens,
+				totalTokens: response.usage?.total_tokens,
+			});
+			this.logService.debug(`[ResponsesApiCompactionTrigger] background server compaction completed`);
+			return {
+				kind: 'responsesApiCompaction',
+				compaction,
+				includedRoundIds,
+				promptTokens: response.usage?.prompt_tokens,
+				promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
+				outputTokens: response.usage?.completion_tokens,
+				durationMs: Date.now() - bgStartTime,
+				model: this.endpoint.model,
+			};
+		}, token);
+	}
+
+	private _sendResponsesApiCompactionRequestTelemetry(
+		promptContext: IBuildPromptContext,
+		options: ResponsesApiCompactionTriggerTelemetry,
+	): void {
+		/* __GDPR__
+			"responsesApiCompactionRequest" : {
+				"owner": "dileepy",
+				"comment": "Tracks Responses API request state only when a compaction trigger input item is sent.",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that caused the background compaction trigger request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
+				"triggerRequested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Always 1; this event is emitted only for requests that include a Responses API compaction trigger input item." },
+				"contextLengthBefore": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Context length observed when the compaction trigger decision was made." },
+				"contextRatio": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Context window usage ratio when the compaction trigger decision was made." },
+				"tokenBudget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Token budget used for the compaction trigger decision." },
+				"promptTokenLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Locally counted prompt token length for the trigger request." },
+				"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Locally counted tool token length for the trigger request." }
+			}
+		*/
+		this.telemetryService.sendMSFTTelemetryEvent('responsesApiCompactionRequest', {
+			conversationId: promptContext.conversation?.sessionId,
+			chatRequestId: promptContext.conversation?.getLatestTurn()?.id,
+			model: this.endpoint.model,
+		}, {
+			triggerRequested: 1,
+			contextLengthBefore: options.contextLengthBefore,
+			contextRatio: options.contextRatio,
+			tokenBudget: options.tokenBudget,
+			promptTokenLength: options.promptTokenLength,
+			toolTokenCount: options.toolTokenCount,
+		});
+	}
+
+	private _sendResponsesApiCompactionResponseTelemetry(
+		promptContext: IBuildPromptContext,
+		options: {
+			readonly promptTokens: number | undefined;
+			readonly completionTokens: number | undefined;
+			readonly totalTokens: number | undefined;
+		},
+	): void {
+		/* __GDPR__
+			"responsesApiCompactionResponse" : {
+				"owner": "dileepy",
+				"comment": "Tracks Responses API response state only for requests that sent a compaction trigger input item.",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that caused the background compaction trigger request." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
+				"triggerRequested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Always 1; this event is emitted only for requests that included a Responses API compaction trigger input item." },
+				"compactionReturned": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the response returned a compaction item that can be replayed on a later request." },
+				"promptTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Prompt token count reported by the response." },
+				"completionTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Completion token count reported by the response." },
+				"totalTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total token count reported by the response." }
+			}
+		*/
+		this.telemetryService.sendMSFTTelemetryEvent('responsesApiCompactionResponse', {
+			conversationId: promptContext.conversation?.sessionId,
+			chatRequestId: promptContext.conversation?.getLatestTurn()?.id,
+			model: this.endpoint.model,
+		}, {
+			triggerRequested: 1,
+			compactionReturned: 1,
+			promptTokens: options.promptTokens,
+			completionTokens: options.completionTokens,
+			totalTokens: options.totalTokens,
+		});
+	}
+
 	private _startBackgroundSummarization(
-		backgroundSummarizer: BackgroundSummarizer,
+		backgroundSummarizer: BackgroundSummarizer<IBackgroundCompactionResult>,
 		mainRenderMessages: Raw.ChatMessage[],
 		promptContext: IBuildPromptContext,
 		props: AgentPromptProps,
@@ -1154,7 +1364,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	 * Returns the `BackgroundSummarizer` for this session, or `undefined` if
 	 * the intent is not an `AgentIntent` (e.g. `AskAgentIntent`).
 	 */
-	private _getOrCreateBackgroundSummarizer(sessionId: string | undefined): BackgroundSummarizer | undefined {
+	private _getOrCreateBackgroundSummarizer(sessionId: string | undefined): BackgroundSummarizer<IBackgroundCompactionResult> | undefined {
 		if (!sessionId || !(this.intent instanceof AgentIntent)) {
 			return undefined;
 		}
@@ -1193,6 +1403,25 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// Invalidate the auto mode router cache so the next getChatEndpoint()
 		// call re-evaluates which model to use after compaction.
 		this.automodeService.invalidateRouterCache(this.request);
+	}
+
+	/**
+	 * Place a server compaction item before the first assistant round not in the
+	 * background request snapshot. Returns false until such a round exists.
+	 */
+	private _applyResponsesApiCompactionToRounds(bgResult: IBackgroundResponsesApiCompactionResult, promptContext: IBuildPromptContext): boolean {
+		const includedRoundIds = new Set(bgResult.includedRoundIds);
+		const rounds = [
+			...promptContext.history.flatMap(turn => turn.rounds),
+			...(promptContext.toolCallRounds ?? []),
+		];
+		const firstPostSnapshotRound = rounds.find(round => !includedRoundIds.has(round.id));
+		if (!firstPostSnapshotRound) {
+			return false;
+		}
+		firstPostSnapshotRound.compaction = bgResult.compaction;
+		this.automodeService.invalidateRouterCache(this.request);
+		return true;
 	}
 
 	/**
