@@ -25,10 +25,9 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -530,6 +529,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
 			? comment.sourceId
 			: undefined;
+		const kind = comment.source === SessionEditorCommentSource.PRReview ? 'prReview' : 'codeReview';
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
@@ -539,6 +539,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,
+			kind,
 		);
 		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
@@ -592,6 +593,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
 			? comment.sourceId
 			: undefined;
+		const kind = comment.source === SessionEditorCommentSource.PRReview ? 'prReview' : 'codeReview';
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
@@ -601,6 +603,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,
+			kind,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
@@ -814,7 +817,6 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -860,7 +862,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
+		this._sessionResource = this._agentFeedbackService.getSessionForFile(model.uri)?.resource;
 	}
 
 	private _rebuildWidgets(

@@ -18,7 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -192,6 +192,33 @@ registerAction2(class GoForwardAction extends Action2 {
 	}
 });
 
+// -- Focus Active Session --
+
+registerAction2(class FocusActiveSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.focusActiveSession',
+			title: localize2('focusActiveSession', "Focus Active Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				// Must outrank the workbench `workbench.action.chat.open` binding
+				// (WorkbenchContrib) so that in the sessions window the chord
+				// focuses the active session. Using the normal open chat action will not work for new session views.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+	}
+});
+
 registerAction2(class AddChatToSessionBarAction extends Action2 {
 	constructor() {
 		super({
@@ -200,7 +227,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			icon: Codicon.add,
 			menu: {
 				id: Menus.SessionBarInlineToolbar,
-				when: SessionIsCreatedContext,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 				group: 'navigation',
 				order: 10,
 			},
@@ -230,6 +257,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 10,
+				when: SessionIsCreatedContext,
 			},
 		});
 	}
@@ -258,10 +286,11 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		accessor.get(ISessionsManagementService).closeSession(session);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+
+		sessionsManagementService.closeSession(session);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 });
 
@@ -286,9 +315,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
+		accessor.get(ISessionsManagementService).setActive(session);
 	}
 });

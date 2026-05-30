@@ -136,7 +136,15 @@ export class PermissionPicker extends Disposable {
 		const isApplicable = this._delegate.isApplicable;
 		if (isApplicable) {
 			this._renderDisposables.add(autorun(reader => {
-				slot.style.display = isApplicable.read(reader) ? '' : 'none';
+				const visible = isApplicable.read(reader);
+				slot.style.display = visible ? '' : 'none';
+				// Also collapse the wrapping `.action-item` that
+				// `MenuWorkbenchToolBar` created for this picker — hiding only
+				// the inner slot leaves the wrapper occupying its `min-width`
+				// floor and produces a visible empty gap in the chip row when
+				// the picker isn't applicable to the active session (e.g.
+				// Claude agent host has no `autoApprove` in its schema).
+				container.style.display = visible ? '' : 'none';
 			}));
 		}
 
@@ -149,7 +157,6 @@ export class PermissionPicker extends Disposable {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
@@ -178,10 +185,7 @@ export class PermissionPicker extends Disposable {
 				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
-		];
-
-		if (isAutopilotEnabled) {
-			items.push({
+			{
 				kind: ActionListItemKind.Action,
 				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
 				item: {
@@ -193,8 +197,8 @@ export class PermissionPicker extends Disposable {
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 				disabled: policyRestricted,
-			});
-		}
+			},
+		];
 
 		items.push({
 			kind: ActionListItemKind.Separator,
