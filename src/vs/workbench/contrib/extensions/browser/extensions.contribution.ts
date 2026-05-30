@@ -567,9 +567,9 @@ const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>
 const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 const CONTEXT_EXTENSIONS_AUTO_UPDATE_POLICY = new RawContextKey<boolean>('extensionsAutoUpdatePolicy', false);
 
-async function runAction(action: IAction): Promise<void> {
+async function runAction<T = void>(action: IAction): Promise<T> {
 	try {
-		await action.run();
+		return await action.run() as T;
 	} finally {
 		if (isDisposable(action)) {
 			action.dispose();
@@ -1397,7 +1397,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1418,7 +1418,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1439,7 +1439,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetProductIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1498,7 +1498,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1521,7 +1521,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1543,7 +1543,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1565,7 +1565,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1585,7 +1585,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				const action = instantiationService.createInstance(ClearLanguageAction);
 				action.extension = extension;
-				return action.run();
+				return runAction(action);
 			}
 		});
 
@@ -1606,7 +1606,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1630,7 +1630,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						isMachineScoped: true,
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1654,7 +1654,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						preRelease: true
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1673,7 +1673,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					return instantiationService.createInstance(InstallAnotherVersionAction, extension, false).run();
+					return runAction(instantiationService.createInstance(InstallAnotherVersionAction, extension, false));
 				}
 			}
 		});
