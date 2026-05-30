@@ -1355,3 +1355,85 @@ suite('Fuzzy Scorer', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
+
+suite('Fuzzy Scorer - Word Boundary Mode', () => {
+
+	function doScoreWordBoundary(target: string, query: string): FuzzyScore {
+		const preparedQuery = prepareQuery(query);
+		return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, true, true);
+	}
+
+	test('matches at word starts (CamelCase)', function () {
+		// "HW" should match "HelloWorld" — H at start, W at camel boundary
+		const score = doScoreWordBoundary('HelloWorld', 'HW');
+		assert.ok(score[0] > 0, 'HW should match HelloWorld at word boundaries');
+		assert.deepStrictEqual(score[1], [0, 5]);
+	});
+
+	test('matches at word starts (case-insensitive)', function () {
+		// "hw" should match "HelloWorld" — h at start, w at camel boundary
+		const score = doScoreWordBoundary('HelloWorld', 'hw');
+		assert.ok(score[0] > 0, 'hw should match HelloWorld at word boundaries');
+		assert.deepStrictEqual(score[1], [0, 5]);
+	});
+
+	test('rejects mid-word scattered matches', function () {
+		// "eo" should NOT match "HelloWorld" — e and o are mid-word
+		const score = doScoreWordBoundary('HelloWorld', 'eo');
+		assert.strictEqual(score[0], 0, 'eo should not match HelloWorld in word boundary mode');
+	});
+
+	test('consecutive chars within a word are allowed', function () {
+		// "HeWo" should match "HelloWorld" — He starts at word start, Wo starts at word start
+		const score = doScoreWordBoundary('HelloWorld', 'HeWo');
+		assert.ok(score[0] > 0, 'HeWo should match HelloWorld');
+	});
+
+	test('rejects non-word-boundary scattered matches', function () {
+		// "abc" should NOT match "xaxbxc" — a, b, c are not at word starts
+		const score = doScoreWordBoundary('xaxbxc', 'abc');
+		assert.strictEqual(score[0], 0, 'abc should not match xaxbxc in word boundary mode');
+	});
+
+	test('matches after separator characters', function () {
+		// "abc" should match "a-b-c" — each letter is after a separator
+		const score = doScoreWordBoundary('a-b-c', 'abc');
+		assert.ok(score[0] > 0, 'abc should match a-b-c at separator boundaries');
+	});
+
+	test('matches after underscore separators', function () {
+		const score = doScoreWordBoundary('my_file_name', 'mfn');
+		assert.ok(score[0] > 0, 'mfn should match my_file_name at underscore boundaries');
+	});
+
+	test('matches after dot separators', function () {
+		const score = doScoreWordBoundary('fuzzyScorer.test.ts', 'ftt');
+		assert.ok(score[0] > 0, 'ftt should match fuzzyScorer.test.ts at dot boundaries');
+	});
+
+	test('matches with path separators', function () {
+		const score = doScoreWordBoundary('src/vs/base/common', 'svbc');
+		assert.ok(score[0] > 0, 'svbc should match src/vs/base/common at path separators');
+	});
+
+	test('contiguous substring still works', function () {
+		// "Hello" should match "HelloWorld" — contiguous from start
+		const score = doScoreWordBoundary('HelloWorld', 'Hello');
+		assert.ok(score[0] > 0, 'Hello should match HelloWorld');
+	});
+
+	test('single character at word start matches', function () {
+		const score = doScoreWordBoundary('HelloWorld', 'H');
+		assert.ok(score[0] > 0, 'H should match HelloWorld');
+	});
+
+	test('single character not at word start does not match', function () {
+		// "e" is at position 1 in "Hello" — not a word start
+		// But the scorer may find it elsewhere; in "HelloWorld" e is only mid-word
+		// Since there's no word start position with 'e', score should be 0
+		const score = doScoreWordBoundary('xyzt', 'y');
+		assert.strictEqual(score[0], 0, 'y should not match xyzt in word boundary mode (no word start has y)');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
