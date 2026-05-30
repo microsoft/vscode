@@ -227,6 +227,7 @@ export class ReviewServiceImpl implements IReviewService {
 	}
 
 	dispose(): void {
+		clearInterval(this._monitorActiveThread);
 		this._disposables.dispose();
 	}
 }
