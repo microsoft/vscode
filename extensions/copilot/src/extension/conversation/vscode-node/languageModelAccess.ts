@@ -306,6 +306,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const models: vscode.LanguageModelChatInformation[] = [];
 		const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+		if (!allEndpoints.length) {
+			return this._currentModels;
+		}
 		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
 		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		chatEndpoints.push(autoEndpoint);
@@ -482,6 +485,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+			if (!allEndpoints.length) {
+				return undefined;
+			}
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
