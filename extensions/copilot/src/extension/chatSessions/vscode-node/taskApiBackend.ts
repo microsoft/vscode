@@ -263,12 +263,21 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 	}
 
 	async fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
+		const perPage = 100;
+		const events: AgentTaskSessionEvent[] = [];
 		try {
-			const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: 100 });
-			return response.events;
+			for (let page = 1; ; page++) {
+				const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: perPage, page });
+				const batch = response.events;
+				events.push(...batch);
+				if (batch.length === 0 || batch.length < perPage || (typeof response.total === 'number' && events.length >= response.total)) {
+					break;
+				}
+			}
+			return events;
 		} catch (e) {
 			this._logService.warn(`Failed to fetch events for task ${taskId}: ${e}`);
-			return [];
+			return events;
 		}
 	}
 

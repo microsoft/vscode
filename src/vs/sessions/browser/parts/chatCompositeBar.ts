@@ -381,3 +381,65 @@ export class ChatCompositeBar extends Disposable {
 		this._container.style.setProperty('--chat-tab-active-border', activeBorder?.toString() ?? '');
 	}
 }
+
+/**
+ * A lightweight variant of {@link ChatCompositeBar} that renders only the
+ * {@link Menus.SessionBarToolbar} menu using the same `.chat-composite-bar-toolbar`
+ * styling. Unlike the full composite bar, this toolbar is absolutely positioned
+ * at the top-right of the session view and does not allocate any vertical space.
+ *
+ * It is shown only when the hosted session exists but has not yet been created.
+ */
+export class SessionViewFloatingToolbar extends Disposable {
+
+	private readonly _container: HTMLElement;
+	private readonly _toolbar: MenuWorkbenchToolBar;
+	private _session: IActiveSession | undefined;
+	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
+
+	get element(): HTMLElement {
+		return this._container;
+	}
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this._container = $('.chat-composite-bar.chat-composite-bar-toolbar-floating');
+		const toolbar = $('.chat-composite-bar-toolbar');
+		this._container.appendChild(toolbar);
+
+		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+		}));
+
+		this._setVisible(false);
+	}
+
+	setSession(session: IActiveSession | undefined): void {
+		if (this._session === session) {
+			return;
+		}
+		this._session = session;
+		this._toolbar.context = session;
+
+		const store = new DisposableStore();
+		this._sessionDisposables.value = store;
+
+		if (!session) {
+			this._setVisible(false);
+			return;
+		}
+
+		store.add(autorun(reader => {
+			this._setVisible(!session.isCreated.read(reader));
+		}));
+	}
+
+	private _setVisible(visible: boolean): void {
+		this._container.style.display = visible ? '' : 'none';
+	}
+}

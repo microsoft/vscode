@@ -31,7 +31,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type Customization, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type Customization, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -233,8 +233,8 @@ class MockCopilotSession {
 	async send(): Promise<string> { return ''; }
 	async abort(): Promise<void> { }
 	async setModel(): Promise<void> { }
-	async getMessages(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
-	async destroy(): Promise<void> { }
+	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
+	async disconnect(): Promise<void> { }
 }
 
 class MockAgentHostOTelService implements IAgentHostOTelService {
@@ -382,7 +382,7 @@ function sdkSession(sessionId: string, cwd?: string): Awaited<ReturnType<ITestCo
 		modifiedTime: new Date(2000),
 		summary: `SDK ${sessionId}`,
 		isRemote: false,
-		...(cwd ? { context: { cwd } } : {}),
+		...(cwd ? { context: { workingDirectory: cwd } } : {}),
 	};
 }
 
@@ -731,6 +731,64 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('getSessionCustomizations publishes discovered files as Directory customizations', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			await fileService.createFolder(URI.joinPath(workspace, '.github', 'agents'));
+			await fileService.createFolder(URI.joinPath(workspace, '.github', 'instructions', 'team'));
+			const agentFile = URI.joinPath(workspace, '.github', 'agents', 'helper.agent.md');
+			const instructionFile = URI.joinPath(workspace, '.github', 'instructions', 'team', 'nested.instructions.md');
+			await fileService.writeFile(agentFile, VSBuffer.fromString('agent body'));
+			await fileService.writeFile(instructionFile, VSBuffer.fromString('instruction body'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-directories');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				const customizations = await agent.getSessionCustomizations(session);
+				const discoveredDirectories = customizations.filter(customization => customization.type === CustomizationType.Directory);
+
+				assert.strictEqual(discoveredDirectories.length, 2);
+				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), [
+					URI.joinPath(workspace, '.github', 'agents').toString(),
+					URI.joinPath(workspace, '.github', 'instructions').toString(),
+				].sort());
+
+				const agentDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'agents').toString());
+				assert.ok(agentDirectory);
+				assert.strictEqual(agentDirectory.contents, CustomizationType.Agent);
+				assert.deepStrictEqual(agentDirectory.children, [{
+					type: CustomizationType.Agent,
+					id: customizationId(agentFile.toString()),
+					uri: agentFile.toString(),
+					name: 'helper',
+				}]);
+
+				const instructionDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'instructions').toString());
+				assert.ok(instructionDirectory);
+				assert.strictEqual(instructionDirectory.contents, CustomizationType.Rule);
+				assert.deepStrictEqual(instructionDirectory.children, [{
+					type: CustomizationType.Rule,
+					id: customizationId(instructionFile.toString()),
+					uri: instructionFile.toString(),
+					name: 'nested.instructions.md',
+				}]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('provisional sessions', () => {
@@ -825,6 +883,34 @@ suite('CopilotAgent', () => {
 					systemMessage.sections?.identity?.content,
 					'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.'
 				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materialization forwards the GitHub token to the SDK at the session level (#318693)', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'gh-token-abc');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'session-level-token'),
+					workingDirectory: URI.file('/workspace'),
+				});
+				assert.strictEqual(result.provisional, true);
+
+				await agent.sendMessage(result.session, 'hello');
+
+				assert.strictEqual(capturedConfig?.gitHubToken, 'gh-token-abc',
+					'createSession should receive the GitHub token at session level so the SDK can resolve a per-session GitHub identity');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -1114,7 +1200,7 @@ suite('CopilotAgent', () => {
 			const fakeMessages: Turn[] = [
 				{
 					id: 'u1',
-					userMessage: { text: 'hi' },
+					message: { text: 'hi', origin: { kind: MessageKind.User } },
 					responseParts: [
 						{
 							kind: ResponsePartKind.ToolCall,
@@ -1226,7 +1312,7 @@ suite('CopilotAgent', () => {
 			}) as TestableCopilotAgent;
 
 			const fakeMessages: Turn[] = [
-				{ id: 'u1', userMessage: { text: 'hi' }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'a1', content: 'untouched reply' }], usage: undefined, state: TurnState.Complete },
+				{ id: 'u1', message: { text: 'hi', origin: { kind: MessageKind.User } }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'a1', content: 'untouched reply' }], usage: undefined, state: TurnState.Complete },
 			];
 			agent.registerFakeSession(sessionId, {
 				send: async () => { },

@@ -59,7 +59,7 @@ Archived sessions always go to the "Done" section regardless of grouping mode. A
 When grouping by workspace, the list shows only **primary** workspace sections by default:
 
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
-- Remaining workspaces collapse behind a "Show N more" toggle
+- Remaining workspaces collapse behind a "+N more workspaces" toggle
 - Within each workspace, sessions beyond 5 also show a "Show more" toggle
 - The find widget bypasses all capping
 

@@ -4,39 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/browser.css';
-import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, Dimension, EventType, IDomPosition } from '../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { $, Dimension, IDomPosition } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IQuickInputButton } from '../../../../platform/quickinput/common/quickInput.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewNavigationEvent, IBrowserViewCertificateError } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
-export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
-export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
+
+/** Context key expression matching when the browser editor is the active editor. */
+export const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
+
+/** Localized "Browser" category for command palette grouping. */
+export const BrowserActionCategory = localize2('browserCategory', "Browser");
+
+/** Menu groups used by browser-editor actions. */
+export enum BrowserActionGroup {
+	Tabs = '1_tabs',
+	Zoom = '2_zoom',
+	Developer = '3_developer',
+	Page = '4_page',
+	Settings = '5_settings'
+}
 
 /**
  * Get the original implementation of HTMLElement focus (without window auto-focusing)
@@ -78,6 +86,14 @@ export abstract class BrowserEditorContribution extends Disposable {
 	onModelDetached(): void { }
 
 	/**
+	 * Called when an input is attached but no model exists yet. Use to render
+	 * placeholder UI from the input's metadata (e.g. show the URL in the navbar)
+	 * while the model resolves. Only fires when the input has no preloaded model;
+	 * after the model resolves, {@link onModelAttached} takes over.
+	 */
+	prerenderInput(_input: BrowserEditorInput): void { }
+
+	/**
 	 * Widgets contributed by this feature. Each widget declares its target
 	 * {@link BrowserWidgetLocation}; the editor groups widgets by location
 	 * and stacks them in {@link IBrowserEditorWidget.order} order.
@@ -92,6 +108,21 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * `https:` prefix when a certificate error is active).
 	 */
 	get urlRenderers(): readonly IBrowserUrlRenderer[] { return []; }
+
+	/**
+	 * Optional URL bar suggestion providers (open tabs, history, favorites,
+	 * search engines, ...). The navbar invokes each provider in sorted order
+	 * when the URL picker opens or its value changes, and renders the merged
+	 * suggestions below the built-in "Go to" entry.
+	 */
+	get urlSuggestionProviders(): readonly IBrowserUrlSuggestionProvider[] { return []; }
+
+	/**
+	 * Optional action providers for buttons rendered in the URL picker chrome.
+	 * The navbar collects buttons from each provider when the picker opens
+	 * and refreshes them when a provider fires {@link IBrowserUrlPickerActionProvider.onDidChange}.
+	 */
+	get urlPickerActionProviders(): readonly IBrowserUrlPickerActionProvider[] { return []; }
 
 	/**
 	 * Called when the editor is laid out with a new dimension.
@@ -113,15 +144,18 @@ export abstract class BrowserEditorContribution extends Disposable {
 	onPaneVisibilityChanged(_visible: boolean): void { }
 
 	/**
-	 * Called when the editor wants focus to land on the page content. Most
-	 * contributions ignore this; the renderer-providing contribution typically
-	 * forwards focus to the underlying page.
+	 * Called when the editor wants focus. Contributions are tried in
+	 * registration order; the first to return `true` claims the focus. The
+	 * renderer-providing contribution typically handles this when a page is
+	 * loaded; the navbar handles it as a fallback by focusing the URL input.
 	 */
-	focusPage(): void { }
+	tryFocus(): boolean { return false; }
 
 	/**
-	 * Called once after the editor's browser container DOM has been created.
-	 * Use to do setup that needs to attach to `editor.browserContainer`.
+	 * Called once after the editor's browser container DOM has been created
+	 * and all toolbar widgets have been mounted. Use for any setup that needs
+	 * the editor's DOM to exist or needs to read sibling contributions (e.g.
+	 * the navbar pulls pre/post-URL widgets from other features here).
 	 */
 	onContainerCreated(_container: HTMLElement): void { }
 
@@ -240,209 +274,114 @@ export interface IBrowserUrlRenderer {
 	readonly onDidChange: Event<void>;
 }
 
-class BrowserNavigationBar extends Disposable {
-	private readonly _urlInput: HTMLInputElement;
-	private readonly _urlDisplay: HTMLElement;
-	private readonly _preUrlWidgetsContainer: HTMLElement;
-	private readonly _urlBarWidgetsContainer: HTMLElement;
-	private readonly _urlRenderers: IBrowserUrlRenderer[] = [];
-
-	constructor(
-		editor: BrowserEditor,
-		container: HTMLElement,
-		instantiationService: IInstantiationService,
-		scopedContextKeyService: IContextKeyService
-	) {
-		super();
-
-		// Create hover delegate for toolbar buttons
-		const hoverDelegate = this._register(
-			instantiationService.createInstance(
-				WorkbenchHoverDelegate,
-				'element',
-				undefined,
-				{ position: { hoverPosition: HoverPosition.ABOVE } }
-			)
-		);
-
-		// Create navigation toolbar (left side) with scoped context
-		const navContainer = $('.browser-nav-toolbar');
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService]
-		));
-		const navToolbar = this._register(scopedInstantiationService.createInstance(
-			MenuWorkbenchToolBar,
-			navContainer,
-			MenuId.BrowserNavigationToolbar,
-			{
-				hoverDelegate,
-				highlightToggledItems: true,
-				// Render all actions inline regardless of group
-				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-				menuOptions: { shouldForwardArgs: true }
-			}
-		));
-
-		// URL input container (wraps pre-url widgets + input + post-url widgets)
-		const urlContainer = $('.browser-url-container');
-
-		// Pre-URL widgets slot (e.g. site/security indicators contributed by features)
-		this._preUrlWidgetsContainer = $('.browser-site-info-slot');
-
-		// URL input (hidden by default; shown when user clicks the display)
-		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
-		this._urlInput.type = 'text';
-		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
-		this._urlInput.style.display = 'none';
-
-		// URL display — shows the URL when not editing; clickable to switch to input
-		const urlInputWrapper = $('.browser-url-input-wrapper');
-		this._urlDisplay = $('span.browser-url-display');
-		this._urlDisplay.tabIndex = 0;
-		urlInputWrapper.appendChild(this._urlDisplay);
-		urlInputWrapper.appendChild(this._urlInput);
-
-		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
-
-		urlContainer.appendChild(this._preUrlWidgetsContainer);
-		urlContainer.appendChild(urlInputWrapper);
-		urlContainer.appendChild(this._urlBarWidgetsContainer);
-
-		// Create actions toolbar (right side) with scoped context
-		const actionsContainer = $('.browser-actions-toolbar');
-		const actionsToolbar = this._register(scopedInstantiationService.createInstance(
-			MenuWorkbenchToolBar,
-			actionsContainer,
-			MenuId.BrowserActionsToolbar,
-			{
-				hoverDelegate,
-				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
-				menuOptions: { shouldForwardArgs: true }
-			}
-		));
-
-		navToolbar.context = editor;
-		actionsToolbar.context = editor;
-
-		// Assemble layout: nav | url container | actions
-		container.appendChild(navContainer);
-		container.appendChild(urlContainer);
-		container.appendChild(actionsContainer);
-
-		// Setup URL input handler
-		this._register(addDisposableListener(this._urlInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter') {
-				const url = this._urlInput.value.trim();
-				if (url) {
-					editor.navigateToUrl(url);
-				}
-			}
-		}));
-
-		// Select all URL bar text when the URL bar receives focus (like in regular browsers)
-		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
-			this._urlInput.select();
-		}));
-
-		// Switch back to display mode when the URL bar loses focus
-		this._register(addDisposableListener(this._urlInput, EventType.BLUR, () => {
-			this._showDisplay();
-		}));
-		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
-			this._showInput();
-		}));
-	}
-
+/**
+ * A single URL bar suggestion. Suggestions are produced by
+ * {@link IBrowserUrlSuggestionProvider}s contributed via
+ * {@link BrowserEditorContribution.urlSuggestionProviders}. When the user
+ * picks a suggestion the navbar invokes {@link apply}, passing the active
+ * {@link BrowserEditorInput} so the suggestion can decide what to do with it
+ * (navigate, swap to a different tab, etc.).
+ */
+export interface IBrowserUrlSuggestion {
+	/** Stable identifier used as the picker item id. */
+	readonly id: string;
+	/** Label shown in the suggestion list. */
+	readonly label: string;
+	/** Optional secondary description (e.g. host, date, source). */
+	readonly description?: string;
+	/** Optional leading icon (codicon). */
+	readonly icon?: ThemeIcon;
+	/** Optional leading icon (image, e.g. favicon). Takes precedence over {@link icon}. */
+	readonly iconPath?: { dark: URI; light?: URI };
 	/**
-	 * Update the navigation bar state from a navigation event
+	 * Optional per-item actions rendered as inline buttons on the
+	 * suggestion's row (e.g. a delete button on a favorite suggestion).
 	 */
-	updateFromNavigationEvent(event: IBrowserViewNavigationEvent): void {
-		this._urlInput.value = event.url;
-		this._renderUrl();
-	}
-
+	readonly actions?: readonly IBrowserUrlSuggestionAction[];
 	/**
-	 * Focus the URL input and select all text
+	 * Invoked when the suggestion is accepted. Receives the input that owns
+	 * the URL bar so the suggestion can act on its editor (e.g. swap the
+	 * editor's input for a different tab, or load a URL into its model).
 	 */
-	focusUrlInput(): void {
-		this._showInput();
-	}
+	apply(input: BrowserEditorInput): void | Promise<void>;
+}
 
+/**
+ * A per-item button rendered inline on a suggestion's row (e.g. a delete
+ * button on a favorite). Extends {@link IQuickInputButton} so visual
+ * properties are configured the same way as any other picker button; adds
+ * an {@link id} for identification and a {@link run} callback that receives
+ * the active {@link BrowserEditorInput} so the action can operate on the
+ * editor it was triggered from.
+ */
+export interface IBrowserUrlSuggestionAction extends IQuickInputButton {
+	/** Stable id (useful for telemetry/debugging). */
+	readonly id: string;
+	/** Invoked when the user activates the per-item button. */
+	run(input: BrowserEditorInput): void | Promise<void>;
+}
+
+/** Context passed to providers when suggestions are requested. */
+export interface IBrowserUrlSuggestionContext {
+	/** Current URL bar text (may be empty). */
+	readonly text: string;
+	/** The input that owns the URL bar requesting suggestions. */
+	readonly input: BrowserEditorInput;
+}
+
+/**
+ * A source of URL bar suggestions (open tabs, history, favorites, search
+ * engines, ...). Contributions return providers via
+ * {@link BrowserEditorContribution.urlSuggestionProviders}.
+ */
+export interface IBrowserUrlSuggestionProvider {
 	/**
-	 * Switch to input-editing mode: hide display, show and focus input.
+	 * Optional group label rendered as a separator above this provider's
+	 * suggestions (only shown when the provider returns at least one item).
 	 */
-	private _showInput(): void {
-		this._urlDisplay.style.display = 'none';
-		this._urlInput.style.display = '';
-		this._urlInput.select();
-		this._urlInput.focus();
-	}
-
+	readonly label?: string;
 	/**
-	 * Add widget elements to the pre-URL slot (left of the URL input), sorted by order.
+	 * Optional group description rendered next to the separator label
+	 * (e.g. "Select a tab to switch"). Only shown when {@link label} is set.
 	 */
-	addPreUrlWidgets(widgets: readonly IBrowserEditorWidget[]): void {
-		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
-		for (const widget of sorted) {
-			this._preUrlWidgetsContainer.appendChild(widget.element);
-		}
-	}
-
+	readonly description?: string;
+	/** Sort order between providers. Lower runs first. Defaults to 0. */
+	readonly order?: number;
 	/**
-	 * Add widget elements to the post-URL slot (right of the URL input), sorted by order.
+	 * Fires when the set of suggestions or any suggestion's state has changed.
+	 * The navbar re-requests suggestions when this fires.
 	 */
-	addUrlBarWidgets(widgets: readonly IBrowserEditorWidget[]): void {
-		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
-		for (const widget of sorted) {
-			this._urlBarWidgetsContainer.appendChild(widget.element);
-		}
-	}
+	readonly onDidChange?: Event<void>;
+	getSuggestions(context: IBrowserUrlSuggestionContext, token: CancellationToken): Promise<readonly IBrowserUrlSuggestion[]>;
+}
 
-	/**
-	 * Register URL renderers. The navbar re-renders when any renderer's
-	 * `onDidChange` fires.
-	 */
-	addUrlRenderers(renderers: readonly IBrowserUrlRenderer[]): void {
-		for (const renderer of renderers) {
-			this._urlRenderers.push(renderer);
-			this._register(renderer.onDidChange(() => this._renderUrl()));
-		}
-		this._renderUrl();
-	}
+/**
+ * A button rendered in the URL picker chrome.
+ * Extends {@link IQuickInputButton} so visual properties (icon, tooltip,
+ * toggle state, location) are configured the same way as any other picker
+ * button; adds an {@link id} for identification and a {@link run} callback
+ * that receives the active {@link BrowserEditorInput} so the action can
+ * operate on the editor it was triggered from.
+ */
+export interface IBrowserUrlPickerAction extends IQuickInputButton {
+	/** Stable id (useful for telemetry/debugging). */
+	readonly id: string;
+	/** Invoked when the user activates the button. */
+	run(input: BrowserEditorInput): void | Promise<void>;
+}
 
-	/**
-	 * Switch to display mode: hide the input and show the styled display.
-	 */
-	private _showDisplay(): void {
-		this._urlInput.style.display = 'none';
-		this._urlDisplay.style.display = '';
-		this._renderUrl();
-	}
-
-	/**
-	 * Rebuild the display element's content. Tries each contributed URL renderer
-	 * in order; falls back to plain text if none claims the URL.
-	 */
-	private _renderUrl(): void {
-		const url = this._urlInput.value;
-
-		this._urlDisplay.textContent = '';
-		this._urlDisplay.classList.toggle('placeholder', !url);
-
-		for (const renderer of this._urlRenderers) {
-			if (renderer.render(url, this._urlDisplay)) {
-				return;
-			}
-		}
-
-		this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
-	}
-
-	clear(): void {
-		this._urlInput.value = '';
-		this._renderUrl();
-	}
+/**
+ * A source of URL picker chrome actions. Providers are queried once when the
+ * picker opens; if a provider's actions or their state change while the
+ * picker is open, fire {@link onDidChange} to have the navbar rebuild the
+ * button list.
+ */
+export interface IBrowserUrlPickerActionProvider {
+	/** Fires when the action set or any action's visual state changes. */
+	readonly onDidChange?: Event<void>;
+	/** Sort order between providers. Lower runs first. Defaults to 0. */
+	readonly order?: number;
+	getActions(input: BrowserEditorInput): readonly IBrowserUrlPickerAction[];
 }
 
 export class BrowserEditor extends EditorPane {
@@ -459,6 +398,11 @@ export class BrowserEditor extends EditorPane {
 		return this._contributionInstances.get(ctor as IConstructorSignature<BrowserEditorContribution, [BrowserEditor]>) as T | undefined;
 	}
 
+	/** All instantiated contributions in registration order. */
+	getContributions(): Iterable<BrowserEditorContribution> {
+		return this._contributionInstances.values();
+	}
+
 	// -- Model lifecycle ------------------------------------------------
 
 	private _model: IBrowserViewModel | undefined;
@@ -471,14 +415,12 @@ export class BrowserEditor extends EditorPane {
 
 	// -- State ----------------------------------------------------------
 
-	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainerWrapper!: HTMLElement;
 	private _browserContainer!: HTMLElement;
 	get browserContainer(): HTMLElement { return this._browserContainer; }
-	private _welcomeContainer!: HTMLElement;
-	private _canGoBackContext!: IContextKey<boolean>;
-	private _canGoForwardContext!: IContextKey<boolean>;
+
 	private _hasUrlContext!: IContextKey<boolean>;
+	private _hasErrorContext!: IContextKey<boolean>;
 
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -499,10 +441,8 @@ export class BrowserEditor extends EditorPane {
 		// Create scoped context key service for this editor instance
 		const contextKeyService = this._register(this.contextKeyService.createScoped(parent));
 
-		// Bind navigation capability context keys
-		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
-		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
+		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -523,15 +463,8 @@ export class BrowserEditor extends EditorPane {
 		root.tabIndex = -1; // Click focusable (for kb shortcuts), but not in tab order
 		parent.appendChild(root);
 
-		// Create navbar with navigation buttons and URL input
-		const navbar = $('.browser-navbar');
-
-		// Create navigation bar widget with scoped context
-		this._navigationBar = this._register(new BrowserNavigationBar(this, navbar, this.instantiationService, contextKeyService));
-
 		// Collect widgets from all contributions, grouped by location.
 		const widgetsByLocation = new Map<BrowserWidgetLocation, IBrowserEditorWidget[]>();
-		const urlRenderers: IBrowserUrlRenderer[] = [];
 		for (const contribution of this._contributionInstances.values()) {
 			for (const widget of contribution.widgets) {
 				let bucket = widgetsByLocation.get(widget.location);
@@ -541,7 +474,6 @@ export class BrowserEditor extends EditorPane {
 				}
 				bucket.push(widget);
 			}
-			urlRenderers.push(...contribution.urlRenderers);
 		}
 		for (const bucket of widgetsByLocation.values()) {
 			bucket.sort((a, b) => a.order - b.order);
@@ -549,13 +481,8 @@ export class BrowserEditor extends EditorPane {
 		const widgetsAt = (location: BrowserWidgetLocation): readonly IBrowserEditorWidget[] =>
 			widgetsByLocation.get(location) ?? [];
 
-		this._navigationBar.addPreUrlWidgets(widgetsAt(BrowserWidgetLocation.PreUrl));
-		this._navigationBar.addUrlBarWidgets(widgetsAt(BrowserWidgetLocation.PostUrl));
-		this._navigationBar.addUrlRenderers(urlRenderers);
-
-		root.appendChild(navbar);
-
-		// Toolbar widgets — appended between the navbar and the container.
+		// Toolbar widgets — stacked at the top of the editor. The navbar is the
+		// first toolbar widget (order 0); find/emulation/etc follow in order.
 		for (const widget of widgetsAt(BrowserWidgetLocation.Toolbar)) {
 			root.appendChild(widget.element);
 		}
@@ -576,8 +503,8 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		// Wrapper around placeholder contents for border radius clipping. Holds
-		// contribution-provided content (placeholder screenshot, overlay-pause)
-		// plus the editor-owned welcome layer.
+		// contribution-provided content area widgets (welcome placeholder,
+		// placeholder screenshot, overlay-pause, error overlay, ...).
 		const placeholderContents = $('.browser-placeholder-contents');
 		this._browserContainer.appendChild(placeholderContents);
 
@@ -585,20 +512,16 @@ export class BrowserEditor extends EditorPane {
 		for (const widget of widgetsAt(BrowserWidgetLocation.ContentArea)) {
 			placeholderContents.appendChild(widget.element);
 		}
-
-		// Create welcome container (shown when no URL is loaded)
-		this._welcomeContainer = this.createWelcomeContainer();
-		placeholderContents.appendChild(this._welcomeContainer);
 	}
 
 	override focus(): void {
-		if (this._model?.url && !this._model.error) {
-			for (const c of this._contributionInstances.values()) {
-				c.focusPage();
+		for (const c of this._contributionInstances.values()) {
+			if (c.tryFocus()) {
+				return;
 			}
-		} else {
-			this.focusUrlInput();
 		}
+		// Fallback when no contribution claimed focus (e.g. tests).
+		this.ensureBrowserFocus();
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -612,14 +535,14 @@ export class BrowserEditor extends EditorPane {
 		let model = input.model;
 		const isNew = !model;
 		if (!model) {
-			// Set initial navigation state from the input so that the UI is populated while the model is loading.
-			this.updateNavigationState({
-				url: input.url || '',
-				title: input.title || '',
-				canGoBack: false,
-				canGoForward: false,
-				certificateError: undefined
-			});
+			this._hasUrlContext.set(!!input.url);
+			this._hasErrorContext.set(false);
+
+			// Let contributions render placeholder UI from the input's metadata
+			// (e.g. URL, title) while the model is loading.
+			for (const c of this._contributionInstances.values()) {
+				c.prerenderInput(input);
+			}
 
 			// Resolve the browser view model from the input
 			model = await input.resolve();
@@ -632,14 +555,8 @@ export class BrowserEditor extends EditorPane {
 		this._model = model;
 		this._onDidChangeModel.fire({ model, isNew });
 
-		// Initialize UI state and context keys from model
-		this.updateNavigationState({
-			url: this._model.url,
-			title: this._model.title,
-			canGoBack: this._model.canGoBack,
-			canGoForward: this._model.canGoForward,
-			certificateError: this._model.certificateError
-		});
+		this._hasUrlContext.set(!!model.url);
+		this._hasErrorContext.set(!!model.error);
 
 		// When closing a tab, the model gets disposed before the editor input is cleared.
 		// So we make sure we don't keep a reference to the disposed model.
@@ -647,11 +564,27 @@ export class BrowserEditor extends EditorPane {
 			this._model = undefined;
 		}));
 
-		this._inputDisposables.add(this._model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
+		this._inputDisposables.add(this._model.onWillNavigate(() => {
 			this.group.pinEditor(this.input); // pin editor on navigation
+			this.ensureBrowserFocus();
+		}));
 
-			// Update navigation bar and context keys from model
-			this.updateNavigationState(navEvent);
+		this._inputDisposables.add(this._model.onDidNavigate(() => {
+			this.group.pinEditor(this.input); // pin editor on navigation
+			this._hasUrlContext.set(!!model.url);
+		}));
+
+		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
+			this._hasErrorContext.set(!!model.error);
+		}));
+
+		this._inputDisposables.add(model.onDidChangeFocus(({ focused }) => {
+			// When the view gets focused, make sure the editor reports that it has focus,
+			// but focus is removed from the workbench.
+			if (focused) {
+				this._onDidFocus?.fire();
+				this.ensureBrowserFocus();
+			}
 		}));
 
 		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
@@ -667,14 +600,12 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this.layout();
-		this.updateVisibility();
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
 		for (const c of this._contributionInstances.values()) {
 			c.onPaneVisibilityChanged(visible);
 		}
-		this.updateVisibility();
 	}
 
 	/**
@@ -685,124 +616,10 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Notify the editor pane that focus has landed on the page content.
-	 * The renderer-providing contribution calls this when the underlying
-	 * page reports focus, since the page lives outside the DOM focus tracker
-	 * and so doesn't propagate through {@link EditorPane.onDidFocus}.
-	 */
-	notifyPageFocused(): void {
-		this._onDidFocus?.fire();
-	}
-
-	private updateVisibility(): void {
-		// Welcome container: shown when no URL is loaded
-		this._welcomeContainer.style.display = this._model?.url ? 'none' : '';
-	}
-
-	/**
 	 * Close this editor tab (i.e. the editor input owning the current page).
 	 */
 	closeTab(): void {
 		this.group?.closeEditor(this.input);
-	}
-
-	getUrl(): string | undefined {
-		return this._model?.url;
-	}
-
-	getCertificateError(): IBrowserViewCertificateError | undefined {
-		return this._model?.certificateError;
-	}
-
-	/**
-	 * Revoke trust for the certificate and close this editor tab.
-	 */
-	revokeAndClose(certError: IBrowserViewCertificateError): void {
-		// This method automatically closes the browser view.
-		this._model?.untrustCertificate(certError.host, certError.fingerprint);
-	}
-
-	async navigateToUrl(url: string): Promise<void> {
-		if (this._model) {
-			this.group.pinEditor(this.input); // pin editor on navigation
-
-			// Special case localhost URLs (e.g., "localhost:3000") to add http://
-			if (/^localhost(:|\/|$)/i.test(url)) {
-				url = 'http://' + url;
-			} else if (!URL.parse(url)?.protocol) {
-				// If no scheme provided, default to http (sites will generally upgrade to https)
-				url = 'http://' + url;
-			}
-
-			this.ensureBrowserFocus();
-			await this._model.loadURL(url);
-		}
-	}
-
-	focusUrlInput(): void {
-		this._navigationBar.focusUrlInput();
-	}
-
-	async goBack(): Promise<void> {
-		return this._model?.goBack();
-	}
-
-	async goForward(): Promise<void> {
-		return this._model?.goForward();
-	}
-
-	async reload(hard?: boolean): Promise<void> {
-		return this._model?.reload(hard);
-	}
-
-	async toggleDevTools(): Promise<void> {
-		return this._model?.toggleDevTools();
-	}
-
-	async clearStorage(): Promise<void> {
-		return this._model?.clearStorage();
-	}
-
-	/**
-	 * Update navigation state and context keys
-	 */
-	private updateNavigationState(event: IBrowserViewNavigationEvent): void {
-		// Update navigation bar UI
-		this._navigationBar.updateFromNavigationEvent(event);
-
-		// Update context keys for command enablement
-		this._canGoBackContext.set(event.canGoBack);
-		this._canGoForwardContext.set(event.canGoForward);
-		this._hasUrlContext.set(!!event.url);
-
-		// Update visibility (welcome screen, error, browser view)
-		this.updateVisibility();
-	}
-
-	/**
-	 * Create the welcome container shown when no URL is loaded
-	 */
-	private createWelcomeContainer(): HTMLElement {
-		const container = $('.browser-welcome-container');
-		const content = $('.browser-welcome-content');
-
-		const iconContainer = $('.browser-welcome-icon');
-		iconContainer.appendChild(renderIcon(Codicon.globe));
-		content.appendChild(iconContainer);
-
-		const title = $('.browser-welcome-title');
-		title.textContent = localize('browser.welcomeTitle', "Browser");
-		content.appendChild(title);
-
-		const subtitle = $('.browser-welcome-subtitle');
-		const chatEnabled = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
-		subtitle.textContent = chatEnabled
-			? localize('browser.welcomeSubtitleChat', "Use Add Element to Chat to reference UI elements in chat prompts.")
-			: localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
-		content.appendChild(subtitle);
-
-		container.appendChild(content);
-		return container;
 	}
 
 	override layout(dimension?: Dimension, _position?: IDomPosition): void {
@@ -924,11 +741,8 @@ export class BrowserEditor extends EditorPane {
 		this._model = undefined;
 		this._onDidChangeModel.fire({ model: undefined, isNew: false });
 
-		this._canGoBackContext.reset();
-		this._canGoForwardContext.reset();
 		this._hasUrlContext.reset();
-
-		this._navigationBar.clear();
+		this._hasErrorContext.reset();
 
 		super.clearInput();
 	}

@@ -20,8 +20,10 @@ import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 
 // Register actions and browser features
-import './browserViewActions.js';
 import './features/webContentsViewRendererFeature.js';
+import './features/browserNavigationFeatures.js';
+import './features/browserWelcomeFeature.js';
+import './features/browserFavoritesFeature.js';
 import './features/browserDataStorageFeatures.js';
 import './features/browserDevToolsFeature.js';
 import './features/browserEditorChatFeatures.js';
