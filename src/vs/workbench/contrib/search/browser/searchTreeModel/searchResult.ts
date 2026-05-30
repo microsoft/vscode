@@ -289,8 +289,6 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	override async dispose(): Promise<void> {
 		this._aiTextSearchResult?.dispose();
 		this._plainTextSearchResult?.dispose();
-		this._onWillChangeModelListener?.dispose();
-		this._onDidChangeModelListener?.dispose();
 		super.dispose();
 	}
 }
