@@ -602,6 +602,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		// Scroll is owned by the DomScrollableElement around contentsDomNode; bounding only the
+		// outer container clips with no scrollbar. Mirror the editor ContentHoverWidget and also
+		// bound the scrollable root + contents node so scanDomNode() can show the scrollbar.
+		this._hover.scrollbar.getDomNode().style.maxHeight = `${maxHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${maxHeight}px`;
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
 			// Add padding for a vertical scrollbar
 			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
