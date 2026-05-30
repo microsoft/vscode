@@ -4437,6 +4437,39 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
+	@command('git.addToLocalOnly')
+	async addToLocalOnly(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.executeLocalOnlyCommand('addToLocalOnly', resourceStates);
+	}
+
+	@command('git.removeFromLocalOnly')
+	async removeFromLocalOnly(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.executeLocalOnlyCommand('removeFromLocalOnly', resourceStates);
+	}
+
+	private async executeLocalOnlyCommand(
+		action: 'addToLocalOnly' | 'removeFromLocalOnly',
+		resourceStates: SourceControlResourceState[]
+	): Promise<void> {
+		const resources = this.getResourceUrisFromScmArguments(resourceStates);
+
+		if (resources.length) {
+			await this.runByRepository(
+				resources,
+				async (repository, uris) => repository[action](uris)
+			);
+			return;
+		}
+
+		const resource = this.getSCMResource();
+		if (resource) {
+			await this.runByRepository(
+				resource.resourceUri,
+				async (repository, uri) => repository[action]([uri])
+			);
+		}
+	}
+
 	@command('git.revealInExplorer')
 	async revealInExplorer(resourceState: SourceControlResourceState): Promise<void> {
 		if (!resourceState) {
@@ -5726,10 +5759,34 @@ export class CommandCenter {
 			}
 
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.untrackedGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.localOnlyGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 		return undefined;
+	}
+
+	private getResourceUrisFromScmArguments(args: unknown[]): Uri[] {
+		const flattened = args.flatMap(arg => Array.isArray(arg) ? arg : [arg]).filter(arg => !!arg);
+		const resources: Uri[] = [];
+
+		for (const arg of flattened) {
+			if (arg instanceof Uri) {
+				resources.push(arg);
+				continue;
+			}
+
+			if (typeof arg === 'object' && arg !== null) {
+				const resourceUri = (arg as { resourceUri?: unknown }).resourceUri;
+
+				if (resourceUri instanceof Uri) {
+					resources.push(resourceUri);
+				}
+			}
+		}
+
+		return resources;
 	}
 
 	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;

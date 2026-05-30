@@ -50,7 +50,8 @@ export const enum ResourceGroupType {
 	Merge,
 	Index,
 	WorkingTree,
-	Untracked
+	Untracked,
+	LocalOnly
 }
 
 export class Resource implements SourceControlResourceState {
@@ -355,6 +356,13 @@ interface GitResourceGroups {
 	mergeGroup?: Resource[];
 	untrackedGroup?: Resource[];
 	workingTreeGroup?: Resource[];
+	localOnlyGroup?: Resource[];
+}
+
+interface LocalOnlyResource {
+	path: string;
+	status: Status;
+	renamePath?: string;
 }
 
 class ProgressManager {
@@ -702,6 +710,7 @@ export interface IRepositoryResolver {
 
 export class Repository implements Disposable {
 	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
+	static readonly LOCAL_ONLY_STORAGE_KEY = 'localOnlyResources';
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -747,6 +756,9 @@ export class Repository implements Disposable {
 
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
+
+	private _localOnlyGroup: SourceControlResourceGroup;
+	get localOnlyGroup(): GitResourceGroup { return this._localOnlyGroup as GitResourceGroup; }
 
 	private _EMPTY_TREE: string | undefined;
 
@@ -859,6 +871,7 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
+		this.localOnlyGroup.resourceStates = [];
 		this._sourceControl.count = 0;
 	}
 
@@ -899,6 +912,7 @@ export class Repository implements Disposable {
 	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
+	private localOnlyResources: LocalOnlyResource[] = [];
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
@@ -916,6 +930,7 @@ export class Repository implements Disposable {
 		private readonly repositoryCache: RepositoryCache
 	) {
 		this._operations = new OperationManager(this.logger);
+		this.localOnlyResources = this.globalState.get<LocalOnlyResource[]>(`${Repository.LOCAL_ONLY_STORAGE_KEY}:${this.root}`, []);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
 		this.disposables.push(repositoryWatcher);
@@ -1007,6 +1022,7 @@ export class Repository implements Disposable {
 		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true });
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true });
 		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'), { multiDiffEditorEnableViewChanges: true });
+		this._localOnlyGroup = this._sourceControl.createResourceGroup('localOnly', l10n.t('Local Only'), { multiDiffEditorEnableViewChanges: true });
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1043,11 +1059,13 @@ export class Repository implements Disposable {
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
+		this.localOnlyGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
+		this.disposables.push(this.localOnlyGroup);
 
 		// Don't allow auto-fetch in untrusted workspaces
 		if (workspace.isTrusted) {
@@ -1421,7 +1439,8 @@ export class Repository implements Disposable {
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
 		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+			[...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates].map(r => r.resourceUri.fsPath) : [];
+		const allResources = opts.all ? [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates].map(r => r.resourceUri.fsPath) : [];
 
 		if (this.rebaseCommit) {
 			await this.run(
@@ -1429,7 +1448,13 @@ export class Repository implements Disposable {
 				async () => {
 					if (opts.all) {
 						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
+						const resources = opts.all === 'tracked'
+							? this.workingTreeGroup.resourceStates
+								.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
+								.map(r => r.resourceUri.fsPath)
+							: allResources;
+
+						await this.repository.add(resources, addOpts);
 					}
 
 					await this.repository.rebaseContinue();
@@ -1445,7 +1470,13 @@ export class Repository implements Disposable {
 				async () => {
 					if (opts.all) {
 						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
+						const resources = opts.all === 'tracked'
+							? this.workingTreeGroup.resourceStates
+								.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
+								.map(r => r.resourceUri.fsPath)
+							: allResources;
+
+						await this.repository.add(resources, addOpts);
 					}
 
 					delete opts.all;
@@ -2935,6 +2966,7 @@ export class Repository implements Disposable {
 		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
 		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
 		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+		if (resourcesGroups.localOnlyGroup) { this.localOnlyGroup.resourceStates = resourcesGroups.localOnlyGroup; }
 
 		// clear worktree migrating flag once all conflicts are resolved
 		if (this._isWorktreeMigrating && resourcesGroups.mergeGroup && resourcesGroups.mergeGroup.length === 0) {
@@ -3038,13 +3070,34 @@ export class Repository implements Disposable {
 		const indexGroup: Resource[] = [],
 			mergeGroup: Resource[] = [],
 			untrackedGroup: Resource[] = [],
-			workingTreeGroup: Resource[] = [];
+			workingTreeGroup: Resource[] = [],
+			localOnlyGroup: Resource[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
 			const renameUri = raw.rename
 				? Uri.file(path.join(this.repository.root, raw.rename))
 				: undefined;
+			const localOnlyResource = this.getLocalOnlyResource(uri.fsPath);
+
+			if (localOnlyResource) {
+				if (raw.x === 'M' || raw.x === 'A' || raw.x === 'D' || raw.x === 'R' || raw.x === 'C') {
+					switch (raw.x) {
+						case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons, undefined, this.kind)); break;
+						case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons, undefined, this.kind)); break;
+						case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind)); break;
+						case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind)); break;
+						case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind)); break;
+					}
+				}
+
+				if (raw.y !== ' ') {
+					const localOnlyStatus = this.getStatusFromRaw(raw) ?? localOnlyResource.status;
+					localOnlyGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.LocalOnly, uri, localOnlyStatus, useIcons, renameUri ?? (localOnlyResource.renamePath ? Uri.file(localOnlyResource.renamePath) : undefined), this.kind));
+				}
+
+				return undefined;
+			}
 
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
@@ -3085,7 +3138,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
+		return { indexGroup, mergeGroup, localOnlyGroup, untrackedGroup, workingTreeGroup };
 	}
 
 	private setCountBadge(): void {
@@ -3313,6 +3366,89 @@ export class Repository implements Disposable {
 	private optimisticUpdateEnabled(): boolean {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		return config.get<boolean>('optimisticUpdate') === true;
+	}
+
+	private getLocalOnlyResource(resourcePath: string): LocalOnlyResource | undefined {
+		return this.localOnlyResources.find(resource => pathEquals(resource.path, resourcePath));
+	}
+
+	private getStatusFromRaw(raw: { x: string; y: string }): Status | undefined {
+		switch (raw.x + raw.y) {
+			case '??': return Status.UNTRACKED;
+			case '!!': return Status.IGNORED;
+			case 'DD': return Status.BOTH_DELETED;
+			case 'AU': return Status.ADDED_BY_US;
+			case 'UD': return Status.DELETED_BY_THEM;
+			case 'UA': return Status.ADDED_BY_THEM;
+			case 'DU': return Status.DELETED_BY_US;
+			case 'AA': return Status.BOTH_ADDED;
+			case 'UU': return Status.BOTH_MODIFIED;
+		}
+		switch (raw.y) {
+			case 'M': return Status.MODIFIED;
+			case 'D': return Status.DELETED;
+			case 'A': return Status.INTENT_TO_ADD;
+			case 'R': return Status.INTENT_TO_RENAME;
+			case 'T': return Status.TYPE_CHANGED;
+		}
+		switch (raw.x) {
+			case 'M': return Status.INDEX_MODIFIED;
+			case 'A': return Status.INDEX_ADDED;
+			case 'D': return Status.INDEX_DELETED;
+			case 'R': return Status.INDEX_RENAMED;
+			case 'C': return Status.INDEX_COPIED;
+		}
+		return undefined;
+	}
+
+	private async updateLocalOnlyResources(resources: LocalOnlyResource[]): Promise<void> {
+		const uniqueResources: LocalOnlyResource[] = [];
+		for (const resource of resources) {
+			if (!uniqueResources.some(existing => pathEquals(existing.path, resource.path))) {
+				uniqueResources.push(resource);
+			}
+		}
+		this.localOnlyResources = uniqueResources;
+		await this.globalState.update(`${Repository.LOCAL_ONLY_STORAGE_KEY}:${this.root}`, uniqueResources.length > 0 ? uniqueResources : undefined);
+	}
+	private getResource(resourcePath: string): Resource | undefined {
+		return [...this.mergeGroup.resourceStates, ...this.indexGroup.resourceStates, ...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.localOnlyGroup.resourceStates]
+			.find(resource => pathEquals(resource.resourceUri.fsPath, resourcePath));
+	}
+	async addToLocalOnly(resources: Uri[]): Promise<void> {
+		if (resources.length === 0) {
+			return;
+		}
+		const nextResources = [...this.localOnlyResources];
+		for (const resource of resources) {
+			const existingResource = this.getResource(resource.fsPath);
+			const resourceEntry: LocalOnlyResource = {
+				path: resource.fsPath,
+				status: existingResource?.type ?? Status.MODIFIED,
+				renamePath: existingResource?.renameResourceUri?.fsPath
+			};
+			const existingIndex = nextResources.findIndex(existing => pathEquals(existing.path, resourceEntry.path));
+			if (existingIndex === -1) {
+				nextResources.push(resourceEntry);
+			} else {
+				nextResources[existingIndex] = resourceEntry;
+			}
+		}
+		await this.updateLocalOnlyResources(nextResources);
+		await this.updateModelState();
+	}
+
+	async removeFromLocalOnly(resources: Uri[]): Promise<void> {
+		if (resources.length === 0) {
+			return;
+		}
+		const resourcePaths = resources.map(resource => resource.fsPath);
+		const nextResources = this.localOnlyResources.filter(resource => !resourcePaths.some(resourcePath => pathEquals(resource.path, resourcePath)));
+		if (nextResources.length === this.localOnlyResources.length) {
+			return;
+		}
+		await this.updateLocalOnlyResources(nextResources);
+		await this.updateModelState();
 	}
 
 	private async handleTagConflict(remote: string | undefined, raw: string): Promise<boolean> {
