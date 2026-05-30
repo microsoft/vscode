@@ -34,9 +34,20 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationTargetKind, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationTargetKind, isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import {
+	buildOtlpLogsChannelUri,
+	extractLevelFromOtlpLogsUri,
+	levelToSeverityNumber,
+	OTLP_CHANNEL_SCHEME,
+	OTLP_LOGS_CHANNEL_TEMPLATE,
+	OtlpLogEmitter,
+	toResourceLogsPayload,
+	type IOtlpLogRecord,
+	type OtlpLogLevelName,
+} from '../common/otlp/otlpLogEmitter.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -79,14 +90,89 @@ type RequestHandlerMap = {
 };
 
 /**
+ * Discriminant for {@link ChannelSubscription}. Distinguishes a regular
+ * state-bearing channel (root, session, terminal, changeset) from the
+ * stateless OTLP signal channels so each subscribe/unsubscribe path can
+ * dispatch through a single typed lookup.
+ */
+const enum ChannelKind {
+	/**
+	 * Subscribed via {@link IAgentService.subscribe} and tracked by the
+	 * server-side refcount. Carries replayable state, participates in
+	 * action broadcasts ({@link _broadcastAction}) and reconnect
+	 * snapshot/replay.
+	 */
+	State = 'state',
+	/**
+	 * Resource-watch channels (`ahp-resource-watch:/<id>`). Tracked
+	 * separately so subscribe/unsubscribe routes through the agent
+	 * service's per-watch refcount + grace timer rather than the
+	 * session-shaped {@link IAgentService.subscribe} path.
+	 */
+	ResourceWatch = 'resource-watch',
+	/**
+	 * Subscribed against the OTLP logs channel template advertised in
+	 * {@link InitializeResult.telemetry}. Stateless — no snapshot, no
+	 * agent-service refcount. The `level` field records the minimum
+	 * severity the client asked to receive.
+	 */
+	OtlpLogs = 'otlp-logs',
+}
+
+/**
+ * Per-channel server-side subscription record. Stored on every
+ * {@link IConnectedClient} so each subscribed channel can be routed by
+ * its `kind` without re-deriving it from the URI on every dispatch.
+ *
+ * `uri` is the canonical channel URI string used everywhere a subscription
+ * is referenced — the same string is broadcast on outbound notifications
+ * and persists across reconnects.
+ */
+type ChannelSubscription =
+	| { readonly kind: ChannelKind.State; readonly uri: string }
+	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string }
+	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
+
+/**
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
 	readonly clientId: string;
 	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
-	readonly subscriptions: Set<string>;
+	/**
+	 * Every channel the client is currently subscribed to, keyed by the
+	 * canonical channel URI. OTLP channel URIs are canonicalised to
+	 * `buildOtlpLogsChannelUri(level)` so URI variants that resolve to
+	 * the same logical channel collapse to one entry.
+	 */
+	readonly subscriptions: Map<string, ChannelSubscription>;
 	readonly disposables: DisposableStore;
+}
+
+/**
+ * Classifies a raw channel URI string into its {@link ChannelKind} and
+ * returns the canonical URI to key subscriptions by. Returns `undefined`
+ * when the channel is OTLP-flavoured but the URI does not parse into a
+ * supported shape (unknown level, missing path) so the caller can
+ * silently drop the subscribe rather than installing a broken entry.
+ *
+ * For state channels the canonical URI is just the input verbatim — the
+ * agent service is the authoritative deduplication point and tolerates
+ * whatever URI form the client sent.
+ */
+function classifyChannel(channel: string): ChannelSubscription | undefined {
+	if (channel.toLowerCase().startsWith(`${OTLP_CHANNEL_SCHEME}:`)) {
+		const level = extractLevelFromOtlpLogsUri(channel);
+		if (!level) {
+			return undefined;
+		}
+		return { kind: ChannelKind.OtlpLogs, uri: buildOtlpLogsChannelUri(level), level };
+	}
+	if (isAhpResourceWatchChannel(channel)) {
+		return { kind: ChannelKind.ResourceWatch, uri: channel };
+	}
+	return { kind: ChannelKind.State, uri: channel };
 }
 
 /**
@@ -101,6 +187,17 @@ export interface IProtocolServerConfig {
 	 * clients in the `initialize` response.
 	 */
 	readonly completionTriggerCharacters?: readonly string[];
+	/**
+	 * Optional emitter to use as the source for the OTLP logs channel
+	 * advertised via `InitializeResult.telemetry.logs`. When present, this
+	 * handler will route `subscribe`/`unsubscribe` requests on
+	 * `ahp-otlp:` channels to its internal OTLP subscription registry and
+	 * broadcast every record fed into the emitter as an
+	 * `otlp/exportLogs` notification. When absent, the OTLP channel is
+	 * not advertised and any inbound `ahp-otlp:` subscribe request is
+	 * rejected.
+	 */
+	readonly otlpLogEmitter?: OtlpLogEmitter;
 }
 
 /**
@@ -144,6 +241,10 @@ export class ProtocolServerHandler extends Disposable {
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
 		}));
+
+		if (this._config.otlpLogEmitter) {
+			this._register(this._config.otlpLogEmitter.onDidLog(record => this._broadcastOtlpLog(record)));
+		}
 	}
 
 	// ---- Connection handling -------------------------------------------------
@@ -211,10 +312,7 @@ export class ProtocolServerHandler extends Disposable {
 				switch (msg.method) {
 					case 'unsubscribe':
 						if (client) {
-							const channel = msg.params.channel;
-							if (client.subscriptions.delete(channel)) {
-								this._agentService.unsubscribe(URI.parse(channel), client.clientId);
-							}
+							this._removeSubscription(client, msg.params.channel);
 						}
 						break;
 					case 'dispatchAction':
@@ -248,11 +346,17 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
-				// Treat disconnect as an implicit unsubscribe of every resource the
+				// Treat disconnect as an implicit unsubscribe of every channel the
 				// client held, so the server-side refcount can drop to zero and any
-				// idle restored session state can be evicted.
-				for (const resource of client.subscriptions) {
-					this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+				// idle restored session state can be evicted. OTLP subscriptions
+				// have no server-side state to release, so the per-client map is
+				// simply discarded.
+				for (const sub of client.subscriptions.values()) {
+					if (sub.kind === ChannelKind.State) {
+						this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+					} else if (sub.kind === ChannelKind.ResourceWatch) {
+						this._agentService.onResourceWatchUnsubscribed(sub.uri);
+					}
 				}
 				client.subscriptions.clear();
 				this._clients.delete(client.clientId);
@@ -300,32 +404,21 @@ export class ProtocolServerHandler extends Disposable {
 			clientId: params.clientId,
 			protocolVersion: negotiated,
 			transport,
-			subscriptions: new Set(),
+			subscriptions: new Map(),
 			disposables,
 		};
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
-		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
-			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
-			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
-			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
-			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
-			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
-			resourceRequest: (params_) => this._sendReverseRequest(params.clientId, 'resourceRequest', params_),
-		}));
+		this._registerClientFileSystemAuthority(params.clientId, disposables);
 
 
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
 			for (const uri of params.initialSubscriptions) {
-				const snapshot = this._stateManager.getSnapshot(uri);
+				const snapshot = this._addInitialSubscription(client, uri.toString());
 				if (snapshot) {
 					snapshots.push(snapshot);
-					const key = uri.toString();
-					client.subscriptions.add(key);
-					this._agentService.addSubscriber(URI.parse(key), client.clientId);
-					this._clearClientToolCallDisconnectTimeout(params.clientId, key);
 				}
 			}
 		}
@@ -338,8 +431,48 @@ export class ProtocolServerHandler extends Disposable {
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters,
+				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 			},
 		};
+	}
+
+	/**
+	 * Helper for `initialize` and `reconnect` initial-subscription
+	 * processing: classify `channel`, install the matching subscription
+	 * on the client, and return the snapshot to include in the handshake
+	 * response (or `undefined` for stateless channels and missing state).
+	 *
+	 * Side effects:
+	 * - State channels: register with the agent service and clear any
+	 *   pending tool-call disconnect timeout.
+	 * - OTLP channels: install the canonical entry on the client's
+	 *   {@link IConnectedClient.subscriptions} map.
+	 *
+	 * Channels with unsupported shapes (e.g. `ahp-otlp://logs/verbose`
+	 * with no recognised level, or a state channel the state manager
+	 * does not know about) are silently dropped.
+	 */
+	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
+		const sub = classifyChannel(channel);
+		if (!sub) {
+			return undefined;
+		}
+		if (sub.kind === ChannelKind.OtlpLogs) {
+			if (!this._config.otlpLogEmitter) {
+				this._logService.warn(`[ProtocolServer] Ignoring OTLP initialSubscription ${channel}: no OTLP emitter configured.`);
+				return undefined;
+			}
+			client.subscriptions.set(sub.uri, sub);
+			return undefined;
+		}
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (!snapshot) {
+			return undefined;
+		}
+		client.subscriptions.set(sub.uri, sub);
+		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
+		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
+		return snapshot;
 	}
 
 	/**
@@ -385,17 +518,46 @@ export class ProtocolServerHandler extends Disposable {
 			clientId: params.clientId,
 			protocolVersion: PROTOCOL_VERSION,
 			transport,
-			subscriptions: new Set(),
+			subscriptions: new Map(),
 			disposables,
 		};
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
+
+		// Re-establish the reverse-RPC filesystem authority for this client.
+		// The prior transport's `onClose` disposed the previous registration,
+		// so without this step any subsequent `resourceRead` / `resourceWrite`
+		// / etc. from the agent host would fail with "no connection registered
+		// for authority" until the client disconnected and re-initialized.
+		this._registerClientFileSystemAuthority(params.clientId, disposables);
 
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 		return { client, responsePromise };
+	}
+
+	/**
+	 * Wires the reverse-RPC filesystem callbacks for `clientId` and binds
+	 * the unregister to `disposables` (the transport's per-connection
+	 * store). The callbacks dispatch through {@link _sendReverseRequest},
+	 * which looks up the *current* connected client by id — so re-binding
+	 * after a reconnect picks up the new transport without rebuilding the
+	 * closures.
+	 */
+	private _registerClientFileSystemAuthority(clientId: string, disposables: DisposableStore): void {
+		disposables.add(this._clientFileSystemProvider.registerAuthority(clientId, {
+			resourceList: (uri) => this._sendReverseRequest(clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(clientId, 'resourceWrite', params_),
+			resourceCopy: (params_) => this._sendReverseRequest(clientId, 'resourceCopy', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(clientId, 'resourceMove', params_),
+			resourceRequest: (params_) => this._sendReverseRequest(clientId, 'resourceRequest', params_),
+			resourceResolve: (params_) => this._sendReverseRequest(clientId, 'resourceResolve', params_),
+			resourceMkdir: (params_) => this._sendReverseRequest(clientId, 'resourceMkdir', params_),
+		}));
 	}
 
 	/**
@@ -414,10 +576,37 @@ export class ProtocolServerHandler extends Disposable {
 		const missing: string[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
+			const classified = classifyChannel(key);
+			if (!classified) {
+				return undefined;
+			}
+			if (classified.kind === ChannelKind.OtlpLogs) {
+				if (!this._config.otlpLogEmitter) {
+					this._logService.warn(`[ProtocolServer] Reconnect: dropping OTLP subscription ${key}: no OTLP emitter configured.`);
+					return undefined;
+				}
+				// Stateless: re-install without going through the agent service.
+				client.subscriptions.set(classified.uri, classified);
+				return undefined;
+			}
+			if (classified.kind === ChannelKind.ResourceWatch) {
+				const descriptor = this._agentService.onResourceWatchSubscribed(classified.uri);
+				if (!descriptor) {
+					this._logService.info(`[ProtocolServer] Reconnect: resource watch ${key} no longer parses`);
+					missing.push(sub);
+					return undefined;
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {
+					resource: classified.uri,
+					state: descriptor,
+					fromSeq: this._stateManager.serverSeq,
+				};
+			}
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
-				client.subscriptions.add(key);
-				this._clearClientToolCallDisconnectTimeout(client.clientId, key);
+				client.subscriptions.set(classified.uri, classified);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
 			} catch (err) {
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
@@ -540,10 +729,39 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
+			const classified = classifyChannel(params.channel);
+			if (!classified) {
+				// OTLP-flavoured URI we don't understand (e.g. unknown
+				// level). Acknowledge as stateless so the client doesn't
+				// hang, but install nothing.
+				return {};
+			}
+			if (classified.kind === ChannelKind.OtlpLogs) {
+				if (!this._config.otlpLogEmitter) {
+					this._logService.warn(`[ProtocolServer] Ignoring OTLP subscribe for ${params.channel}: no OTLP emitter configured.`);
+					return {};
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {};
+			}
+			if (classified.kind === ChannelKind.ResourceWatch) {
+				const descriptor = this._agentService.onResourceWatchSubscribed(classified.uri);
+				if (!descriptor) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource watch not found: ${params.channel}`);
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {
+					snapshot: {
+						resource: classified.uri,
+						state: descriptor,
+						fromSeq: this._stateManager.serverSeq,
+					},
+				};
+			}
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
-				client.subscriptions.add(params.channel);
-				this._clearClientToolCallDisconnectTimeout(client.clientId, params.channel);
+				client.subscriptions.set(classified.uri, classified);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return { snapshot };
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -689,6 +907,15 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
+		},
+		resourceResolve: async (_client, params) => {
+			return this._agentService.resourceResolve(params);
+		},
+		resourceMkdir: async (_client, params) => {
+			return this._agentService.resourceMkdir(params);
+		},
+		createResourceWatch: async (_client, params) => {
+			return this._agentService.createResourceWatch(params);
 		},
 		resourceRequest: async (_client, _params) => {
 			// The local agent host does not yet enforce per-resource grants
@@ -841,6 +1068,58 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
+	/**
+	 * Drop a subscription identified by `channel` from `client`. Handles
+	 * canonicalisation for OTLP URIs (so an `unsubscribe` with a URI
+	 * variant collapses to the same entry as the original `subscribe`)
+	 * and tears down the agent-service refcount for state channels.
+	 */
+	private _removeSubscription(client: IConnectedClient, channel: string): void {
+		const classified = classifyChannel(channel);
+		if (!classified) {
+			// OTLP-flavoured URI with an unknown level — there can never
+			// have been a matching subscription. Silently ignore.
+			return;
+		}
+		const sub = client.subscriptions.get(classified.uri);
+		if (!sub) {
+			return;
+		}
+		client.subscriptions.delete(classified.uri);
+		if (sub.kind === ChannelKind.State) {
+			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+		} else if (sub.kind === ChannelKind.ResourceWatch) {
+			this._agentService.onResourceWatchUnsubscribed(sub.uri);
+		}
+	}
+
+	/**
+	 * Fan out an OTLP log record to every connected client that has
+	 * subscribed to a logs channel whose `{level}` band includes the
+	 * record's `severityNumber`. The notification's `channel` field is
+	 * the canonical URI the client subscribed against — clients can
+	 * route by URI without re-deriving the level.
+	 */
+	private _broadcastOtlpLog(record: IOtlpLogRecord): void {
+		const payload = toResourceLogsPayload(record);
+		for (const client of this._clients.values()) {
+			for (const sub of client.subscriptions.values()) {
+				if (sub.kind !== ChannelKind.OtlpLogs) {
+					continue;
+				}
+				if (record.severityNumber < levelToSeverityNumber(sub.level)) {
+					continue;
+				}
+				const msg: AhpServerNotification<'otlp/exportLogs'> = {
+					jsonrpc: '2.0',
+					method: 'otlp/exportLogs',
+					params: { channel: sub.uri, payload },
+				};
+				client.transport.send(msg);
+			}
+		}
+	}
+
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		// The root channel has two equivalent string forms (`ahp-root://` and
 		// the URI-roundtripped `ahp-root:`). Treat them interchangeably so a
@@ -848,14 +1127,15 @@ export class ProtocolServerHandler extends Disposable {
 		// regardless of which form the envelope carries. See
 		// {@link isAhpRootChannel}.
 		if (isAhpRootChannel(envelope.channel)) {
-			for (const sub of client.subscriptions) {
-				if (isAhpRootChannel(sub)) {
+			for (const sub of client.subscriptions.values()) {
+				if (sub.kind === ChannelKind.State && isAhpRootChannel(sub.uri)) {
 					return true;
 				}
 			}
 			return false;
 		}
-		return client.subscriptions.has(envelope.channel);
+		const sub = client.subscriptions.get(envelope.channel);
+		return sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch;
 	}
 
 	override dispose(): void {

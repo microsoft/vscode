@@ -23,7 +23,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -117,7 +117,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
 				session.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -219,7 +219,7 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					type: ActionType.SessionTurnStarted,
 					turnId: 'turn-1',
-					userMessage: { text: 'hello', attachments: attachments as never },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
 				},
 				'test-client', 1,
 			);
@@ -569,10 +569,6 @@ suite('AgentService (node dispatcher)', () => {
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 		});
 
@@ -606,7 +602,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].changesets, undefined);
 		});
 
-		test('listSessions seeds the server-side changeset state from persisted diffs (so chip subscriptions resolve for unopened sessions)', async () => {
+		test('listSessions advertises persisted changeset counts without seeding state; changeset subscribe restores lazily', async () => {
 			const db = disposables.add(await SessionDatabase.open(':memory:'));
 			const persistedDiffs = [
 				{
@@ -637,13 +633,24 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(agent);
 
-			await svc.listSessions();
+			const sessions = await svc.listSessions();
+			const changesetUri = buildSessionChangesetUri(sessionUri.toString());
 
-			// Even without any explicit `restoreSession` call, the
-			// changeset URI should be subscribable on the server side
-			// with the persisted files.
-			const snapshot = svc.stateManager.getSnapshot(`${sessionUri.toString()}/changeset/session`);
-			assert.ok(snapshot, 'expected listSessions to seed the changeset state');
+			assert.deepStrictEqual({
+				listCatalogueEntry: sessions[0].changesets?.find(c => c.uriTemplate === changesetUri),
+				listSeededSnapshot: svc.stateManager.getSnapshot(changesetUri),
+			}, {
+				listCatalogueEntry: {
+					label: 'Branch Changes',
+					uriTemplate: changesetUri,
+					additions: 5,
+					deletions: 2,
+					files: 1,
+				},
+				listSeededSnapshot: undefined,
+			});
+
+			const snapshot = await svc.subscribe(URI.parse(changesetUri), 'client-changeset');
 			const state = snapshot.state as { status: string; files: Array<{ id: string }> };
 			assert.strictEqual(state.status, 'ready');
 			assert.deepStrictEqual(state.files.map(f => f.id), ['file:///wd/a.ts']);
@@ -709,10 +716,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 		});
@@ -814,10 +817,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 		});
@@ -957,9 +956,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
-			]);
+			assert.deepStrictEqual(state!.summary.changesets?.length, 0);
 		});
 
 		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
@@ -993,7 +990,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
 		});
 
@@ -1028,7 +1024,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${session.toString()}/changeset/turn/{turnId}` },
 			]);
 		});
 
@@ -1137,7 +1132,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -1283,7 +1278,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state, 'session should be in state manager');
 			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
 			assert.strictEqual(state!.turns.length, 1);
-			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
+			assert.strictEqual(state!.turns[0].message.text, 'Hello');
 			const mdPart = state!.turns[0].responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
@@ -1463,7 +1458,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}`);
 
 			const turn = state!.turns[0];
-			assert.strictEqual(turn.userMessage.text, 'Review this code');
+			assert.strictEqual(turn.message.text, 'Review this code');
 
 			// The parent turn should only have the parent tool call — inner
 			// tool calls are excluded from the parent and belong to the
@@ -1514,8 +1509,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = service.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.userMessage.text.substring(0, 40)}"`).join(', ')}`);
-			assert.strictEqual(state!.turns[0].userMessage.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
+			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.message.text.substring(0, 40)}"`).join(', ')}`);
+			assert.strictEqual(state!.turns[0].message.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 
 			// Should have the parent subagent tool call with subagent content
@@ -1573,7 +1568,7 @@ suite('AgentService (node dispatcher)', () => {
 			// mid-response.
 			service.dispatchAction(
 				sessionResource.toString(),
-				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
 
@@ -1881,7 +1876,7 @@ suite('AgentService (node dispatcher)', () => {
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					sessionResource.toString(),
-					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', userMessage: { text: 'hello' } },
+					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
@@ -2068,10 +2063,6 @@ suite('AgentService (node dispatcher)', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
-				},
 			]);
 
 			const changesetSnapshot = localService.stateManager.getSnapshot(`${sessionResource.toString()}/changeset/session`);
@@ -2117,10 +2108,6 @@ suite('AgentService (node dispatcher)', () => {
 					description: 'Show uncommitted changes in this session',
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
 				},
 			]);
 
@@ -2292,7 +2279,6 @@ suite('AgentService (node dispatcher)', () => {
 			return [
 				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 			];
 		}
 
@@ -2322,7 +2308,7 @@ suite('AgentService (node dispatcher)', () => {
 			sourceState.turns = [{
 				id: sourceTurnId,
 				state: TurnState.Complete,
-				userMessage: { text: 'hi' },
+				message: { text: 'hi', origin: { kind: MessageKind.User } },
 				responseParts: [],
 				usage: undefined,
 			}];

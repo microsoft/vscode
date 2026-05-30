@@ -176,8 +176,9 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		}
 		// Fall back to PR parsing for backward compat with sessions created under v1.
 		const prParsed = SessionIdForPr.parse(resource);
-		if (prParsed) {
-			return { type: 'pr', prNumber: prParsed.prNumber, sessionIndex: prParsed.sessionIndex };
+		const prNumber = prParsed?.prNumber ?? SessionIdForPr.parsePullRequestNumber(resource);
+		if (prParsed || prNumber) {
+			return { type: 'pr', prNumber, sessionIndex: prParsed?.sessionIndex };
 		}
 		return undefined;
 	}
@@ -262,12 +263,21 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 	}
 
 	async fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
+		const perPage = 100;
+		const events: AgentTaskSessionEvent[] = [];
 		try {
-			const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: 100 });
-			return response.events;
+			for (let page = 1; ; page++) {
+				const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: perPage, page });
+				const batch = response.events;
+				events.push(...batch);
+				if (batch.length === 0 || batch.length < perPage || (typeof response.total === 'number' && events.length >= response.total)) {
+					break;
+				}
+			}
+			return events;
 		} catch (e) {
 			this._logService.warn(`Failed to fetch events for task ${taskId}: ${e}`);
-			return [];
+			return events;
 		}
 	}
 
@@ -304,6 +314,22 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			return {};
 		} catch (e) {
 			this._logService.error(`Failed to steer task ${taskId}: ${e}`);
+			return undefined;
+		}
+	}
+
+	async findTaskIdForPullRequest(owner: string, repo: string, prNumber: number): Promise<string | undefined> {
+		try {
+			const response = await this._taskApiClient.listTasksForRepo(owner, repo, {
+				artifact_type: 'pull',
+				artifact_id: prNumber,
+				sort: 'created_at',
+				direction: 'desc',
+				per_page: 1,
+			});
+			return response.tasks[0]?.id;
+		} catch (e) {
+			this._logService.warn(`Failed to find task for ${owner}/${repo}#${prNumber}: ${e}`);
 			return undefined;
 		}
 	}

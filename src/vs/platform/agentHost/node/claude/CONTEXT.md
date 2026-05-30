@@ -27,14 +27,15 @@ _Avoid_: "Anthropic proxy", "language model server".
 GitHub Copilot's chat completions API, accessed through `ICopilotApiService`.
 The terminal hop after the proxy.
 
-**Materialization** / `ClaudeMaterializer`:
-Promoting a provisional session record (created by `ClaudeAgent.createSession`,
-no SDK contact yet) into a live `ClaudeAgentSession` with a bound `WarmQuery`.
-Owned by `ClaudeMaterializer`: assembles the SDK `Options` bag, awaits
-`IClaudeAgentSdkService.startup`, opens the per-session DB ref, and constructs
-the session wrapper. `ClaudeAgent` retains sequencing, the `_sessions` map,
-permission-mode resolution, the post-materialize metadata write, and the
-second abort gate.
+**Materialization** / `ClaudeAgentSession.materialize`:
+Bringing a provisional session (created by `ClaudeAgent.createSession`, no
+SDK contact yet) up to a live `ClaudeAgentSession` with a bound `WarmQuery`.
+Owned by `ClaudeAgentSession.materialize(ctx)`: builds the SDK `Options`
+bag via the pure helpers in `claudeSdkOptions.ts`, awaits
+`IClaudeAgentSdkService.startup`, opens the per-session DB ref, constructs
+the pipeline, persists the metadata overlay (skipped on `isResume`), and
+attaches the rematerializer. `ClaudeAgent` retains sequencing, the
+`_sessions` map, and the `onDidMaterializeSession` fan-out.
 _Avoid_: "session creation" (overloaded with `IAgent.createSession`).
 
 **Claude session overlay** / `ClaudeSessionMetadataStore`:

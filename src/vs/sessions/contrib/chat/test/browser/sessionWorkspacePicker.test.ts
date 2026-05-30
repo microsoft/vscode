@@ -26,7 +26,7 @@ import { IOutputService } from '../../../../../workbench/services/output/common/
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
@@ -98,9 +98,8 @@ function createMockProvider(id: string, opts?: {
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
 		deleteChat: async () => { },
-		sendAndCreateChat: async () => { throw new Error('Not implemented'); },
-		addChat: () => { throw new Error('Not implemented'); },
-		sendRequest: async () => { throw new Error('Not implemented'); },
+		createNewChat: async () => { throw new Error('Not implemented'); },
+		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
 	if (opts?.connectionStatus) {
 		return {

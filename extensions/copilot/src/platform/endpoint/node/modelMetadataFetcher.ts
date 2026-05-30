@@ -340,6 +340,15 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			return modelLimit;
 		}
 
+		// When a long context tier exists, use max_context_window_tokens as the
+		// prompt token basis so users can opt into the full context window via
+		// the model picker. The configurationSchema default (defaultContextMax)
+		// ensures users aren't billed at the long-context rate without explicit opt-in.
+		if (chatModelInfo.billing?.token_prices?.long_context && chatModelInfo.capabilities?.limits?.max_context_window_tokens) {
+			modelLimit += chatModelInfo.capabilities.limits.max_context_window_tokens;
+			return modelLimit;
+		}
+
 		// Check if CAPI has prompt token limits and return those
 		if (chatModelInfo.capabilities?.limits?.max_prompt_tokens) {
 			modelLimit += chatModelInfo.capabilities.limits.max_prompt_tokens;

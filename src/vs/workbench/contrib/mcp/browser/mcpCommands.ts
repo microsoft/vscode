@@ -34,6 +34,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -61,7 +62,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpOAuthClientSecretStorageKey, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
 import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
@@ -780,6 +781,97 @@ export class EditStoredInput extends Action2 {
 	run(accessor: ServicesAccessor, inputId: string, uri: URI | undefined, configSection: string, target: ConfigurationTarget): void {
 		const workspaceFolder = uri && accessor.get(IWorkspaceContextService).getWorkspaceFolder(uri);
 		accessor.get(IMcpRegistry).editSavedInput(inputId, workspaceFolder || undefined, configSection, target);
+	}
+}
+
+export class SetOAuthClientSecret extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.SetOAuthClientSecret,
+			title: localize2('mcp.setOAuthClientSecret', "Set OAuth Client Secret"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, clientId: string, mcpServerUrl: string, serverName: string): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const secretStorageService = accessor.get(ISecretStorageService);
+
+		const key = mcpOAuthClientSecretStorageKey(mcpServerUrl, clientId);
+		const existing = await secretStorageService.get(key);
+
+		const deleteButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.trash),
+			tooltip: localize('mcp.setOAuthClientSecret.delete', "Delete stored client secret"),
+		};
+		const revealButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.eye),
+			tooltip: localize('mcp.setOAuthClientSecret.reveal', "Show client secret"),
+		};
+		const hideButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+			tooltip: localize('mcp.setOAuthClientSecret.hide', "Hide client secret"),
+		};
+
+		const result = await new Promise<{ kind: 'accept'; value: string } | { kind: 'delete' } | undefined>(resolve => {
+			const input = quickInputService.createInputBox();
+			input.title = existing
+				? localize('mcp.setOAuthClientSecret.title.replace', "Replace Client Secret for {0}", serverName)
+				: localize('mcp.setOAuthClientSecret.title.set', "Set Client Secret for {0}", serverName);
+			input.prompt = localize('mcp.setOAuthClientSecret.prompt', "Enter the client secret for OAuth client '{0}'.", clientId);
+			input.placeholder = existing
+				? localize('mcp.setOAuthClientSecret.placeholder.replace', "Enter a new client secret to replace the stored value")
+				: localize('mcp.setOAuthClientSecret.placeholder.set', "Enter client secret");
+			input.password = true;
+			input.ignoreFocusOut = true;
+			if (existing) {
+				input.value = existing;
+				input.valueSelection = [0, existing.length];
+			}
+			const updateButtons = () => {
+				const toggleButton = input.password ? revealButton : hideButton;
+				input.buttons = existing ? [toggleButton, deleteButton] : [toggleButton];
+			};
+			updateButtons();
+			const disposables = new DisposableStore();
+			disposables.add(input.onDidAccept(() => {
+				const value = input.value;
+				if (value.length === 0) {
+					// Empty value: treat as a delete (same as the trash button)
+					resolve({ kind: 'delete' });
+					input.hide();
+					return;
+				}
+				resolve({ kind: 'accept', value });
+				input.hide();
+			}));
+			disposables.add(input.onDidTriggerButton(btn => {
+				if (btn === deleteButton) {
+					resolve({ kind: 'delete' });
+					input.hide();
+				} else if (btn === revealButton || btn === hideButton) {
+					input.password = !input.password;
+					updateButtons();
+				}
+			}));
+			disposables.add(input.onDidHide(() => {
+				resolve(undefined);
+				disposables.dispose();
+				input.dispose();
+			}));
+			input.show();
+		});
+
+		if (!result) {
+			return; // cancelled
+		}
+
+		if (result.kind === 'delete') {
+			await secretStorageService.delete(key);
+		} else {
+			await secretStorageService.set(key, result.value);
+		}
 	}
 }
 

@@ -36,8 +36,8 @@ export const enum PendingMessageKind {
 export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
-	/** The message content */
-	userMessage: UserMessage;
+	/** The message that will start the next turn */
+	message: Message;
 }
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -106,12 +106,19 @@ export interface SessionState {
 	/** Session configuration schema and current values */
 	config?: SessionConfigState;
 	/**
-	 * Server-provided customizations active in this session.
+	 * Top-level customizations active in this session.
 	 *
-	 * Client-provided customizations are available on
-	 * {@link SessionActiveClient.customizations | activeClient.customizations}.
+	 * Always container customizations — {@link PluginCustomization} or
+	 * {@link DirectoryCustomization}. Children (agents, skills, prompts,
+	 * rules, hooks, MCP servers) live in each container's
+	 * {@link ContainerCustomizationBase.children | `children`} array.
+	 *
+	 * Client-published plugins arrive via
+	 * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+	 * and the host propagates them into this list (typically with the
+	 * container's `clientId` set and `children` populated).
 	 */
-	customizations?: SessionCustomization[];
+	customizations?: Customization[];
 	/**
 	 * Additional provider-specific metadata for this session.
 	 *
@@ -137,8 +144,15 @@ export interface SessionActiveClient {
 	displayName?: string;
 	/** Tools this client provides to the session */
 	tools: ToolDefinition[];
-	/** Customizations this client contributes to the session */
-	customizations?: CustomizationRef[];
+	/**
+	 * Plugin customizations this client contributes to the session.
+	 *
+	 * Clients publish in [Open Plugins](https://open-plugins.com/) format
+	 * — i.e. always container-shaped plugins. They MAY synthesize virtual
+	 * plugins in memory and rely on the host to expand them into concrete
+	 * children inside {@link SessionState.customizations}.
+	 */
+	customizations?: ClientPluginCustomization[];
 }
 
 /**
@@ -203,18 +217,17 @@ export interface SessionSummary {
 /**
  * A selected custom agent for a session.
  *
- * The `uri` identifies a specific custom agent (matching a
- * {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
- * via the session's effective customizations). Consumers resolve the
- * agent's display name by looking up `uri` in
- * {@link SessionCustomization.agents | `SessionCustomization.agents`}.
+ * The `uri` identifies a specific custom agent (matching an
+ * {@link AgentCustomization.uri | `AgentCustomization.uri`} exposed via
+ * the session's effective customizations). Consumers resolve the agent's
+ * display name by looking up `uri` in the session's customization tree.
  *
  * A session with no `agent` selected uses the provider's default behavior.
  *
  * @category Session State
  */
 export interface AgentSelection {
-	/** Stable agent URI (matches a {@link CustomizationAgentRef.uri}) */
+	/** Stable agent URI (matches an {@link AgentCustomization.uri}). */
 	uri: URI;
 }
 
@@ -539,8 +552,8 @@ export const enum MessageAttachmentKind {
 export interface Turn {
 	/** Turn identifier */
 	id: string;
-	/** The user's input */
-	userMessage: UserMessage;
+	/** The message that initiated the turn */
+	message: Message;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
@@ -564,8 +577,8 @@ export interface Turn {
 export interface ActiveTurn {
 	/** Turn identifier */
 	id: string;
-	/** The user's input */
-	userMessage: UserMessage;
+	/** The message that initiated the turn */
+	message: Message;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
@@ -577,20 +590,41 @@ export interface ActiveTurn {
 }
 
 /**
- * A user message and its associated attachments.
+ * Discriminant for Message types.
  *
- * Attachments MAY be referenced inside {@link UserMessage.text} via their
+ * @category Turn Types
+ */
+export enum MessageKind {
+	User = 'user',
+	SystemNotification = 'systemNotification',
+}
+
+/**
+ * A message that initiates or steers a turn. Messages can originate from the
+ * user or be system-generated (see {@link MessageKind}).
+ *
+ * Attachments MAY be referenced inside {@link Message.text} via their
  * {@link MessageAttachmentBase.range} field. Attachments without a range are
  * still associated with the message but do not correspond to a specific span
  * in the text.
  *
  * @category Turn Types
  */
-export interface UserMessage {
+export interface Message {
 	/** Message text */
 	text: string;
+	/** The origin of the message */
+	origin: { kind: MessageKind };
 	/** File/selection attachments */
 	attachments?: MessageAttachment[];
+	/**
+	 * Additional provider-specific metadata for this message.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry context that does not fit any other
+	 * field. Mirrors the MCP `_meta` convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -606,7 +640,7 @@ export interface MessageAttachmentBase {
 	label: string;
 
 	/**
-	 * If defined, the range in {@link UserMessage.text} that references this
+	 * If defined, the range in {@link Message.text} that references this
 	 * attachment. This is a text range, not a byte range.
 	 */
 	range?: TextRange;
@@ -698,7 +732,7 @@ export interface MessageResourceAttachment extends MessageAttachmentBase, Conten
 }
 
 /**
- * An attachment associated with a {@link UserMessage}.
+ * An attachment associated with a {@link Message}.
  *
  * @category Turn Types
  */
@@ -1046,7 +1080,7 @@ export interface ToolCallCancelledState extends ToolCallBase, ToolCallParameterF
 	/** Optional message explaining the cancellation */
 	reasonMessage?: StringOrMarkdown;
 	/** What the user suggested doing instead */
-	userSuggestion?: UserMessage;
+	userSuggestion?: Message;
 	/** The confirmation option the user selected, if confirmation options were provided */
 	selectedOption?: ConfirmationOption;
 }
@@ -1255,97 +1289,345 @@ export type ToolResultContent =
 // ─── Customization Types ─────────────────────────────────────────────────────
 
 /**
- * A lightweight reference to a custom agent contributed by a customization.
+ * Discriminant for the kind of customization.
  *
- * Custom agents have a single `name` (sourced from the agent file's YAML
- * frontmatter, or derived from the file name); they do not have a separate
- * display name.
+ * Top-level entries in {@link SessionState.customizations} and
+ * {@link AgentInfo.customizations} are always
+ * {@link CustomizationType.Plugin | `Plugin`} or
+ * {@link CustomizationType.Directory | `Directory`}; the remaining
+ * types appear only as children of those containers.
  *
  * @category Customization Types
  */
-export interface CustomizationAgentRef {
-	/** Stable agent URI */
-	uri: URI;
-	/** Agent name (from frontmatter `name`, or file-derived) */
-	name: string;
-	/** Optional short description for UI preview (from frontmatter `description`) */
-	description?: string;
+export const enum CustomizationType {
+	Plugin = 'plugin',
+	Directory = 'directory',
+	Agent = 'agent',
+	Skill = 'skill',
+	Prompt = 'prompt',
+	Rule = 'rule',
+	Hook = 'hook',
+	McpServer = 'mcpServer',
 }
 
 /**
- * A reference to an [Open Plugins](https://open-plugins.com/) plugin.
- *
- * This is intentionally thin — AHP specifies plugin identity and metadata
- * but not implementation details, which are defined by the Open Plugins spec.
+ * Customization types that appear as children of a
+ * {@link PluginCustomization} or {@link DirectoryCustomization}.
  *
  * @category Customization Types
  */
-export interface CustomizationRef {
-	/** Plugin URI (e.g. an HTTPS URL or marketplace identifier) */
+export type ChildCustomizationType =
+	| CustomizationType.Agent
+	| CustomizationType.Skill
+	| CustomizationType.Prompt
+	| CustomizationType.Rule
+	| CustomizationType.Hook
+	| CustomizationType.McpServer;
+
+/**
+ * Fields shared by every customization variant.
+ *
+ * @category Customization Types
+ */
+interface CustomizationBase {
+	/**
+	 * Session-unique opaque identifier. Used by every action that targets a
+	 * specific customization. Minted by whoever publishes the customization
+	 * (typically the agent host).
+	 */
+	id: string;
+	/**
+	 * Source URI for this customization. A plugin URL, a file URI, or a
+	 * directory URI.
+	 *
+	 * For declarations that live inside a larger file — e.g. an MCP
+	 * server declared inline in a `plugins.json` manifest — `uri` points
+	 * to the containing file and {@link CustomizationBase.range | `range`}
+	 * narrows it to the declaration's span.
+	 */
 	uri: URI;
-	/** Human-readable name */
-	displayName: string;
-	/** Description of what the plugin provides */
-	description?: string;
-	/** Icons for the plugin */
+	/** Human-readable name. */
+	name: string;
+	/** Icons for UI display. */
 	icons?: Icon[];
 	/**
-	 * Opaque version token for this customization.
-	 *
-	 * Clients SHOULD include a nonce with every customization they provide.
-	 * Consumers can compare nonces to detect whether a customization has
-	 * changed since it was last seen, avoiding redundant reloads or copies.
+	 * Optional span within {@link CustomizationBase.uri | `uri`} when this
+	 * customization is a subset of a larger file (for example, one entry
+	 * in an inline `mcpServers` block of a `plugins.json` manifest).
+	 * Absent when the customization covers the whole resource.
 	 */
-	nonce?: string;
+	range?: TextRange;
 }
 
 /**
- * Loading status for a server-managed customization.
+ * Discriminant values for {@link CustomizationLoadState}.
  *
  * @category Customization Types
  */
-export const enum CustomizationStatus {
-	/** Plugin is being loaded */
+export const enum CustomizationLoadStatus {
 	Loading = 'loading',
-	/** Plugin is fully operational */
 	Loaded = 'loaded',
-	/** Plugin partially loaded but has warnings */
 	Degraded = 'degraded',
-	/** Plugin was unable to load */
 	Error = 'error',
 }
 
 /**
- * A customization active in a session.
+ * Container is being loaded by the host.
  *
  * @category Customization Types
  */
-export interface SessionCustomization {
-	/** The plugin this customization refers to */
-	customization: CustomizationRef;
-	/** Whether this customization is currently enabled */
+export interface CustomizationLoadingState {
+	kind: CustomizationLoadStatus.Loading;
+}
+
+/**
+ * Container loaded successfully.
+ *
+ * @category Customization Types
+ */
+export interface CustomizationLoadedState {
+	kind: CustomizationLoadStatus.Loaded;
+}
+
+/**
+ * Container partially loaded but has warnings.
+ *
+ * @category Customization Types
+ */
+export interface CustomizationDegradedState {
+	kind: CustomizationLoadStatus.Degraded;
+	/** Human-readable description of the warning. */
+	message: string;
+}
+
+/**
+ * Container failed to load.
+ *
+ * @category Customization Types
+ */
+export interface CustomizationErrorState {
+	kind: CustomizationLoadStatus.Error;
+	/** Human-readable error message. */
+	message: string;
+}
+
+/**
+ * Discriminated load state for a container customization
+ * ({@link PluginCustomization} or {@link DirectoryCustomization}).
+ *
+ * @category Customization Types
+ */
+export type CustomizationLoadState =
+	| CustomizationLoadingState
+	| CustomizationLoadedState
+	| CustomizationDegradedState
+	| CustomizationErrorState;
+
+/**
+ * Fields shared by container customizations.
+ *
+ * @category Customization Types
+ */
+interface ContainerCustomizationBase extends CustomizationBase {
+	/** Whether this container is currently enabled. */
 	enabled: boolean;
 	/**
-	 * The `clientId` of the client that contributed this customization.
-	 * Absent for server-provided customizations.
+	 * `clientId` of the client that contributed this container. Absent for
+	 * server-originated entries.
 	 */
 	clientId?: string;
-	/** Server-reported loading status */
-	status?: CustomizationStatus;
 	/**
-	 * Human-readable status detail (e.g. error message or degradation warning).
+	 * Host-reported load state. Absent means the host has not yet reported
+	 * a load state for this container.
 	 */
-	statusMessage?: string;
+	load?: CustomizationLoadState;
 	/**
-	 * Custom agents contributed by this customization, as resolved by the
-	 * agent host after parsing the customization.
+	 * Children discovered inside this container.
 	 *
-	 * Consumers MUST treat an absent field as "unknown" (e.g. the host has
-	 * not finished parsing the customization yet). An empty array means the
-	 * host parsed the customization and it contributes no agents.
-	 *
-	 * Clients are not authoritative here: only the agent host populates
-	 * this field.
+	 * Absent means the host has not parsed this container yet. An empty
+	 * array means the host parsed the container and it contributes
+	 * nothing.
 	 */
-	agents?: CustomizationAgentRef[];
+	children?: ChildCustomization[];
 }
+
+/**
+ * An [Open Plugins](https://open-plugins.com/) plugin.
+ *
+ * @category Customization Types
+ */
+export interface PluginCustomization extends ContainerCustomizationBase {
+	type: CustomizationType.Plugin;
+}
+
+/**
+ * A {@link PluginCustomization} as published by a client. Extends the
+ * server-facing shape with an opaque `nonce` so the host can detect when
+ * the client's view of a plugin has changed and re-parse only as needed.
+ *
+ * Clients SHOULD include a `nonce`. Server-side fields like
+ * {@link ContainerCustomizationBase.children | `children`} and
+ * {@link ContainerCustomizationBase.load | `load`} are typically left
+ * absent on publication and populated by the host when the resolved
+ * plugin appears in {@link SessionState.customizations}.
+ *
+ * @category Customization Types
+ */
+export interface ClientPluginCustomization extends PluginCustomization {
+	/** Opaque version token used by the host to detect changes. */
+	nonce?: string;
+}
+
+/**
+ * A directory the host watches for this session.
+ *
+ * Presence in the customization list signals that the host may discover
+ * customizations from this directory. When `writable` is `true`, clients
+ * MAY persist new customizations into the directory using
+ * [`resourceWrite`](/reference/common#resourcewrite); the host will
+ * then surface the resulting child via the customization actions.
+ *
+ * The directory may not yet exist on disk.
+ *
+ * @category Customization Types
+ */
+export interface DirectoryCustomization extends ContainerCustomizationBase {
+	type: CustomizationType.Directory;
+	/** Which child customization type this directory holds. */
+	contents: ChildCustomizationType;
+	/** Whether clients may write into this directory. */
+	writable: boolean;
+}
+
+/**
+ * A custom agent contributed by a plugin or directory.
+ *
+ * Mirrors the [Open Plugins agent](https://open-plugins.com/agent-builders/components/agents)
+ * format: a markdown file with YAML frontmatter, where the body is the
+ * agent's system prompt.
+ *
+ * @category Customization Types
+ */
+export interface AgentCustomization extends CustomizationBase {
+	type: CustomizationType.Agent;
+	/**
+	 * Short description of what the agent specializes in and when to
+	 * invoke it. Sourced from the agent file's frontmatter `description`.
+	 */
+	description?: string;
+}
+
+/**
+ * A skill contributed by a plugin or directory.
+ *
+ * Covers both [Open Plugins skill formats](https://open-plugins.com/agent-builders/components/skills)
+ * — the `skills/` directory layout (one subdirectory per skill, each with
+ * a `SKILL.md`) and the flatter `commands/` directory of slash-command
+ * skills.
+ *
+ * @category Customization Types
+ */
+export interface SkillCustomization extends CustomizationBase {
+	type: CustomizationType.Skill;
+	/**
+	 * Short description used for help text and auto-invocation matching.
+	 * Sourced from the skill's frontmatter `description`.
+	 */
+	description?: string;
+	/**
+	 * When `true`, only the user can invoke this skill — the agent will not
+	 * auto-invoke it. Sourced from the command skill's frontmatter
+	 * `disable-model-invocation` flag.
+	 */
+	disableModelInvocation?: boolean;
+}
+
+/**
+ * A prompt contributed by a plugin or directory.
+ *
+ * @category Customization Types
+ */
+export interface PromptCustomization extends CustomizationBase {
+	type: CustomizationType.Prompt;
+	/** Short description of what the prompt does. */
+	description?: string;
+}
+
+/**
+ * A rule contributed by a plugin or directory.
+ *
+ * Mirrors the [Open Plugins rule](https://open-plugins.com/agent-builders/components/rules)
+ * format: a markdown file (e.g. `.mdc`) whose body is injected into
+ * context while the rule is active. This type also covers tool-specific
+ * "instruction" formats (e.g. VS Code Copilot's
+ * `.github/instructions/*.md`), which differ only in naming — they
+ * share the same semantics of `description`, optional always-on
+ * activation, and optional glob scoping.
+ *
+ * @category Customization Types
+ */
+export interface RuleCustomization extends CustomizationBase {
+	type: CustomizationType.Rule;
+	/**
+	 * Description of what the rule enforces.
+	 */
+	description?: string;
+	/**
+	 * When `true`, the rule is always active (subject to `globs` if any).
+	 * When `false` or absent, the agent or user decides whether to apply
+	 * the rule.
+	 */
+	alwaysApply?: boolean;
+	/**
+	 * Glob patterns the rule applies to. When present, the rule is only
+	 * active for matching files.
+	 */
+	globs?: string[];
+}
+
+/**
+ * A hook manifest contributed by a plugin or directory.
+ *
+ * @category Customization Types
+ */
+export interface HookCustomization extends CustomizationBase {
+	type: CustomizationType.Hook;
+}
+
+/**
+ * An MCP manifest contributed by a plugin or directory.
+ *
+ * When the server is declared inline in the containing plugin manifest,
+ * `uri` points at the manifest file and
+ * {@link CustomizationBase.range | `range`} narrows it to the
+ * declaration's span.
+ *
+ * @category Customization Types
+ */
+export interface McpServerCustomization extends CustomizationBase {
+	type: CustomizationType.McpServer;
+}
+
+/**
+ * Child customizations that live inside a {@link PluginCustomization} or
+ * {@link DirectoryCustomization}.
+ *
+ * @category Customization Types
+ */
+export type ChildCustomization =
+	| AgentCustomization
+	| SkillCustomization
+	| PromptCustomization
+	| RuleCustomization
+	| HookCustomization
+	| McpServerCustomization;
+
+/**
+ * A top-level customization active in a session. Always a container
+ * ({@link PluginCustomization} or {@link DirectoryCustomization}); the
+ * remaining customization types appear inside the container's
+ * {@link ContainerCustomizationBase.children | `children`} array.
+ *
+ * @category Customization Types
+ */
+export type Customization = PluginCustomization | DirectoryCustomization;

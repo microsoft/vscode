@@ -10,17 +10,19 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { FileType } from '../../../files/common/files.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -143,9 +145,26 @@ class MockAgentService implements IAgentService {
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> {
 		throw new Error('Not implemented');
 	}
-	async resourceCopy(): Promise<{}> { return {}; }
+	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async resourceResolve(_params: ResourceResolveParams): Promise<ResourceResolveResult> { throw new Error('Not implemented'); }
+	async resourceMkdir(_params: ResourceMkdirParams): Promise<ResourceMkdirResult> { return {}; }
+	readonly watchSubscribeCalls: string[] = [];
+	readonly watchUnsubscribeCalls: string[] = [];
+	/** Channels for which `onResourceWatchSubscribed` should return a descriptor. */
+	readonly liveWatchDescriptors = new Map<string, import('../../common/state/sessionProtocol.js').ResourceWatchState>();
+	async createResourceWatch(_params: import('../../common/state/sessionProtocol.js').CreateResourceWatchParams): Promise<import('../../common/state/sessionProtocol.js').CreateResourceWatchResult> {
+		throw new Error('Not implemented');
+	}
+	onResourceWatchSubscribed(channel: string): import('../../common/state/sessionProtocol.js').ResourceWatchState | undefined {
+		this.watchSubscribeCalls.push(channel);
+		return this.liveWatchDescriptors.get(channel);
+	}
+	onResourceWatchUnsubscribed(channel: string): boolean {
+		this.watchUnsubscribeCalls.push(channel);
+		return this.liveWatchDescriptors.has(channel);
+	}
 	async createTerminal(): Promise<void> { }
 	async disposeTerminal(): Promise<void> { }
 
@@ -186,6 +205,7 @@ suite('ProtocolServerHandler', () => {
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
+	let fileSystemProvider: AgentHostFileSystemProvider;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -224,7 +244,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager,
 			server,
 			{ defaultDirectory: URI.file('/home/testuser').toString() },
-			disposables.add(new AgentHostFileSystemProvider()),
+			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			new NullLogService(),
 		));
 	});
@@ -395,7 +415,7 @@ suite('ProtocolServerHandler', () => {
 			action: {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		}));
 
@@ -740,6 +760,43 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(stateManager.getSnapshot(sessionUri), 'state should have been re-hydrated by reconnect');
 	});
 
+	test('reconnect re-registers the reverse-RPC filesystem authority', async () => {
+		// The server-side filesystem provider talks back to the client via
+		// reverse-RPC (e.g. `resourceList`). If the authority is not
+		// re-registered on reconnect, the agent host would fail with
+		// "No connection for authority: <clientId>" until the client
+		// reinitialized. Verify a reverse-RPC routes through the new
+		// transport after reconnect.
+		const transport1 = connectClient('client-fs');
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-fs',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.sent.length = 0;
+
+		// Wire the test's response *before* we trigger the reverse-RPC so
+		// the response is observed on the next microtask.
+		disposables.add(transport2.onDidSend(msg => {
+			if (isJsonRpcRequest(msg) && msg.method === 'resourceList') {
+				transport2.simulateMessage({
+					jsonrpc: '2.0',
+					id: msg.id,
+					result: { entries: [{ name: 'after-reconnect.txt', type: 'file' as const }] },
+				});
+			}
+		}));
+
+		const result = await fileSystemProvider.readdir(agentHostUri('client-fs', '/workspace'));
+		assert.deepStrictEqual(result, [['after-reconnect.txt', FileType.File]]);
+	});
+
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -768,7 +825,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -825,7 +882,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -873,7 +930,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -931,7 +988,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -983,7 +1040,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -1203,6 +1260,238 @@ suite('ProtocolServerHandler', () => {
 			assert.ok(resp.error, 'response should be an error');
 			assert.strictEqual(resp.result, undefined);
 			assert.strictEqual(agentService.createSessionConfigs.length, 0, 'agent service should not have been called');
+		});
+	});
+
+	suite('OTLP logs channel', () => {
+		// We need a separate handler instance that has an OtlpLogEmitter
+		// attached, so spin one up per-test using a private state manager.
+		// The outer-suite handler is left alone and continues to test the
+		// "no OTLP" code path implicitly.
+		let otlpEmitter: OtlpLogEmitter;
+		let otlpStateManager: AgentHostStateManager;
+		let otlpServer: MockProtocolServer;
+		let otlpAgentService: MockAgentService;
+		let localDisposables: DisposableStore;
+
+		setup(() => {
+			localDisposables = new DisposableStore();
+			otlpEmitter = localDisposables.add(new OtlpLogEmitter());
+			otlpStateManager = localDisposables.add(new AgentHostStateManager(new NullLogService()));
+			otlpServer = localDisposables.add(new MockProtocolServer());
+			otlpAgentService = new MockAgentService();
+			otlpAgentService.setStateManager(otlpStateManager);
+			localDisposables.add(otlpAgentService);
+			localDisposables.add(new ProtocolServerHandler(
+				otlpAgentService,
+				otlpStateManager,
+				otlpServer,
+				{ defaultDirectory: URI.file('/home/testuser').toString(), otlpLogEmitter: otlpEmitter },
+				localDisposables.add(new AgentHostFileSystemProvider()),
+				new NullLogService(),
+			));
+		});
+
+		teardown(() => {
+			localDisposables.dispose();
+		});
+
+		function connectOtlpClient(clientId: string, initialSubscriptions?: readonly string[]): MockProtocolTransport {
+			const transport = new MockProtocolTransport();
+			otlpServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+				initialSubscriptions,
+			}));
+			return transport;
+		}
+
+		function findOtlpLogs(sent: ProtocolMessage[]): { channel: string; payload: unknown }[] {
+			return sent
+				.filter(isJsonRpcNotification)
+				.filter((m): m is AhpNotification & { method: 'otlp/exportLogs'; params: { channel: string; payload: unknown } } => m.method === 'otlp/exportLogs')
+				.map(m => ({ channel: m.params.channel, payload: m.params.payload }));
+		}
+
+		test('handshake advertises the logs channel template', () => {
+			const transport = connectOtlpClient('client-otlp-1');
+			const resp = findResponse(transport.sent, 1) as { result: InitializeResult & { telemetry?: { logs?: string } } };
+			assert.deepStrictEqual(resp.result.telemetry, { logs: 'ahp-otlp://logs/{level}' });
+		});
+
+		test('subscribe to logs channel returns an empty stateless result and starts forwarding records at-or-above the requested level', async () => {
+			const transport = connectOtlpClient('client-otlp-2');
+			transport.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/warn' }));
+			const resp = await waitForResponse(transport, 2);
+			assert.deepStrictEqual((resp as { result: unknown }).result, {});
+
+			otlpEmitter.emit({ timeUnixNano: '1000', severityNumber: 9, severityText: 'info', body: 'info-msg' });
+			otlpEmitter.emit({ timeUnixNano: '1001', severityNumber: 13, severityText: 'warn', body: 'warn-msg' });
+			otlpEmitter.emit({ timeUnixNano: '1002', severityNumber: 17, severityText: 'error', body: 'error-msg' });
+
+			const logs = findOtlpLogs(transport.sent);
+			const bodies = logs.flatMap(({ payload }) => [...iterateOtlpLogRecords(payload)].map(r => r.body));
+			assert.deepStrictEqual(bodies, ['warn-msg', 'error-msg']);
+			for (const { channel } of logs) {
+				assert.strictEqual(channel, 'ahp-otlp://logs/warn');
+			}
+		});
+
+		test('unsubscribe stops forwarding without affecting other subscribers', async () => {
+			const a = connectOtlpClient('client-otlp-a');
+			const b = connectOtlpClient('client-otlp-b');
+
+			const aSubscribed = waitForResponse(a, 2);
+			const bSubscribed = waitForResponse(b, 2);
+			a.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/trace' }));
+			b.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/trace' }));
+			await aSubscribed;
+			await bSubscribed;
+
+			otlpEmitter.emit({ timeUnixNano: '1', severityNumber: 9, severityText: 'info', body: 'first' });
+
+			a.simulateMessage(notification('unsubscribe', { channel: 'ahp-otlp://logs/trace' }));
+			otlpEmitter.emit({ timeUnixNano: '2', severityNumber: 9, severityText: 'info', body: 'second' });
+
+			const aBodies = findOtlpLogs(a.sent).flatMap(({ payload }) => [...iterateOtlpLogRecords(payload)].map(r => r.body));
+			const bBodies = findOtlpLogs(b.sent).flatMap(({ payload }) => [...iterateOtlpLogRecords(payload)].map(r => r.body));
+			assert.deepStrictEqual({ a: aBodies, b: bBodies }, { a: ['first'], b: ['first', 'second'] });
+		});
+
+		test('multiple subscriptions to different levels each receive their own band', async () => {
+			const transport = connectOtlpClient('client-otlp-multi');
+			const subscribed2 = waitForResponse(transport, 2);
+			const subscribed3 = waitForResponse(transport, 3);
+			transport.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/info' }));
+			transport.simulateMessage(request(3, 'subscribe', { channel: 'ahp-otlp://logs/error' }));
+			await subscribed2;
+			await subscribed3;
+
+			otlpEmitter.emit({ timeUnixNano: '1', severityNumber: 9, severityText: 'info', body: 'info-only' });
+			otlpEmitter.emit({ timeUnixNano: '2', severityNumber: 17, severityText: 'error', body: 'both' });
+
+			const byChannel = new Map<string, string[]>();
+			for (const { channel, payload } of findOtlpLogs(transport.sent)) {
+				const bodies = [...iterateOtlpLogRecords(payload)].map(r => r.body);
+				byChannel.set(channel, [...(byChannel.get(channel) ?? []), ...bodies]);
+			}
+			assert.deepStrictEqual(Object.fromEntries(byChannel), {
+				'ahp-otlp://logs/info': ['info-only', 'both'],
+				'ahp-otlp://logs/error': ['both'],
+			});
+		});
+
+		test('client disconnect drops its OTLP subscriptions', async () => {
+			const transport = connectOtlpClient('client-otlp-disconnect');
+			transport.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/trace' }));
+			await waitForResponse(transport, 2);
+
+			transport.simulateClose();
+			otlpEmitter.emit({ timeUnixNano: '1', severityNumber: 9, severityText: 'info', body: 'after-close' });
+
+			// After close, no further notifications should land on the
+			// disconnected transport. (Sanity: the only message we expect
+			// was the subscribe response we already consumed.)
+			const logs = findOtlpLogs(transport.sent);
+			assert.deepStrictEqual(logs, []);
+		});
+
+		test('unrecognised ahp-otlp URIs do not crash subscribe', async () => {
+			const transport = connectOtlpClient('client-otlp-bad');
+			transport.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/verbose' }));
+			const resp = await waitForResponse(transport, 2);
+			assert.deepStrictEqual((resp as { result: unknown }).result, {}, 'unknown level should be acknowledged as stateless');
+
+			otlpEmitter.emit({ timeUnixNano: '1', severityNumber: 9, severityText: 'info', body: 'whatever' });
+			assert.deepStrictEqual(findOtlpLogs(transport.sent), [], 'no records should leak to an invalid level');
+		});
+
+		test('URI variants that parse to the same level collapse to one canonical subscription', async () => {
+			const transport = connectOtlpClient('client-otlp-canonical');
+			const r2 = waitForResponse(transport, 2);
+			const r3 = waitForResponse(transport, 3);
+			const r4 = waitForResponse(transport, 4);
+			transport.simulateMessage(request(2, 'subscribe', { channel: 'ahp-otlp://logs/info' }));
+			transport.simulateMessage(request(3, 'subscribe', { channel: 'ahp-otlp://logs/info?dup=1' }));
+			transport.simulateMessage(request(4, 'subscribe', { channel: 'ahp-otlp://logs/info#frag' }));
+			await r2; await r3; await r4;
+
+			otlpEmitter.emit({ timeUnixNano: '1', severityNumber: 9, severityText: 'info', body: 'once' });
+
+			const logs = findOtlpLogs(transport.sent);
+			assert.strictEqual(logs.length, 1, 'one record should produce exactly one notification');
+			assert.strictEqual(logs[0].channel, 'ahp-otlp://logs/info', 'channel should be canonicalised');
+
+			// Unsubscribe should remove the canonical entry regardless of
+			// which URI variant the client uses to unsubscribe.
+			transport.simulateMessage(notification('unsubscribe', { channel: 'ahp-otlp://logs/info?dup=1' }));
+			otlpEmitter.emit({ timeUnixNano: '2', severityNumber: 9, severityText: 'info', body: 'after-unsub' });
+
+			assert.strictEqual(findOtlpLogs(transport.sent).length, 1, 'no further notifications after unsubscribe');
+		});
+	});
+
+	suite('resource watches', () => {
+
+		test('subscribe to a resource-watch channel returns the descriptor + bumps refcount; envelopes are routed', async () => {
+			// Pre-populate the mock so `onResourceWatchSubscribed` returns
+			// a descriptor — this is the role the production `AgentService`
+			// plays after it parses the channel URI.
+			const watchChannel = 'ahp-resource-watch:/mock-watch';
+			const descriptor = { root: 'file:///workspace', recursive: false };
+			agentService.liveWatchDescriptors.set(watchChannel, descriptor);
+
+			const transport = connectClient('client-watch');
+			transport.sent.length = 0;
+
+			const subPromise = waitForResponse(transport, 101);
+			transport.simulateMessage(request(101, 'subscribe', { channel: watchChannel }));
+			const resp = await subPromise;
+			const result = (resp as { result: { snapshot: IStateSnapshot } }).result;
+			assert.strictEqual(result.snapshot.resource, watchChannel);
+			assert.deepStrictEqual(result.snapshot.state, descriptor);
+			assert.deepStrictEqual(agentService.watchSubscribeCalls, [watchChannel]);
+
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(watchChannel, {
+				type: ActionType.ResourceWatchChanged,
+				changes: { items: [{ uri: 'file:///workspace/a.txt', type: 'updated' as never }] },
+			} as unknown as Parameters<typeof stateManager.dispatchServerAction>[1]);
+
+			const actionMsgs = findNotifications(transport.sent, 'action');
+			assert.strictEqual(actionMsgs.length, 1, 'subscriber should receive the change envelope');
+			const env = actionMsgs[0].params as unknown as { channel: string; action: { type: string } };
+			assert.strictEqual(env.channel, watchChannel);
+			assert.strictEqual(env.action.type, ActionType.ResourceWatchChanged);
+
+			// Explicit unsubscribe drops the refcount through the agent service.
+			transport.simulateMessage(notification('unsubscribe', { channel: watchChannel }));
+			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
+		});
+
+		test('subscribe to an unknown resource-watch channel surfaces a JSON-RPC error', async () => {
+			const transport = connectClient('client-watch-bad');
+			transport.sent.length = 0;
+			const respPromise = waitForResponse(transport, 102);
+			transport.simulateMessage(request(102, 'subscribe', { channel: 'ahp-resource-watch:/bogus' }));
+			const resp = await respPromise;
+			const error = (resp as unknown as { error?: { code: number } }).error;
+			assert.ok(error, `expected an error response, got ${JSON.stringify(resp)}`);
+		});
+
+		test('client disconnect releases the watch refcount', async () => {
+			const watchChannel = 'ahp-resource-watch:/mock-watch-disconnect';
+			agentService.liveWatchDescriptors.set(watchChannel, { root: 'file:///root', recursive: false });
+
+			const transport = connectClient('client-watch-2');
+			const subPromise = waitForResponse(transport, 200);
+			transport.simulateMessage(request(200, 'subscribe', { channel: watchChannel }));
+			await subPromise;
+			assert.deepStrictEqual(agentService.watchSubscribeCalls, [watchChannel]);
+
+			transport.simulateClose();
+			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
 		});
 	});
 });

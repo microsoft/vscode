@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
+import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -43,6 +43,10 @@ export interface CopilotCLIModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly multiplier?: number;
+	readonly priceCategory?: string;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly maxContextWindowTokens: number;
@@ -87,23 +91,26 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		super();
 		this._fetchAndCacheModels();
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			// Auth changed which means models could've changed. Clear caches and re-fetch.
-			this._availableModels = undefined;
-			this._resolvedModelInfos = undefined;
+			// Auth changed which means models could've changed.
 			this._onDidChange.fire();
 			this._fetchAndCacheModels();
 		}));
 	}
 
 	private _fetchAndCacheModels(): void {
-		if (!this._authenticationService.anyGitHubSession) {
-			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no GitHub session');
+		if (!this._authenticationService.hasCopilotTokenSource) {
+			this.logService.info('[CopilotCLIModels] Skipping model fetch since there is no Copilot token source');
 			return;
 		}
 		const availableModels = this._availableModels = this._getAvailableModels();
 		availableModels.then(models => {
 			// Bail out if a newer fetch has superseded this one (e.g. auth changed mid-flight).
 			if (this._availableModels !== availableModels) {
+				return;
+			}
+			// Don't overwrite a previously-good list with an empty result from a transient auth state.
+			if (models.length === 0 && this._resolvedModelInfos?.length) {
+				this._availableModels = undefined;
 				return;
 			}
 			this._resolvedModelInfos = this._buildModelInfos(models);
@@ -137,7 +144,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	public async getModels(): Promise<CopilotCLIModelInfo[]> {
-		if (!this._authenticationService.anyGitHubSession) {
+		if (!this._authenticationService.hasCopilotTokenSource) {
 			return [];
 		}
 
@@ -152,18 +159,25 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const [{ getAvailableModels }, authInfo] = await Promise.all([this.copilotCLISDK.getPackage(), this.copilotCLISDK.getAuthInfo()]);
 		try {
 			const models = await getAvailableModels(authInfo);
-			return models.map(model => ({
-				id: model.id,
-				name: model.name,
-				multiplier: model.billing?.multiplier,
-				maxInputTokens: model.capabilities.limits.max_prompt_tokens,
-				maxOutputTokens: model.capabilities.limits.max_output_tokens,
-				maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
-				supportsVision: model.capabilities.supports.vision,
-				supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
-				defaultReasoningEffort: model.defaultReasoningEffort,
-				supportedReasoningEfforts: model.supportedReasoningEfforts,
-			} satisfies CopilotCLIModelInfo));
+			return models.map(model => {
+				const pricing = normalizeTokenPrices(model.billing?.token_prices);
+				return {
+					id: model.id,
+					name: model.name,
+					multiplier: model.billing?.multiplier,
+					priceCategory: model.model_picker_price_category,
+					inputCost: pricing?.default.inputPrice,
+					outputCost: pricing?.default.outputPrice,
+					cacheCost: pricing?.default.cachePrice,
+					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
+					maxOutputTokens: model.capabilities.limits.max_output_tokens,
+					maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
+					supportsVision: model.capabilities.supports.vision,
+					supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
+					defaultReasoningEffort: model.defaultReasoningEffort,
+					supportedReasoningEfforts: model.supportedReasoningEfforts,
+				} satisfies CopilotCLIModelInfo;
+			});
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
 			// Clear cached promise so subsequent calls retry instead of
@@ -177,11 +191,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				if (!this._authenticationService.anyGitHubSession || !this._resolvedModelInfos) {
-					return autoModelEnabled ? [buildAutoModel()] : [];
-				}
-				return this._resolvedModelInfos;
+				return this._resolvedModelInfos ?? [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -208,6 +218,10 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
 				pricing: multiplier,
+				priceCategory: model.priceCategory,
+				inputCost: model.inputCost,
+				outputCost: model.outputCost,
+				cacheCost: model.cacheCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
@@ -518,6 +532,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
+			// The SDK's sandbox auto-detection looks for `mxc-bin/` next to `sdk/index.js`, but the
+			// binary actually ships at `<package-root>/mxc-bin/`. Point `MXC_BIN_DIR` at the right
+			// location so `spawnSandboxFromConfig` can find `mxc-exec-mac` / `lxc-exec` / `wxc-exec.exe`.
+			if (!process.env['MXC_BIN_DIR']) {
+				process.env['MXC_BIN_DIR'] = path.join(this.extensionContext.extensionPath, 'node_modules', '@github', 'copilot', 'mxc-bin');
+			}
 			return await import('@github/copilot/sdk');
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Failed to load @github/copilot/sdk: ${error}`);
@@ -612,4 +632,3 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
 }
-

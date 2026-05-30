@@ -65,7 +65,7 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([]),
-		mainChat: stubChat,
+		mainChat: constObservable(stubChat),
 		capabilities: { supportsMultipleChats: false },
 		...overrides,
 	};
@@ -170,9 +170,8 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteChat(): Promise<void> { }
-	override async sendAndCreateChat(): Promise<ISession> { return this._session; }
-	override addChat(): IChat { return this._session.mainChat; }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
+	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 }
 
 function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): { service: ISessionsManagementService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {
@@ -200,17 +199,17 @@ suite('SessionsManagementService', () => {
 	test('openSession waits for a loading session before opening chat content', async () => {
 		const loading = observableValue('loading', true);
 		const session = stubSession({ sessionId: 'loading', providerId: 'test', loading });
-		const { service, chatWidgetService, agentSessionsService } = createSessionsManagementService(session, disposables);
+		const { service, agentSessionsService } = createSessionsManagementService(session, disposables);
 
 		const openPromise = service.openSession(session.resource);
 		await Promise.resolve();
 
-		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [], observed: [] });
+		assert.deepStrictEqual({ observed: agentSessionsService.observed.map(uri => uri.toString()) }, { observed: [] });
 
 		loading.set(false, undefined);
 		await openPromise;
 
-		assert.deepStrictEqual({ opened: chatWidgetService.opened.map(uri => uri.toString()), observed: agentSessionsService.observed.map(uri => uri.toString()) }, { opened: [session.resource.toString()], observed: [session.resource.toString()] });
+		assert.deepStrictEqual({ observed: agentSessionsService.observed.map(uri => uri.toString()) }, { observed: [session.resource.toString()] });
 	});
 
 	test('does not change active session when added session is not displayed in any widget', async () => {
@@ -290,7 +289,7 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = service.restoreLastActiveSession();
 		await Promise.resolve();
-		assert.deepStrictEqual(chatWidgetService.opened.map(uri => uri.toString()), []);
+		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), []);
 
 		// Now the provider learns about the session and fires its change event.
 		// `onDidChangeProviders` does NOT fire here — only the per-provider
@@ -299,7 +298,7 @@ suite('SessionsManagementService', () => {
 		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
 
 		await restorePromise;
-		assert.deepStrictEqual(chatWidgetService.opened.map(uri => uri.toString()), [targetSession.resource.toString()]);
+		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), [targetSession.resource.toString()]);
 	});
 });
 

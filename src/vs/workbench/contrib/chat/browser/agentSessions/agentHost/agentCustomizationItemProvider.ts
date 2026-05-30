@@ -7,83 +7,51 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extname } from '../../../../../../base/common/path.js';
-import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { getAgentHostConfiguredCustomizations } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
+import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
 
+type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean };
+
+
 export class AgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private _agentCustomizations: readonly CustomizationRef[];
-
 	/** Cache: pluginUri → last expansion (keyed by nonce so we re-fetch on content change). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; children: readonly ICustomizationItem[] }>();
+	private readonly _contentExpander: AgentCustomizationContentExpander;
 
 	constructor(
-		private readonly _agentInfo: AgentInfo,
-		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
-		private readonly _fileService: IFileService,
-		private readonly _logService: ILogService,
-		private readonly _getItemActions?: (customization: CustomizationRef, clientId: string | undefined) => ICustomizationItemAction[] | undefined,
+		private readonly _getItemActions: ((customization: PluginCustomization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
 	) {
 		super();
-		const rootStateSubscription = this._connection.rootState;
-		this._agentCustomizations = this._readRootCustomizations(rootStateSubscription.value) ?? this._agentInfo.customizations ?? [];
+		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 
-		this._register(rootStateSubscription.onDidChange(rootState => {
-			const next = this._readRootCustomizations(rootState) ?? this._readAgentCustomizations(rootState) ?? this._agentCustomizations;
-			if (next !== this._agentCustomizations) {
-				this._agentCustomizations = next;
-				this._onDidChange.fire();
-			}
-		}));
-
-		this._register(this._connection.onDidAction(envelope => {
-			if (envelope.action.type === ActionType.SessionCustomizationsChanged || envelope.action.type === ActionType.SessionCustomizationUpdated) {
-				this._onDidChange.fire();
-			}
+		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+			this._onDidChange.fire();
 		}));
 	}
 
-
-	private _readRootCustomizations(rootState: RootState | Error | undefined): readonly CustomizationRef[] | undefined {
-		if (!rootState || rootState instanceof Error || !rootState.config) {
-			return undefined;
-		}
-
-		return getAgentHostConfiguredCustomizations(rootState.config?.values);
-	}
-
-	private _readAgentCustomizations(rootState: RootState | Error | undefined): readonly CustomizationRef[] | undefined {
-		if (!rootState || rootState instanceof Error) {
-			return undefined;
-		}
-
-		return rootState.agents.find(agent => agent.provider === this._agentInfo.provider)?.customizations;
-	}
-
-	private toRemoteUri(customization: CustomizationRef): URI {
-		const original = URI.parse(customization.uri);
+	private toRemoteUri(customizationUri: string): URI {
+		const original = URI.parse(customizationUri);
 		// The synthetic synced-customization bundle lives in the client's
 		// in-memory filesystem. Don't wrap it as an agent-host:// URI —
 		// the server doesn't have this scheme registered, so wrapping it
@@ -94,7 +62,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return toAgentHostUri(original, this._connectionAuthority);
 	}
 
-	private toBadge(customization: CustomizationRef, fromClient: boolean): { badge?: string; badgeTooltip?: string; groupKey?: string } {
+	private toBadge(customization: PluginCustomization, fromClient: boolean): { badge?: string; badgeTooltip?: string; groupKey?: string } {
 		if (fromClient) {
 			return {
 				groupKey: REMOTE_CLIENT_GROUP,
@@ -106,20 +74,20 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toItem(customization: CustomizationRef, sessionCustomization?: SessionCustomization): ICustomizationItem {
-		const clientId = sessionCustomization?.clientId; // set if the configuration came from the client
+	private toItem(customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
+		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
-		const uri = this.toRemoteUri(customization);
+		const uri = this.toRemoteUri(customization.uri);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
 			type: 'plugin',
-			name: customization.displayName,
-			description: customization.description,
-			source: AICustomizationSources.plugin,
-			status: toStatusString(sessionCustomization?.status),
-			statusMessage: sessionCustomization?.statusMessage,
-			enabled: sessionCustomization?.enabled ?? true,
+			name: customization.name,
+			description: undefined,
+			source,
+			status: toStatusString(customization.load),
+			statusMessage: toStatusMessage(customization.load),
+			enabled: customization.enabled,
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
@@ -129,60 +97,96 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			actions: this._getItemActions?.(customization, clientId),
 		};
 	}
-	private _resolveSessionUri(sessionResource: URI): URI {
-		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._agentInfo.provider, rawId);
+
+	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, groupKey: string | undefined): ICustomizationItem[] {
+		const items: ICustomizationItem[] = [];
+		for (const child of customization.children ?? []) {
+			const item = this.toDirectoryChildItem(child, source, groupKey);
+			if (item) {
+				items.push(item);
+			}
+		}
+		return items;
+	}
+
+	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, groupKey: string | undefined): ICustomizationItem | undefined {
+		const type = toPromptsType(child.type);
+		if (!type) {
+			return undefined;
+		}
+
+		return {
+			itemKey: child.id,
+			uri: this.toRemoteUri(child.uri),
+			type,
+			name: child.name,
+			description: getChildDescription(child),
+			source,
+			groupKey,
+			extensionId: undefined,
+			pluginUri: undefined,
+			userInvocable: undefined,
+		};
+	}
+
+	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomizationAgentRef[]> {
+		const agents = this._customAgentsService.getCustomAgents(sessionResource);
+		return agents.map(agent => ({
+			uri: this.toRemoteUri(agent.uri),
+			name: agent.name,
+			description: agent.description,
+		}));
 	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
 
 		// Build parent plugin items keyed by customization ref
-		type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean };
 		const plugins: PluginMeta[] = [];
+		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
-		for (const customization of this._agentCustomizations) {
-			const item = this.toItem(customization);
-			items.set(customizationItemKey(customization, undefined), item);
-			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP, isBundleItem: false });
-		}
-		const sessionUri = this._resolveSessionUri(sessionResource);
-		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
-		const sessionCustomizations = sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
-		for (const sessionCustomization of sessionCustomizations) {
-			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
-			const isClientSynced = sessionCustomization.clientId !== undefined;
-			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 
-			// Always show session customizations as distinct plugin entries —
-			// client-synced items appear in the "Local" group, host-owned in
-			// the "Remote" group. The synthetic bundle is an implementation
-			// detail and is not shown as a standalone entry, but is still
-			// expanded below so individual user files appear in per-type tabs.
-			let item: ICustomizationItem;
-			if (!isBundleItem) {
-				item = this.toItem(sessionCustomization.customization, sessionCustomization);
-				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
+		const customizations = this._customAgentsService.getCustomizations(sessionResource);
+
+		const directoryCustomizations = [];
+		for (const sessionCustomization of customizations) {
+			if (isDirectoryCustomization(sessionCustomization)) {
+				directoryCustomizations.push(sessionCustomization);
 			} else {
-				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
-				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', source: AICustomizationSources.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
-			}
+				const isBundleItem = isSyntheticBundle(sessionCustomization);
+				const isClientSynced = sessionCustomization.clientId !== undefined;
+				const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 
-			// Always expand plugin contents so individual files are visible.
-			plugins.push({
-				item,
-				nonce: sessionCustomization.customization.nonce,
-				status: toStatusString(sessionCustomization.status),
-				statusMessage: sessionCustomization.statusMessage,
-				enabled: sessionCustomization.enabled,
-				childGroupKey,
-				isBundleItem,
-			});
+				// Always show session customizations as distinct plugin entries —
+				// client-synced items appear in the "Local" group, host-owned in
+				// the "Remote" group. The synthetic bundle is an implementation
+				// detail and is not shown as a standalone entry, but is still
+				// expanded below so individual user files appear in per-type tabs.
+				let item: ICustomizationItem;
+				if (!isBundleItem) {
+					item = this.toItem(sessionCustomization, AICustomizationSources.plugin);
+					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
+				} else {
+					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
+					item = { uri: this.toRemoteUri(sessionCustomization.uri), type: 'plugin', source: AICustomizationSources.plugin, name: '', groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
+				}
+				const pluginMeta = {
+					item,
+					nonce: (sessionCustomization as ClientPluginCustomization).nonce,
+					status: toStatusString(sessionCustomization.load),
+					statusMessage: toStatusMessage(sessionCustomization.load),
+					enabled: sessionCustomization.enabled,
+					childGroupKey,
+					isBundleItem
+				} satisfies PluginMeta;
+				plugins.push(pluginMeta);
+				expandPromises.push(this._expandPluginContents(pluginMeta, token));
+			}
 		}
 
-		// Expand each plugin directory in parallel to discover individual
-		// skills, agents, instructions, and prompts inside.
-		const expansions = await Promise.all(plugins.map(p => this._expandPluginContents(p.item.uri, p.nonce, p.childGroupKey, p.isBundleItem, token)));
+		// Expand each plugin directory in parallel to discover individual skills, agents, instructions, and prompts inside.
+		const expansions = await Promise.all(expandPromises);
+
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -200,6 +204,20 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
+		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+
+		for (const sessionCustomization of directoryCustomizations) {
+			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory) ? AICustomizationSources.local : AICustomizationSources.user;
+			const groupKey = sessionCustomization.clientId ? REMOTE_CLIENT_GROUP : undefined;
+			for (const child of this.toDirectoryItems(sessionCustomization, source, groupKey)) {
+				items.set(child.itemKey ?? child.uri.toString(), {
+					...child,
+					status: toStatusString(sessionCustomization.load),
+					statusMessage: toStatusMessage(sessionCustomization.load),
+					enabled: sessionCustomization.enabled,
+				});
+			}
+		}
 		return [...items.values()];
 	}
 
@@ -207,172 +225,68 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 * Reads a plugin's directory contents through the agent-host
 	 * filesystem provider and returns one {@link ICustomizationItem} per
 	 * supported file (agents/skills/instructions/prompts).
-	 *
-	 * Cached by `(uri, nonce)`; a different nonce invalidates the entry.
 	 */
-	private async _expandPluginContents(pluginUri: URI, nonce: string | undefined, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
-		const cached = this._expansionCache.get(pluginUri);
-		if (cached && cached.nonce === nonce) {
+	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+		const cached = this._expansionCache.get(plugin.item.uri);
+		if (cached && cached.nonce === plugin.nonce) {
 			return cached.children;
 		}
-
-		// pluginUri is already an agent-host:// URI (from toRemoteUri),
-		// so use it directly as the filesystem root.
-		const fsRoot = pluginUri;
-		const children: ICustomizationItem[] = [];
-		try {
-			if (!await this._fileService.canHandleResource(fsRoot)) {
-				return [];
-			}
-			if (token.isCancellationRequested) {
-				return [];
-			}
-
-			const dirNames = ['agents', 'skills', 'commands', 'rules'] as const;
-			const subdirs = dirNames.map(name => ({ name, resource: URI.joinPath(fsRoot, name) }));
-			const stats = await this._fileService.resolveAll(subdirs.map(s => ({ resource: s.resource })));
-
-			if (token.isCancellationRequested) {
-				return [];
-			}
-
-			for (let i = 0; i < subdirs.length; i++) {
-				const stat = stats[i];
-				if (!stat.success || !stat.stat?.isDirectory || !stat.stat.children) {
-					continue;
-				}
-				const promptType = promptsTypeForPluginDir(subdirs[i].name);
-				if (!promptType) {
-					continue;
-				}
-				children.push(...await this._collectFromTypeDir(stat.stat.children, pluginUri, promptType, groupKey, isBundleItem, token));
-			}
-			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
-		} catch (err) {
-			this._logService.trace(`[AgentCustomizationItemProvider] Failed to expand plugin ${pluginUri.toString()}: ${err}`);
-			return [];
-		}
-
-		this._expansionCache.set(pluginUri, { nonce, children });
+		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.childGroupKey, plugin.isBundleItem, plugin.item.source, token);
+		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, children });
 		return children;
 	}
-
-	/**
-	 * Emits one {@link ICustomizationItem} per child of a per-type
-	 * sub-folder. Skills are conventionally folders containing
-	 * `SKILL.md`, and synced bundles may preserve per-skill
-	 * subdirectories; flat skill files can still appear for legacy
-	 * bundles, so both layouts are accepted.
-	 *
-	 * For skills, the `SKILL.md` frontmatter is read so that the item's
-	 * description (and a frontmatter-supplied name, when present) can be
-	 * surfaced — without it the UI would only show the folder name with
-	 * no description.
-	 */
-	private async _collectFromTypeDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, promptType: PromptsType, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<ICustomizationItem[]> {
-		type Entry = { name: string; resource: URI; isDirectory: boolean };
-		const eligible: Entry[] = [];
-		for (const child of entries) {
-			// Skip dotfiles (e.g. .DS_Store)
-			if (child.name.startsWith('.')) {
-				continue;
-			}
-			if (promptType !== PromptsType.skill && child.isDirectory) {
-				continue;
-			}
-			eligible.push(child);
-		}
-
-		const skillMetadata = promptType === PromptsType.skill
-			? await Promise.all(eligible.map(child => this._readSkillMetadata(child, token)))
-			: undefined;
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		const items: ICustomizationItem[] = [];
-		for (let i = 0; i < eligible.length; i++) {
-			const child = eligible[i];
-			let displayName: string;
-			let description: string | undefined;
-			let uri = child.resource;
-			let userInvocable: boolean | undefined;
-			if (promptType === PromptsType.skill) {
-				const meta = skillMetadata![i];
-				// For folder-style skills the canonical resource for the skill
-				// is its `SKILL.md`; downstream code (slash-command resolution,
-				// chat input decorations) calls `parseNew(item.uri)` and would
-				// otherwise try to read the directory as a file. If we couldn't
-				// read `SKILL.md`, skip the entry rather than emit a URI that
-				// will fail to parse downstream.
-				if (child.isDirectory) {
-					if (!meta) {
-						continue;
-					}
-					uri = joinPath(child.resource, SKILL_FILENAME);
-				}
-				const fallbackName = child.isDirectory ? child.name : stripPromptFileExtensions(child.name);
-				displayName = meta?.name ?? fallbackName;
-				description = meta?.description;
-				userInvocable = meta?.userInvocable;
-			} else {
-				displayName = stripPromptFileExtensions(child.name);
-			}
-			items.push({
-				uri,
-				type: promptType,
-				name: displayName,
-				description,
-				source: AICustomizationSources.plugin,
-				groupKey,
-				extensionId: undefined,
-				pluginUri: isBundleItem ? undefined : pluginUri,
-				userInvocable
-			} satisfies ICustomizationItem);
-		}
-		return items;
-	}
-
-	/**
-	 * Reads `SKILL.md` for a skill entry and returns its frontmatter
-	 * `name` / `description`. Returns `undefined` when the file cannot
-	 * be read or parsed — the caller falls back to the folder name and
-	 * leaves the description empty.
-	 */
-	private async _readSkillMetadata(entry: { name: string; resource: URI; isDirectory: boolean }, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined; userInvocable: boolean | undefined } | undefined> {
-		const skillFileUri = entry.isDirectory ? joinPath(entry.resource, SKILL_FILENAME) : entry.resource;
-		try {
-			const content = await this._fileService.readFile(skillFileUri);
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-			const parsed = new PromptFileParser().parse(skillFileUri, content.value.toString());
-			return { name: parsed.header?.name, description: parsed.header?.description, userInvocable: parsed.header?.userInvocable };
-		} catch (err) {
-			this._logService.trace(`[RemoteAgentCustomizationItemProvider] Failed to read skill metadata ${skillFileUri.toString()}: ${err}`);
-			return undefined;
-		}
-	}
 }
 
-function toStatusString(status: CustomizationStatus | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
-	switch (status) {
-		case CustomizationStatus.Loading: return 'loading';
-		case CustomizationStatus.Loaded: return 'loaded';
-		case CustomizationStatus.Degraded: return 'degraded';
-		case CustomizationStatus.Error: return 'error';
-		default: return undefined;
+function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
+	return load?.kind;
+}
+
+function toStatusMessage(load: CustomizationLoadState | undefined): string | undefined {
+	if (load?.kind === CustomizationLoadStatus.Degraded || load?.kind === CustomizationLoadStatus.Error) {
+		return load.message;
 	}
+	return undefined;
 }
 
-function customizationKey(customization: CustomizationRef): string {
-	return customization.uri;
+function customizationKey(customization: Customization): string {
+	return customization.id;
 }
 
-function customizationItemKey(customization: CustomizationRef, clientId: string | undefined): string {
+function customizationItemKey(customization: Customization, clientId: string | undefined): string {
 	return clientId !== undefined
 		? `${customizationKey(customization)}::${clientId}`
 		: customizationKey(customization);
+}
+
+function isDirectoryCustomization(customization: Customization): customization is DirectoryCustomization {
+	return customization.type === CustomizationType.Directory;
+}
+
+function toPromptsType(type: ChildCustomization['type']): PromptsType | undefined {
+	switch (type) {
+		case CustomizationType.Agent:
+			return PromptsType.agent;
+		case CustomizationType.Skill:
+			return PromptsType.skill;
+		case CustomizationType.Rule:
+			return PromptsType.instructions;
+		case CustomizationType.Prompt:
+			return PromptsType.prompt;
+		default:
+			return undefined;
+	}
+}
+
+function getChildDescription(child: ChildCustomization): string | undefined {
+	switch (child.type) {
+		case CustomizationType.Agent:
+		case CustomizationType.Skill:
+		case CustomizationType.Prompt:
+		case CustomizationType.Rule:
+			return child.description;
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -380,7 +294,7 @@ function customizationItemKey(customization: CustomizationRef, clientId: string 
  * which is an implementation detail of the customization sync pipeline
  * and should not be surfaced as a standalone item in the UI.
  */
-function isSyntheticBundle(customization: CustomizationRef): boolean {
+function isSyntheticBundle(customization: Customization): boolean {
 	try {
 		return URI.parse(customization.uri).scheme === SYNCED_CUSTOMIZATION_SCHEME;
 	} catch {
@@ -388,30 +302,3 @@ function isSyntheticBundle(customization: CustomizationRef): boolean {
 	}
 }
 
-/**
- * Maps a plugin sub-directory name to the {@link PromptsType}
- * its files represent. Returns `undefined` for unknown directories.
- */
-function promptsTypeForPluginDir(dir: string): PromptsType | undefined {
-	switch (dir) {
-		case 'rules': return PromptsType.instructions;
-		case 'commands': return PromptsType.prompt;
-		case 'agents': return PromptsType.agent;
-		case 'skills': return PromptsType.skill;
-		default: return undefined;
-	}
-}
-
-/**
- * Strips conventional prompt file extensions so we can show `foo`
- * for `foo.prompt.md`, `foo.instructions.md`, etc.
- */
-function stripPromptFileExtensions(filename: string): string {
-	const ext = extname(filename);
-	if (!ext) {
-		return filename;
-	}
-	const stem = filename.slice(0, -ext.length);
-	const dotInStem = stem.lastIndexOf('.');
-	return dotInStem > 0 ? stem.slice(0, dotInStem) : stem;
-}

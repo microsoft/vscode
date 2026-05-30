@@ -22,17 +22,17 @@ import { ObservableMemento, observableMemento } from '../../../../../platform/ob
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
-import { AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from '../../../extensions/common/extensions.js';
+import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from './marketplaceReference.js';
+import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 
 // Re-export marketplace reference types for downstream consumers.
-export { deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from './marketplaceReference.js';
-export type { IMarketplaceReference } from './marketplaceReference.js';
+export { deduplicateMarketplaceReferences, extraKnownMarketplacesToConfigDict, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+export type { IConfiguredMarketplaces, IMarketplaceReference } from './marketplaceReference.js';
 
 export const enum MarketplaceType {
 	Copilot = 'copilot',
@@ -304,6 +304,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspacePluginSettingsService private readonly _workspacePluginSettingsService: IWorkspacePluginSettingsService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -366,7 +367,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this.onDidChangeMarketplaces = Event.any(
 			Event.filter(
 				_configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration(ChatConfiguration.PluginsEnabled) || e.affectsConfiguration(ChatConfiguration.PluginMarketplaces),
+				e => e.affectsConfiguration(ChatConfiguration.PluginsEnabled) || e.affectsConfiguration(ChatConfiguration.PluginMarketplaces) || e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces),
 			) as Event<unknown> as Event<void>,
 			Event.fromObservableLight(this._workspacePluginSettingsService.extraMarketplaces),
 			Event.map(this._workspaceTrustService.onDidChangeTrust, () => { }),
@@ -411,8 +412,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
-		const configuredRefs = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const configRefs = parseMarketplaceReferences(configuredRefs);
+		// Effective set: user-facing `chat.plugins.marketplaces` (default + user)
+		// unioned with the enterprise policy-only `chat.plugins.extraMarketplaces`.
+		// `parseMarketplaceReferences` dedupes by canonical id.
+		const { effectiveValues } = readConfiguredMarketplaces(this._configurationService);
+		const configRefs = parseMarketplaceReferences(effectiveValues);
 
 		// Merge marketplace references from Claude workspace settings.
 		// Workspace-defined refs take precedence (are primary) so that their
@@ -426,8 +430,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			allRefs = configRefs;
 		}
 
-		for (const value of configuredRefs) {
-			if (typeof value !== 'string' || !parseMarketplaceReference(value)) {
+		for (const value of effectiveValues) {
+			const parsed = typeof value === 'string'
+				? parseMarketplaceReference(value)
+				: (value && typeof value === 'object' ? parseMarketplaceObjectEntry(value as Parameters<typeof parseMarketplaceObjectEntry>[0]) : undefined);
+			if (!parsed) {
 				this._logService.debug(`[PluginMarketplaceService] Ignoring invalid marketplace entry: ${String(value)}`);
 			}
 		}
@@ -463,7 +470,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
-			const url = `https://raw.githubusercontent.com/${repo}/main/${defPath}`;
+			const ref = encodeURIComponent(reference.ref ?? 'main');
+			const url = `https://raw.githubusercontent.com/${repo}/${ref}/${defPath}`;
 			try {
 				const context = await this._requestService.request({ type: 'GET', url, callSite: 'pluginMarketplaceService.fetchPluginList' }, token);
 				const statusCode = context.res.statusCode;
@@ -605,6 +613,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
+		// In strict mode (`chat.plugins.strictMarketplaces`, typically enabled via the
+		// `ChatStrictMarketplaces` enterprise policy), trust is restricted to
+		// marketplaces in `chat.plugins.extraMarketplaces` — the policy-only slot.
+		// User-configured entries in `chat.plugins.marketplaces` do NOT grant trust
+		// under strict mode; that's the whole point of "strict" — the enterprise
+		// fully controls the allowed marketplaces.
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.StrictMarketplaces)) {
+			const refs = parseMarketplaceReferences(readConfiguredMarketplaces(this._configurationService).extraValues);
+			return refs.some(r => r.canonicalId === ref.canonicalId);
+		}
 		return this._trustedMarketplacesStore.get().includes(ref.canonicalId);
 	}
 
@@ -722,8 +740,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	// --- Periodic update check ------------------------------------------------
 
-	private _isAutoUpdateEnabled(): AutoUpdateConfigurationValue {
-		return this._configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
+	private _isAutoUpdateEnabled(): boolean {
+		return this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
 	}
 
 	/**

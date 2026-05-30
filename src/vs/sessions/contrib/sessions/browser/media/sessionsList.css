@@ -92,6 +92,11 @@
 		color: var(--vscode-descriptionForeground);
 	}
 
+	&.sticky {
+		border-left: 2px solid var(--vscode-focusBorder);
+		padding-left: 4px;
+	}
+
 	.session-main,
 	.session-title-row,
 	.session-details-row {
@@ -103,10 +108,12 @@
 		display: flex;
 		align-items: flex-start;
 		line-height: 17px;
+		/* Anchor for outgoing icons during a cross-fade swap (see swapIconWithCrossfade). */
+		position: relative;
 
 		> .codicon {
 			flex-shrink: 0;
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact, 12px);
 			height: 16px;
 			display: flex;
 			align-items: center;
@@ -147,7 +154,7 @@
 
 	.session-details-row {
 		gap: 4px;
-		font-size: 12px;
+		font-size: var(--vscode-agents-fontSize-label3, 11px);
 		line-height: 15px;
 		max-height: 15px;
 		overflow: hidden;
@@ -158,7 +165,7 @@
 			align-items: center;
 
 			> .codicon {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
 			}
 		}
 
@@ -217,7 +224,7 @@
 	}
 
 	.session-title {
-		font-size: 13px;
+		font-size: var(--vscode-agents-fontSize-body1, 13px);
 	}
 
 	.session-title {
@@ -265,7 +272,7 @@
 				overflow: hidden;
 				white-space: nowrap;
 				text-overflow: ellipsis;
-				font-size: 12px;
+				font-size: var(--vscode-agents-fontSize-label1, 12px);
 			}
 		}
 
@@ -274,7 +281,7 @@
 
 			.monaco-button {
 				padding: 2px 10px;
-				font-size: 12px;
+				font-size: var(--vscode-agents-fontSize-label1, 12px);
 				white-space: nowrap;
 			}
 		}
@@ -288,7 +295,7 @@
 	justify-content: center;
 	align-items: center;
 	padding: 0 10px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label3, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
 	cursor: pointer;
@@ -313,10 +320,14 @@
 	color: var(--vscode-foreground);
 }
 
-/* Folders show-more/show-less: match the folder section header style */
+/* Folders show-more/show-less: align with workspace section headers. */
 .session-show-more.session-show-more-folders {
-	font-weight: 500;
-	text-transform: uppercase;
+	justify-content: flex-start;
+	font-weight: var(--vscode-agents-fontWeight-medium, 500);
+
+	.session-show-more-label {
+		padding: 0;
+	}
 
 	/* No surrounding separator lines for the folders show-more/less item */
 	&::before,
@@ -330,10 +341,9 @@
 .session-section {
 	display: flex;
 	align-items: center;
-	font-size: 11px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-weight: var(--vscode-agents-fontWeight-medium, 500);
 	color: var(--vscode-descriptionForeground);
-	text-transform: uppercase;
 	/* align left with session item margin; keep extra right padding for section content spacing */
 	padding: 0 16px 0 10px;
 
@@ -357,6 +367,14 @@
 		margin-left: 4px;
 		display: none;
 	}
+
+	.session-section-chevron {
+		flex-shrink: 0;
+		margin-left: 4px;
+		display: none;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-codiconFontSize-compact, 12px);
+	}
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,
@@ -364,15 +382,36 @@
 	display: block;
 }
 
+.monaco-list-row:hover .session-section .session-section-chevron.collapsible,
+.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
+	display: flex;
+	align-items: center;
+}
+
 .sessions-list-control {
 
-	.monaco-list:focus .monaco-list-row.focused.selected .session-section-label,
-	.monaco-list:focus .monaco-list-row.selected .session-section-label {
-		color: var(--vscode-list-activeSelectionForeground);
+	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
+	.monaco-list-row:has(.session-section):hover,
+	.monaco-list-row:has(.session-show-more-folders):hover,
+	.monaco-list-row.focused:has(.session-section),
+	.monaco-list-row.focused:has(.session-show-more-folders),
+	.monaco-list-row.selected:has(.session-section),
+	.monaco-list-row.selected:has(.session-show-more-folders) {
+		background: transparent !important;
 	}
 
-	.monaco-list:not(:focus) .monaco-list-row.selected .session-section-label {
-		color: var(--vscode-list-inactiveSelectionForeground);
+	.monaco-list-row:hover .session-section .session-section-label,
+	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
+	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
+		color: var(--vscode-strongForeground);
+	}
+
+	&.session-section-focus-from-pointer {
+		.monaco-list-row.focused:has(.session-section),
+		.monaco-list-row.selected:has(.session-section) {
+			outline: none !important;
+		}
 	}
 }
 
