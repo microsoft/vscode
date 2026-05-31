@@ -27,7 +27,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
-import { createShellTools, type ISandboxCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
+import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
@@ -652,7 +652,7 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(engineA, engineB, 'Sandbox engine should be cached across calls');
 	});
 
-	test('primary shell tool schema exposes sandbox request params only when permitted', async () => {
+	test('primary shell tool schema only exposes requestUnsandboxedExecution params when the sandbox is enabled', async () => {
 		const enabled = createServices({ sandboxEnabled: true });
 		const enabledShell = disposables.add(enabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-enabled'), undefined));
 		const enabledTools = await createShellTools(enabledShell, enabled.terminalManager, new NullLogService());
@@ -662,16 +662,6 @@ suite('CopilotShellTools', () => {
 
 		assert.ok(enabledPropertyNames.includes('requestUnsandboxedExecution'), 'Sandbox-enabled schema should expose requestUnsandboxedExecution');
 		assert.ok(enabledPropertyNames.includes('requestUnsandboxedExecutionReason'), 'Sandbox-enabled schema should expose requestUnsandboxedExecutionReason');
-		assert.ok(!enabledPropertyNames.includes('requestAllowNetwork'), 'Network request schema should be hidden until retry-with-network requests are enabled');
-		assert.ok(!enabledPropertyNames.includes('requestAllowNetworkReason'), 'Network request reason should be hidden until retry-with-network requests are enabled');
-
-		if (!platform.isWindows) {
-			enabled.agentConfigurationService.setSandboxValue(AgentHostSandboxKey.RetryWithAllowNetworkRequests, true);
-			const enabledNetworkTools = await createShellTools(enabledShell, enabled.terminalManager, new NullLogService());
-			const enabledNetworkSchema = enabledNetworkTools[0].parameters as { properties: Record<string, unknown> };
-			assert.ok(Object.keys(enabledNetworkSchema.properties).includes('requestAllowNetwork'), 'Enabled retry-with-network schema should expose requestAllowNetwork');
-			assert.ok(Object.keys(enabledNetworkSchema.properties).includes('requestAllowNetworkReason'), 'Enabled retry-with-network schema should expose requestAllowNetworkReason');
-		}
 
 		const disabled = createServices();
 		const disabledShell = disposables.add(disabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-disabled'), undefined));
@@ -805,7 +795,7 @@ suite('CopilotShellTools', () => {
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		terminalManager.commandDetectionSupported = true;
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: ISandboxCommandConfirmationRequest[] = [];
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);
 			return true;
@@ -830,7 +820,6 @@ suite('CopilotShellTools', () => {
 		const result = await resultPromise as ToolResultObject;
 
 		assert.strictEqual(confirmationRequests.length, 1);
-		assert.strictEqual(confirmationRequests[0]?.kind, 'unsandboxed');
 		assert.deepStrictEqual(confirmationRequests[0]?.blockedDomains, ['example.com']);
 		assert.ok(terminalManager.sentTexts.length >= 1, 'Approved command should be sent to the terminal unsandboxed');
 		assert.ok(terminalManager.sentTexts.every(entry => !entry.data.includes('sandbox-runtime')), 'No wrapped sandbox-runtime command should be sent after approval');
@@ -864,66 +853,11 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.sentTexts.length, 0);
 	});
 
-	test('primary shell tool requests network-enabled sandbox confirmation for blocked domains when retry is enabled', async function () {
-		if (platform.isWindows) {
-			this.skip();
-		}
-		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.RetryWithAllowNetworkRequests, true);
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: ISandboxCommandConfirmationRequest[] = [];
-		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
-			confirmationRequests.push(request);
-			return false;
-		});
-		const bashTool = tools.find(tool => tool.name === 'bash');
-		assert.ok(bashTool);
-
-		const invocation: ToolInvocation = {
-			sessionId: 'session-1',
-			toolCallId: 'tool-1',
-			toolName: 'bash',
-			arguments: { command: 'curl https://example.com' },
-		};
-		const result = await bashTool.handler({ command: 'curl https://example.com' }, invocation) as ToolResultObject;
-
-		assert.strictEqual(confirmationRequests.length, 1);
-		assert.strictEqual(confirmationRequests[0]?.kind, 'allowNetwork');
-		assert.deepStrictEqual(confirmationRequests[0]?.blockedDomains, ['example.com']);
-		assert.strictEqual(result.resultType, 'failure');
-		assert.strictEqual(result.error, 'sandbox_blocked');
-		assert.strictEqual(terminalManager.sentTexts.length, 0);
-	});
-
-	test('primary shell tool rejects explicit network requests when retry-with-network requests are disabled', async function () {
-		if (platform.isWindows) {
-			this.skip();
-		}
-		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
-		const bashTool = tools.find(tool => tool.name === 'bash');
-		assert.ok(bashTool);
-
-		const invocation: ToolInvocation = {
-			sessionId: 'session-1',
-			toolCallId: 'tool-1',
-			toolName: 'bash',
-			arguments: { command: 'echo hello', requestAllowNetwork: true },
-		};
-		const result = await bashTool.handler({ command: 'echo hello', requestAllowNetwork: true }, invocation) as ToolResultObject;
-
-		assert.strictEqual(result.resultType, 'failure');
-		assert.strictEqual(result.error, 'allow_network_disabled');
-		assert.match(result.textResultForLlm ?? '', /retryWithAllowNetworkRequests/);
-		assert.strictEqual(terminalManager.sentTexts.length, 0);
-	});
-
 	test('primary shell tool asks for confirmation when requestUnsandboxedExecution is explicitly set', async function () {
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: ISandboxCommandConfirmationRequest[] = [];
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);
 			return false;
@@ -948,7 +882,6 @@ suite('CopilotShellTools', () => {
 		}, invocation) as ToolResultObject;
 
 		assert.strictEqual(confirmationRequests.length, 1);
-		assert.strictEqual(confirmationRequests[0]?.kind, 'unsandboxed');
 		assert.strictEqual(confirmationRequests[0]?.reason, 'sandbox blocked required syscall');
 		assert.strictEqual(result.resultType, 'failure');
 		assert.strictEqual(result.error, 'sandbox_blocked');
@@ -962,7 +895,7 @@ suite('CopilotShellTools', () => {
 		// so the engine would silently re-sandbox the command. The shell tool
 		// must surface a dedicated failure instead.
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: ISandboxCommandConfirmationRequest[] = [];
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);
 			return true;
@@ -999,7 +932,7 @@ suite('CopilotShellTools', () => {
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AutoApproveUnsandboxedCommands, true);
 		terminalManager.commandDetectionSupported = true;
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: ISandboxCommandConfirmationRequest[] = [];
+		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);
 			return true;

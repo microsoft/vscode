@@ -36,7 +36,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
-import type { ISandboxCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
+import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
@@ -268,7 +268,7 @@ export type SessionWrapperFactory = (callbacks: {
 	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
 	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
 	readonly onElicitationRequest: (context: ElicitationContext) => Promise<ElicitationResult>;
-	readonly requestSandboxCommandConfirmation: (request: ISandboxCommandConfirmationRequest) => Promise<boolean>;
+	readonly requestUnsandboxedCommandConfirmation: (request: IUnsandboxedCommandConfirmationRequest) => Promise<boolean>;
 	readonly hooks: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
@@ -685,7 +685,7 @@ export class CopilotAgentSession extends Disposable {
 			onPermissionRequest: request => this.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => this.handleElicitationRequest(context),
-			requestSandboxCommandConfirmation: request => this.requestSandboxCommandConfirmation(request),
+			requestUnsandboxedCommandConfirmation: request => this.requestUnsandboxedCommandConfirmation(request),
 			clientTools: this.createClientSdkTools(),
 			hooks: {
 				onPreToolUse: input => this._handlePreToolUse(input),
@@ -1165,30 +1165,20 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
-	async requestSandboxCommandConfirmation(request: ISandboxCommandConfirmationRequest): Promise<boolean> {
+	async requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(request.toolCallId, deferred);
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
-		const confirmationTitle = request.kind === 'allowNetwork'
-			? blockedDomains
-				? localize('agentHost.allowNetworkCommandConfirmation.title.blockedDomains', "Run Command in the Sandbox With Unrestricted Network Access to {0}?", blockedDomains)
-				: localize('agentHost.allowNetworkCommandConfirmation.title.generic', "Run Command in the Sandbox With Unrestricted Network Access?")
+		const confirmationTitle = blockedDomains
+			? localize('agentHost.unsandboxedCommandConfirmation.title.blockedDomains', "Run Command Outside the Sandbox to Access {0}?", blockedDomains)
+			: localize('agentHost.unsandboxedCommandConfirmation.title.generic', "Run Command Outside the Sandbox?");
+		const invocationMessage = request.reason
+			? localize('agentHost.unsandboxedCommandConfirmation.reason', "Reason for leaving the sandbox: {0}", request.reason)
 			: blockedDomains
-				? localize('agentHost.unsandboxedCommandConfirmation.title.blockedDomains', "Run Command Outside the Sandbox to Access {0}?", blockedDomains)
-				: localize('agentHost.unsandboxedCommandConfirmation.title.generic', "Run Command Outside the Sandbox?");
-		const invocationMessage = request.kind === 'allowNetwork'
-			? request.reason
-				? localize('agentHost.allowNetworkCommandConfirmation.reason', "Reason for allowing unrestricted network access while retaining sandboxing: {0}", request.reason)
-				: blockedDomains
-					? localize('agentHost.allowNetworkCommandConfirmation.blockedDomains', "This command needs unrestricted network access to reach blocked network domain(s): {0}. File system sandboxing remains enabled.", blockedDomains)
-					: localize('agentHost.allowNetworkCommandConfirmation.generic', "This command needs unrestricted network access while remaining in the sandbox.")
-			: request.reason
-				? localize('agentHost.unsandboxedCommandConfirmation.reason', "Reason for leaving the sandbox: {0}", request.reason)
-				: blockedDomains
-					? localize('agentHost.unsandboxedCommandConfirmation.blockedDomains', "This command needs to access blocked network domain(s): {0}.", blockedDomains)
-					: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
+				? localize('agentHost.unsandboxedCommandConfirmation.blockedDomains', "This command needs to access blocked network domain(s): {0}.", blockedDomains)
+				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
@@ -1205,8 +1195,9 @@ export class CopilotAgentSession extends Disposable {
 			// Intentionally omit `permissionKind: 'shell'`: that would route this
 			// through the shell rule-based auto-approver and silently approve
 			// common safe commands (`pwd`, `ls`, etc.) without prompting.
-			// Mirrors the workbench's sandbox-aware analyzer, which prevents
-			// automatic approval for sandbox escalation confirmations.
+			// Mirrors the workbench's sandbox-aware analyzer, which forces
+			// `isAutoApproveAllowed: false` whenever `requiresUnsandboxConfirmation`
+			// is set.
 			parentToolCallId: this._activeToolCalls.get(request.toolCallId)?.parentToolCallId,
 		});
 

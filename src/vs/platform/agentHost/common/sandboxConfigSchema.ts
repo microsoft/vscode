@@ -29,7 +29,6 @@ export const enum AgentHostSandboxKey {
 	Enabled = 'enabled',
 	WindowsEnabled = 'enabled.windows',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
-	RetryWithAllowNetworkRequests = 'retryWithAllowNetworkRequests',
 	AutoApproveUnsandboxedCommands = 'autoApproveUnsandboxedCommands',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
@@ -44,7 +43,6 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
-	[AgentHostSandboxKey.RetryWithAllowNetworkRequests]: boolean;
 	[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: boolean;
 	[AgentHostSandboxKey.LinuxFileSystem]: Record<string, unknown>;
 	[AgentHostSandboxKey.MacFileSystem]: Record<string, unknown>;
@@ -88,10 +86,6 @@ export const sandboxConfigSchema = createSchema({
 			[AgentHostSandboxKey.AllowUnsandboxedCommands]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
-			},
-			[AgentHostSandboxKey.RetryWithAllowNetworkRequests]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.retryWithAllowNetworkRequests.title', "Retry with Network Requests in Sandbox"),
 			},
 			[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: {
 				type: 'boolean',
@@ -139,7 +133,6 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxKey.Enabled,
 	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxKey.WindowsEnabled,
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxKey.AllowUnsandboxedCommands,
-	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: AgentHostSandboxKey.RetryWithAllowNetworkRequests,
 	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxKey.AutoApproveUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,

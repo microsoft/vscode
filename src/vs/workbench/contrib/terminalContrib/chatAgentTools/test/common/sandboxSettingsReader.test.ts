@@ -89,7 +89,6 @@ suite('sandboxSettingsReader', () => {
 		const cfg = new TestConfigurationService();
 		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
-		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		cfg.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 
 		const bag = readAgentHostSandboxValues(cfg, new NullLogService());
@@ -97,7 +96,6 @@ suite('sandboxSettingsReader', () => {
 		assert.deepStrictEqual(bag, {
 			[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 			[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
-			[AgentHostSandboxKey.RetryWithAllowNetworkRequests]: true,
 			[AgentHostSandboxKey.AllowedNetworkDomains]: ['example.com'],
 		});
 	});
