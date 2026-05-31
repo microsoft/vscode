@@ -1122,6 +1122,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Current backoff delay (ms) for the session-refresh retry. */
 	private _sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 
+	/** True while a {@link _refreshSessions} call is awaiting `listSessions()`. */
+	private _sessionRefreshInFlight = false;
+
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
 		@IChatService protected readonly _chatService: IChatService,
@@ -2131,7 +2134,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `_refreshSessions` owns `_cacheInitialized` — it flips it to `true`
 		// only once `listSessions()` actually returns. A call that races
 		// before the connection/auth is ready will fail and arm a retry
-		// rather than permanently pinning an empty cache.
+		// rather than permanently pinning an empty cache. Don't launch a new
+		// refresh while one is already in flight or a backoff retry is already
+		// scheduled — otherwise every synchronous `getSessions()` during the
+		// failure window would hammer the agent/auth path and bypass the
+		// backoff.
+		if (this._sessionRefreshInFlight || this._sessionRefreshRetry.value) {
+			return;
+		}
 		this._refreshSessions();
 	}
 
@@ -2142,6 +2152,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		// Cancel any pending retry; this attempt supersedes it.
 		this._sessionRefreshRetry.clear();
+		this._sessionRefreshInFlight = true;
 		try {
 			const sessions = await connection.listSessions();
 			// A successful return (even an empty list) means the cache is
@@ -2193,6 +2204,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// list. Instead, retry silently in the background with backoff.
 			this._logService.trace(`[AgentHostSessionsProvider] listSessions failed; scheduling retry: ${err}`);
 			this._scheduleSessionRefreshRetry(announceExistingAsAdded);
+		} finally {
+			this._sessionRefreshInFlight = false;
 		}
 	}
 
