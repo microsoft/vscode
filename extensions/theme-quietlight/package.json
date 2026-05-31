@@ -1,0 +1,26 @@
+{
+  "name": "theme-quietlight",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "categories": ["Themes"],
+  "contributes": {
+    "themes": [
+      {
+        "id": "Quiet Light",
+        "label": "%themeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/quietlight-color-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

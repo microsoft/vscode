@@ -1,0 +1,195 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Unified Quick Access Tabs Container */
+.unified-quick-access-tabs {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 2px 6px 8px;
+	gap: 8px;
+}
+
+/* Radio tabs styling override for unified quick access */
+.unified-quick-access-tabs .monaco-custom-radio {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+}
+
+.unified-quick-access-tabs .monaco-custom-radio .monaco-button {
+	padding: 5px 10px;
+	font-size: 12px;
+	font-weight: 500;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-quickInput-foreground);
+	opacity: 0.7;
+	border: none;
+	transition: opacity 0.1s ease, background-color 0.1s ease;
+}
+
+.unified-quick-access-tabs .monaco-custom-radio .monaco-button:hover {
+	opacity: 1;
+	background: var(--vscode-list-hoverBackground);
+}
+
+.unified-quick-access-tabs .monaco-custom-radio .monaco-button.active {
+	opacity: 1;
+	background: var(--vscode-quickInputList-focusBackground);
+	color: var(--vscode-quickInputList-focusForeground);
+}
+
+.unified-quick-access-tabs .monaco-custom-radio .monaco-button:focus {
+	outline-offset: 0 !important;
+}
+
+/* Send button container */
+.unified-quick-access-send-container {
+	display: flex;
+	align-items: center;
+	margin-left: auto;
+}
+
+.unified-send-button {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 500;
+	border-radius: 4px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+
+.unified-send-button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.unified-send-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.unified-send-button .codicon {
+	font-size: 14px !important;
+	color: var(--vscode-button-foreground) !important;
+}
+
+.unified-send-label {
+	font-weight: 500;
+}
+
+/* Quick pick item enhancements for agent sessions */
+.unified-quick-access-session-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.unified-quick-access-session-badges {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+}
+
+/* File count badge with insertions/deletions */
+.unified-quick-access-file-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 500;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.unified-quick-access-file-badge .insertions {
+	color: var(--vscode-chat-linesAddedForeground, #3fb950);
+}
+
+.unified-quick-access-file-badge .deletions {
+	color: var(--vscode-chat-linesRemovedForeground, #f85149);
+}
+
+/* Status/metadata badge */
+.unified-quick-access-status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	border-radius: 10px;
+	font-size: 11px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	opacity: 0.8;
+}
+
+/* PR/Issue number badge */
+.unified-quick-access-pr-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px 6px;
+	border-radius: 10px;
+	font-size: 11px;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	opacity: 0.9;
+}
+
+.unified-quick-access-pr-badge .codicon {
+	font-size: 12px;
+}
+
+/* Action text styling (e.g., "Run 'zsh' command?") */
+.unified-quick-access-action-text {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+/* Session status indicators */
+.unified-quick-access-session-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.unified-quick-access-session-status.in-progress .codicon {
+	color: var(--vscode-progressBar-background);
+	animation: unified-spin 1s linear infinite;
+}
+
+.unified-quick-access-session-status.needs-input .codicon {
+	color: var(--vscode-inputValidation-warningBorder);
+}
+
+.unified-quick-access-session-status.completed .codicon {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.unified-quick-access-session-status.failed .codicon {
+	color: var(--vscode-testing-iconFailed);
+}
+
+@keyframes unified-spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+/* Separator styling between metadata items */
+.unified-quick-access-separator {
+	opacity: 0.5;
+	margin: 0 2px;
+}

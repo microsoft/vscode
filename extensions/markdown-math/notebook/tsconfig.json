@@ -1,0 +1,17 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./dist/",
+		"module": "es2020",
+		"lib": [
+			"ES2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"node"
+		],
+		"skipLibCheck": true
+	}
+}

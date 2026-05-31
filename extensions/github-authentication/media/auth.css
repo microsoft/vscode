@@ -1,0 +1,135 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	/* Dark theme colors (default) */
+	--vscode-foreground: #CCCCCC;
+	--vscode-editor-background: #1F1F1F;
+	--vscode-error-foreground: #F85149;
+	--vscode-textLink-foreground: #4daafc;
+
+	--vscode-filter-0: drop-shadow(0 0 0 rgba(0, 122, 204, 0));
+	--vscode-filter-50: drop-shadow(0 4px 12px rgba(0, 122, 204, 0.15));
+	--vscode-filter-70: drop-shadow(0 6px 18px rgba(0, 122, 204, 0.25));
+	--vscode-filter-100: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
+
+	--vscode-insiders-filter-0: drop-shadow(0 0 0 rgba(36, 191, 165, 0));
+	--vscode-insiders-filter-50: drop-shadow(0 4px 12px rgba(36, 191, 165, 0.15));
+	--vscode-insiders-filter-70: drop-shadow(0 6px 18px rgba(36, 191, 165, 0.25));
+	--vscode-insiders-filter-100: drop-shadow(0 8px 24px rgba(36, 191, 165, 0.3));
+}
+
+/* Light theme colors */
+@media (prefers-color-scheme: light) {
+	:root {
+		--vscode-foreground: #3B3B3B;
+		--vscode-editor-background: #FFFFFF;
+		--vscode-error-foreground: #F85149;
+		--vscode-textLink-foreground: #005FB8;
+	}
+}
+
+html {
+	height: 100%;
+}
+
+body {
+	box-sizing: border-box;
+	min-height: 100%;
+	margin: 0;
+	padding: 15px 30px;
+	display: flex;
+	flex-direction: column;
+	color: var(--vscode-foreground);
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+	background-color: var(--vscode-editor-background);
+}
+
+a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+a:hover, a:focus {
+	text-decoration: underline;
+}
+
+.container {
+	height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+}
+
+.icon-container {
+	margin-bottom: 24px;
+}
+
+@keyframes rise-and-glow {
+	0% {
+		opacity: 0;
+		transform: translateY(15px) scale(0.95);
+		filter: var(--vscode-filter-0);
+	}
+
+	50% {
+		opacity: 0.8;
+		transform: translateY(-2px) scale(1.02);
+		filter: var(--vscode-filter-50);
+	}
+
+	70% {
+		opacity: 1;
+		transform: translateY(1px) scale(0.99);
+		filter: var(--vscode-filter-70);
+	}
+
+	100% {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+		filter: var(--vscode-filter-100);
+	}
+}
+
+.vscode-icon {
+	width: 128px;
+	height: 128px;
+	animation: rise-and-glow 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.title {
+	font-size: 28px;
+	font-weight: 300;
+	margin: 0 0 12px 0;
+	color: var(--vscode-foreground);
+}
+
+.subtitle {
+	font-size: 18px;
+	font-weight: 300;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	margin: 0 0 36px 0;
+}
+
+.detail {
+	font-size: 14px;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	margin: 0;
+}
+
+body.error .detail {
+	color: var(--vscode-error-foreground);
+}
+
+body.error .success-message {
+	display: none;
+}
+
+body:not(.error) .error-message {
+	display: none;
+}

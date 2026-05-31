@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "\nconsole.log(1)\nconsole.log(2)\nconsole.log(3)\nconsole.log(4)\nconsole.log(5)\nconsole.log(6)\nconsole.log(7)\n",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "console.log(1);\nconsole.log(2);\nconsole.log(3);\nconsole.log(4);\n\nconsole.log(5);\nconsole.log(6);\nconsole.log(7);\n\n",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,1)",
+			"modifiedRange": "[1,9)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[2,9)",
+			"modifiedRange": "[10,10)",
+			"innerChanges": null
+		}
+	]
+}

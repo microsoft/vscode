@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "import { RuntimeMode } from './runtimeMode';\nimport { PromiseQueue } from './telemetry';\nimport { TestNotificationSender, TestUrlOpener } from './testHelpers';\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { RuntimeMode } from './runtimeMode';\nimport { PromiseQueue, TestPromiseQueue } from './telemetry';\nimport { TestNotificationSender, TestUrlOpener } from './testHelpers';\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[2,3)",
+			"modifiedRange": "[2,3)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,22 -> 2,22]",
+					"modifiedRange": "[2,22 -> 2,40]"
+				}
+			]
+		}
+	]
+}

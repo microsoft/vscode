@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "REditorSupport/vscode-R",
+					"repositoryUrl": "https://github.com/REditorSupport/vscode-R-syntax",
+					"commitHash": "b199996070723eefbe7a61e0384b2ae4768eb7f0"
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.1"
+		}
+	],
+	"version": 1
+}

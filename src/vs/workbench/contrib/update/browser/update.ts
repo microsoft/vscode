@@ -1,0 +1,494 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as nls from '../../../../nls.js';
+import severity from '../../../../base/common/severity.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IActivityService, NumberBadge, IBadge, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUpdateService, State as UpdateState, StateType } from '../../../../platform/update/common/update.js';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { ReleaseNotesManager } from './releaseNotesEditor.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { Promises, Throttler } from '../../../../base/common/async.js';
+import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
+import { IVersion, tryParseVersion } from '../common/updateUtils.js';
+
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
+
+let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
+
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
+	if (!releaseNotesManager) {
+		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
+	}
+
+	return releaseNotesManager.show(version, useCurrentFile);
+}
+
+async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
+	const openerService = accessor.get(IOpenerService);
+	const productService = accessor.get(IProductService);
+
+	if (productService.releaseNotesUrl) {
+		const uri = URI.parse(productService.releaseNotesUrl);
+		await openerService.open(uri);
+	} else {
+		throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
+	}
+}
+
+async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
+	const instantiationService = accessor.get(IInstantiationService);
+	try {
+		await showReleaseNotesInEditor(instantiationService, version, false);
+	} catch (err) {
+		try {
+			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
+		} catch (err2) {
+			throw new Error(`${err.message} and ${err2.message}`);
+		}
+	}
+}
+
+/**
+ * Appends update-related menu items to the given menu. This registers menu items
+ * for all update states (idle, checking, downloading, etc.) that show the current
+ * update status. The underlying commands (`update.check`, `update.restart`, etc.)
+ * must be registered separately.
+ */
+export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.check',
+			title: nls.localize('checkForUpdates', "Check for Updates...")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.checking',
+			title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloadNow',
+			title: nls.localize('download update_1', "Download Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloading',
+			title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.install',
+			title: nls.localize('installUpdate...', "Install Update... (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.updating',
+			title: nls.localize('installingUpdate', "Installing Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		order: 2,
+		command: {
+			id: 'update.restart',
+			title: nls.localize('restartToUpdate', "Restart to Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+	});
+}
+
+function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
+	return before.major < after.major || before.minor < after.minor;
+}
+
+export class ProductContribution implements IWorkbenchContribution {
+
+	private static readonly KEY = 'releaseNotes/lastVersion';
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotificationService notificationService: INotificationService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
+		@IProductService productService: IProductService,
+	) {
+		if (isWeb) {
+			return;
+		}
+
+		hostService.hadLastFocus().then(async hadLastFocus => {
+			if (!hadLastFocus) {
+				return;
+			}
+
+			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
+			const currentVersion = tryParseVersion(productService.version);
+			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+			const shouldShowPostInstallInfo = configurationService.getValue<boolean>('update.showPostInstallInfo');
+			const releaseNotesUrl = productService.releaseNotesUrl;
+
+			// was there a major/minor update? if so, open release notes (unless post-install info is enabled, which takes over)
+			if (shouldShowReleaseNotes && !shouldShowPostInstallInfo && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+				showReleaseNotesInEditor(instantiationService, productService.version, false)
+					.then(undefined, () => {
+						notificationService.prompt(
+							severity.Info,
+							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
+							[{
+								label: nls.localize('releaseNotes', "Release Notes"),
+								run: () => {
+									const uri = URI.parse(releaseNotesUrl);
+									openerService.open(uri);
+								}
+							}],
+							{ priority: NotificationPriority.OPTIONAL }
+						);
+					});
+			}
+
+			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		});
+	}
+}
+
+export class UpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	private state: UpdateState;
+	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private updateStateContextKey: IContextKey<string>;
+	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IProductService private readonly productService: IProductService,
+	) {
+		super();
+		this.state = updateService.state;
+		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(contextKeyService);
+		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(contextKeyService);
+
+		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
+		this.onUpdateStateChange(this.updateService.state);
+
+		/*
+		The `update/lastKnownVersion` and `update/updateNotificationTime` storage keys are used in
+		combination to figure out when to show a message to the user that he should update.
+
+		This message should appear if the user has received an update notification but hasn't
+		updated since 5 days.
+		*/
+
+		const currentVersion = this.productService.commit;
+		const lastKnownVersion = storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
+
+		// if current version != stored version, clear both fields
+		if (currentVersion !== lastKnownVersion) {
+			storageService.remove('update/lastKnownVersion', StorageScope.APPLICATION);
+			storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
+		}
+
+		this.registerGlobalActivityActions();
+	}
+
+	private async onUpdateStateChange(state: UpdateState): Promise<void> {
+		this.updateStateContextKey.set(state.type);
+
+		switch (state.type) {
+			case StateType.Ready: {
+				const productVersion = state.update.productVersion;
+				if (productVersion) {
+					const currentVersion = tryParseVersion(this.productService.version);
+					const nextVersion = tryParseVersion(productVersion);
+					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
+				}
+				break;
+			}
+		}
+
+		let badge: IBadge | undefined = undefined;
+
+		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
+			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
+		} else if (state.type === StateType.CheckingForUpdates) {
+			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
+		} else if (state.type === StateType.Downloading || state.type === StateType.Overwriting) {
+			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
+		} else if (state.type === StateType.Updating) {
+			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
+		}
+
+		this.badgeDisposable.clear();
+
+		if (badge) {
+			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
+		}
+
+		this.state = state;
+	}
+
+	private registerGlobalActivityActions(): void {
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
+		CommandsRegistry.registerCommand('update.checking', () => { });
+		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate(true));
+		CommandsRegistry.registerCommand('update.downloading', () => { });
+		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
+		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
+		});
+
+		appendUpdateMenuItems(MenuId.GlobalActivity, '7_update');
+
+		if (this.productService.quality === 'stable') {
+			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
+				if (this.updateService.state.type !== StateType.Ready) {
+					return;
+				}
+
+				const productVersion = this.updateService.state.update.productVersion;
+				if (productVersion) {
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+				}
+
+			});
+			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+				group: '7_update',
+				order: 1,
+				command: {
+					id: 'update.showUpdateReleaseNotes',
+					title: nls.localize('showUpdateReleaseNotes', "Show Update Release Notes")
+				},
+				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
+			});
+		}
+	}
+}
+
+export class SwitchProductQualityContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IProductService private readonly productService: IProductService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
+	) {
+		super();
+
+		this.registerGlobalActivityActions();
+	}
+
+	private registerGlobalActivityActions(): void {
+		const quality = this.productService.quality;
+		const productQualityChangeHandler = this.environmentService.options?.productQualityChangeHandler;
+		if (productQualityChangeHandler && (quality === 'stable' || quality === 'insider')) {
+			const newQuality = quality === 'stable' ? 'insider' : 'stable';
+			const commandId = `update.switchQuality.${newQuality}`;
+			const isSwitchingToInsiders = newQuality === 'insider';
+			this._register(registerAction2(class SwitchQuality extends Action2 {
+				constructor() {
+					super({
+						id: commandId,
+						title: isSwitchingToInsiders ? nls.localize('switchToInsiders', "Switch to Insiders Version...") : nls.localize('switchToStable', "Switch to Stable Version..."),
+						precondition: IsWebContext,
+						menu: {
+							id: MenuId.GlobalActivity,
+							when: IsWebContext,
+							group: '7_update',
+						}
+					});
+				}
+
+				async run(accessor: ServicesAccessor): Promise<void> {
+					const dialogService = accessor.get(IDialogService);
+					const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
+					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
+					const storageService = accessor.get(IStorageService);
+					const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
+					const userDataSyncService = accessor.get(IUserDataSyncService);
+					const notificationService = accessor.get(INotificationService);
+
+					try {
+						const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
+						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
+						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
+						if (userDataSyncStore && isSwitchingToInsiders && userDataSyncEnablementService.isEnabled()
+							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION, false)) {
+							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
+							if (!userDataSyncStoreType) {
+								return;
+							}
+							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+							if (userDataSyncStoreType === 'stable') {
+								// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
+								await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
+							}
+						}
+
+						const res = await dialogService.confirm({
+							type: 'info',
+							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
+							detail: newQuality === 'insider' ?
+								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of VS Code.") :
+								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
+							primaryButton: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
+						});
+
+						if (res.confirmed) {
+							const promises: Promise<unknown>[] = [];
+
+							// If sync is happening wait until it is finished before reload
+							if (userDataSyncService.status === SyncStatus.Syncing) {
+								promises.push(Event.toPromise(Event.filter(userDataSyncService.onDidChangeStatus, status => status !== SyncStatus.Syncing)));
+							}
+
+							// If user chose the sync service then synchronise the store type option in insiders service, so that other clients using insiders service are also updated.
+							if (isSwitchingToInsiders && userDataSyncStoreType) {
+								promises.push(userDataSyncWorkbenchService.synchroniseUserDataSyncStoreType());
+							}
+
+							await Promises.settled(promises);
+
+							productQualityChangeHandler(newQuality);
+						} else {
+							// Reset
+							if (userDataSyncStoreType) {
+								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.APPLICATION);
+							}
+						}
+					} catch (error) {
+						notificationService.error(error);
+					}
+				}
+
+				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
+					const { result } = await dialogService.prompt<UserDataSyncStoreType>({
+						type: Severity.Info,
+						message: nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
+						detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+						buttons: [
+							{
+								label: nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),
+								run: () => 'insiders'
+							},
+							{
+								label: nls.localize({ key: 'use stable', comment: ['&& denotes a mnemonic'] }, "&&Stable (current)"),
+								run: () => 'stable'
+							}
+						],
+						cancelButton: true
+					});
+					return result;
+				}
+			}));
+		}
+	}
+}
+
+export class DefaultAccountUpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	private static readonly STORAGE_KEY = 'update/internalOrg';
+	#internalOrg: string | undefined = undefined;
+	private throttler: Throttler = this._register(new Throttler());
+
+	constructor(
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super();
+
+		if (isWeb) {
+			return; // Electron only
+		}
+
+		this.#internalOrg = this.storageService.get(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION, undefined);
+		this.throttler.queue(() => this.updateService.setInternalOrg(this.#internalOrg));
+
+		// Check on startup
+		this.refresh();
+
+		// Listen for account changes
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refresh()));
+	}
+
+	private refresh(): void {
+		this.throttler.queue(() => this.doRefresh());
+	}
+
+	private async doRefresh(): Promise<void> {
+		try {
+			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+			const internalOrg = getInternalOrg(defaultAccount?.entitlementsData?.organization_login_list);
+
+			if (internalOrg === this.#internalOrg) {
+				return;
+			}
+
+			this.#internalOrg = internalOrg;
+			await this.updateService.setInternalOrg(this.#internalOrg);
+
+			if (this.#internalOrg) {
+				this.storageService.store(DefaultAccountUpdateContribution.STORAGE_KEY, internalOrg, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION);
+			}
+		} catch (error) {
+			// Silently ignore errors - if we can't get the account, we don't disable background updates
+		}
+	}
+}

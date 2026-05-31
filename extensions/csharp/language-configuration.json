@@ -1,0 +1,130 @@
+{
+	"comments": {
+		"lineComment": "//",
+		"blockComment": [
+			"/*",
+			"*/"
+		]
+	},
+	"brackets": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		]
+	],
+	"autoClosingPairs": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		{
+			"open": "'",
+			"close": "'",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "\"",
+			"close": "\"",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		}
+	],
+	"surroundingPairs": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		[
+			"<",
+			">"
+		],
+		[
+			"'",
+			"'"
+		],
+		[
+			"\"",
+			"\""
+		]
+	],
+	"colorizedBracketPairs": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		[
+			"<",
+			">"
+		]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*#region\\b",
+			"end": "^\\s*#endregion\\b"
+		}
+	},
+	"onEnterRules": [
+		// Add // when pressing enter from inside line comment
+		// We do not want to match /// (a documentation comment)
+		{
+			"beforeText": {
+				"pattern": "[^\/]\/\/[^\/].*"
+			},
+			"afterText": {
+				"pattern": "^(?!\\s*$).+"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "// "
+			}
+		},
+		// Add /// when pressing enter from anywhere inside a documentation comment.
+		// Documentation comments are not valid after non-whitespace.
+		{
+			"beforeText": {
+				"pattern": "^\\s*\/\/\/"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "/// "
+			}
+		},
+	]
+}

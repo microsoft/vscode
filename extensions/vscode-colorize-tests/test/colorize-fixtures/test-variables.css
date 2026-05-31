@@ -1,0 +1,7 @@
+:root {
+    --spacing-unit: 6px;
+    --cell-padding: (4 * var(--spacing-unit));
+}
+body {
+    padding-left: calc(4 * var(--spacing-unit, 5px));
+}

@@ -1,0 +1,40 @@
+{
+	// Each snippet is defined under a snippet name and has a scope, prefix, body and
+	// description. The scope defines in watch languages the snippet is applicable. The prefix is what is
+	// used to trigger the snippet and the body will be expanded and inserted.Possible variables are:
+	// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders.
+	// Placeholders with the same ids are connected.
+	// Example:
+	"MSFT Copyright Header": {
+		"scope": "javascript,typescript,css,rust",
+		"prefix": [
+			"header",
+			"stub",
+			"copyright"
+		],
+		"body": [
+			"/*---------------------------------------------------------------------------------------------",
+			" *  Copyright (c) Microsoft Corporation. All rights reserved.",
+			" *  Licensed under the MIT License. See License.txt in the project root for license information.",
+			" *--------------------------------------------------------------------------------------------*/",
+			"",
+			"$0"
+		],
+		"description": "Insert Copyright Statement"
+	},
+	"TS -> Inject Service": {
+		"scope": "typescript",
+		"description": "Constructor Injection Pattern",
+		"prefix": "@inject",
+		"body": "@$1 private readonly _$2: ${1},$0"
+	},
+	"TS -> Event & Emitter": {
+		"scope": "typescript",
+		"prefix": "emitter",
+		"description": "Add emitter and event properties",
+		"body": [
+			"private readonly _onDid$1 = new Emitter<$2>();",
+			"readonly onDid$1: Event<$2> = this._onDid$1.event;"
+		],
+	}
+}

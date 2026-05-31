@@ -1,0 +1,152 @@
+{
+	"comments": {
+		"blockComment": [
+			"{/*",
+			"*/}"
+		]
+	},
+	"brackets": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		[
+			"<",
+			">"
+		]
+	],
+	"colorizedBracketPairs": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		]
+	],
+	"autoClosingPairs": [
+		{
+			"open": "{",
+			"close": "}"
+		},
+		{
+			"open": "[",
+			"close": "]"
+		},
+		{
+			"open": "(",
+			"close": ")"
+		},
+		{
+			"open": "'",
+			"close": "'",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "\"",
+			"close": "\"",
+			"notIn": [
+				"string"
+			]
+		},
+		{
+			"open": "/**",
+			"close": " */",
+			"notIn": [
+				"string"
+			]
+		}
+	],
+	"surroundingPairs": [
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		[
+			"<",
+			">"
+		],
+		[
+			"'",
+			"'"
+		],
+		[
+			"\"",
+			"\""
+		]
+	],
+	"wordPattern": {
+		"pattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\$\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:'\"\\,\\.\\<\\>\\/\\s]+)"
+	},
+	"onEnterRules": [
+		{
+			"beforeText": {
+				"pattern": "<(?!(?:area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$",
+				"flags": "i"
+			},
+			"afterText": {
+				"pattern": "^<\\/([_:\\w][_:\\w-.\\d]*)\\s*>$",
+				"flags": "i"
+			},
+			"action": {
+				"indent": "indentOutdent"
+			}
+		},
+		{
+			"beforeText": {
+				"pattern": "<(?!(?:area|base|br|col|embed|hr|img|input|keygen|link|menuitem|meta|param|source|track|wbr))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$",
+				"flags": "i"
+			},
+			"action": {
+				"indent": "indent"
+			}
+		},
+		{
+			// `beforeText` only applies to tokens of a given language. Since we are dealing with jsx-tags,
+			// make sure we apply to the closing `>` of a tag so that mixed language spans
+			// such as `<div onclick={1}>` are handled properly.
+			"beforeText": {
+				"pattern": "^>$"
+			},
+			"afterText": {
+				"pattern": "^<\\/([_:\\w][_:\\w-.\\d]*)\\s*>$",
+				"flags": "i"
+			},
+			"action": {
+				"indent": "indentOutdent"
+			}
+		},
+		{
+			"beforeText": {
+				"pattern": "^>$"
+			},
+			"action": {
+				"indent": "indent"
+			}
+		}
+	],
+}

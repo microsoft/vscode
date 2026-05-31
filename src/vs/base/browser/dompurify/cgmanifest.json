@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "dompurify",
+					"repositoryUrl": "https://github.com/cure53/DOMPurify",
+					"commitHash": "eaa0bdb26a1d0164af587d9059b98269008faece",
+					"tag": "3.2.7"
+				}
+			},
+			"license": "Apache 2.0",
+			"version": "3.2.7"
+		}
+	],
+	"version": 1
+}

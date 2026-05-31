@@ -1,0 +1,51 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceFolder}/client/out/**/*.js"
+			],
+			"smartStep": true
+		},
+		{
+			"name": "Launch Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/client/out/test"
+			],
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceFolder}/client/out/test/**/*.js"
+			]
+		},
+		{
+			"name": "Server Unit Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceRoot}/server/test/index.js",
+			"stopOnEntry": false,
+			"args": [],
+			"cwd": "${workspaceRoot}/server",
+			"runtimeExecutable": null,
+			"runtimeArgs": [],
+			"env": {},
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/server/out/**"
+			]
+		}
+	]
+}

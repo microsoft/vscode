@@ -1,0 +1,530 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overall */
+
+.chat-status-bar-entry-tooltip {
+	padding: 8px;
+	min-width: 320px;
+	max-width: 360px;
+}
+
+.chat-status-bar-entry-tooltip hr {
+	margin-top: 14px;
+	margin-bottom: 14px;
+}
+
+/* Collapsible Quick Settings */
+
+.chat-status-bar-entry-tooltip .collapsible-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 6px 0 6px 0;
+	border: none;
+	border-top: 1px solid var(--vscode-editorWidget-border);
+	background: none;
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	font-weight: 400;
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .collapsible-header.no-border {
+	border-top: none;
+	margin-top: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	cursor: default;
+}
+
+.chat-status-bar-entry-tooltip .contributed-section {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-header:focus {
+	outline: none;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-chevron {
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+	margin-top: 2px;
+}
+
+.chat-status-bar-entry-tooltip .contributed-info-icon {
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .collapsible-label {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-status {
+	margin-left: auto;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .section-description {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .section-description .monaco-link {
+	white-space: nowrap;
+}
+
+.chat-status-bar-entry-tooltip .section-detail {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .contributed-detail {
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	min-width: 0;
+	padding-bottom: 6px;
+	white-space: normal;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content {
+	display: grid;
+	grid-template-rows: 1fr;
+	transition: grid-template-rows 200ms ease;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content.collapsed {
+	grid-template-rows: 0fr;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
+	overflow-y: clip;
+	overflow-x: visible;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 10px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content.collapsed > .collapsible-inner {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner > hr {
+	margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-status-bar-entry-tooltip .collapsible-content {
+		transition: none;
+	}
+}
+
+.chat-status-bar-entry-tooltip div.header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	line-height: 18px;
+	padding-bottom: 10px;
+	margin-bottom: 6px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+	font-weight: 400;
+}
+
+.chat-status-bar-entry-tooltip div.header .header-label {
+	flex-grow: 1;
+	font-weight: 400;
+}
+
+.chat-status-bar-entry-tooltip div.header .monaco-action-bar {
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip div.header .header-cta-button {
+	width: auto;
+	padding: 4px 12px;
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.chat-status-bar-entry-tooltip div.description {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.chat-status-bar-entry-tooltip div.description.terms {
+	max-width: 250px;
+}
+
+.chat-status-bar-entry-tooltip .monaco-button {
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
+/* Quota Indicator */
+
+.chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 14px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included {
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included.compact {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-title {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	font-size: 13px;
+	line-height: 18px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-details {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	margin-bottom: 6px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-percentage {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value {
+	font-size: 20px;
+	line-height: 24px;
+	font-weight: 700;
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value-suffix {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
+	font-size: 12px;
+	font-weight: normal;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-editorWidget-border);
+	border-radius: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
+	height: 100%;
+	background-color: var(--vscode-focusBorder);
+	border-radius: 4px;
+}
+
+/* Compact Quota Indicator (2x2 grid: plan name + percentage, reset + label) */
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	grid-template-rows: auto auto;
+	grid-template-areas:
+		"title value"
+		"reset suffix";
+	column-gap: 12px;
+	row-gap: 2px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-title {
+	grid-area: title;
+	margin-bottom: 0;
+	font-size: 14px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-details {
+	display: contents;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage {
+	display: contents;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value {
+	grid-area: value;
+	text-align: right;
+	font-size: 14px;
+	line-height: inherit;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value-suffix {
+	grid-area: suffix;
+	text-align: right;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-reset {
+	grid-area: reset;
+}
+
+/* Quota Callout */
+
+.chat-status-bar-entry-tooltip .quota-callout {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid;
+	margin-bottom: 8px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout .callout-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	height: 1.4em;
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.info {
+	border-color: var(--vscode-focusBorder);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.info .callout-icon {
+	color: var(--vscode-focusBorder);
+}
+
+/* Compact mode: quota callout matches compact notification style */
+.chat-status-bar-entry-tooltip.compact .quota-callout {
+	border: none;
+	border-radius: 0;
+	margin-left: -8px;
+	margin-right: -8px;
+	margin-top: -10px;
+}
+
+
+/* Settings */
+
+.chat-status-bar-entry-tooltip .settings {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting {
+	display: flex;
+	align-items: center;
+	min-height: 20px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
+	height: 14px;
+	width: 14px;
+	margin-right: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .setting-label {
+	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
+	color: var(--vscode-disabledForeground);
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .setting-overridden {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 4px;
+}
+
+/* Model Selection */
+
+.chat-status-bar-entry-tooltip .model-selection {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 20px;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-text {
+	flex: 1;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* SelectBox containers */
+
+.chat-status-bar-entry-tooltip .model-select-container,
+.chat-status-bar-entry-tooltip .suggest-option-select-container {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .model-select-container .monaco-select-box,
+.chat-status-bar-entry-tooltip .suggest-option-select-container .monaco-select-box {
+	width: auto;
+	padding: 2px 23px 2px 8px;
+	height: 22px;
+	font-size: 12px;
+}
+
+/* Provider Options */
+
+.chat-status-bar-entry-tooltip .suggest-option-selection {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 20px;
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-text {
+	flex: 1;
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar .action-label,
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .action-label {
+	height: 12px;
+	line-height: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Snoozing */
+
+.chat-status-bar-entry-tooltip .snooze-completions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 20px;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .monaco-button {
+	width: fit-content;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-wrap: nowrap;
+	padding: 2px 8px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .snooze-label {
+	flex: 1;
+	padding-left: 2px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions.disabled .snooze-label {
+	color: var(--vscode-disabledForeground);
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .snooze-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .contribution .body {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .contribution .header {
+	border-bottom: none;
+	padding-bottom: 0;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .description,
+.chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .separator {
+	opacity: 0.6;
+	padding: 0 2px;
+}

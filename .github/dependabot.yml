@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "devcontainers" # https://containers.dev/guide/dependabot
+    directory: "/"
+    schedule:
+      interval: "weekly"

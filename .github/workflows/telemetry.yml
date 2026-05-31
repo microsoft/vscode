@@ -1,0 +1,21 @@
+name: 'Telemetry'
+on: pull_request
+permissions: {}
+jobs:
+  check-metadata:
+    name: 'Check metadata'
+    runs-on: 'ubuntu-latest'
+
+    steps:
+      - uses: 'actions/checkout@v6'
+        with:
+          persist-credentials: false
+
+      - uses: 'actions/setup-node@v6'
+        with:
+          node-version: 'lts/*'
+
+      - name: 'Run vscode-telemetry-extractor'
+        run: 'npx --package=@vscode/telemetry-extractor@1.14.0 --yes vscode-telemetry-extractor -s .'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

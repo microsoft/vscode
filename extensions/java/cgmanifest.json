@@ -1,0 +1,52 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "redhat-developer/vscode-java",
+					"repositoryUrl": "https://github.com/redhat-developer/vscode-java",
+					"commitHash": "f09b712f5d6d6339e765f58c8dfab3f78a378183",
+					"tag": "1.26.0"
+				}
+			},
+			"license": "MIT",
+			"licenseDetail": [
+				"Copyright (c) 2014 GitHub Inc.",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining",
+				"a copy of this software and associated documentation files (the",
+				"\"Software\"), to deal in the Software without restriction, including",
+				"without limitation the rights to use, copy, modify, merge, publish,",
+				"distribute, sublicense, and/or sell copies of the Software, and to",
+				"permit persons to whom the Software is furnished to do so, subject to",
+				"the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be",
+				"included in all copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,",
+				"EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF",
+				"MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
+				"NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE",
+				"LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION",
+				"OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION",
+				"WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.",
+				"",
+				"--------------------------------------------------------------------",
+				"",
+				"This package was derived from a TextMate bundle located at",
+				"https://github.com/textmate/java.tmbundle and distributed under the following",
+				"license, located in `README.mdown`:",
+				"",
+				"Permission to copy, use, modify, sell and distribute this",
+				"software is granted. This software is provided \"as is\" without",
+				"express or implied warranty, and with no claim as to its",
+				"suitability for any purpose."
+			],
+			"description": "This grammar was derived from https://github.com/atom/language-java/blob/master/grammars/java.cson.",
+			"version": "1.26.0"
+		}
+	],
+	"version": 1
+}

@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "marked",
+					"repositoryUrl": "https://github.com/markedjs/marked",
+					"commitHash": "7972d7f9b578a31b32f469c14fc97c39ceb2b6c6"
+				}
+			},
+			"license": "MIT",
+			"version": "14.0.0"
+		}
+	],
+	"version": 1
+}

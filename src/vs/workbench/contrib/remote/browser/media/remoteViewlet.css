@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item {
+	display: flex;
+	height: 22px;
+	line-height: 22px;
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	flex-wrap: nowrap;
+}
+
+.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item > .remote-help-tree-node-item-icon {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	padding-top: 3px;
+	width: 16px;
+	height: 22px;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
+	width: 0px !important;
+}
+
+.remote-help-tree-node-item-icon .monaco-icon-label-container > .monaco-icon-name-container {
+	padding-left: 22px;
+}
+
+.remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
+	width: 0px !important;
+}

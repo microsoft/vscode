@@ -1,0 +1,12 @@
+{
+	"configuration.suggest.basic": "Controls whether the built-in PHP language suggestions are enabled. The support suggests PHP globals and variables.",
+	"configuration.validate.enable": "Enable/disable built-in PHP validation.",
+	"configuration.validate.executablePath": "Points to the PHP executable.",
+	"configuration.validate.run": "Whether the linter is run on save or on type.",
+	"configuration.title": "PHP",
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "Disallow PHP validation executable (defined as workspace setting)",
+	"displayName": "PHP Language Features",
+	"description": "Provides rich language support for PHP files.",
+	"workspaceTrust": "The extension requires workspace trust when the `php.validate.executablePath` setting will load a version of PHP in the workspace."
+}

@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.token-inspect-widget {
+	z-index: 50;
+	user-select: text;
+	-webkit-user-select: text;
+	padding: 10px;
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+}
+.hc-black .tokens-inspect-widget, .hc-light .tokens-inspect-widget {
+	border-width: 2px;
+}
+
+.monaco-editor .token-inspect-widget {
+	background-color: var(--vscode-editorHoverWidget-background);
+}
+
+.monaco-editor .token-inspect-widget .tiw-metadata-separator {
+	background-color: var(--vscode-editorHoverWidget-border)
+}
+
+.tiw-token {
+	font-family: var(--monaco-monospace-font);
+}
+
+.tiw-metadata-separator {
+	height: 1px;
+	border: 0;
+}
+
+.tiw-token-length {
+	font-weight: normal;
+	font-size: 60%;
+	float: right;
+}
+
+.tiw-metadata-table {
+	width: 100%;
+}
+
+.tiw-metadata-value {
+	font-family: var(--monaco-monospace-font);
+	word-break: break-word;
+}
+
+.tiw-metadata-values {
+	list-style: none;
+	max-height: 300px;
+	overflow-y: auto;
+	margin-right: -10px;
+	padding-left: 0;
+}
+
+.tiw-metadata-values > .tiw-metadata-value {
+	margin-right: 10px;
+}
+
+.tiw-metadata-key {
+	width: 1px;
+	min-width: 150px;
+	padding-right: 10px;
+	white-space: nowrap;
+	vertical-align: top;
+}
+
+.tiw-metadata-semantic {
+	font-style: italic;
+}
+
+.tiw-metadata-scopes {
+	line-height: normal;
+}
+
+.tiw-theme-selector {
+	font-family: var(--monaco-monospace-font);
+}

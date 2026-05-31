@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-shell-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-shell-syntax",
+					"commitHash": "35020b0bd79a90d3b262b4c13a8bb0b33adc1f45"
+				}
+			},
+			"license": "MIT",
+			"version": "1.8.7"
+		}
+	],
+	"version": 1
+}

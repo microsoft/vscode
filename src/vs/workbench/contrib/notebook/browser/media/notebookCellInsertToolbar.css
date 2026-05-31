@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container {
+	padding-top: 1px !important;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container.emptyNotebook {
+	opacity: 1 !important;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+	position: absolute;
+	display: flex;
+	justify-content: center;
+	z-index: var(--z-index-notebook-cell-bottom-toolbar-container);
+	width: calc(100% - 32px);
+	opacity: 0;
+	padding: 0;
+	margin: 0 16px 0 16px;
+}
+
+.monaco-workbench.monaco-enable-motion .notebookOverlay .cell-list-top-cell-toolbar-container,
+.monaco-workbench.monaco-enable-motion .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+	transition: opacity 0.3s ease-in-out;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+	top: 0px;
+	height: 33px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-bottom-toolbar-container {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
+.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover,
+.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within {
+	opacity: 1;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar {
+	margin-top: 3px; /* This is the minimum to keep the top edge from being cut off at the top of the editor */
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-item {
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item.active,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-item.active {
+	transform: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
+	font-size: 12px;
+	margin: 0px;
+	display: inline-flex;
+	padding: 0px 4px;
+	border-radius: 0;
+	align-items: center;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label .codicon,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label .codicon {
+	margin-right: 3px;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-action-bar,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-action-bar {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item {
+	margin-left: 8px;
+	margin-right: 8px;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container span.codicon,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
+	text-align: center;
+	font-size: 14px;
+}

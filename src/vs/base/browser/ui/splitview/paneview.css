@@ -1,0 +1,153 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-pane-view {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-pane-view .pane {
+	overflow: hidden;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-pane-view .pane.horizontal:not(.expanded) {
+	flex-direction: row;
+}
+
+.monaco-pane-view .pane > .pane-header {
+	height: 22px;
+	font-size: 11px;
+	font-weight: bold;
+	overflow: hidden;
+	display: flex;
+	cursor: pointer;
+	align-items: center;
+	box-sizing: border-box;
+}
+
+.monaco-pane-view .pane > .pane-header.not-collapsible {
+	cursor: default;
+}
+
+.monaco-pane-view .pane > .pane-header > .title {
+	text-transform: uppercase;
+}
+
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
+	flex-direction: column;
+	height: 100%;
+	width: 22px;
+}
+
+.monaco-pane-view .pane > .pane-header > .codicon:first-of-type {
+	margin: 0 2px;
+}
+
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {
+	margin: 2px;
+}
+
+/* TODO: actions should be part of the pane, but they aren't yet */
+.monaco-pane-view .pane > .pane-header > .actions {
+	display: none;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-pane-view .pane > .pane-header > .actions .action-item {
+	margin-right: 4px;
+}
+
+.monaco-pane-view .pane > .pane-header > .actions .action-label {
+	padding: 2px;
+}
+
+/* TODO: actions should be part of the pane, but they aren't yet */
+.monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
+.monaco-pane-view .pane:focus-within > .pane-header.expanded > .actions,
+.monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
+.monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
+	display: initial;
+}
+
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
+	cursor: default;
+}
+
+.monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+	cursor: pointer;
+	min-width: 110px;
+	min-height: 18px;
+	padding: 2px 23px 2px 8px;
+}
+
+.linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,
+.windows .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+	padding: 0px 23px 0px 8px;
+}
+
+/* Bold font style does not go well with CJK fonts */
+.monaco-pane-view:lang(zh-Hans) .pane > .pane-header,
+.monaco-pane-view:lang(zh-Hant) .pane > .pane-header,
+.monaco-pane-view:lang(ja) .pane > .pane-header,
+.monaco-pane-view:lang(ko) .pane > .pane-header {
+	font-weight: normal;
+}
+
+.monaco-pane-view .pane > .pane-header.hidden {
+	display: none;
+}
+
+.monaco-pane-view .pane > .pane-body {
+	overflow: hidden;
+	flex: 1;
+}
+
+/* Animation */
+
+.monaco-pane-view.animated .split-view-view {
+	transition-duration: 0.15s;
+	transition-timing-function: ease-out;
+}
+
+.monaco-reduce-motion .monaco-pane-view .split-view-view {
+	transition-duration: 0s !important;
+}
+
+.monaco-pane-view.animated.vertical .split-view-view {
+	transition-property: height;
+}
+
+.monaco-pane-view.animated.horizontal .split-view-view {
+	transition-property: width;
+}
+
+#monaco-pane-drop-overlay {
+	position: absolute;
+	z-index: 10000;
+	width: 100%;
+	height: 100%;
+	left: 0;
+	box-sizing: border-box;
+}
+
+#monaco-pane-drop-overlay > .pane-overlay-indicator {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	min-height: 22px;
+	min-width: 19px;
+
+	pointer-events: none; /* very important to not take events away from the parent */
+	transition: opacity 150ms ease-out;
+}
+
+#monaco-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
+	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
+}

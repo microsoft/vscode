@@ -1,0 +1,125 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* status bar animation */
+
+@keyframes wiggle {
+	0% {
+		transform: rotate(0) scale(1);
+	}
+
+	15%,
+	45% {
+		transform: rotate(.04turn) scale(1.1);
+	}
+
+	30%,
+	60% {
+		transform: rotate(-.04turn) scale(1.2);
+	}
+
+	100% {
+		transform: rotate(0) scale(1);
+	}
+}
+
+.monaco-workbench .statusbar DIV#status\.languageStatus A > SPAN.codicon.wiggle {
+	animation-duration: .8s;
+	animation-iteration-count: 1;
+	animation-name: wiggle;
+}
+
+@keyframes flash {
+	0% {
+		background-color: initial;
+	}
+
+	50% {
+		background-color: var(--vscode-statusBarItem-prominentBackground);
+	}
+
+	100% {
+		background-color: initial;
+	}
+}
+
+.monaco-workbench .statusbar DIV#status\.languageStatus.flash A {
+	animation-duration: .8s;
+	animation-iteration-count: 1;
+	animation-name: flash;
+}
+
+/* --- hover */
+
+.monaco-workbench .hover-language-status {
+	display: flex;
+}
+
+.monaco-workbench .hover-language-status:not(:last-child) {
+	border-bottom: 1px solid var(--vscode-notifications-border);
+}
+
+.monaco-workbench .hover-language-status > .severity {
+	padding-right: 8px;
+	flex: 1;
+	margin: auto;
+	display: none;
+}
+
+.monaco-workbench .hover-language-status > .severity.sev3 {
+	color: var(--vscode-notificationsErrorIcon-foreground)
+}
+
+.monaco-workbench .hover-language-status > .severity.sev2 {
+	color: var(--vscode-notificationsInfoIcon-foreground)
+}
+
+.monaco-workbench .hover-language-status > .severity.show {
+	display: inherit;
+}
+
+.monaco-workbench .hover-language-status > .element {
+	display: flex;
+	justify-content: space-between;
+	vertical-align: middle;
+	flex-grow: 100;
+}
+
+.monaco-workbench .hover-language-status > .element > .left > .separator::before {
+	content: '\2013';
+	padding: 0 2px;
+	opacity: 0.6;
+}
+
+.monaco-workbench .hover-language-status > .element > .left:empty {
+	display: none;
+}
+
+.monaco-workbench .hover-language-status > .element .left {
+	margin: auto 0;
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	white-space: nowrap;
+}
+
+.monaco-workbench .hover-language-status > .element .right {
+	margin: auto 0;
+	display: flex;
+}
+
+.monaco-workbench .hover-language-status > .element .right:not(:empty) {
+	padding-left: 16px;
+}
+
+.monaco-workbench .hover-language-status > .element .right .monaco-link {
+	margin: auto 0;
+	white-space: nowrap;
+	text-decoration: var(--text-link-decoration);
+}
+
+.monaco-workbench .hover-language-status > .element .right .monaco-action-bar:not(:first-child) {
+	padding-left: 8px;
+}

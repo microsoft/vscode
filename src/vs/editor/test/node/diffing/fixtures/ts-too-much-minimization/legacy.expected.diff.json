@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "class Test {\n    protected readonly checkboxesVisible = observableFromEvent<boolean>(\n        this.configurationService.onDidChangeConfiguration,\n        () => /** @description checkboxesVisible */ this.configurationService.getValue('mergeEditor.showCheckboxes') ?? false\n    );\n\n    protected readonly showDeletionMarkers = observableFromEvent<boolean>(\n        this.configurationService.onDidChangeConfiguration,\n        () => /** @description showDeletionMarkers */ this.configurationService.getValue('mergeEditor.showDeletionMarkers')\n    );\n\n    public readonly editor = this.instantiationService.createInstance(\n        CodeEditorWidget,\n        this.htmlElements.editor,\n        {},\n        {\n            contributions: this.getEditorContributions(),\n        }\n    );\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "class Test {\n    protected readonly checkboxesVisible = observableFromEvent<boolean>(\n        this.configurationService.onDidChangeConfiguration,\n        () => /** @description checkboxesVisible */ this.configurationService.getValue('mergeEditor.showCheckboxes') ?? false\n    );\n\n    protected readonly showDeletionMarkers = observableFromEvent<boolean>(\n        this.configurationService.onDidChangeConfiguration,\n        () => /** @description showDeletionMarkers */ this.configurationService.getValue('mergeEditor.showDeletionMarkers') ?? true\n    );\n\n    protected readonly useSimplifiedDecorations = observableFromEvent<boolean>(\n        this.configurationService.onDidChangeConfiguration,\n        () => /** @description useSimplifiedDecorations */ this.configurationService.getValue('mergeEditor.useSimplifiedDecorations') ?? false\n    );\n\n    public readonly editor = this.instantiationService.createInstance(\n        CodeEditorWidget,\n        this.htmlElements.editor,\n        {},\n        {\n            contributions: this.getEditorContributions(),\n        }\n    );\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[9,10)",
+			"modifiedRange": "[9,15)",
+			"innerChanges": [
+				{
+					"originalRange": "[9,124 -> 9,124 EOL]",
+					"modifiedRange": "[9,124 -> 14,143 EOL]"
+				}
+			]
+		}
+	]
+}

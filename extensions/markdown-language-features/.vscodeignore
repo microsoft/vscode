@@ -1,0 +1,14 @@
+test/**
+test-workspace/**
+src/**
+notebook/**
+tsconfig*.json
+**/*.tsbuildinfo
+esbuild*
+out/test/**
+out/**
+cgmanifest.json
+package-lock.json
+preview-src/**
+.gitignore
+**/*.d.ts

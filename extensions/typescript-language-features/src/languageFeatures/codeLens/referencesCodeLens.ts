@@ -1,0 +1,162 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { DocumentSelector } from '../../configuration/documentSelector';
+import { LanguageDescription } from '../../configuration/languageDescription';
+import { CachedResponse } from '../../tsServer/cachedResponse';
+import type * as Proto from '../../tsServer/protocol/protocol';
+import * as PConst from '../../tsServer/protocol/protocol.const';
+import { ExecutionTarget } from '../../tsServer/server';
+import * as typeConverters from '../../typeConverters';
+import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
+import { ResourceUnifiedConfigValue } from '../../utils/configuration';
+import { conditionalRegistration, requireHasModifiedUnifiedConfig, requireSomeCapability } from '../util/dependentRegistration';
+import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+
+const Config = Object.freeze({
+	enabled: 'referencesCodeLens.enabled',
+	showOnAllFunctions: 'referencesCodeLens.showOnAllFunctions',
+});
+
+export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+
+	private readonly _enabled: ResourceUnifiedConfigValue<boolean>;
+	private readonly _showOnAllFunctions: ResourceUnifiedConfigValue<boolean>;
+
+	public constructor(
+		client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+	) {
+		super(client, _cachedResponse);
+
+		this._enabled = this._register(new ResourceUnifiedConfigValue<boolean>(Config.enabled, false));
+		this._register(this._enabled.onDidChange(() => this.changeEmitter.fire()));
+
+		this._showOnAllFunctions = this._register(new ResourceUnifiedConfigValue<boolean>(Config.showOnAllFunctions, false));
+		this._register(this._showOnAllFunctions.onDidChange(() => this.changeEmitter.fire()));
+	}
+
+	override async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {
+		const enabled = this._enabled.getValue(document);
+		if (!enabled) {
+			return [];
+		}
+
+		return super.provideCodeLenses(document, token);
+	}
+
+	public async resolveCodeLens(codeLens: ReferencesCodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
+		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
+		const response = await this.client.execute('references', args, token, {
+			lowPriority: true,
+			executionTarget: ExecutionTarget.Semantic,
+			cancelOnResourceChange: codeLens.document,
+		});
+		if (response.type !== 'response' || !response.body) {
+			codeLens.command = response.type === 'cancelled'
+				? TypeScriptBaseCodeLensProvider.cancelledCommand
+				: TypeScriptBaseCodeLensProvider.errorCommand;
+			return codeLens;
+		}
+
+		const locations = response.body.refs
+			.filter(reference => !reference.isDefinition)
+			.map(reference =>
+				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference));
+
+		codeLens.command = {
+			title: this.getCodeLensLabel(locations),
+			command: locations.length ? 'editor.action.showReferences' : '',
+			arguments: [codeLens.document, codeLens.range.start, locations]
+		};
+		return codeLens;
+	}
+
+	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
+		return locations.length === 1
+			? vscode.l10n.t("1 reference")
+			: vscode.l10n.t("{0} references", locations.length);
+	}
+
+	protected extractSymbol(
+		document: vscode.TextDocument,
+		item: Proto.NavigationTree,
+		parent: Proto.NavigationTree | undefined
+	): vscode.Range | undefined {
+		if (parent && parent.kind === PConst.Kind.enum) {
+			return getSymbolRange(document, item);
+		}
+
+		switch (item.kind) {
+			case PConst.Kind.function: {
+				const showOnAllFunctions = this._showOnAllFunctions.getValue(document);
+				if (showOnAllFunctions && item.nameSpan) {
+					return getSymbolRange(document, item);
+				}
+			}
+			// fallthrough
+
+			case PConst.Kind.const:
+			case PConst.Kind.let:
+			case PConst.Kind.variable:
+				// Only show references for exported variables
+				if (/\bexport\b/.test(item.kindModifiers)) {
+					return getSymbolRange(document, item);
+				}
+				break;
+
+			case PConst.Kind.class:
+				if (item.text === '<class>') {
+					break;
+				}
+				return getSymbolRange(document, item);
+
+			case PConst.Kind.interface:
+			case PConst.Kind.type:
+			case PConst.Kind.enum:
+				return getSymbolRange(document, item);
+
+			case PConst.Kind.method:
+			case PConst.Kind.memberGetAccessor:
+			case PConst.Kind.memberSetAccessor:
+			case PConst.Kind.constructorImplementation:
+			case PConst.Kind.memberVariable:
+				// Don't show if child and parent have same start
+				// For https://github.com/microsoft/vscode/issues/90396
+				if (parent &&
+					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
+				) {
+					return undefined;
+				}
+
+				// Only show if parent is a class type object (not a literal)
+				switch (parent?.kind) {
+					case PConst.Kind.class:
+					case PConst.Kind.interface:
+					case PConst.Kind.type:
+						return getSymbolRange(document, item);
+				}
+				break;
+		}
+
+		return undefined;
+	}
+}
+
+export function register(
+	selector: DocumentSelector,
+	language: LanguageDescription,
+	client: ITypeScriptServiceClient,
+	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+) {
+	return conditionalRegistration([
+		requireHasModifiedUnifiedConfig(Config.enabled, language.id),
+		requireSomeCapability(client, ClientCapability.Semantic),
+	], () => {
+		return vscode.languages.registerCodeLensProvider(selector.semantic,
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
+	});
+}

@@ -1,0 +1,242 @@
+[
+	{
+		"c": "diff --git a/helloworld.txt b/helloworld.txt",
+		"t": "source.diff meta.diff.header.git",
+		"r": {
+			"dark_plus": "meta.diff.header: #569CD6",
+			"light_plus": "meta.diff.header: #000080",
+			"dark_vs": "meta.diff.header: #569CD6",
+			"light_vs": "meta.diff.header: #000080",
+			"hc_black": "meta.diff.header: #000080",
+			"dark_modern": "meta.diff.header: #569CD6",
+			"hc_light": "meta.diff.header: #062F4A",
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header: #79C0FF",
+			"2026-light": "meta.diff.header: #0550AE"
+		}
+	},
+	{
+		"c": "index e4f37c4..557db03 100644",
+		"t": "source.diff meta.diff.index.git",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
+		}
+	},
+	{
+		"c": "---",
+		"t": "source.diff meta.diff.header.from-file punctuation.definition.from-file.diff",
+		"r": {
+			"dark_plus": "meta.diff.header: #569CD6",
+			"light_plus": "meta.diff.header: #000080",
+			"dark_vs": "meta.diff.header: #569CD6",
+			"light_vs": "meta.diff.header: #000080",
+			"hc_black": "meta.diff.header: #000080",
+			"dark_modern": "meta.diff.header: #569CD6",
+			"hc_light": "meta.diff.header: #062F4A",
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.from-file: #FFA198",
+			"2026-light": "meta.diff.header.from-file: #82071E"
+		}
+	},
+	{
+		"c": " a/helloworld.txt",
+		"t": "source.diff meta.diff.header.from-file",
+		"r": {
+			"dark_plus": "meta.diff.header: #569CD6",
+			"light_plus": "meta.diff.header: #000080",
+			"dark_vs": "meta.diff.header: #569CD6",
+			"light_vs": "meta.diff.header: #000080",
+			"hc_black": "meta.diff.header: #000080",
+			"dark_modern": "meta.diff.header: #569CD6",
+			"hc_light": "meta.diff.header: #062F4A",
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.from-file: #FFA198",
+			"2026-light": "meta.diff.header.from-file: #82071E"
+		}
+	},
+	{
+		"c": "+++",
+		"t": "source.diff meta.diff.header.to-file punctuation.definition.to-file.diff",
+		"r": {
+			"dark_plus": "meta.diff.header: #569CD6",
+			"light_plus": "meta.diff.header: #000080",
+			"dark_vs": "meta.diff.header: #569CD6",
+			"light_vs": "meta.diff.header: #000080",
+			"hc_black": "meta.diff.header: #000080",
+			"dark_modern": "meta.diff.header: #569CD6",
+			"hc_light": "meta.diff.header: #062F4A",
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.to-file: #7EE787",
+			"2026-light": "meta.diff.header.to-file: #116329"
+		}
+	},
+	{
+		"c": " b/helloworld.txt",
+		"t": "source.diff meta.diff.header.to-file",
+		"r": {
+			"dark_plus": "meta.diff.header: #569CD6",
+			"light_plus": "meta.diff.header: #000080",
+			"dark_vs": "meta.diff.header: #569CD6",
+			"light_vs": "meta.diff.header: #000080",
+			"hc_black": "meta.diff.header: #000080",
+			"dark_modern": "meta.diff.header: #569CD6",
+			"hc_light": "meta.diff.header: #062F4A",
+			"light_modern": "meta.diff.header: #000080",
+			"2026-dark": "meta.diff.header.to-file: #7EE787",
+			"2026-light": "meta.diff.header.to-file: #116329"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "source.diff meta.diff.range.unified punctuation.definition.range.diff",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.diff meta.diff.range.unified",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
+		}
+	},
+	{
+		"c": "-1 +1",
+		"t": "source.diff meta.diff.range.unified meta.toc-list.line-number.diff",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.diff meta.diff.range.unified",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "source.diff meta.diff.range.unified punctuation.definition.range.diff",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "meta.diff.range: #D2A8FF",
+			"2026-light": "meta.diff.range: #8250DF"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.diff markup.deleted.diff punctuation.definition.deleted.diff",
+		"r": {
+			"dark_plus": "markup.deleted: #CE9178",
+			"light_plus": "markup.deleted: #A31515",
+			"dark_vs": "markup.deleted: #CE9178",
+			"light_vs": "markup.deleted: #A31515",
+			"hc_black": "markup.deleted: #CE9178",
+			"dark_modern": "markup.deleted: #CE9178",
+			"hc_light": "markup.deleted: #5A5A5A",
+			"light_modern": "markup.deleted: #A31515",
+			"2026-dark": "punctuation.definition.deleted: #FFA198",
+			"2026-light": "punctuation.definition.deleted: #82071E"
+		}
+	},
+	{
+		"c": "Hello world",
+		"t": "source.diff markup.deleted.diff",
+		"r": {
+			"dark_plus": "markup.deleted: #CE9178",
+			"light_plus": "markup.deleted: #A31515",
+			"dark_vs": "markup.deleted: #CE9178",
+			"light_vs": "markup.deleted: #A31515",
+			"hc_black": "markup.deleted: #CE9178",
+			"dark_modern": "markup.deleted: #CE9178",
+			"hc_light": "markup.deleted: #5A5A5A",
+			"light_modern": "markup.deleted: #A31515",
+			"2026-dark": "markup.deleted: #FFA198",
+			"2026-light": "markup.deleted: #82071E"
+		}
+	},
+	{
+		"c": "+",
+		"t": "source.diff markup.inserted.diff punctuation.definition.inserted.diff",
+		"r": {
+			"dark_plus": "markup.inserted: #B5CEA8",
+			"light_plus": "markup.inserted: #098658",
+			"dark_vs": "markup.inserted: #B5CEA8",
+			"light_vs": "markup.inserted: #098658",
+			"hc_black": "markup.inserted: #B5CEA8",
+			"dark_modern": "markup.inserted: #B5CEA8",
+			"hc_light": "markup.inserted: #096D48",
+			"light_modern": "markup.inserted: #098658",
+			"2026-dark": "punctuation.definition.inserted: #7EE787",
+			"2026-light": "punctuation.definition.inserted: #116329"
+		}
+	},
+	{
+		"c": "Hello World",
+		"t": "source.diff markup.inserted.diff",
+		"r": {
+			"dark_plus": "markup.inserted: #B5CEA8",
+			"light_plus": "markup.inserted: #098658",
+			"dark_vs": "markup.inserted: #B5CEA8",
+			"light_vs": "markup.inserted: #098658",
+			"hc_black": "markup.inserted: #B5CEA8",
+			"dark_modern": "markup.inserted: #B5CEA8",
+			"hc_light": "markup.inserted: #096D48",
+			"light_modern": "markup.inserted: #098658",
+			"2026-dark": "markup.inserted: #7EE787",
+			"2026-light": "markup.inserted: #116329"
+		}
+	}
+]

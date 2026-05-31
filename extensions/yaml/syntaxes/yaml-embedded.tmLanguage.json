@@ -1,0 +1,502 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/RedCMD/YAML-Syntax-Highlighter/blob/master/syntaxes/yaml-embedded.tmLanguage.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/c42cf86959ba238dc8a825bdd07bed6f5e97c978",
+	"name": "YAML embedded",
+	"scopeName": "source.yaml.embedded",
+	"patterns": [
+		{
+			"include": "source.yaml.1.2#byte-order-mark"
+		},
+		{
+			"include": "#directives"
+		},
+		{
+			"include": "#document"
+		},
+		{
+			"include": "#block-sequence"
+		},
+		{
+			"include": "#block-mapping"
+		},
+		{
+			"include": "#block-map-key-explicit"
+		},
+		{
+			"include": "#block-map-value"
+		},
+		{
+			"include": "#block-scalar"
+		},
+		{
+			"include": "source.yaml.1.2#anchor-property"
+		},
+		{
+			"include": "source.yaml.1.2#tag-property"
+		},
+		{
+			"include": "#alias"
+		},
+		{
+			"include": "source.yaml.1.2#double"
+		},
+		{
+			"include": "source.yaml.1.2#single"
+		},
+		{
+			"include": "source.yaml.1.2#flow-mapping"
+		},
+		{
+			"include": "source.yaml.1.2#flow-sequence"
+		},
+		{
+			"include": "#block-plain-out"
+		},
+		{
+			"include": "#presentation-detail"
+		}
+	],
+	"repository": {
+		"directives": {
+			"comment": "https://yaml.org/spec/1.2.2/#68-directives",
+			"patterns": [
+				{
+					"comment": "https://yaml.org/spec/1.2.2/#681-yaml-directives",
+					"begin": "(?>^|\\G)(%)(YAML)([\t ]+)([0-9]+\\.[0-9]*)",
+					"end": "$",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.directive.begin.yaml"
+						},
+						"2": {
+							"name": "keyword.other.directive.yaml.yaml"
+						},
+						"3": {
+							"name": "punctuation.whitespace.separator.yaml"
+						},
+						"4": {
+							"name": "constant.numeric.yaml-version.yaml"
+						}
+					},
+					"name": "meta.directives.yaml",
+					"patterns": [
+						{
+							"include": "#presentation-detail"
+						}
+					]
+				},
+				{
+					"comment": "https://yaml.org/spec/1.2.2/#682-tag-directives",
+					"begin": "(?>^|\\G)(%)(TAG)(?>([\t ]++)((!)(?>[0-9A-Za-z-]*+(!))?+))?+",
+					"end": "$",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.directive.begin.yaml"
+						},
+						"2": {
+							"name": "keyword.other.directive.tag.yaml"
+						},
+						"3": {
+							"name": "punctuation.whitespace.separator.yaml"
+						},
+						"4": {
+							"name": "storage.type.tag-handle.yaml"
+						},
+						"5": {
+							"name": "punctuation.definition.tag.begin.yaml"
+						},
+						"6": {
+							"name": "punctuation.definition.tag.end.yaml"
+						},
+						"comment": "https://yaml.org/spec/1.2.2/#rule-c-tag-handle"
+					},
+					"patterns": [
+						{
+							"comment": "technically the beginning should only validate against a valid uri scheme [A-Za-z][A-Za-z0-9.+-]*",
+							"begin": "\\G[\t ]++(?!#)",
+							"end": "(?=[\r\n\t ])",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.whitespace.separator.yaml"
+								}
+							},
+							"contentName": "support.type.tag-prefix.yaml",
+							"patterns": [
+								{
+									"match": "%[0-9a-fA-F]{2}",
+									"name": "constant.character.escape.unicode.8-bit.yaml"
+								},
+								{
+									"match": "%[^\r\n\t ]{2,0}",
+									"name": "invalid.illegal.constant.character.escape.unicode.8-bit.yaml"
+								},
+								{
+									"match": "\\G[,\\[\\]{}]",
+									"name": "invalid.illegal.character.uri.yaml"
+								},
+								{
+									"include": "source.yaml#non-printable"
+								},
+								{
+									"match": "[^\r\n\t a-zA-Z0-9-#;/?:@&=+$,_.!~*'()\\[\\]]++",
+									"name": "invalid.illegal.unrecognized.yaml"
+								}
+							]
+						},
+						{
+							"include": "#presentation-detail"
+						}
+					]
+				},
+				{
+					"comment": "https://yaml.org/spec/1.2.2/#rule-ns-reserved-directive",
+					"begin": "(?>^|\\G)(%)([\\x{85}[^ \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]++)",
+					"end": "$",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.directive.begin.yaml"
+						},
+						"2": {
+							"name": "keyword.other.directive.other.yaml"
+						}
+					},
+					"patterns": [
+						{
+							"match": "\\G([\t ]++)([\\x{85}[^ \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]++)",
+							"captures": {
+								"1": {
+									"name": "punctuation.whitespace.separator.yaml"
+								},
+								"2": {
+									"name": "string.unquoted.directive-name.yaml"
+								}
+							}
+						},
+						{
+							"match": "([\t ]++)([\\x{85}[^ \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]++)",
+							"captures": {
+								"1": {
+									"name": "punctuation.whitespace.separator.yaml"
+								},
+								"2": {
+									"name": "string.unquoted.directive-parameter.yaml"
+								}
+							}
+						},
+						{
+							"include": "#presentation-detail"
+						}
+					]
+				}
+			]
+		},
+		"document": {
+			"comment": "https://yaml.org/spec/1.2.2/#91-documents",
+			"patterns": [
+				{
+					"match": "(?>^|\\G)---(?=[\r\n\t ])",
+					"name": "entity.other.document.begin.yaml"
+				},
+				{
+					"begin": "(?>^|\\G)\\.{3}(?=[\r\n\t ])",
+					"end": "$",
+					"name": "entity.other.document.end.yaml",
+					"patterns": [
+						{
+							"include": "#presentation-detail"
+						},
+						{
+							"include": "source.yaml.1.2#unknown"
+						}
+					]
+				}
+			]
+		},
+		"block-mapping": {
+			"//": "The check for plain keys is expensive",
+			"begin": "(?<=^|\\G|\t| )(?<![^\t ][\t ]*+:[\t ]*+|^---[\t ]*+)(?!:[\r\n\t ])(?=(?>(?#Double Quote)\"(?>[^\\\\\"]++|\\\\.)*+\"|(?#Single Quote)'(?>[^']++|'')*+'|(?#Flow-Map){(?>[^}]++|}[ \t]*+(?!:[\r\n\t ]))++}|(?#Flow-Seq)\\[(?>[^]]++|][ \t]*+(?!:[\r\n\t ]))++]|(?#Plain)(?>[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))(?>[^:#]++|:(?![\r\n\t ])|(?<! |\t)#++)*+)?+(?#Map Value)[\t ]*+:[\r\n\t ])",
+			"end": "(?=:[\r\n\t ])",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.separator.map.value.yaml"
+				}
+			},
+			"name": "meta.map.yaml",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2#block-map-key-double"
+				},
+				{
+					"include": "source.yaml#block-map-key-single"
+				},
+				{
+					"include": "source.yaml.1.2#block-map-key-plain"
+				},
+				{
+					"include": "source.yaml.1.2#flow-mapping"
+				},
+				{
+					"include": "source.yaml.1.2#flow-sequence"
+				}
+			]
+		},
+		"block-sequence": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-l+block-sequence",
+			"match": "(?<![^\t ][\t ]*+: *+|^--- *+)-(?=[\r\n\t ])",
+			"name": "punctuation.definition.block.sequence.item.yaml"
+		},
+		"block-map-key-explicit": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-c-l-block-map-explicit-key",
+			"begin": "\\?(?=[\r\n\t ])",
+			"end": "(?=(?>:|(?>^|\\G)(?>\\.{3}|---))[\r\n\t ])",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.map.key.yaml"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.separator.map.value.yaml"
+				}
+			},
+			"name": "meta.map.explicit.yaml",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2#key-double"
+				},
+				{
+					"include": "source.yaml#key-single"
+				},
+				{
+					"include": "#flow-key-plain-out"
+				},
+				{
+					"include": "#block-sequence"
+				},
+				{
+					"include": "#block-mapping"
+				},
+				{
+					"include": "#block-scalar"
+				},
+				{
+					"include": "source.yaml.1.2#anchor-property"
+				},
+				{
+					"include": "source.yaml.1.2#tag-property"
+				},
+				{
+					"include": "#alias"
+				},
+				{
+					"include": "source.yaml.1.2#flow-mapping"
+				},
+				{
+					"include": "source.yaml.1.2#flow-sequence"
+				},
+				{
+					"include": "#presentation-detail"
+				}
+			]
+		},
+		"block-map-value": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-c-l-block-map-implicit-value",
+			"match": ":(?=[\r\n\t ])",
+			"name": "punctuation.separator.map.value.yaml"
+		},
+		"block-scalar": {
+			"patterns": [
+				{
+					"comment": "This doesn't work correctly when indented. Might have to dump it",
+					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+([1-9])(?(<chomp>)|\\g<chomp>)?+",
+					"while": "(?>^|\\G)(?> {\\4}| *+$)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.flow.block-scalar.literal.yaml"
+						},
+						"2": {
+							"name": "keyword.control.flow.block-scalar.folded.yaml"
+						},
+						"3": {
+							"name": "storage.modifier.chomping-indicator.yaml"
+						},
+						"4": {
+							"name": "constant.numeric.indentation-indicator.yaml"
+						}
+					},
+					"whileCaptures": {
+						"0": {
+							"name": "punctuation.whitespace.indentation.yaml"
+						}
+					},
+					"name": "meta.scalar.yaml",
+					"patterns": [
+						{
+							"begin": "$",
+							"while": "\\G",
+							"contentName": "string.unquoted.block.yaml",
+							"patterns": [
+								{
+									"include": "source.yaml#non-printable"
+								}
+							]
+						},
+						{
+							"begin": "\\G",
+							"end": "$",
+							"patterns": [
+								{
+									"include": "#presentation-detail"
+								},
+								{
+									"include": "source.yaml.1.2#unknown"
+								}
+							]
+						}
+					]
+				},
+				{
+					"comment": "I'm not sure how I feel about this",
+					"begin": "(?>(\\|)|(>))([+-]?+)(.*+)",
+					"end": "(?! |$)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.flow.block-scalar.literal.yaml"
+						},
+						"2": {
+							"name": "keyword.control.flow.block-scalar.folded.yaml"
+						},
+						"3": {
+							"name": "storage.modifier.chomping-indicator.yaml"
+						},
+						"4": {
+							"patterns": [
+								{
+									"include": "#presentation-detail"
+								},
+								{
+									"include": "source.yaml.1.2#unknown"
+								}
+							]
+						}
+					},
+					"name": "meta.scalar.yaml",
+					"patterns": [
+						{
+							"comment": "https://yaml.org/spec/1.2.2/#rule-l-nb-literal-text",
+							"//": "Find the highest indented line",
+							"begin": "(?>^|\\G)(?=( ++)$)",
+							"end": "(?>^|\\G)(?>(?=\\1(?!$))|(?!\\1| *+$) *+)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.whitespace.separator.yaml"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#presentation-detail"
+								}
+							]
+						},
+						{
+							"comment": "https://yaml.org/spec/1.2.2/#rule-l-nb-literal-text",
+							"begin": "(?>^|\\G)(?=( ++))",
+							"end": "(?>^|\\G)(?!\\1| *+$) *+",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.whitespace.separator.yaml"
+								}
+							},
+							"contentName": "string.unquoted.block.yaml",
+							"patterns": [
+								{
+									"comment": "This is not 100% correct",
+									"match": "(?>^|\\G) ++",
+									"name": "punctuation.whitespace.separator.yaml"
+								},
+								{
+									"include": "source.yaml#non-printable"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		"block-plain-out": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-multi-line (FLOW-OUT)",
+			"begin": "(?=[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))",
+			"end": "(?=[\t ]++#|[\t ]*+$)",
+			"name": "string.unquoted.plain.out.yaml",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2#tag-implicit-plain-out"
+				},
+				{
+					"match": ":(?=[\r\n\t ])",
+					"name": "invalid.illegal.multiline-key.yaml"
+				},
+				{
+					"match": "\\x{FEFF}",
+					"name": "invalid.illegal.bom.yaml"
+				},
+				{
+					"include": "source.yaml#non-printable"
+				}
+			]
+		},
+		"flow-key-plain-out": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-one-line (FLOW-OUT)",
+			"begin": "(?=[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))",
+			"end": "(?=[\t ]*+(?>$|:[\r\n\t ])|[\t ]++#)",
+			"name": "meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2#tag-implicit-plain-out"
+				},
+				{
+					"match": "\\x{FEFF}",
+					"name": "invalid.illegal.bom.yaml"
+				},
+				{
+					"include": "source.yaml#non-printable"
+				}
+			]
+		},
+		"alias": {
+			"match": "(\\*)([\\x{85}[^ ,\\[\\]{}\\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]++)|(\\*)",
+			"captures": {
+				"0": {
+					"name": "keyword.control.flow.alias.yaml"
+				},
+				"1": {
+					"name": "punctuation.definition.alias.yaml"
+				},
+				"2": {
+					"name": "variable.other.alias.yaml"
+				},
+				"3": {
+					"name": "invalid.illegal.flow.alias.yaml"
+				}
+			}
+		},
+		"presentation-detail": {
+			"patterns": [
+				{
+					"match": "[\t ]++",
+					"name": "punctuation.whitespace.separator.yaml"
+				},
+				{
+					"include": "source.yaml#non-printable"
+				},
+				{
+					"include": "source.yaml.1.2#comment"
+				}
+			]
+		}
+	}
+}

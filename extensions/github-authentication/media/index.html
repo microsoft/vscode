@@ -1,0 +1,71 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>GitHub Authentication - Sign In</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" type="text/css" media="screen" href="auth.css" />
+</head>
+
+<body>
+	<div class="container">
+		<div class="content">
+			<div class="icon-container">
+				<img src="code-icon.svg" class="vscode-icon">
+			</div>
+			<h1 class="title">Launching <span class="app-name"></span></h1>
+			<div class="message">
+				<div class="success-message">
+					<p class="subtitle">You will be redirected in a few moments.</p>
+					<p class="detail">If nothing happens, <a href="#" id="fallback-link">open this link in your browser</a>.</p>
+				</div>
+				<div class="error-message">
+					<p class="subtitle">An error occurred while signing in:</p>
+					<div class="detail"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+		const urlParams = new URLSearchParams(window.location.search);
+		const appName = urlParams.get('app_name');
+		document.querySelectorAll('.app-name').forEach(e => e.innerText = appName);
+
+		// if name contains 'insiders', update filter CSS variables
+		if (appName.toLowerCase().includes('insiders')) {
+			document.documentElement.style.setProperty('--vscode-filter-0', 'var(--vscode-insiders-filter-0)');
+			document.documentElement.style.setProperty('--vscode-filter-50', 'var(--vscode-insiders-filter-50)');
+			document.documentElement.style.setProperty('--vscode-filter-70', 'var(--vscode-insiders-filter-70)');
+			document.documentElement.style.setProperty('--vscode-filter-100', 'var(--vscode-insiders-filter-100)');
+		}
+
+		const error = urlParams.get('error');
+		const redirectUri = urlParams.get('redirect_uri');
+		if (error) {
+			document.querySelector('.error-message > .detail').textContent = error;
+			document.querySelector('body').classList.add('error');
+		} else if (!redirectUri) {
+			// Portable mode: authentication succeeded, no redirect needed
+			document.querySelector('.title').textContent =  appName;
+			document.querySelector('.success-message > .subtitle').textContent = 'You have successfully signed in.';
+			document.querySelector('.success-message > .detail').textContent = 'You can now close this window.';
+		} else {
+			// Wrap the redirect URI so that the browser remembers who triggered the redirect
+			const wrappedRedirectUri = `https://vscode.dev/redirect?url=${encodeURIComponent(redirectUri)}`;
+			// Set up the fallback link
+			const fallbackLink = document.getElementById('fallback-link');
+			if (fallbackLink) {
+				fallbackLink.href = wrappedRedirectUri;
+			}
+
+			// Redirect after a delay
+			setTimeout(() => {
+				window.location = wrappedRedirectUri;
+			}, 1000);
+		}
+	</script>
+</body>
+
+</html>

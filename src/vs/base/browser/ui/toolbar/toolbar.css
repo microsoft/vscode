@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-toolbar {
+	height: 100%;
+}
+
+.monaco-toolbar .toolbar-toggle-more {
+	display: inline-block;
+	padding: 0;
+}
+
+.monaco-toolbar.responsive.responsive-all {
+	.monaco-action-bar > .actions-container > .action-item {
+		flex-shrink: 1;
+		min-width: var(--vscode-toolbar-action-min-width, 20px);
+	}
+}
+
+.monaco-toolbar.responsive.responsive-last {
+	.monaco-action-bar > .actions-container > .action-item {
+		flex-shrink: 0;
+	}
+
+	.monaco-action-bar:not(.has-overflow) > .actions-container > .action-item:last-child,
+	.monaco-action-bar.has-overflow > .actions-container > .action-item:nth-last-child(2) {
+		flex-shrink: 1;
+		min-width: var(--vscode-toolbar-action-min-width, 20px);
+	}
+}

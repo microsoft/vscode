@@ -1,0 +1,47 @@
+[
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$milestone=milestone:\"October 2025\""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode.dev repo"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-dev $milestone is:open"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-dev milestone:\"Backlog\" is:open"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# VS Code repo"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode label:vscode.dev is:open"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# GitHub Repositories repos"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-remote-repositories-github $milestone is:open"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-remotehub $milestone is:open"
+  }
+]

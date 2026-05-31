@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	opacity: 0;
+}
+
+.monaco-workbench.monaco-enable-motion .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	transition: opacity 0.1s;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	opacity: 1;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
+	opacity: 1;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
+	height: 20px;
+	width: 20px;
+
+	position: absolute;
+	top: 10px;
+	left: 6px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: var(--z-index-notebook-folding-indicator);
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .webview-backed-markdown-cell .notebook-folding-indicator {
+	top: 8px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
+	visibility: visible;
+	height: 16px;
+	padding: 4px 4px 4px 4px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint {
+	position: absolute;
+	user-select: none;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint-label {
+	font-size: var(--notebook-cell-output-font-size);
+	font-family: var(--monaco-monospace-font);
+	font-style: italic;
+	opacity: 0.7;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-section-button {
+	position: relative;
+	left: 0px;
+	padding: 2px;
+	border-radius: 5px;
+	margin-right: 4px;
+	height: 16px;
+	width: 16px;
+	z-index: var(--z-index-notebook-cell-expand-part-button);
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-section-button:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background);
+	cursor: pointer;
+}
+
+.monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
+	margin-left: 0;
+}

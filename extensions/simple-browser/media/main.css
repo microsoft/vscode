@@ -1,0 +1,118 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	--container-paddding: 20px;
+	--input-padding-vertical: 2px;
+	--input-padding-horizontal: 4px;
+	--input-margin-vertical: 4px;
+	--input-margin-horizontal: 0;
+}
+
+html, body {
+	height: 100%;
+	min-height: 100%;
+	padding: 0;
+	margin: 0;
+}
+
+body {
+	display: grid;
+	grid-template-rows: auto 1fr;
+}
+
+input:not([type='checkbox']),
+textarea {
+	display: block;
+	width: 100%;
+	border: none;
+	margin-right: 0.3em;
+	font-family: var(--vscode-font-family);
+	padding: var(--input-padding-vertical) var(--input-padding-horizontal);
+	color: var(--vscode-input-foreground);
+	outline-color: var(--vscode-input-border);
+	background-color: var(--vscode-input-background);
+}
+
+input::placeholder,
+textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+button {
+	border: none;
+	padding: 3px;
+	text-align: center;
+	outline: 1px solid transparent;
+	color: var(--vscode-icon-foreground);
+	background: none;
+	border-radius: 5px;
+}
+
+button:hover:not(:disabled) {
+	cursor: pointer;
+	color: var(--vscode-toolbar-hoverForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+button:disabled {
+	opacity: 0.5;
+}
+
+input:focus,
+button:focus {
+	outline-color: var(--vscode-focusBorder);
+}
+
+.header {
+	display: flex;
+	margin: 0.4em 1em;
+}
+
+.url-input {
+	flex: 1;
+}
+
+.controls {
+	display: flex;
+}
+
+.controls button {
+	display: flex;
+	margin-right: 0.3em;
+}
+
+.content {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	justify-content: center;
+}
+
+iframe {
+	width: 100%;
+	height: 100%;
+	border: none;
+	background: white; /* Browsers default to a white background */
+}
+
+.iframe-focused-alert {
+	display: none;
+	position: absolute;
+	bottom: 1em;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	padding: 0.2em 0.2em;
+	border-radius: 4px;
+
+	font-size: 8px;
+	font-family: monospace;
+	user-select: none;
+	pointer-events: none;
+}
+
+.iframe-focused.enable-focus-lock-indicator .iframe-focused-alert {
+	display: block;
+}

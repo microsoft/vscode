@@ -1,0 +1,29 @@
+{
+	"version": "0.1.0",
+	// List of configurations. Add new configurations or edit existing ones.
+	"configurations": [
+		{
+			"name": "Attach",
+			"type": "node",
+			"request": "attach",
+			"port": 6045,
+			"protocol": "inspector",
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+		},
+		{
+			"name": "Unit Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/test/index.js",
+			"stopOnEntry": false,
+			"args": [],
+			"cwd": "${workspaceFolder}",
+			"runtimeExecutable": null,
+			"runtimeArgs": [],
+			"env": {},
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+		}
+	]
+}

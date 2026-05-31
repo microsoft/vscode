@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .screen-reader-detected-explanation {
+	width: 420px;
+	top: 30px;
+	right: 6px;
+	padding: 1em;
+	cursor: default;
+}
+
+.monaco-workbench .screen-reader-detected-explanation .cancel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: .5em;
+	width: 22px;
+	height: 22px;
+	border: none;
+	cursor: pointer;
+}
+
+.monaco-workbench .screen-reader-detected-explanation h2 {
+	margin: 0;
+	padding: 0;
+	font-weight: 400;
+	font-size: 1.8em;
+}
+
+.monaco-workbench .screen-reader-detected-explanation p {
+	font-size: 1.2em;
+}
+
+.monaco-workbench .screen-reader-detected-explanation hr {
+	border: 0;
+	height: 2px;
+}
+
+.monaco-workbench .screen-reader-detected-explanation .buttons {
+	display: flex;
+}
+
+.monaco-workbench .screen-reader-detected-explanation .buttons a {
+	font-size: 13px;
+	padding-left: 12px;
+	padding-right: 12px;
+	margin-right: 5px;
+	max-width: fit-content;
+}

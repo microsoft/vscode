@@ -1,0 +1,30 @@
+{
+	// Use IntelliSense to learn about possible Node.js debug attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "Launch Extension",
+			"runtimeExecutable": "${execPath}",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "Launch Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/out/test",
+				"--disable-extensions"
+			],
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
+		}
+	]
+}

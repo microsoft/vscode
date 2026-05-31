@@ -1,0 +1,50 @@
+{
+	"original": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport * as arrays from 'vs/base/common/arrays';\nimport { IdleDeadline, runWhenIdle } from 'vs/base/common/async';\nimport { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';\nimport { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';\nimport { setTimeout0 } from 'vs/base/common/platform';\nimport { StopWatch } from 'vs/base/common/stopwatch';\nimport { countEOL } from 'vs/editor/common/core/eolCounter';\nimport { Position } from 'vs/editor/common/core/position';\nimport { IRange } from 'vs/editor/common/core/range';\nimport { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';\nimport { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';\nimport { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';\nimport { ITextModel } from 'vs/editor/common/model';\nimport { TextModel } from 'vs/editor/common/model/textModel';\nimport { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';\nimport { IModelContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';\nimport { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';\nimport { LineTokens } from 'vs/editor/common/tokens/lineTokens';\n\nconst enum Constants {\n\tCHEAP_TOKENIZATION_LENGTH_LIMIT = 2048\n}\n\n/**\n * An array that avoids being sparse by always\n * filling up unused indices with a default value.\n */\nexport class ContiguousGrowingArray<T> {\n\n\tprivate _store: T[] = [];\n\n\tconstructor(\n\t\tprivate readonly _default: T\n\t) { }\n\n\tpublic get(index: number): T {\n\t\tif (index < this._store.length) {\n\t\t\treturn this._store[index];\n\t\t}\n\t\treturn this._default;\n\t}\n\n\tpublic set(index: number, value: T): void {\n\t\twhile (index >= this._store.length) {\n\t\t\tthis._store[this._store.length] = this._default;\n\t\t}\n\t\tthis._store[index] = value;\n\t}\n\n\t// TODO have `replace` instead of `delete` and `insert`\n\tpublic delete(deleteIndex: number, deleteCount: number): void {\n\t\tif (deleteCount === 0 || deleteIndex >= this._store.length) {\n\t\t\treturn;\n\t\t}\n\t\tthis._store.splice(deleteIndex, deleteCount);\n\t}\n\n\tpublic insert(insertIndex: number, insertCount: number): void {\n\t\tif (insertCount === 0 || insertIndex >= this._store.length) {\n\t\t\treturn;\n\t\t}\n\t\tconst arr: T[] = [];\n\t\tfor (let i = 0; i < insertCount; i++) {\n\t\t\tarr[i] = this._default;\n\t\t}\n\t\tthis._store = arrays.arrayInsert(this._store, insertIndex, arr);\n\t}\n}\n\n/**\n * Stores the states at the start of each line and keeps track of which lines\n * must be re-tokenized. Also uses state equality to quickly validate lines\n * that don't need to be re-tokenized.\n *\n * For example, when typing on a line, the line gets marked as needing to be tokenized.\n * Once the line is tokenized, the end state is checked for equality against the begin\n * state of the next line. If the states are equal, tokenization doesn't need to run\n * again over the rest of the file. If the states are not equal, the next line gets marked\n * as needing to be tokenized.\n */\nexport class TokenizationStateStore {\n\trequestTokens(startLineNumber: number, endLineNumberExclusive: number): void {\n\t\tfor (let lineNumber = startLineNumber; lineNumber < endLineNumberExclusive; lineNumber++) {\n\t\t\tthis._stateStore.markMustBeTokenized(lineNumber - 1);\n\t\t}\n\t}\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport * as arrays from 'vs/base/common/arrays';\nimport { IdleDeadline, runWhenIdle } from 'vs/base/common/async';\nimport { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';\nimport { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';\nimport { setTimeout0 } from 'vs/base/common/platform';\nimport { StopWatch } from 'vs/base/common/stopwatch';\nimport { countEOL } from 'vs/editor/common/core/eolCounter';\nimport { Position } from 'vs/editor/common/core/position';\nimport { IRange } from 'vs/editor/common/core/range';\nimport { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';\nimport { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';\nimport { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';\nimport { ITextModel } from 'vs/editor/common/model';\nimport { TextModel } from 'vs/editor/common/model/textModel';\nimport { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';\nimport { IModelContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';\nimport { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';\nimport { LineTokens } from 'vs/editor/common/tokens/lineTokens';\n\n/**\n * An array that avoids being sparse by always\n * filling up unused indices with a default value.\n */\nexport class ContiguousGrowingArray<T> {\n\n\tprivate _store: T[] = [];\n\n\tconstructor(\n\t\tprivate readonly _default: T\n\t) { }\n\n\tpublic get(index: number): T {\n\t\tif (index < this._store.length) {\n\t\t\treturn this._store[index];\n\t\t}\n\t\treturn this._default;\n\t}\n\n\tpublic set(index: number, value: T): void {\n\t\twhile (index >= this._store.length) {\n\t\t\tthis._store[this._store.length] = this._default;\n\t\t}\n\t\tthis._store[index] = value;\n\t}\n\n\t// TODO have `replace` instead of `delete` and `insert`\n\tpublic delete(deleteIndex: number, deleteCount: number): void {\n\t\tif (deleteCount === 0 || deleteIndex >= this._store.length) {\n\t\t\treturn;\n\t\t}\n\t\tthis._store.splice(deleteIndex, deleteCount);\n\t}\n\n\tpublic insert(insertIndex: number, insertCount: number): void {\n\t\tif (insertCount === 0 || insertIndex >= this._store.length) {\n\t\t\treturn;\n\t\t}\n\t\tconst arr: T[] = [];\n\t\tfor (let i = 0; i < insertCount; i++) {\n\t\t\tarr[i] = this._default;\n\t\t}\n\t\tthis._store = arrays.arrayInsert(this._store, insertIndex, arr);\n\t}\n}\n\nconst enum Constants {\n\tCHEAP_TOKENIZATION_LENGTH_LIMIT = 1024\n}\n\n/**\n * Stores the states at the start of each line and keeps track of which lines\n * must be re-tokenized. Also uses state equality to quickly validate lines\n * that don't need to be re-tokenized.\n *\n * For example, when typing on a line, the line gets marked as needing to be tokenized.\n * Once the line is tokenized, the end state is checked for equality against the begin\n * state of the next line. If the states are equal, tokenization doesn't need to run\n * again over the rest of the file. If the states are not equal, the next line gets marked\n * as needing to be tokenized.\n */\nexport class TokenizationStateStore {\n\trequestTokens(startLineNumber: number, endLineNumberExclusive: number): void {\n\t\tfor (let lineNumber = startLineNumber; lineNumber < endLineNumberExclusive; lineNumber++) {\n\t\t\tthis._stateStore.markMustBeTokenized(lineNumber - 1);\n\t\t}\n\t}\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[24,28)",
+			"modifiedRange": "[24,24)",
+			"innerChanges": [
+				{
+					"originalRange": "[24,1 -> 28,1 EOL]",
+					"modifiedRange": "[24,1 -> 24,1 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[74,74)",
+			"modifiedRange": "[70,74)",
+			"innerChanges": [
+				{
+					"originalRange": "[74,1 -> 74,1 EOL]",
+					"modifiedRange": "[70,1 -> 74,1 EOL]"
+				}
+			]
+		}
+	],
+	"moves": [
+		{
+			"originalRange": "[24,28)",
+			"modifiedRange": "[70,74)",
+			"changes": [
+				{
+					"originalRange": "[26,27)",
+					"modifiedRange": "[72,73)",
+					"innerChanges": [
+						{
+							"originalRange": "[26,36 -> 26,40 EOL]",
+							"modifiedRange": "[72,36 -> 72,40 EOL]"
+						}
+					]
+				}
+			]
+		}
+	]
+}

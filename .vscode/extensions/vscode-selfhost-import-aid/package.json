@@ -1,0 +1,29 @@
+{
+  "name": "vscode-selfhost-import-aid",
+  "displayName": "VS Code Selfhost Import Aid",
+  "description": "Util to improve dealing with imports",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "version": "0.0.1",
+  "publisher": "ms-vscode",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript"
+  ],
+  "main": "./out/extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "compile": "gulp compile-extension:vscode-selfhost-import-aid",
+    "watch": "gulp watch-extension:vscode-selfhost-import-aid"
+  },
+  "dependencies": {
+    "typescript": "5.5.4"
+  }
+}

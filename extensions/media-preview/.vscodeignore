@@ -1,0 +1,10 @@
+test/**
+src/**
+tsconfig*.json
+**/*.tsbuildinfo
+esbuild*
+out/test/**
+out/**
+cgmanifest.json
+package-lock.json
+preview-src/**

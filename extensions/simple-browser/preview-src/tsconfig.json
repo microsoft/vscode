@@ -1,0 +1,16 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./dist/",
+		"jsx": "react",
+		"lib": [
+			"ES2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
+		]
+	}
+}

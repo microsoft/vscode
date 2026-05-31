@@ -1,0 +1,102 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container {
+	width: 100%;
+	display: none;
+	margin-top: 2px;
+	margin-bottom: 2px;
+	contain: style;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {
+	height: 22px;
+	display: flex;
+	align-items: center;
+	border-radius: 5px;
+	margin-right: 8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element {
+	flex: 1;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element .notebook-toolbar-left {
+	padding: 0px 0px 0px 8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
+	display: flex;
+	padding: 0px 0px 0px 0px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item  .kernel-label {
+	background-size: 16px;
+	padding: 0px 5px 0px 3px;
+	border-radius: 5px;
+	font-size: 13px;
+	height: 22px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar li a[tabindex="0"]:focus {
+	outline: none !important;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar li:has(a:focus) {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar .action-item .action-label.separator {
+	margin: 5px 0px !important;
+	padding: 0px !important;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {
+	background-size: 16px;
+	padding-left: 2px;
+}
+
+.monaco-workbench .notebook-action-view-item .action-label {
+	display: inline-flex;
+}
+
+.monaco-workbench .notebook-action-view-item-unified .monaco-dropdown {
+	pointer-events: none;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .notebook-label {
+	background-size: 16px;
+	padding: 0px 5px 0px 2px;
+	border-radius: 5px;
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item.disabled .notebook-label {
+	opacity: 0.4;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled) {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .codicon-notebook-state-error {
+	color: var(--vscode-notebookStatusErrorIcon-foreground);
+}
