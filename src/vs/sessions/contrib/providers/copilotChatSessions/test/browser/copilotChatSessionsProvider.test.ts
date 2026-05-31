@@ -1110,6 +1110,48 @@ suite('CopilotChatSessionsProvider', () => {
 		await provider.deleteSession(session.sessionId);
 	});
 
+	test('sendRequest keeps temp CLI session when accepted request does not commit', async () => {
+		const provider = createProviderForSendTests(disposables, model, async () => ({
+			kind: 'sent' as const,
+			data: {
+				responseCompletePromise: Promise.resolve(),
+				responseCreatedPromise: Promise.resolve({} as IChatResponseModel),
+				agent: new class extends mock<IChatAgentData>() { }(),
+			} as IChatSendRequestData,
+		}));
+		Object.defineProperty(provider, '_waitForCommittedSession', {
+			value: async () => {
+				throw new Error('Timed out waiting for session commit');
+			}
+		});
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, CopilotCLISessionType.id);
+
+		const events: { removed: number; changed: number }[] = [];
+		disposables.add(provider.onDidChangeSessions(e => events.push({ removed: e.removed.length, changed: e.changed.length })));
+
+		const added = waitForSessionAdded(provider);
+		const chat = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
+		await added;
+
+		const returnedSession = await sendPromise;
+
+		assert.deepStrictEqual({
+			returnedResource: returnedSession.resource.toString(),
+			sessions: provider.getSessions().map(session => ({ resource: session.resource.toString(), status: session.status.get() })),
+			removedEvents: events.filter(e => e.removed > 0).length,
+			changedEvents: events.filter(e => e.changed > 0).length,
+		}, {
+			returnedResource: chat.resource.toString(),
+			sessions: [{ resource: chat.resource.toString(), status: SessionStatus.Completed }],
+			removedEvents: 0,
+			changedEvents: 1,
+		});
+
+		await provider.deleteSession(session.sessionId);
+	});
+
 	// ---- Rename -------
 
 	test('renameChat delegates to claude rename command', async () => {

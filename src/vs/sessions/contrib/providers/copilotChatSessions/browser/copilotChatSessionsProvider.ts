@@ -1953,6 +1953,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return newSession;
 				}
 
+				if (this._isCommitTimeoutError(error)) {
+					session.setStatus(SessionStatus.Completed);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+					return newSession;
+				}
+
 				// Unexpected error — clean up the temp session entirely
 				this._sessionCache.delete(session.resource.toString());
 				this._invalidateGroupingCaches();
@@ -2082,6 +2088,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return updatedSession;
 				}
 
+				if (this._isCommitTimeoutError(error)) {
+					newChatSession.setStatus(SessionStatus.Completed);
+					this._sessionGroupCache.delete(sessionId);
+					const updatedSession = this._chatToSession(newChatSession);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+					return updatedSession;
+				}
+
 				// Unexpected error — clean up on error, fire changed on the parent session group
 				this._sessionCache.delete(key);
 				this._invalidateGroupingCaches();
@@ -2099,6 +2113,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private _isCommitTimeoutError(error: unknown): boolean {
+		return error instanceof Error && error.message === 'Timed out waiting for session commit';
 	}
 
 	/**
