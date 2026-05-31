@@ -163,39 +163,26 @@ export class ExtensionHostConnection extends Disposable {
 		const disposables = new DisposableStore();
 		disposables.add(connectionData.socket);
 		disposables.add(toDisposable(() => {
-			extHostSocket.destroy();
+			if (!extHostSocket.destroyed && !extHostSocket.writableEnded) {
+				extHostSocket.end();
+			}
 		}));
 
 		const stopAndCleanup = () => {
 			disposables.dispose();
 		};
 
-		let didEndExtensionHostSocket = false;
-		let extensionHostToRendererDataListener = Disposable.None;
-		const endExtensionHostSocket = () => {
-			if (didEndExtensionHostSocket) {
-				return;
-			}
-			didEndExtensionHostSocket = true;
-			extensionHostToRendererDataListener.dispose();
-			connectionData.socket.dispose();
-			if (!extHostSocket.destroyed && !extHostSocket.writableEnded) {
-				extHostSocket.end();
-			}
-		};
-
-		disposables.add(connectionData.socket.onEnd(endExtensionHostSocket));
-		disposables.add(connectionData.socket.onClose(endExtensionHostSocket));
+		disposables.add(connectionData.socket.onEnd(stopAndCleanup));
+		disposables.add(connectionData.socket.onClose(stopAndCleanup));
 
 		disposables.add(Event.fromNodeEventEmitter<void>(extHostSocket, 'end')(stopAndCleanup));
 		disposables.add(Event.fromNodeEventEmitter<void>(extHostSocket, 'close')(stopAndCleanup));
 		disposables.add(Event.fromNodeEventEmitter<void>(extHostSocket, 'error')(stopAndCleanup));
 
 		disposables.add(connectionData.socket.onData((e) => extHostSocket.write(e.buffer)));
-		extensionHostToRendererDataListener = Event.fromNodeEventEmitter<Buffer>(extHostSocket, 'data')((e) => {
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(extHostSocket, 'data')((e) => {
 			connectionData.socket.write(VSBuffer.wrap(e));
-		});
-		disposables.add(extensionHostToRendererDataListener);
+		}));
 
 		if (connectionData.initialDataChunk.byteLength > 0) {
 			extHostSocket.write(connectionData.initialDataChunk.buffer);
