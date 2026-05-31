@@ -72,7 +72,7 @@ export class SurveyService implements ISurveyService {
 			this.lastLanguageId = languageId;
 		}
 
-		if (!this.debounceTimeout) {
+		if (this.debounceTimeout === undefined) {
 			this.debounceTimeout = setTimeout(async () => {
 				const eligible = await this.checkEligibility();
 				if (eligible) {
