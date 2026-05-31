@@ -46,7 +46,7 @@ import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultC
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
-import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -326,8 +326,18 @@ suite('RunInTerminalTool', () => {
 		return model;
 	}
 
+	type AutomaticSandboxRetryKindForTest = 'unsandboxed' | 'allowNetwork';
+
+	function confirmAutomaticSandboxRetry(tool: RunInTerminalTool, retryKind: AutomaticSandboxRetryKindForTest, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
+		return (tool as unknown as Record<string, (retryKind: AutomaticSandboxRetryKindForTest, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticSandboxRetry'](retryKind, sessionResource, command, shell, blockedDomains, undefined, CancellationToken.None);
+	}
+
 	function confirmAutomaticUnsandboxRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
-		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, undefined, CancellationToken.None);
+		return confirmAutomaticSandboxRetry(tool, 'unsandboxed', sessionResource, command, shell, blockedDomains);
+	}
+
+	function confirmAutomaticAllowNetworkRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
+		return confirmAutomaticSandboxRetry(tool, 'allowNetwork', sessionResource, command, shell, blockedDomains);
 	}
 
 	async function assertAutomaticUnsandboxRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined): Promise<void> {
@@ -345,8 +355,34 @@ suite('RunInTerminalTool', () => {
 		strictEqual(await shouldRetry, false);
 	}
 
+	async function assertAutomaticAllowNetworkRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined, expectedTitle: string): Promise<void> {
+		const model = createChatModelWithRequest(sessionResource);
+		const shouldRetry = confirmAutomaticAllowNetworkRetry(tool, sessionResource, command, shell, blockedDomains);
+		const request = model.getRequests().at(-1);
+		const response = request?.response;
+		ok(response, 'Expected chat request with response');
+		const elicitation = response.response.value.find(part => part.kind === 'elicitation2');
+		ok(elicitation?.kind === 'elicitation2', 'Expected automatic allow-network retry elicitation');
+		const title = elicitation.title;
+		ok(typeof title !== 'string', 'Expected automatic allow-network retry title to be markdown');
+		strictEqual(title.value, expectedTitle);
+		const reject = elicitation.reject;
+		ok(reject, 'Expected automatic allow-network retry elicitation to have a reject action');
+
+		await reject();
+		strictEqual(await shouldRetry, false);
+	}
+
+	function getAutomaticSandboxRetryTitle(tool: RunInTerminalTool, retryKind: AutomaticSandboxRetryKindForTest, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
+		return (tool as unknown as Record<string, (retryKind: AutomaticSandboxRetryKindForTest, shellType: string, blockedDomains: string[] | undefined) => IMarkdownString>)['_getAutomaticSandboxRetryTitle'](retryKind, shellType, blockedDomains);
+	}
+
 	function getAutomaticUnsandboxRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
-		return (tool as unknown as Record<string, (shellType: string, blockedDomains: string[] | undefined) => IMarkdownString>)['_getAutomaticUnsandboxRetryTitle'](shellType, blockedDomains);
+		return getAutomaticSandboxRetryTitle(tool, 'unsandboxed', shellType, blockedDomains);
+	}
+
+	function getAutomaticAllowNetworkRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
+		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
 
 	suite('sandbox invocation messaging', () => {
@@ -561,6 +597,17 @@ suite('RunInTerminalTool', () => {
 			exitCode: 1,
 			output: '/bin/bash: /workspace/out.txt: Operation not permitted',
 		};
+		const baseAllowNetworkRetryOptions = {
+			retryWithAllowNetworkRequests: true,
+			didSandboxWrapCommand: true,
+			requestUnsandboxedExecution: false,
+			requestAllowNetwork: false,
+			isPersistentSession: false,
+			isBackgroundExecution: false,
+			didTimeout: false,
+			exitCode: 1,
+			output: 'connect: Operation not permitted',
+		};
 
 		test('should retry completed foreground sandbox commands when output indicates sandbox block', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed(baseRetryOptions), true);
@@ -584,6 +631,29 @@ suite('RunInTerminalTool', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed({
 				...baseRetryOptions,
 				output: 'connect: Operation not permitted',
+			}), false);
+		});
+
+		test('should retry in the sandbox by allowing network for apparent network failures', () => {
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed(baseAllowNetworkRetryOptions), true);
+		});
+
+		test('should not retry with allow-network when disabled or already requested', () => {
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				retryWithAllowNetworkRequests: false,
+			}), false);
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				requestAllowNetwork: true,
+			}), false);
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				requestUnsandboxedExecution: true,
+			}), false);
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				output: 'regular command failure',
 			}), false);
 		});
 
@@ -662,6 +732,29 @@ suite('RunInTerminalTool', () => {
 			const title = getAutomaticUnsandboxRetryTitle(runInTerminalTool, 'bash', ['example.com']);
 
 			strictEqual(title.value, 'Run `bash` command outside the sandbox to access `example.com`?');
+		});
+
+		test('should use allow-network retry confirmation title without sandbox link', () => {
+			const title = getAutomaticAllowNetworkRetryTitle(runInTerminalTool, 'bash', undefined);
+
+			strictEqual(title.value, 'Retry `bash` command in the sandbox by allowing network access?');
+		});
+
+		test('should use allow-network retry confirmation title without sandbox link for blocked domains', () => {
+			const title = getAutomaticAllowNetworkRetryTitle(runInTerminalTool, 'bash', ['example.com']);
+
+			strictEqual(title.value, 'Retry `bash` command in the sandbox by allowing network access to `example.com`?');
+		});
+
+		test('should show allow-network retry elicitation with sandbox-preserving title', async () => {
+			await assertAutomaticAllowNetworkRetryElicitation(
+				runInTerminalTool,
+				LocalChatSessionUri.forSession('auto-retry-allow-network-session'),
+				'curl https://example.com',
+				'bash',
+				undefined,
+				'Retry `bash` command in the sandbox by allowing network access?'
+			);
 		});
 
 		test('should show retry elicitation when sandbox force-approved command would otherwise require confirmation', async () => {
