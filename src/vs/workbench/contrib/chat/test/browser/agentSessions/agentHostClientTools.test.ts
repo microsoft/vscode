@@ -17,7 +17,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildSubagentSessionUri, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ToolCallConfirmationReason, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -30,6 +30,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -47,6 +48,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -438,6 +440,16 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
 			});
+			instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+				override readonly onDidChangeCustomAgents = Event.None;
+				override readonly onDidChangeSlashCommands = Event.None;
+				override readonly onDidChangeSkills = Event.None;
+				override readonly onDidChangeInstructions = Event.None;
+
+				override async listPromptFilesForStorage() {
+					return [];
+				}
+			}());
 			instantiationService.stub(ITerminalChatService, {
 				onDidContinueInBackground: Event.None,
 				registerTerminalInstanceWithToolSession: () => { },
@@ -456,6 +468,11 @@ suite('AgentHostClientTools', () => {
 				isNewSession: () => false,
 			});
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
+
+			// Use the real active-client service so the handler's tools autorun
+			// observes the mocked ILanguageModelToolsService + allowlist setting.
+			const activeClientService = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
+			instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
@@ -562,7 +579,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run the task' },
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -609,7 +626,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run the task' },
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -668,7 +685,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'do work' },
+				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -693,7 +710,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'sub-turn-1',
-				userMessage: { text: '' },
+				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionToolCallStart,

@@ -39,6 +39,36 @@
     ],
     "policies": [
         {
+            "key": "mcp.enterpriseManagedAuth.idp",
+            "name": "McpEnterpriseManagedAuthIdp",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "mcp.enterpriseManagedAuth.idp.policy",
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
             "key": "chat.mcp.gallery.serviceUrl",
             "name": "McpGalleryServiceUrl",
             "category": "InteractiveSession",
@@ -208,6 +238,36 @@
             "included": true
         },
         {
+            "key": "chat.plugins.enabledPlugins",
+            "name": "ChatEnabledPlugins",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.enabledPlugins.policy",
+                    "value": "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": true
+        },
+        {
+            "key": "chat.plugins.strictMarketplaces",
+            "name": "ChatStrictMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.strictMarketplaces.policy",
+                    "value": "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.agent.enabled",
             "name": "ChatAgentMode",
             "category": "InteractiveSession",
@@ -295,6 +355,40 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "extensions.autoUpdate",
+            "name": "ExtensionsAutoUpdate",
+            "category": "Extensions",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdate",
+                    "value": "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.autoUpdate.on",
+                        "value": "Enabled extensions are updated automatically."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.delayed",
+                        "value": "Enabled extensions are updated automatically, but only 6 hours after a new version has been published."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.off",
+                        "value": "Extensions are not updated automatically."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "on",
+            "enum": [
+                "on",
+                "delayed",
+                "off"
+            ],
             "included": true
         },
         {

@@ -16,6 +16,11 @@ import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
+import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
+
+export interface IAgentHostStateManagerOptions {
+	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
+}
 
 /**
  * Field-level equality for two changeset catalogue arrays. Used by
@@ -55,12 +60,8 @@ export class AgentHostStateManager extends Disposable {
 	private _rootState: RootState;
 	private readonly _sessionStates = new Map<string, SessionState>();
 
-	/**
-	 * Per-changeset state, keyed by the **expanded** changeset URI (the
-	 * value the client will pass to `subscribe` after expanding the
-	 * `uriTemplate` from the catalogue).
-	 */
-	private readonly _changesetStates = new Map<string, ChangesetState>();
+	/** Expanded changeset states, separated from protocol sequencing so cache policy stays local. */
+	private readonly _changesets: AgentHostChangesetStateCache;
 
 	/**
 	 * Sessions whose authoritative state has an active turn. Derived from
@@ -84,11 +85,15 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
+	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
+	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		options: IAgentHostStateManagerOptions = {},
 	) {
 		super();
+		this._changesets = new AgentHostChangesetStateCache(options.changesetStateRetention);
 		this._rootState = createRootState();
 		// Seed the host-level configuration schema + default values so that
 		// RootConfigChanged actions can merge into it, and clients see the
@@ -162,7 +167,7 @@ export class AgentHostStateManager extends Disposable {
 		// Changeset URIs are nested under their session URI; check them
 		// before falling back to the session map so a session whose URI
 		// happens to share a prefix with a changeset never collides.
-		const changesetState = this._changesetStates.get(resource);
+		const changesetState = this._changesets.get(resource);
 		if (changesetState) {
 			return {
 				resource,
@@ -185,7 +190,12 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Read-only accessor for callers that only need to inspect a changeset (not subscribe). */
 	getChangesetState(changeset: URI): ChangesetState | undefined {
-		return this._changesetStates.get(changeset);
+		return this._changesets.get(changeset);
+	}
+
+	/** Reconsiders changeset state retention after subscribers or computes release their pins. */
+	onChangesetLivenessChanged(): void {
+		this._changesets.trimEvictableEntries();
 	}
 
 	// ---- Session lifecycle --------------------------------------------------
@@ -338,6 +348,7 @@ export class AgentHostStateManager extends Disposable {
 		// Without this, evicting a session that still has an active turn
 		// silently strands the active-sessions count above zero forever.
 		if (this._sessionsWithActiveTurn.delete(session)) {
+			this._onDidChangeSessionActiveTurn.fire({ session, active: false });
 			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 		}
 
@@ -415,10 +426,7 @@ export class AgentHostStateManager extends Disposable {
 	 * Returns the supplied changeset URI for caller convenience.
 	 */
 	registerChangeset(changesetUri: URI, initialStatus: ChangesetStatus = ChangesetStatus.Computing): URI {
-		if (this._changesetStates.has(changesetUri)) {
-			return changesetUri;
-		}
-		this._changesetStates.set(changesetUri, { status: initialStatus, files: [] });
+		this._changesets.register(changesetUri, initialStatus);
 		return changesetUri;
 	}
 
@@ -473,13 +481,13 @@ export class AgentHostStateManager extends Disposable {
 	 * actions defensively.
 	 */
 	disposeChangeset(changeset: URI): void {
-		if (!this._changesetStates.has(changeset)) {
+		if (!this._changesets.has(changeset)) {
 			return;
 		}
 		this.dispatchServerAction(changeset, {
 			type: ActionType.ChangesetCleared,
 		});
-		this._changesetStates.delete(changeset);
+		this._changesets.delete(changeset);
 	}
 
 	/**
@@ -491,7 +499,7 @@ export class AgentHostStateManager extends Disposable {
 		// Collect first because `disposeChangeset` mutates the underlying
 		// map via its envelope handler.
 		const toDispose: URI[] = [];
-		for (const uri of this._changesetStates.keys()) {
+		for (const uri of this._changesets.keys()) {
 			const parsed = parseChangesetUri(uri);
 			if (parsed && parsed.sessionUri === session) {
 				toDispose.push(uri);
@@ -592,6 +600,7 @@ export class AgentHostStateManager extends Disposable {
 					} else {
 						this._sessionsWithActiveTurn.delete(key);
 					}
+					this._onDidChangeSessionActiveTurn.fire({ session: key, active: hasActive });
 					this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 				}
 
@@ -604,7 +613,7 @@ export class AgentHostStateManager extends Disposable {
 		if (isChangesetAction(action)) {
 			const changesetAction = action as ChangesetAction;
 			const key = channel;
-			const state = this._changesetStates.get(key);
+			const state = this._changesets.get(key);
 			if (!state) {
 				// Unknown changeset: log and bail before envelope creation.
 				// Routing the action to subscribers (Issue 1) makes
@@ -615,7 +624,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 			const newState = changesetReducer(state, changesetAction, this._log);
 			if (newState !== state) {
-				this._changesetStates.set(key, newState);
+				this._changesets.set(key, newState);
 			}
 			resultingState = newState;
 		}

@@ -10,4 +10,5 @@ export { rootReducer } from './channels-root/reducer.js';
 export { sessionReducer } from './channels-session/reducer.js';
 export { terminalReducer } from './channels-terminal/reducer.js';
 export { changesetReducer } from './channels-changeset/reducer.js';
+export { resourceWatchReducer } from './channels-resource-watch/reducer.js';
 export { softAssertNever, isClientDispatchable } from './common/reducer-helpers.js';

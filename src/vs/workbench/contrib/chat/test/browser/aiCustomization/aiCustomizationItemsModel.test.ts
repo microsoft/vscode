@@ -16,13 +16,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { AICustomizationManagementSection, BUILTIN_STORAGE, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { basename } from '../../../../../../base/common/resources.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,6 +84,19 @@ suite('AICustomizationItemsModel', () => {
 
 			instaService = workbenchInstantiationService({}, disposables);
 
+			function customAgentFromPromptPath(promptFile: IPromptPath): ICustomAgent {
+				return {
+					uri: promptFile.uri,
+					name: promptFile.name ?? basename(promptFile.uri),
+					description: promptFile.description,
+					target: Target.VSCode,
+					visibility: { agentInvocable: true, userInvocable: true },
+					enabled: !disabledPromptFilesResult.has(promptFile.uri),
+					source: IAgentSource.fromPromptPath(promptFile),
+					agentInstructions: { content: '', toolReferences: [] },
+				};
+			}
+
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
@@ -90,10 +104,12 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
 				listPromptFiles: async (type: PromptsType) => listPromptFilesResult.filter(f => f.type === type),
-				getCustomAgents: async () => [],
+				getCustomAgents: async () => listPromptFilesResult.filter(f => f.type === PromptsType.agent).map(customAgentFromPromptPath),
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
+				getPromptSlashCommands: async () => [],
+				listAgentInstructions: async () => [],
 				getDisabledPromptFiles: () => disabledPromptFilesResult,
 			});
 
@@ -103,7 +119,7 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -212,7 +228,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse('agent-host://test-authority/plugins/my-plugin/skills/my-skill/SKILL.md'),
 				type: PromptsType.skill,
 				name: 'My Skill',
-				storage: PromptsStorage.plugin,
+				source: PromptsStorage.plugin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
@@ -224,10 +240,10 @@ suite('AICustomizationItemsModel', () => {
 
 			assert.deepStrictEqual(items.get().map(item => ({
 				name: item.name,
-				storage: item.storage,
+				source: item.source,
 			})), [{
 				name: 'My Skill',
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 			}]);
 		});
 
@@ -236,7 +252,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse('agent-host://test-authority/builtin/skills/github/SKILL.md'),
 				type: PromptsType.skill,
 				name: 'Built-in Skill',
-				storage: BUILTIN_STORAGE as unknown as PromptsStorage,
+				source: AICustomizationSources.builtin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
@@ -248,12 +264,12 @@ suite('AICustomizationItemsModel', () => {
 
 			assert.deepStrictEqual(items.get().map(item => ({
 				name: item.name,
-				storage: item.storage,
+				source: item.source,
 				groupKey: item.groupKey,
 				isBuiltin: item.isBuiltin,
 			})), [{
 				name: 'Built-in Skill',
-				storage: BUILTIN_STORAGE,
+				source: AICustomizationSources.builtin,
 				groupKey: BUILTIN_STORAGE,
 				isBuiltin: true,
 			}]);
@@ -274,6 +290,7 @@ suite('AICustomizationItemsModel', () => {
 				enabled: true,
 				extensionId: undefined,
 				pluginUri: undefined,
+				source: AICustomizationSources.builtin, // Ignored, should be overridden by groupKey
 			}];
 
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
@@ -293,6 +310,7 @@ suite('AICustomizationItemsModel', () => {
 
 		test('prompt service items preserve storage grouping, metadata, and disabled state without sync provider', async () => {
 			availableHarnesses.set([createDescriptor('A', undefined), descriptorB], undefined);
+			activeSessionResource.set(URI.parse('A:///session2'), undefined);
 			listPromptFilesResult = [{
 				uri: URI.parse('file:///workspace/agents/team-agent.agent.md'),
 				storage: PromptsStorage.local,
@@ -311,7 +329,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: item.uri.toString(),
 				name: item.name,
 				description: item.description,
-				storage: item.storage,
+				source: item.source,
 				disabled: item.disabled,
 				groupKey: item.groupKey,
 				syncable: item.syncable,
@@ -321,76 +339,11 @@ suite('AICustomizationItemsModel', () => {
 				uri: 'file:///workspace/agents/team-agent.agent.md',
 				name: 'Team Agent',
 				description: 'Workspace agent description',
-				storage: PromptsStorage.local,
+				source: AICustomizationSources.local,
 				disabled: true,
 				groupKey: undefined,
 				syncable: undefined,
 				synced: undefined,
-			}]);
-		});
-
-		test('prompt service items only get sync decoration when a sync provider exists', async () => {
-			const syncProvider: ICustomizationSyncProvider = {
-				onDidChange: Event.None,
-				isDisabled: uri => uri.toString() === 'file:///user/agents/user-agent.agent.md',
-				setDisabled: () => { },
-			};
-			availableHarnesses.set([createDescriptor('A', undefined, syncProvider), descriptorB], undefined);
-			listPromptFilesResult = [{
-				uri: URI.parse('file:///workspace/agents/workspace-agent.agent.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.agent,
-				name: 'Workspace Agent',
-			}, {
-				uri: URI.parse('file:///user/agents/user-agent.agent.md'),
-				storage: PromptsStorage.user,
-				type: PromptsType.agent,
-				name: 'User Agent',
-			}, {
-				uri: URI.parse('file:///plugins/helper/agents/plugin-agent.agent.md'),
-				storage: PromptsStorage.plugin,
-				type: PromptsType.agent,
-				name: 'Plugin Agent',
-				pluginUri: URI.parse('file:///plugins/helper'),
-				source: PromptFileSource.Plugin,
-			}];
-
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			const items = model.getItems(AICustomizationManagementSection.Agents);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
-
-			assert.deepStrictEqual(items.get().map(item => ({
-				id: item.id,
-				name: item.name,
-				storage: item.storage,
-				syncable: item.syncable,
-				synced: item.synced,
-				groupKey: item.groupKey,
-				disabled: item.disabled,
-			})), [{
-				id: 'sync-file:///user/agents/user-agent.agent.md',
-				name: 'User Agent',
-				storage: PromptsStorage.user,
-				syncable: true,
-				synced: false,
-				groupKey: undefined,
-				disabled: false,
-			}, {
-				id: 'sync-file:///workspace/agents/workspace-agent.agent.md',
-				name: 'Workspace Agent',
-				storage: PromptsStorage.local,
-				syncable: true,
-				synced: true,
-				groupKey: undefined,
-				disabled: false,
-			}, {
-				id: 'file:///plugins/helper/agents/plugin-agent.agent.md',
-				name: 'Plugin Agent',
-				storage: PromptsStorage.plugin,
-				syncable: undefined,
-				synced: undefined,
-				groupKey: undefined,
-				disabled: false,
 			}]);
 		});
 
@@ -400,7 +353,7 @@ suite('AICustomizationItemsModel', () => {
 					uri: URI.parse('agent-host://test-authority/plugins/remote-one'),
 					type: 'plugin',
 					name: 'Remote One',
-					storage: PromptsStorage.plugin,
+					source: AICustomizationSources.plugin,
 					extensionId: undefined,
 					pluginUri: undefined,
 					userInvocable: undefined,
@@ -409,7 +362,7 @@ suite('AICustomizationItemsModel', () => {
 					uri: URI.parse('agent-host://test-authority/plugins/remote-two'),
 					type: AICustomizationManagementSection.Plugins,
 					name: 'Remote Two',
-					storage: PromptsStorage.plugin,
+					source: AICustomizationSources.plugin,
 					extensionId: undefined,
 					pluginUri: undefined,
 					userInvocable: undefined,
@@ -418,7 +371,7 @@ suite('AICustomizationItemsModel', () => {
 					uri: URI.parse('agent-host://test-authority/plugins/remote-two/skills/my-skill/SKILL.md'),
 					type: PromptsType.skill,
 					name: 'My Skill',
-					storage: PromptsStorage.plugin,
+					source: AICustomizationSources.plugin,
 					extensionId: undefined,
 					pluginUri: undefined,
 					userInvocable: true,
@@ -427,7 +380,7 @@ suite('AICustomizationItemsModel', () => {
 					uri: URI.parse('agent-host://test-authority/plugins/local-synced'),
 					type: 'plugin',
 					name: 'Local Synced',
-					storage: PromptsStorage.plugin,
+					source: AICustomizationSources.plugin,
 					groupKey: 'remote-client',
 					extensionId: undefined,
 					pluginUri: undefined,
@@ -447,7 +400,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse('agent-host://test-authority/plugins/remote-one'),
 				type: 'plugin',
 				name: 'Remote One',
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: undefined,
@@ -475,7 +428,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse('agent-host://test-authority/plugins/model-council'),
 				type: 'plugin',
 				name: 'model-council',
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: undefined,
@@ -515,7 +468,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse('agent-host://test-authority/agents/coder.agent.md'),
 				type: PromptsType.agent,
 				name: 'Coder',
-				storage: PromptsStorage.user,
+				source: AICustomizationSources.user,
 				extensionId: undefined,
 				pluginUri: undefined,
 			}];
@@ -667,7 +620,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse(`agent-host://t/plugins/${name}`),
 				type: 'plugin',
 				name,
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: undefined,
@@ -680,7 +633,7 @@ suite('AICustomizationItemsModel', () => {
 				uri: URI.parse(uri),
 				type: PromptsType.skill,
 				name,
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
@@ -695,7 +648,7 @@ suite('AICustomizationItemsModel', () => {
 				// Hooks pre-expanded items are kept under `plugin` storage; using
 				// plugin storage uniformly avoids the file-system expansion path
 				// in tests for non-hook types as well.
-				storage: PromptsStorage.plugin,
+				source: AICustomizationSources.plugin,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
@@ -801,6 +754,119 @@ suite('AICustomizationItemsModel', () => {
 			await timeout(0);
 
 			assert.strictEqual(count.get(), 1, 'remote row is folded into the labelless local plugin via basename');
+		});
+	});
+
+	// Regression coverage for the agent-host harness path
+	// (`PureItemProviderItemSource`). The item-source caches the provider's
+	// items and applies each section's `promptType` filter at fetch time,
+	// so reading one section (e.g. Agents) must not poison the cached
+	// items for any other section (e.g. Instructions).
+	suite('agent host item source caches all types', () => {
+
+		let disposables: DisposableStore;
+		let instaService: TestInstantiationService;
+		let providerItems: ICustomizationItem[];
+
+		setup(() => {
+			disposables = new DisposableStore();
+			providerItems = [];
+
+			const sessionType = 'agent-host-test';
+			const provider: ICustomizationItemProvider = {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: () => Promise.resolve(providerItems.slice()),
+			};
+			const descriptor: IHarnessDescriptor = {
+				id: sessionType,
+				label: 'Agent Host Test',
+				icon: Codicon.settingsGear,
+				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [] }),
+				itemProvider: provider,
+			};
+			const sessionResource = URI.parse(`${sessionType}:///active-session`);
+			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
+
+			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(IPromptsService, {
+				onDidChangeCustomAgents: Event.None,
+				onDidChangeSlashCommands: Event.None,
+				onDidChangeSkills: Event.None,
+				onDidChangeHooks: Event.None,
+				onDidChangeInstructions: Event.None,
+				listPromptFiles: async () => [],
+				getCustomAgents: async () => [],
+				findAgentSkills: async () => [],
+				getHooks: async () => undefined,
+				getInstructionFiles: async () => [],
+				getDisabledPromptFiles: () => new ResourceSet(),
+			});
+			instaService.stub(IAICustomizationWorkspaceService, {
+				activeProjectRoot: observableValue('test', undefined),
+				getActiveProjectRoot: () => undefined,
+				managementSections: [AICustomizationManagementSection.Agents],
+				isSessionsWindow: false,
+				welcomePageFeatures: { showGettingStartedBanner: false },
+				getStorageSourceFilter: () => ({ sources: [] }),
+				getSkillUIIntegrations: () => new Map(),
+				hasOverrideProjectRoot: observableValue('test', false),
+				commitFiles: async () => { },
+				deleteFiles: async () => { },
+				generateCustomization: async () => { },
+				setOverrideProjectRoot: () => { },
+				clearOverrideProjectRoot: () => { },
+			});
+			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
+			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource,
+				activeHarness,
+				availableHarnesses,
+				setActiveSession: (next: URI) => activeSessionResource.set(next, undefined),
+				getStorageSourceFilter: () => ({ sources: [] }),
+				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
+				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
+				registerExternalHarness: () => ({ dispose() { } }),
+			});
+			instaService.stub(IAgentPluginService, {
+				plugins: observableValue<readonly IAgentPlugin[]>('plugins', []),
+				enablementModel: {
+					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					setEnabled: () => { },
+					remove: () => { },
+				},
+			});
+		});
+
+		teardown(() => disposables.dispose());
+
+		test('observing one section does not hide items of other sections', async () => {
+			providerItems = [
+				{ uri: URI.parse('agent-host://t/agents/coder.agent.md'), type: PromptsType.agent, name: 'coder', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true },
+				{ uri: URI.parse('agent-host://t/rules/style.instructions.md'), type: PromptsType.instructions, name: 'style', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+				{ uri: URI.parse('agent-host://t/skills/repo/SKILL.md'), type: PromptsType.skill, name: 'repo', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true },
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			// Observe the Agents section first — this primes the underlying
+			// cache. Then observe Instructions on the same model; the bug
+			// caused this second observation to see an empty list because
+			// the cache had already been normalized for `PromptsType.agent`.
+			const agentItems = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+			const instructionItems = model.getItems(AICustomizationManagementSection.Instructions);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Instructions);
+
+			assert.deepStrictEqual(
+				{
+					agents: agentItems.get().map(i => i.name).sort(),
+					instructions: instructionItems.get().map(i => i.name).sort(),
+				},
+				{
+					agents: ['coder'],
+					instructions: ['style'],
+				},
+			);
 		});
 	});
 });

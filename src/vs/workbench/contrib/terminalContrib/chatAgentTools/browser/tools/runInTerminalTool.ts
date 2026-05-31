@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
@@ -79,11 +79,12 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
-import { ILanguageModelsService, LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
 
 // #region Tool data
 
@@ -473,6 +474,28 @@ const telemetryIgnoredSequences = [
 
 const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
 
+/**
+ * Builds the short, single-line command string used in the SYSTEM NOTIFICATION
+ * label for background terminal completion (#318601). Keeps only the first line
+ * of the command (stripping common escape artifacts) and appends a horizontal
+ * ellipsis (`…`) when content is dropped — either because the command spans
+ * multiple lines or the first line itself is longer than 80 characters.
+ *
+ * Multi-line commands (with blank lines) used to break the surrounding inline
+ * code span; callers must additionally wrap the result with
+ * {@link appendEscapedMarkdownInlineCode} when interpolating into markdown.
+ */
+export function buildCompletionNotificationCommand(command: string): string {
+	const firstNewline = command.search(/\r|\n/);
+	const hasMoreLines = firstNewline !== -1;
+	const firstLine = hasMoreLines ? command.substring(0, firstNewline) : command;
+	const normalized = normalizeTerminalCommandForDisplay(firstLine);
+	if (normalized.length > 80) {
+		return normalized.substring(0, 79) + '…';
+	}
+	return hasMoreLines ? normalized + '…' : normalized;
+}
+
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
@@ -619,7 +642,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
@@ -715,6 +737,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const executionOptions = this._resolveExecutionOptions(args);
 
 		const chatSessionResource = context.chatSessionResource;
+		const sandboxPrecheckInputs = this._getSandboxPrecheckInputs(chatSessionResource, context.chatRequestId);
 		let instance: ITerminalInstance | undefined;
 		if (chatSessionResource) {
 			const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
@@ -741,7 +764,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				return cwd;
 			})(),
-			this._terminalSandboxService.checkForSandboxingPrereqs()
+			this._terminalSandboxService.checkForSandboxingPrereqs(false, sandboxPrecheckInputs)
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 		const isSandboxEnabled = sandboxPrereqs.enabled;
@@ -788,6 +811,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isBackground: executionOptions.persistentSession,
 			requestUnsandboxedExecution: allowUnsandboxedCommands ? requiresUnsandboxConfirmation : false,
 			requestUnsandboxedExecutionReason,
+			sandboxPrecheckInputs,
 		});
 		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
 		const forDisplayCommand: string | undefined = rewriteResult.forDisplayCommand;
@@ -1058,6 +1082,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		isBackground: boolean;
 		requestUnsandboxedExecution: boolean;
 		requestUnsandboxedExecutionReason?: string;
+		sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
 	}): Promise<{
 		rewrittenCommand: string;
 		forDisplayCommand: string | undefined;
@@ -1081,6 +1106,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				os: options.os,
 				isBackground: options.isBackground,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+				sandboxPrecheckInputs: options.sandboxPrecheckInputs,
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
@@ -1109,6 +1135,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestUnsandboxedExecutionReason,
 			blockedDomains,
 		};
+	}
+
+	private _getSandboxPrecheckInputs(chatSessionResource: URI | undefined, chatRequestId: string | undefined): ITerminalSandboxPrecheckInputs | undefined {
+		return getSandboxPrecheckInputsForToolInvocation(chatSessionResource, chatRequestId, this._chatWidgetService, this._chatService);
 	}
 
 	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
@@ -1343,7 +1373,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
-		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
+		const sandboxPrecheckInputs = this._getSandboxPrecheckInputs(invocation.context.sessionResource, invocation.chatRequestId);
+		const isSandboxEnabled = await this._terminalSandboxService.isEnabled(sandboxPrecheckInputs);
 		if (this._shouldRejectUnsandboxedExecutionRequest(isSandboxEnabled, allowUnsandboxedCommands, args)) {
 			const message = this._getUnsandboxedExecutionDisabledMessage();
 			return {
@@ -2117,20 +2148,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return lines.join('\n');
 	}
 
-	/**
-	 * Resolves the `copilot/copilot-utility-small` alias identifier for use as
-	 * `userSelectedModelId` on terminal-tool steering messages (background
-	 * completion / input-needed / disposal notifications). The alias is
-	 * published by the copilot extension and already honors the
-	 * `chat.utilitySmallModel` setting. Returns `undefined` if the alias is
-	 * not available, in which case the caller leaves the conversation model
-	 * in place.
-	 */
-	private async _resolveUtilitySmallModelId(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-		return models[0];
-	}
-
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
 		for (const analyzer of this._outputAnalyzers) {
 			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
@@ -2494,6 +2511,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
+		// Build a single-line, safely-fenced inline code representation of the
+		// command for use in the system notification label (#318601).
+		const commandDisplay = appendEscapedMarkdownInlineCode(buildCompletionNotificationCommand(commandName));
+
 		// Acquire a reference to the ChatModel so it stays alive while we wait
 		// for the background terminal to complete. Without this, the model can
 		// be disposed if the user navigates away, and sendRequest would throw.
@@ -2504,11 +2525,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture mode/tools from the last request so the steering message uses
-		// the same settings as the original conversation (not defaults). The
-		// model is intentionally not inherited - these steering notifications
-		// are agent-internal turns and should be billed to the copilot utility
-		// small alias when available, falling back to the conversation model.
+		// Capture model/mode/tools from the last request so the steering message
+		// uses the same settings as the original conversation (not defaults).
 		const lastRequest = sessionRef.object.lastRequest;
 		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
 		if (lastRequest) {
@@ -2518,21 +2536,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
 		}
-		const utilitySmallIdPromise = this._resolveUtilitySmallModelId().then(utilitySmallId => {
-			if (utilitySmallId) {
-				this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
-			} else {
-				this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
-			}
-			return utilitySmallId;
-		}, err => {
-			this._logService.debug(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model. Error: ${err}`);
-			return undefined;
-		});
-		const resolveSendOptions = async (): Promise<typeof sendOptions> => {
-			const utilitySmallId = await utilitySmallIdPromise;
-			return utilitySmallId ? { ...sendOptions, userSelectedModelId: utilitySmallId } : sendOptions;
-		};
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
@@ -2649,13 +2652,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
-				resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
-					...opts,
+				this._chatService.sendRequest(chatSessionResource, message, {
+					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalAssessingOutput', "`{0}` may need input", commandName),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
 					terminalExecutionId: termId,
-				})).catch(e => {
+				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
 				});
 			}));
@@ -2703,13 +2706,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
-			resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
-				...opts,
+			this._chatService.sendRequest(chatSessionResource, message, {
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
-				systemInitiatedLabel: localize('terminalCommandCompleted', "`{0}` completed", commandName),
+				systemInitiatedLabel: localize('terminalCommandCompleted', "{0} completed", commandDisplay),
 				terminalExecutionId: termId,
-			})).catch(e => {
+			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
 
@@ -2771,13 +2774,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposeNotification();
 			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
 			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
-			resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
-				...opts,
+			this._chatService.sendRequest(chatSessionResource, message, {
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
-				systemInitiatedLabel: localize('terminalProcessExited', "`{0}` terminal exited", commandName),
+				systemInitiatedLabel: localize('terminalProcessExited', "{0} terminal exited", commandDisplay),
 				terminalExecutionId: termId,
-			})).catch(e => {
+			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send terminal-exited notification for terminal ${termId}`, e);
 			});
 		}));

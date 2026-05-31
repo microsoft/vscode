@@ -73,6 +73,17 @@ export interface IAuthenticationService {
 	readonly anyGitHubSession: AuthenticationSession | undefined;
 
 	/**
+	 * Whether the authentication service has a source from which a Copilot token can potentially be obtained
+	 * (e.g. a cached GitHub session, a static token provider, or a proxy/HMAC pathway). This is used as a fast,
+	 * synchronous gate before calling {@link getCopilotToken} in air-gapped/BYOK scenarios.
+	 *
+	 * Unlike {@link anyGitHubSession}, this does not assume GitHub OAuth is the only token pathway, so it stays
+	 * truthy for proxy/HMAC and test-harness implementations where {@link getCopilotToken} succeeds without a
+	 * cached GitHub session.
+	 */
+	readonly hasCopilotTokenSource: boolean;
+
+	/**
 	 * Checks if there is currently a permissive session available in the cache. Does not make any network requests and does not
 	 * call out to the underlying authentication provider.
 	 *
@@ -207,6 +218,14 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 	protected _anyGitHubSession: AuthenticationSession | undefined;
 	get anyGitHubSession(): AuthenticationSession | undefined {
 		return this._anyGitHubSession;
+	}
+
+	//#endregion
+
+	//#region Copilot Token Source
+
+	get hasCopilotTokenSource(): boolean {
+		return !!this._anyGitHubSession;
 	}
 
 	//#endregion
