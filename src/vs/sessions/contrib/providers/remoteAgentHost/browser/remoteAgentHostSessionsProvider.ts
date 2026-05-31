@@ -137,9 +137,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly remoteAddress: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
-	private _outputChannelId: string | undefined;
-	get outputChannelId(): string | undefined { return this._outputChannelId; }
-
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
@@ -351,11 +348,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
-	}
-
-	/** Set the output channel ID for this provider's IPC log. */
-	setOutputChannelId(id: string): void {
-		this._outputChannelId = id;
 	}
 
 	setAuthenticationPending(pending: boolean): void {
