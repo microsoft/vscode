@@ -315,12 +315,14 @@ export class PaneCompositeBar extends Disposable {
 			let badgeAction: ToggleCompositeBadgeAction;
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				activityAction = this.instantiationService.createInstance(ViewContainerActivityAction, this.toCompositeBarActionItemFrom(viewContainerModel), this.part, this.paneCompositePart);
-				pinnedAction = new ToggleCompositePinnedAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar);
-				badgeAction = new ToggleCompositeBadgeAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar);
+				const actionItem = this.toCompositeBarActionItemFrom(viewContainerModel);
+				activityAction = this.instantiationService.createInstance(ViewContainerActivityAction, actionItem, this.part, this.paneCompositePart);
+				pinnedAction = new ToggleCompositePinnedAction(actionItem, this.compositeBar);
+				badgeAction = new ToggleCompositeBadgeAction(actionItem, this.compositeBar);
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
-				activityAction = this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined), this.part, this.paneCompositePart);
+				const actionItem = this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined);
+				activityAction = this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, actionItem, this.part, this.paneCompositePart);
 				pinnedAction = new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar);
 				badgeAction = new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar);
 			}
