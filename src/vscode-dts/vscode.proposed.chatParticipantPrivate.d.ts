@@ -127,6 +127,14 @@ declare module 'vscode' {
 		 * Whether any hooks are enabled for this request.
 		 */
 		readonly hasHooksEnabled: boolean;
+
+		/**
+		 * When true, this request was initiated by the system (e.g. a terminal
+		 * command completion notification) rather than by the user typing a
+		 * message. Extensions can use this to render the prompt differently
+		 * and skip billing.
+		 */
+		readonly isSystemInitiated?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -189,9 +197,14 @@ declare module 'vscode' {
 		readonly modelId?: string;
 
 		/**
+		 * The mode instructions that were active for this request, if any.
+		 */
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
 	}
 
 	export class ChatResponseTurn2 {
@@ -243,6 +256,15 @@ declare module 'vscode' {
 
 		isRateLimited?: boolean;
 
+		/**
+		 * If true, the error is an expected operational condition (e.g. user-actionable
+		 * configuration, network connectivity, missing dependency) and should not be
+		 * logged as a `chatAgentError` telemetry event. The error is still surfaced to
+		 * the user. Throwing an `Error` whose `name` is `'ChatExpectedError'` from a
+		 * chat participant handler will set this flag automatically.
+		 */
+		isExpectedError?: boolean;
+
 		level?: ChatErrorLevel;
 
 		code?: string;
@@ -278,9 +300,26 @@ declare module 'vscode' {
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
+		 * The working directory URI for the session, if set.
+		 * In the agents window, each session can have its own working directory
+		 * that differs from the current workspace folders.
+		 */
+		workingDirectory?: Uri;
+		/**
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
+		/**
+		 * W3C trace context `traceparent` header value identifying the active distributed
+		 * tracing span. When provided to a tool implementation backed by an MCP server, this
+		 * value is forwarded as `_meta.traceparent` on the JSON-RPC `tools/call` request so
+		 * downstream servers can correlate their spans (MCP SEP-414).
+		 */
+		traceparent?: string;
+		/**
+		 * Optional W3C trace context `tracestate` header value paired with `traceparent`.
+		 */
+		tracestate?: string;
 		/**
 		 * Pre-tool-use hook result, if the hook was already executed by the caller.
 		 * When provided, the tools service will skip executing its own preToolUse hook
@@ -301,6 +340,12 @@ declare module 'vscode' {
 		chatRequestId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
+		/**
+		 * The working directory URI for the session, if set.
+		 * In the agents window, each session can have its own working directory
+		 * that differs from the current workspace folders.
+		 */
+		workingDirectory?: Uri;
 		/**
 		 * If set, tells the tool that it should include confirmation messages.
 		 */
@@ -407,6 +452,70 @@ declare module 'vscode' {
 		 * or other session-scoped operations. Extracted from the session's history entries.
 		 */
 		readonly sessionResource?: Uri;
+	}
+
+	// #endregion
+
+	export interface LanguageModelToolInformation {
+		/**
+		 * The full reference name of this tool as used in agent definition files.
+		 *
+		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
+		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
+		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
+		 *
+		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
+		 */
+		readonly fullReferenceName?: string;
+	}
+
+	// #region Quota Sync
+
+	/**
+	 * A snapshot of quota usage for a single category (chat, completions, premium chat).
+	 */
+	export interface ChatQuotaSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly hasQuota?: boolean;
+		readonly resetAt?: number;
+		readonly usageBasedBilling?: boolean;
+		readonly entitlement?: number;
+		readonly quotaRemaining?: number;
+	}
+
+	/**
+	 * A snapshot of rate limit usage for a category (session or weekly).
+	 */
+	export interface ChatRateLimitSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly resetDate?: string;
+	}
+
+	/**
+	 * Quota snapshot data covering all categories.
+	 * Accepted by {@link chat.updateQuotas} for extension-to-core sync.
+	 */
+	export interface ChatQuotaSnapshots {
+		readonly resetDate?: string;
+		readonly resetDateHasTime?: boolean;
+		readonly usageBasedBilling?: boolean;
+		readonly canUpgradePlan?: boolean;
+		readonly chat?: ChatQuotaSnapshot;
+		readonly completions?: ChatQuotaSnapshot;
+		readonly premiumChat?: ChatQuotaSnapshot;
+		readonly additionalUsageEnabled?: boolean;
+		readonly additionalUsageCount?: number;
+		readonly sessionRateLimit?: ChatRateLimitSnapshot;
+		readonly weeklyRateLimit?: ChatRateLimitSnapshot;
+	}
+
+	export namespace chat {
+		/**
+		 * Push quota snapshot data from the extension to the core workbench.
+		 */
+		export function updateQuotas(quotas: ChatQuotaSnapshots): void;
 	}
 
 	// #endregion

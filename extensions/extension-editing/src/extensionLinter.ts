@@ -479,6 +479,7 @@ export class ExtensionLinter {
 	}
 
 	public dispose() {
+		clearTimeout(this.timer);
 		this.disposables.forEach(d => d.dispose());
 		this.disposables = [];
 	}

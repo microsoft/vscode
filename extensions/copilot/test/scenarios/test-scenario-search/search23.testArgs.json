@@ -1,0 +1,10 @@
+{
+    "question": "words that start with \"get\"",
+    "queryShouldFind": [
+        [ "example.ts", [
+                "getValue",
+                "getValue",
+                "getSalary"
+            ] ]
+    ]
+}

@@ -55,6 +55,10 @@ suite('AgentSessions', () => {
 			));
 		}
 
+		function registerContribution(type: string): void {
+			disposables.add(mockChatSessionsService.registerChatSessionContribution({ type, name: type, displayName: type, description: type }));
+		}
+
 		setup(() => {
 			mockChatSessionsService = new MockChatSessionsService();
 			mockLifecycleService = disposables.add(new TestLifecycleService());
@@ -106,6 +110,8 @@ suite('AgentSessions', () => {
 
 				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -114,8 +120,11 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				assert.strictEqual(viewModel.sessions.length, 2);
-				assert.strictEqual(viewModel.sessions[0].resource.toString(), `${chatSessionTestType}://session-1`);
-				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
+				const uris = viewModel.sessions.map(s => s.resource.toString()).sort();
+				assert.deepStrictEqual(uris, [
+					`${chatSessionTestType}://session-1`,
+					`${chatSessionTestType}://session-2`,
+				]);
 			});
 		});
 
@@ -129,13 +138,15 @@ suite('AgentSessions', () => {
 				let willResolveFired = false;
 				let didResolveFired = false;
 
-				disposables.add(viewModel.onWillResolve(() => {
+				disposables.add(viewModel.onWillResolve(provider => {
 					willResolveFired = true;
+					assert.strictEqual(typeof provider, 'string', 'onWillResolve should carry the provider');
 					assert.strictEqual(didResolveFired, false, 'onDidResolve should not fire before onWillResolve completes');
 				}));
 
-				disposables.add(viewModel.onDidResolve(() => {
+				disposables.add(viewModel.onDidResolve(provider => {
 					didResolveFired = true;
+					assert.strictEqual(typeof provider, 'string', 'onDidResolve should carry the provider');
 					assert.strictEqual(willResolveFired, true, 'onWillResolve should fire before onDidResolve');
 				}));
 
@@ -206,6 +217,8 @@ suite('AgentSessions', () => {
 
 				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-1', controller1));
 				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-2', controller2));
 
@@ -217,8 +230,8 @@ suite('AgentSessions', () => {
 
 				// Now resolve only type-1
 				await viewModel.resolve('type-1');
-				// Only type-1 sessions remain since non-resolved providers are cleared
-				assert.strictEqual(viewModel.sessions.length, 1);
+				// Per-provider resolution preserves sessions from other providers
+				assert.strictEqual(viewModel.sessions.length, 2);
 			});
 		});
 
@@ -228,6 +241,8 @@ suite('AgentSessions', () => {
 
 				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -459,7 +474,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should not preserve sessions from non-resolved controllers', async () => {
+		test('should preserve sessions from non-resolved controllers', async () => {
 			return runWithFakedTimers({}, async () => {
 				let controller1CallCount = 0;
 				let controller2CallCount = 0;
@@ -492,6 +507,8 @@ suite('AgentSessions', () => {
 					get items() { return _items2; }
 				};
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -506,12 +523,64 @@ suite('AgentSessions', () => {
 				// Now resolve only type-2
 				await viewModel.resolve('type-2');
 
-				// Should still have only one session
-				assert.strictEqual(viewModel.sessions.length, 1);
+				// Per-provider resolution: type-1 sessions are preserved
+				assert.strictEqual(viewModel.sessions.length, 2);
 				// Controller 1 should not be called again
 				assert.strictEqual(controller1CallCount, 2);
 				// Controller 2 should be called again
 				assert.strictEqual(controller2CallCount, 3);
+			});
+		});
+
+		test('should resolve providers independently (per-provider delayers)', async () => {
+			return runWithFakedTimers({}, async () => {
+				let controller1RefreshCount = 0;
+				let controller2RefreshCount = 0;
+				let _items1: IChatSessionItem[] = [];
+				let _items2: IChatSessionItem[] = [];
+
+				const controller1: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller1RefreshCount++;
+						_items1 = [makeSimpleSessionItem('session-1', { label: `Session 1 v${controller1RefreshCount}` })];
+					},
+					get items() { return _items1; }
+				};
+
+				const controller2: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller2RefreshCount++;
+						_items2 = [makeSimpleSessionItem('session-2', { label: `Session 2 v${controller2RefreshCount}` })];
+					},
+					get items() { return _items2; }
+				};
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				// Resolve all to populate both providers
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// Resolve only type-1: should refresh only type-1, preserve type-2
+				const type1RefreshBefore = controller1RefreshCount;
+				const type2RefreshBefore = controller2RefreshCount;
+				await viewModel.resolve('type-1');
+
+				assert.strictEqual(controller1RefreshCount, type1RefreshBefore + 1);
+				assert.strictEqual(controller2RefreshCount, type2RefreshBefore); // not refreshed
+				assert.strictEqual(viewModel.sessions.length, 2); // type-2 session preserved
+
+				// Resolve only type-2: should refresh only type-2, preserve type-1
+				await viewModel.resolve('type-2');
+				assert.strictEqual(controller2RefreshCount, type2RefreshBefore + 1);
+				assert.strictEqual(viewModel.sessions.length, 2); // type-1 session preserved
 			});
 		});
 
@@ -546,6 +615,8 @@ suite('AgentSessions', () => {
 					get items() { return _items2; }
 				};
 
+				registerContribution('type-1');
+				registerContribution('type-2');
 				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
 				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
 
@@ -584,7 +655,10 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -599,7 +673,10 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -619,7 +696,10 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -643,7 +723,10 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { }
 			};
 
@@ -679,7 +762,10 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: () => { },
+				isPinned: () => false,
+				setPinned: () => { },
 				isRead: () => false,
+				isMarkedUnread: () => false,
 				setRead: read => { },
 				...overrides
 			};
@@ -1324,6 +1410,243 @@ suite('AgentSessions', () => {
 		});
 	});
 
+	suite('AgentSessionsViewModel - legacyResource migration', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		function uris() {
+			return {
+				oldUri: URI.parse(`${chatSessionTestType}://legacy-1`),
+				newUri: URI.parse(`${chatSessionTestType}://current-1`),
+			};
+		}
+
+		function makeItem(resource: URI, overrides?: Partial<IChatSessionItem>): IChatSessionItem {
+			return {
+				resource,
+				label: `Session ${resource.path}`,
+				timing: makeNewSessionTiming(),
+				...overrides,
+			};
+		}
+
+		test('migrates archived state forward from legacyResource to current resource', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// 1. Provider initially emits item under the legacy URI; user archives it.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// 2. Provider URI shape changes; new emission carries legacyResource pointing
+				//    at the old URI. Host should adopt the archived state forward.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual(
+					{ resource: session.resource.toString(), archived: session.isArchived() },
+					{ resource: newUri.toString(), archived: true },
+				);
+			});
+		});
+
+		test('migrates pinned state forward (not just archived)', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual(
+					{ pinned: session.isPinned(), archived: session.isArchived() },
+					{ pinned: true, archived: false },
+				);
+			});
+		});
+
+		test('migrates unread marker forward (read state, not just archived/pinned)', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: mark the old URI explicitly as unread.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setRead(false);
+				assert.strictEqual(viewModel.sessions[0].isMarkedUnread(), true, 'pre-condition: legacy URI marked unread');
+
+				// Stage 2: provider URI shape changes; expect the unread marker to migrate
+				// forward. This proves resolveStateEntry routing covers ALL per-resource
+				// state (archive, pin, read), not just archived/pinned.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isMarkedUnread(), true);
+			});
+		});
+
+		test('does nothing when no host state exists under legacyResource', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri, archived: true })]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				// Falls back to provider-supplied archived bit; no migration needed.
+				assert.strictEqual(viewModel.sessions[0].isArchived(), true);
+			});
+		});
+
+		test('own state wins when both legacy and current URI have host state', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: archive under old URI.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// Stage 2: emit new URI (no legacyResource yet) and explicitly toggle archive
+				// so that host state is established under the new URI (setArchived no-ops on
+				// values matching the current effective state, so we toggle through true).
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri)]),
+				);
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+				viewModel.sessions[0].setArchived(false);
+
+				// Stage 3: re-emit with legacyResource pointing at the (still-archived) old URI.
+				// Own (new) entry must win.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('ignores legacyResource equal to the current resource', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: newUri, archived: false })]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				// Sanity: no infinite loop, falls back to provider value.
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('ignores legacyResource with a different scheme', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				// Pre-archive an item under a different scheme to seed host state there.
+				const otherScheme = URI.parse('other-scheme://legacy-1');
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(otherScheme)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// New emission references the other-scheme legacy URI; migration must be refused.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: otherScheme })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('post-migration setArchived writes under current resource and frees the legacy slot', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: archive under old URI.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// Stage 2: migrate to new URI.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(false);
+
+				// Stage 3: provider re-emits the old URI (e.g. backend rollback). Its host
+				// state should be empty — the legacy entry was consumed by the migration,
+				// and setArchived(false) wrote to the new URI, not the legacy one.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+	});
+
 	suite('AgentSessionsViewModel - Session Read State', () => {
 		const disposables = new DisposableStore();
 		let mockChatSessionsService: MockChatSessionsService;
@@ -1373,6 +1696,41 @@ suite('AgentSessions', () => {
 				// Mark as unread
 				session.setRead(false);
 				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isMarkedUnread(), true);
+			});
+		});
+
+		test('should report isMarkedUnread only when explicitly marked unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: futureSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Naturally unread session is NOT marked unread (no explicit user action)
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isMarkedUnread(), false);
+
+				// Mark as read, then explicitly mark as unread
+				session.setRead(true);
+				assert.strictEqual(session.isMarkedUnread(), false);
+
+				session.setRead(false);
+				assert.strictEqual(session.isMarkedUnread(), true);
 			});
 		});
 
@@ -1803,7 +2161,7 @@ suite('AgentSessions', () => {
 
 		test('should return correct icon for Background provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-			assert.strictEqual(icon.id, Codicon.worktree.id);
+			assert.strictEqual(icon.id, Codicon.copilot.id);
 		});
 
 		test('should return correct icon for Cloud provider', () => {
@@ -1858,7 +2216,7 @@ suite('AgentSessions', () => {
 
 				const session = viewModel.sessions[0];
 				assert.strictEqual(session.providerType, AgentSessionProviders.Background);
-				assert.strictEqual(session.icon.id, Codicon.worktree.id);
+				assert.strictEqual(session.icon.id, Codicon.copilot.id);
 				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Background));
 			});
 		});

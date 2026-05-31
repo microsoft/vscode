@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CodeReviewStateKind, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { ICodeReviewState, CodeReviewStateKind, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 
 type ICodeReviewResultState = Extract<ICodeReviewState, { kind: CodeReviewStateKind.Result }>;
 
@@ -23,14 +23,16 @@ suite('SessionEditorComments', () => {
 		return {
 			kind: CodeReviewStateKind.Result,
 			version: 'v1',
+			reviewCount: 1,
 			comments,
+			didProduceComments: comments.length > 0,
 		};
 	}
 
 	test('merges and sorts feedback and review comments by resource and range', () => {
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-b', text: 'feedback b', resourceUri: fileB, range: new Range(8, 1, 8, 1), sessionResource: session },
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(12, 1, 12, 1), sessionResource: session },
+			{ id: 'feedback-b', text: 'feedback b', resourceUri: fileB, range: new Range(8, 1, 8, 1), sessionResource: session, kind: 'user' },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(12, 1, 12, 1), sessionResource: session, kind: 'user' },
 		], reviewState([
 			{ id: 'review-a', uri: fileA, range: new Range(3, 1, 3, 1), body: 'review a', kind: 'issue', severity: 'warning' },
 			{ id: 'review-b', uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', kind: 'issue', severity: 'warning' },
@@ -46,7 +48,7 @@ suite('SessionEditorComments', () => {
 
 	test('groups nearby comments only within the same resource', () => {
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(10, 1, 10, 1), sessionResource: session },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(10, 1, 10, 1), sessionResource: session, kind: 'user' },
 		], reviewState([
 			{ id: 'review-a', uri: fileA, range: new Range(13, 1, 13, 1), body: 'review a', kind: 'issue', severity: 'warning' },
 			{ id: 'review-b', uri: fileB, range: new Range(11, 1, 11, 1), body: 'review b', kind: 'issue', severity: 'warning' },
@@ -86,7 +88,7 @@ suite('SessionEditorComments', () => {
 
 	test('filters resource comments and detects authored feedback presence', () => {
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: session },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: session, kind: 'user' },
 		], reviewState([
 			{ id: 'review-b', uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', kind: 'issue', severity: 'warning' },
 		]));
@@ -123,7 +125,7 @@ suite('SessionEditorComments', () => {
 		};
 
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(3, 1, 3, 1), sessionResource: session },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(3, 1, 3, 1), sessionResource: session, kind: 'user' },
 		], reviewState([
 			{ id: 'review-a', uri: fileA, range: new Range(10, 1, 10, 1), body: 'review', kind: 'issue', severity: 'warning' },
 		]), prState);

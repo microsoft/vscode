@@ -71,8 +71,8 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	const instantiationService = createEditorServices(scopedDisposables, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
-			reg.defineInstance(IMenuService, new FixtureMenuService(options.hasAgentFeedbackActions ?? true));
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IMenuService, new FixtureMenuService(options.hasAgentFeedbackActions ?? true));
 		},
 	});
 

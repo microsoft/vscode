@@ -76,6 +76,7 @@
       editedFileEvents: undefined,
       modelId: undefined,
       modeInfo: undefined,
+      terminalExecutionId: undefined,
       responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       responseMarkdownInfo: undefined,

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { EditorOption, IComputedEditorOptions } from '../config/editorOptions.js';
+import { WrappingIndent } from '../config/editorOptions.js';
+import { FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
@@ -21,7 +22,7 @@ import { LineInjectedText } from '../textModelEvents.js';
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(options: IComputedEditorOptions): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
@@ -64,8 +65,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
 	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 
-	private options: IComputedEditorOptions;
+	private fontInfo: FontInfo;
 	private tabSize: number;
+	private wrappingColumn: number;
+	private wrappingIndent: WrappingIndent;
+	private wordBreak: 'normal' | 'keepAll';
+	private wrappingStrategy: 'simple' | 'advanced';
+	private wrapOnEscapedLineFeeds: boolean;
 
 	private modelLineProjections!: IModelLineProjection[];
 
@@ -81,16 +87,26 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		options: IComputedEditorOptions,
+		fontInfo: FontInfo,
 		tabSize: number,
+		wrappingStrategy: 'simple' | 'advanced',
+		wrappingColumn: number,
+		wrappingIndent: WrappingIndent,
+		wordBreak: 'normal' | 'keepAll',
+		wrapOnEscapedLineFeeds: boolean
 	) {
 		this._editorId = editorId;
 		this.model = model;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
 		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
-		this.options = options;
+		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
+		this.wrappingStrategy = wrappingStrategy;
+		this.wrappingColumn = wrappingColumn;
+		this.wrappingIndent = wrappingIndent;
+		this.wordBreak = wordBreak;
+		this.wrapOnEscapedLineFeeds = wrapOnEscapedLineFeeds;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -258,19 +274,23 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public setWrappingSettings(options: IComputedEditorOptions): boolean {
-		const equalFontInfo = this.options.get(EditorOption.fontInfo).equals(options.get(EditorOption.fontInfo));
-		const equalWrappingStrategy = this.options.get(EditorOption.wrappingStrategy) === options.get(EditorOption.wrappingStrategy);
-		const equalWrappingInfo = this.options.get(EditorOption.wrappingInfo) === options.get(EditorOption.wrappingInfo);
-		const equalWrappingIndent = this.options.get(EditorOption.wrappingIndent) === options.get(EditorOption.wrappingIndent);
-		const equalWordBreak = this.options.get(EditorOption.wordBreak) === options.get(EditorOption.wordBreak);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingInfo && equalWrappingIndent && equalWordBreak) {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean {
+		const equalFontInfo = this.fontInfo.equals(fontInfo);
+		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
+		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
+		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
+		const equalWordBreak = (this.wordBreak === wordBreak);
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingInfo && equalWrappingIndent && equalWordBreak);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
 
-		this.options = options;
+		this.fontInfo = fontInfo;
+		this.wrappingStrategy = wrappingStrategy;
+		this.wrappingColumn = wrappingColumn;
+		this.wrappingIndent = wrappingIndent;
+		this.wordBreak = wordBreak;
 
 		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -287,7 +307,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public createLineBreaksComputer(_context?: ILineBreaksComputerContext): ILineBreaksComputer {
 		const lineBreaksComputerFactory = (
-			this.options.get(EditorOption.wrappingStrategy) === 'advanced'
+			this.wrappingStrategy === 'advanced'
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
@@ -299,7 +319,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
-		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.options, this.tabSize);
+		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds);
 	}
 
 	public onModelFlushed(): void {
@@ -1130,7 +1150,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return false;
 	}
 
-	public setWrappingSettings(options: IComputedEditorOptions): boolean {
+	public setWrappingSettings(_fontInfo: FontInfo, _wrappingStrategy: 'simple' | 'advanced', _wrappingColumn: number, _wrappingIndent: WrappingIndent): boolean {
 		return false;
 	}
 
