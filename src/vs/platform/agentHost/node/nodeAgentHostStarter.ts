@@ -13,7 +13,8 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostRubberDuckEnabledSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -97,6 +98,11 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
 		}, process.env);
 		Object.assign(env, otelEnv);
+
+		// Enable rubber duck critic subagent when the setting is on.
+		if (this._configurationService.getValue<boolean>(AgentHostRubberDuckEnabledSettingId)) {
+			env['RUBBER_DUCK_AGENT'] = 'true';
+		}
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {

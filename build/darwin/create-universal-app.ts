@@ -92,6 +92,10 @@ async function main(buildDir?: string) {
 		'**/node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-x64/**',
 		'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-arm64/**',
+		// @microsoft/mxc-sdk ships per-arch native binaries under bin/<arch>;
+		// the package includes both arm64 and x64 trees regardless of host arch.
+		'**/node_modules/@microsoft/mxc-sdk/bin/**',
+		'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
 	];
 
 	await makeUniversalApp({
@@ -101,7 +105,7 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/copilot,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/copilot,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*}',
+		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/copilot,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/copilot,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@microsoft/mxc-sdk/bin/**,**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {

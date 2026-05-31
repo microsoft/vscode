@@ -68,6 +68,12 @@
 	justify-content: center;
 }
 
+.mobile-overlay-header-info.inline {
+	flex-direction: row;
+	align-items: baseline;
+	gap: 8px;
+}
+
 .mobile-overlay-header-title {
 	font-size: 14px;
 	font-weight: 500;
@@ -273,8 +279,8 @@
 .mobile-diff-hunk-header {
 	display: block;
 	color: var(--vscode-descriptionForeground);
-	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
-	padding: 4px 16px;
+	background: var(--vscode-editor-background, #1e1e1e);
+	padding: 4px 12px;
 	font-size: 11px;
 	user-select: none;
 	-webkit-user-select: none;
@@ -302,19 +308,20 @@
 
 .mobile-diff-line-num {
 	flex-shrink: 0;
-	width: 40px;
-	padding: 0 8px;
+	width: 28px;
+	padding: 0 4px;
 	color: var(--vscode-editorLineNumber-foreground);
 	text-align: right;
 	user-select: none;
 	-webkit-user-select: none;
+	font-variant-numeric: tabular-nums;
 }
 
 .mobile-diff-gutter {
 	flex-shrink: 0;
-	width: 16px;
+	width: 14px;
 	text-align: center;
-	padding: 0 2px;
+	padding: 0;
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -331,7 +338,7 @@
 	 * token color CSS automatically.
 	 */
 	flex: 0 0 auto;
-	padding: 0 16px 0 4px;
+	padding: 0 16px 0 2px;
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: pre;

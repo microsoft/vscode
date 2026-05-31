@@ -15,13 +15,15 @@ import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
  * Slash-command name and the token we surface to the user / round-trip on
  * the {@link MessageAttachmentKind.Simple} attachment's `_meta`.
  */
-export type CopilotSlashCommandName = 'plan' | 'compact';
+export type CopilotSlashCommandName = 'plan' | 'compact' | 'research' | 'rubber-duck';
 
-const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact'];
+const COMMANDS: readonly CopilotSlashCommandName[] = ['plan', 'compact', 'research', 'rubber-duck'];
 function getCommandDescription(command: CopilotSlashCommandName): string {
 	switch (command) {
 		case 'plan': return localize('copilotSlashCommand.plan.description', "Create an implementation plan before coding");
 		case 'compact': return localize('copilotSlashCommand.compact.description', "Free up context by compacting the conversation history");
+		case 'research': return localize('copilotSlashCommand.research.description', "Run deep research on a topic using search and web sources");
+		case 'rubber-duck': return localize('copilotSlashCommand.rubberDuck.description', "Get an independent critique of the current approach");
 	}
 }
 /**
@@ -47,12 +49,13 @@ export interface IParsedLeadingSlashCommand {
 /**
  * Parses a Copilot CLI slash command at the very start of `prompt`.
  *
- * The command must be `/plan` or `/compact`, followed either by end-of-input
- * or by at least one whitespace character. `/compact-hello`, `/plans`, or a
- * leading-space `/compact` all return `undefined`. Match is case-sensitive.
+ * The command must be `/plan`, `/compact`, `/research`, or `/rubber-duck`,
+ * followed either by end-of-input or by at least one whitespace character.
+ * `/compact-hello`, `/plans`, or a leading-space `/compact` all return
+ * `undefined`. Match is case-sensitive.
  */
 export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
-	const match = /^\/(plan|compact)(?:$|\s+([\s\S]*))/.exec(prompt);
+	const match = /^\/(plan|compact|research|rubber-duck)(?:$|\s+([\s\S]*))/.exec(prompt);
 	if (!match) {
 		return undefined;
 	}
@@ -80,7 +83,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	constructor(private readonly copilotcliId: string, private readonly _sessionInfo?: ICopilotSlashCommandSessionInfo) { }
 
 	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
-		if (AgentSession.provider(params.session) !== this.copilotcliId) {
+		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
 			return [];
 		}
 		const leading = extractLeadingSlashToken(params.text, params.offset);
@@ -89,7 +92,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		}
 
 		// Raw session id is the URI path without the leading slash.
-		const sessionId = AgentSession.id(params.session);
+		const sessionId = AgentSession.id(params.channel);
 		const hasHistory = this._sessionInfo?.hasHistory(sessionId) ?? true;
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
@@ -103,8 +106,12 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (command === 'compact' && !hasHistory) {
 				continue;
 			}
+			// `/rubber-duck` is only available when the feature is enabled.
+			if (command === 'rubber-duck' && !process.env['RUBBER_DUCK_AGENT']) {
+				continue;
+			}
 			items.push({
-				insertText: command === 'plan' ? '/' + command + ' ' : '/' + command,
+				insertText: command === 'compact' ? '/' + command : '/' + command + ' ',
 				rangeStart: 0,
 				rangeEnd: leading.rangeEnd,
 				attachment: {

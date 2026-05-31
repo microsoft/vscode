@@ -45,13 +45,14 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { type AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
+import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
@@ -257,6 +258,10 @@ class StubCopilotApiService implements ICopilotApiService {
 	async models(): Promise<CCAModel[]> {
 		return this.availableModels;
 	}
+
+	async utilityChatCompletion(): Promise<never> {
+		throw new Error('utilityChatCompletion not implemented in this test');
+	}
 }
 
 // #endregion
@@ -339,6 +344,9 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 	async getSubagentMessages(_sessionId: string, _agentId: string): Promise<readonly SessionMessage[]> {
 		return [];
 	}
+
+	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in integration test fake'); }
+	async tool(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.capturedStartupOptions.push(params.options);
@@ -573,6 +581,11 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, {
+				_serviceBrand: undefined,
+				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
+			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],
 		);
@@ -697,6 +710,11 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, {
+				_serviceBrand: undefined,
+				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
+			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],
 		);
@@ -750,6 +768,11 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, {
+				_serviceBrand: undefined,
+				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
+			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],
 		);
