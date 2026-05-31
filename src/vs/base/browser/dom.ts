@@ -1983,7 +1983,7 @@ export class DragAndDropObserver extends Disposable {
 	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
 	// calls see https://github.com/microsoft/vscode/issues/14470
 	// when the element has child elements where the events are fired
-	// repeadedly.
+	// repeatedly.
 	private counter: number = 0;
 
 	// Allows to measure the duration of the drag operation.

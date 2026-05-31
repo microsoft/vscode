@@ -588,7 +588,7 @@ export type IRgBytesOrText = { bytes: string } | { text: string };
 const isLookBehind = (node: ReAST.Node) => node.type === 'Assertion' && node.kind === 'lookbehind';
 
 export function fixRegexNewline(pattern: string): string {
-	// we parse the pattern anew each tiem
+	// we parse the pattern anew each time
 	let re: ReAST.Pattern;
 	try {
 		re = new RegExpParser().parsePattern(pattern);
@@ -694,7 +694,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 		switch (char) {
 			case '\\':
 				if (escaped) {
-					// If we're already escaped, then just leave the escaped slash and the preceeding slash that escapes it.
+					// If we're already escaped, then just leave the escaped slash and the preceding slash that escapes it.
 					// The two escaped slashes will result in a single slash and whatever processes the glob later will properly process the escape
 					if (inBraces) {
 						strInBraces += '\\' + char;
@@ -708,7 +708,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 				break;
 			case '{':
 				if (escaped) {
-					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowleged it and add the `{` to the appropriate string
+					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowledged it and add the `{` to the appropriate string
 					if (inBraces) {
 						strInBraces += char;
 					} else {

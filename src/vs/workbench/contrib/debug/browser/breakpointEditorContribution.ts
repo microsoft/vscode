@@ -290,7 +290,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					} else if (isShiftPressed) {
 						breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
 					} else if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition || !!bp.triggeredBy)) {
-						// Show the dialog if there is a potential condition to be accidently lost.
+						// Show the dialog if there is a potential condition to be accidentally lost.
 						// Do not show dialog on linux due to electron issue freezing the mouse #50026
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
@@ -360,7 +360,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (!(BrowserFeatures.pointerEvents && isSafari)) {
 			/**
 			 * We disable the hover feature for Safari on iOS as
-			 * 1. Browser hover events are handled specially by the system (it treats first click as hover if there is `:hover` css registered). Below hover behavior will confuse users with inconsistent expeirence.
+			 * 1. Browser hover events are handled specially by the system (it treats first click as hover if there is `:hover` css registered). Below hover behavior will confuse users with inconsistent experience.
 			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
 			 */
 			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
