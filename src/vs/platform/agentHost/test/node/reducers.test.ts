@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type ChangesetState, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationLoadStatus, MessageKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type SessionState } from '../../common/state/sessionState.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -29,7 +30,7 @@ function withActiveTurnAndToolCall(state: SessionState): SessionState {
 	state = sessionReducer(state, {
 		type: ActionType.SessionTurnStarted,
 		turnId: 'turn-1',
-		userMessage: { text: 'hello' },
+		message: { text: 'hello', origin: { kind: MessageKind.User } },
 	});
 	state = sessionReducer(state, {
 		type: ActionType.SessionToolCallStart,
@@ -246,5 +247,49 @@ suite('changesetReducer', () => {
 	test('ChangesetCleared is a no-op when files are already empty', () => {
 		const next = changesetReducer(ready, { type: ActionType.ChangesetCleared, });
 		assert.strictEqual(next, ready);
+	});
+});
+
+suite('sessionReducer – SessionCustomizationUpdated', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const agentA: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/helper.md', uri: 'file:///plugin-a/agents/helper.md', name: 'helper' };
+	const agentB: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/reviewer.md', uri: 'file:///plugin-a/agents/reviewer.md', name: 'reviewer', description: 'reviews code' };
+
+	function pluginA(extra: Partial<PluginCustomization> = {}): Customization {
+		return {
+			type: CustomizationType.Plugin,
+			id: 'file:///plugin-a',
+			uri: 'file:///plugin-a',
+			name: 'Plugin A',
+			enabled: true,
+			...extra,
+		};
+	}
+
+	test('insert: appends a new top-level customization with its children', () => {
+		const customization = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentA, agentB] });
+		const state = sessionReducer(makeSession(), {
+			type: ActionType.SessionCustomizationUpdated,
+			customization,
+		});
+
+		assert.deepStrictEqual(state.customizations, [customization]);
+	});
+
+	test('update: replaces the matching entry entirely', () => {
+		const initial = pluginA({ load: { kind: CustomizationLoadStatus.Loading }, children: [agentA] });
+		const seeded = sessionReducer(makeSession(), {
+			type: ActionType.SessionCustomizationUpdated,
+			customization: initial,
+		});
+		const updated = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentB] });
+		const next = sessionReducer(seeded, {
+			type: ActionType.SessionCustomizationUpdated,
+			customization: updated,
+		});
+
+		assert.deepStrictEqual(next.customizations, [updated]);
 	});
 });

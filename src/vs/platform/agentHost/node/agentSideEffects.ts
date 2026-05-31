@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
@@ -20,6 +21,7 @@ import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../
 import {
 	buildSubagentSessionUri,
 	getToolFileEdits,
+	MessageKind,
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
@@ -105,6 +107,7 @@ export class AgentSideEffects extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -330,14 +333,16 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
-		// No active turn on the session. Most signals are silently dropped,
-		// but a `SessionTurnComplete` (idle) still needs to drive its
-		// post-turn side effects — flushing pending diff computation,
-		// recomputing diffs, and notifying the host. Tests routinely fire
-		// `idle` without first dispatching the matching `SessionTurnStarted`
-		// through the state manager.
-		if (signal.kind === 'action' && signal.action.type === ActionType.SessionTurnComplete) {
-			this._runTurnCompleteSideEffects(sessionKey, undefined);
+		// No active turn on the session. Non-action signals are silently
+		// dropped, but action signals can still target session-level state
+		// such as customizations, title, or configuration. A turnComplete
+		// action also drives post-turn side effects even when the matching
+		// turnStarted was not observed by this side-effects instance.
+		if (signal.kind === 'action') {
+			this._stateManager.dispatchServerAction(sessionKey, signal.action);
+			if (signal.action.type === ActionType.SessionTurnComplete) {
+				this._runTurnCompleteSideEffects(sessionKey, undefined);
+			}
 		}
 	}
 
@@ -414,7 +419,25 @@ export class AgentSideEffects extends Disposable {
 	 * notify the host so it can refresh git state.
 	 */
 	private _runTurnCompleteSideEffects(sessionKey: ProtocolURI, turnId: string | undefined): void {
-		this._changesets.onTurnComplete(sessionKey, turnId);
+		// Capture the end-of-turn git checkpoint BEFORE notifying the
+		// changeset service so the per-turn changeset recompute can take
+		// the authoritative git-diff fast path (which includes terminal-tool
+		// edits the FileEditTracker misses). The capture is best-effort —
+		// any failure logs and the changeset pipeline falls back to the
+		// `file_edits`-based path. We don't block subsequent side effects
+		// (queued message drain, host notification) on the changeset
+		// completion since those have always been fire-and-forget; the
+		// ordering guarantee we care about is checkpoint-then-changeset.
+		if (turnId !== undefined) {
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionKey), turnId).then(() => {
+				this._changesets.onTurnComplete(sessionKey, turnId);
+			}, err => {
+				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionKey}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
+				this._changesets.onTurnComplete(sessionKey, turnId);
+			});
+		} else {
+			this._changesets.onTurnComplete(sessionKey, turnId);
+		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionKey);
 	}
@@ -485,7 +508,7 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(subagentSessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId,
-			userMessage: { text: '' },
+			message: { text: '', origin: { kind: MessageKind.User } },
 		});
 
 		this._subagentSessions.set(subagentKey, subagentSessionUri);
@@ -662,6 +685,9 @@ export class AgentSideEffects extends Disposable {
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
+		} else if (effective.state.confirmationTitle) {
+			// Make sure the agent is registered for the eventual `SessionToolCallConfirmed` response.
+			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
@@ -681,7 +707,7 @@ export class AgentSideEffects extends Disposable {
 				// title is still the default placeholder to avoid clobbering a
 				// title set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(channel);
-				const fallbackTitle = action.userMessage.text.trim().replace(/\s+/g, ' ').slice(0, 200);
+				const fallbackTitle = action.message.text.trim().replace(/\s+/g, ' ').slice(0, 200);
 				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
 					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.SessionTitleChanged,
@@ -698,9 +724,9 @@ export class AgentSideEffects extends Disposable {
 					});
 					return;
 				}
-				const attachments = action.userMessage.attachments;
+				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
-				agent.sendMessage(URI.parse(channel), action.userMessage.text, attachments, action.turnId).catch(err => {
+				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction(channel, {
@@ -750,6 +776,13 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
+			case ActionType.SessionAgentChanged: {
+				const agent = this._options.getAgent(channel);
+				agent?.changeAgent?.(URI.parse(channel), action.agent).catch(err => {
+					this._logService.error('[AgentSideEffects] changeAgent failed', err);
+				});
+				break;
+			}
 			case ActionType.SessionTitleChanged: {
 				this._persistSessionFlag(channel, 'customTitle', action.title);
 				break;
@@ -778,15 +811,7 @@ export class AgentSideEffects extends Disposable {
 				agent.setClientTools(URI.parse(channel), clientId, action.activeClient?.tools ?? []);
 
 				const refs = action.activeClient?.customizations ?? [];
-				agent.setClientCustomizations(
-					clientId,
-					refs,
-					() => {
-						this._publishSessionCustomizationsSoon(agent, channel);
-					},
-				).then(() => {
-					this._publishSessionCustomizationsSoon(agent, channel);
-				}).catch(err => {
+				agent.setClientCustomizations(URI.parse(channel), clientId, refs).catch(err => {
 					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
 				});
 				break;
@@ -814,7 +839,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionCustomizationToggled: {
 				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
+				agent?.setCustomizationEnabled?.(action.id, action.enabled);
 				break;
 			}
 			case ActionType.SessionIsReadChanged: {
@@ -919,7 +944,7 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionTurnStarted,
 			turnId,
-			userMessage: msg.userMessage,
+			message: msg.message,
 			queuedMessageId: msg.id,
 		});
 
@@ -933,9 +958,9 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const attachments = msg.userMessage.attachments;
+		const attachments = msg.message.attachments;
 		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
-		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
+		agent.sendMessage(URI.parse(session), msg.message.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.SessionError,
@@ -951,4 +976,3 @@ export class AgentSideEffects extends Disposable {
 		super.dispose();
 	}
 }
-

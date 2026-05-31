@@ -5,15 +5,17 @@
 
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
-import { Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMenuService, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -30,6 +32,8 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { buildSessionHoverContent, getSessionDiffStats } from './sessionHoverContent.js';
 
 const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -79,6 +83,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				sessionData.title.read(reader);
 				sessionData.status.read(reader);
 				sessionData.workspace.read(reader);
+				sessionData.changes.read(reader);
 			}
 			this._lastRenderState = undefined;
 			this._render();
@@ -150,9 +155,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
 			const repoBranchLabel = this._getRepositoryBranchLabel();
+			const diffStats = this._getDiffStats();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}|${diffStats ? `${diffStats.insertions}/${diffStats.deletions}` : ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -204,6 +210,20 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 					detailsEl.appendChild(branchEl);
 				}
 
+				if (diffStats) {
+					const separatorEl = $('div.agent-sessions-titlebar-separator');
+					detailsEl.appendChild(separatorEl);
+
+					const diffEl = $('div.agent-sessions-titlebar-diff');
+					const addedEl = $('span.agent-sessions-titlebar-diff-added');
+					addedEl.textContent = `+${diffStats.insertions}`;
+					diffEl.appendChild(addedEl);
+					const removedEl = $('span.agent-sessions-titlebar-diff-removed');
+					removedEl.textContent = `-${diffStats.deletions}`;
+					diffEl.appendChild(removedEl);
+					detailsEl.appendChild(diffEl);
+				}
+
 				centerGroup.appendChild(detailsEl);
 			}
 
@@ -227,13 +247,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(sessionPill);
 
-			// Hover
-			const hover = `${label}${repoLabel ? `, ${repoLabel}` : ''}${repoBranchLabel ? `, ${repoBranchLabel}` : ''}`;
-			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('mouse'),
-				sessionPill,
-				hover
-			));
+			// Beacon-style hover with session details, positioned below center
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(sessionPill, () => ({
+				content: this._buildSessionHoverContent(),
+				style: HoverStyle.Pointer,
+				position: { hoverPosition: HoverPosition.BELOW },
+				persistence: { hideOnHover: false },
+			})));
 
 			// Keyboard handler
 			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -271,6 +291,17 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
+	 * Build a compact hover markdown for the active session.
+	 */
+	private _buildSessionHoverContent(): IMarkdownString {
+		const sessionData = this.sessionsManagementService.activeSession.get();
+		if (!sessionData) {
+			return new MarkdownString('');
+		}
+		return buildSessionHoverContent(sessionData, this.sessionsProvidersService);
+	}
+
+	/**
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
@@ -290,6 +321,15 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _getRepositoryBranchLabel(): string | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
 		return sessionData?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
+	}
+
+	/**
+	 * Get the aggregated insertions/deletions for the active session, or
+	 * undefined when there are no changes.
+	 */
+	private _getDiffStats(): { insertions: number; deletions: number } | undefined {
+		const sessionData = this.sessionsManagementService.activeSession.get();
+		return sessionData ? getSessionDiffStats(sessionData) : undefined;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -316,8 +356,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
+		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession.
+		const marshalledArg = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: { resource: sessionData.resource },
+			sessions: [{ resource: sessionData.resource }],
+		};
+		const wrapForExtensions = (action: IAction): IAction => {
+			if (!(action instanceof MenuItemAction) || !action.item.source) {
+				return action;
+			}
+			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			wrapped.tooltip = action.tooltip;
+			wrapped.checked = action.checked;
+			return wrapped;
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions))),
 			getAnchor: () => new StandardMouseEvent(getActiveWindow(), e),
 		});
 

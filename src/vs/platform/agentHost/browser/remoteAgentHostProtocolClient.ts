@@ -19,12 +19,13 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -35,7 +36,11 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffe
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
+import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
+import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { dirname } from '../../../base/common/resources.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -163,7 +168,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
-	private _completionTriggerCharacters: readonly string[] = [];
+	/**
+	 * Latest `initialize` response from the host. Captured at the end of
+	 * {@link connect} and re-captured after a soft-reconnect that pulled
+	 * a fresh snapshot. `undefined` before the handshake completes.
+	 */
+	private _initializeResult: InitializeResult | undefined;
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -171,6 +181,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	/**
+	 * Fires for every `otlp/exportLogs` notification the host sends on a
+	 * channel this client has subscribed to. Each payload is an
+	 * OTLP/JSON `ExportLogsServiceRequest` value verbatim; consumers
+	 * decode it (see `iterateOtlpLogRecords`) and route the records to a
+	 * registered logger or sink.
+	 *
+	 * Channel URIs are kept opaque on the wire so the same event covers
+	 * every {@link TelemetryCapabilities.logs} URI the host advertises —
+	 * subscribers should filter by `channel` if they care.
+	 */
+	private readonly _onDidReceiveOtlpLogs = this._register(new Emitter<OtlpExportLogsParams>());
+	readonly onDidReceiveOtlpLogs = this._onDidReceiveOtlpLogs.event;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
@@ -245,6 +269,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._state.kind;
 	}
 
+	/**
+	 * The latest `initialize` response from the host, or `undefined` if
+	 * the handshake has not completed yet. Callers read fields they care
+	 * about (e.g. `telemetry`, `completionTriggerCharacters`,
+	 * `defaultDirectory`) directly off this object — keeping the result
+	 * intact avoids adding a new getter every time the protocol grows.
+	 */
+	get initializeResult(): InitializeResult | undefined {
+		return this._initializeResult;
+	}
+
 	constructor(
 		address: string,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
@@ -286,6 +321,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					return;
 				}
 				this._updateTelemetryLevel();
+			}
+			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateSessionSyncEnabled();
 			}
 		}));
 
@@ -371,9 +412,25 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 		}
 
-		this._completionTriggerCharacters = result.completionTriggerCharacters ?? [];
+		this._initializeResult = result;
 		this._updateTelemetryLevel();
+		this._updateSessionSyncEnabled();
 		this._transitionTo({ kind: AgentHostClientState.Connected });
+	}
+
+	/**
+	 * Externally signal that the transport has closed. Used by services
+	 * managing a passive transport (SSH / dev-tunnels) when they observe
+	 * a connection-loss IPC event independent of the transport's own
+	 * onClose — without this, a single dropped IPC delivery on the
+	 * transport's close channel leaves the client stranded in
+	 * `Connected` until its watchdog fires (which can take hours when
+	 * the renderer is backgrounded and `setTimeout` is throttled).
+	 *
+	 * Idempotent — no-op if already closed or mid-reconnect.
+	 */
+	notifyTransportClosed(): void {
+		this._handleTransportClose();
 	}
 
 	/**
@@ -624,6 +681,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	/**
 	 * Subscribe to state at a URI. Returns the current state snapshot.
+	 *
+	 * For stateless channels (e.g. `ahp-otlp:` telemetry channels) use
+	 * {@link subscribeStateless} — calling this method on a stateless
+	 * channel rejects because the server omits `snapshot` on the
+	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
@@ -631,6 +693,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
 		}
 		return result.snapshot;
+	}
+
+	/**
+	 * Subscribe to a stateless channel — one for which the server does
+	 * not maintain replayable state and therefore omits `snapshot` from
+	 * the `subscribe` response. Used today for the host's OTLP telemetry
+	 * channels (`ahp-otlp:`).
+	 *
+	 * Returns once the subscription is confirmed by the server.
+	 * Subsequent notifications on the channel arrive via the relevant
+	 * dispatch event (e.g. {@link onDidReceiveOtlpLogs} for log records).
+	 */
+	async subscribeStateless(resource: URI): Promise<void> {
+		await this._sendRequest('subscribe', { channel: resource.toString() });
 	}
 
 	/**
@@ -712,7 +788,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Empty when the remote host did not announce any.
 	 */
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
-		return this._completionTriggerCharacters;
+		return this._initializeResult?.completionTriggerCharacters ?? [];
 	}
 
 	/**
@@ -798,7 +874,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * the customization, but should not need to write them. Grants are
 	 * deduped per connection and revoked when the connection closes.
 	 */
-	private _grantImplicitReadsForCustomizations(refs: readonly CustomizationRef[]): void {
+	private _grantImplicitReadsForCustomizations(refs: readonly ClientPluginCustomization[]): void {
 		for (const ref of refs) {
 			let uri: URI;
 			try {
@@ -806,14 +882,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} catch {
 				continue;
 			}
-			const key = uri.toString();
+			const grantUri = dirname(uri);
+			const key = grantUri.toString();
 			if (this._grantedCustomizationUris.has(key)) {
 				continue;
 			}
 			this._grantedCustomizationUris.add(key);
 			// Disposable is owned by the permission service; cleared on
 			// connectionClosed.
-			this._permissionService.grantImplicitRead(this._address, uri);
+			this._permissionService.grantImplicitRead(this._address, grantUri);
 		}
 	}
 
@@ -845,6 +922,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async resourceMove(params: CommandMap['resourceMove']['params']): Promise<CommandMap['resourceMove']['result']> {
 		return this._sendRequest('resourceMove', params);
+	}
+
+	async resourceResolve(params: CommandMap['resourceResolve']['params']): Promise<CommandMap['resourceResolve']['result']> {
+		return this._sendRequest('resourceResolve', params);
+	}
+
+	async resourceMkdir(params: CommandMap['resourceMkdir']['params']): Promise<CommandMap['resourceMkdir']['result']> {
+		return this._sendRequest('resourceMkdir', params);
+	}
+
+	async createResourceWatch(params: CommandMap['createResourceWatch']['params']): Promise<CommandMap['createResourceWatch']['result']> {
+		return this._sendRequest('createResourceWatch', params);
+	}
+
+	/**
+	 * Convenience wrapper used by {@link AHPFileSystemProvider.watch}:
+	 * runs `createResourceWatch` + `subscribe` and returns a handle that
+	 * surfaces `resourceWatch/changed` envelopes as
+	 * {@link IFileChange}[] events. Disposing the handle unsubscribes
+	 * the watch channel.
+	 */
+	watchResource(params: CommandMap['createResourceWatch']['params']): Promise<IRemoteWatchHandle> {
+		return createRemoteWatchHandle({
+			createResourceWatch: p => this.createResourceWatch(p),
+			subscribe: uri => this.subscribe(uri),
+			unsubscribe: uri => this.unsubscribe(uri),
+			onDidAction: this.onDidAction,
+		}, params);
 	}
 
 	/**
@@ -915,6 +1020,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					this._onDidNotification.fire({ type: msg.method, ...msg.params } as INotification);
 					break;
 				}
+				case 'otlp/exportLogs':
+					this._onDidReceiveOtlpLogs.fire(msg.params);
+					break;
+				case 'otlp/exportTraces':
+				case 'otlp/exportMetrics':
+					// Not recorded, yet
+					break;
 				default:
 					this._logService.trace(`[RemoteAgentHostProtocol] Unhandled method: ${msg.method}`);
 					break;
@@ -1110,6 +1222,59 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					});
 				return;
 			}
+			case 'resourceResolve': {
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				const resolveUri = URI.parse(p.uri as string);
+				return void gateAndHandle(resolveUri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: resolveUri.toString(), read: true }, async () => {
+					const stat = await this._fileService.stat(resolveUri);
+					const type = stat.isSymbolicLink && p.followSymlinks === false ? 'symlink' as const
+						: stat.isDirectory ? 'directory' as const
+							: 'file' as const;
+					return {
+						uri: resolveUri.toString(),
+						type,
+						...(stat.size !== undefined ? { size: stat.size } : {}),
+						...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+						...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+						...(stat.etag ? { etag: stat.etag } : {}),
+					};
+				});
+			}
+			case 'resourceMkdir': {
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				const mkdirUri = URI.parse(p.uri as string);
+				return void gateAndHandle(mkdirUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: mkdirUri.toString(), write: true }, async () => {
+					await this._fileService.createFolder(mkdirUri);
+					return {};
+				});
+			}
+			case 'resourceCopy': {
+				if (!p.source) { sendError(new Error('Missing source')); return; }
+				if (!p.destination) { sendError(new Error('Missing destination')); return; }
+				const sourceUri = URI.parse(p.source as string);
+				const destinationUri = URI.parse(p.destination as string);
+				return void (async () => {
+					try {
+						// Gate both source (read) and destination (write).
+						const [sourceOk, destOk] = await Promise.all([
+							this._permissionService.check(this._address, sourceUri, AgentHostPermissionMode.Read),
+							this._permissionService.check(this._address, destinationUri, AgentHostPermissionMode.Write),
+						]);
+						if (!sourceOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: sourceUri.toString(), read: true });
+							return;
+						}
+						if (!destOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: destinationUri.toString(), write: true });
+							return;
+						}
+						await this._fileService.copy(sourceUri, destinationUri, !p.failIfExists);
+						sendResult({});
+					} catch (err) {
+						sendError(err);
+					}
+				})();
+			}
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
 				sendError(new Error(`Unknown method: ${method}`));
@@ -1149,6 +1314,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+		}, this._clientId, 0);
+	}
+
+	private _updateSessionSyncEnabled(): void {
+		const enabled = !!this._configurationService.getValue<boolean>(SESSION_SYNC_ENABLED_SETTING_ID);
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSessionSyncEnabledConfigKey]: enabled },
 		}, this._clientId, 0);
 	}
 
