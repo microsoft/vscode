@@ -28,6 +28,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -318,6 +320,11 @@ class ChatEditingOverlayController {
 			activeEditorSignal.read(r); // signal
 
 			const editor = group.activeEditorPane;
+
+			if (!getCodeEditor(editor?.getControl())) {
+				return undefined;
+			}
+
 			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 			return uri;
@@ -394,6 +401,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 	constructor(
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 
 		const editorGroups = observableFromEvent(
@@ -405,6 +413,10 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 		const overlayWidgets = this._store.add(new DisposableMap<IEditorGroup>());
 
 		this._store.add(autorun(r => {
+
+			if (environmentService.isSessionsWindow) {
+				return;
+			}
 
 			const toDelete = new Set(overlayWidgets.keys());
 			const groups = editorGroups.read(r);

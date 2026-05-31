@@ -95,27 +95,36 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-arm64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallDeb();
+			const entryPoint = await context.installDeb(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallDeb();
+			}
 		}
 	});
 
 	context.test('desktop-linux-deb-armhf', ['linux', 'arm32', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-armhf');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallDeb();
+			const entryPoint = await context.installDeb(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallDeb();
+			}
 		}
 	});
 
 	context.test('desktop-linux-deb-x64', ['linux', 'x64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-x64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallDeb();
+			const entryPoint = await context.installDeb(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallDeb();
+			}
 		}
 	});
 
@@ -123,8 +132,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-rpm-arm64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallRpm();
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallRpm();
+			}
 		}
 	});
 
@@ -132,8 +144,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-rpm-armhf');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallRpm();
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallRpm();
+			}
 		}
 	});
 
@@ -141,8 +156,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-rpm-x64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallRpm();
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallRpm();
+			}
 		}
 	});
 
@@ -150,8 +168,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-snap-x64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installSnap(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallSnap();
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallSnap();
+			}
 		}
 	});
 
@@ -253,8 +274,7 @@ export function setup(context: TestContext) {
 			const window = await context.getPage(app.firstWindow());
 			await test.run(window);
 		} finally {
-			context.log('Closing the application');
-			await app.close();
+			await context.closeElectronApp(app);
 		}
 
 		test.validate();

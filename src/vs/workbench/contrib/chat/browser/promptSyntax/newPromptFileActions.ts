@@ -25,7 +25,7 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
@@ -38,6 +38,12 @@ export interface INewPromptOptions {
 	readonly targetFolder?: URI;
 	readonly targetStorage?: PromptsStorage;
 	readonly openFile?: (uri: URI) => Promise<ICodeEditor | undefined>;
+	/**
+	 * Override the file extension (e.g. `.md` for Claude rules instead of
+	 * `.instructions.md`). When set, the name picker uses this extension
+	 * instead of the default for the prompt type.
+	 */
+	readonly fileExtension?: string;
 }
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -83,7 +89,7 @@ class AbstractNewPromptFileAction extends Action2 {
 			storage = selectedFolder.storage;
 		}
 
-		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri);
+		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri, undefined, options?.fileExtension);
 		if (!fileName) {
 			return;
 		}
@@ -321,7 +327,7 @@ class NewSkillFileAction extends Action2 {
 					return localize('commands.new.skill.name.tooLong', "Skill name must be 64 characters or less");
 				}
 				// Per spec: lowercase alphanumeric and hyphens only
-				if (!/^[a-z0-9-]+$/.test(name)) {
+				if (!VALID_SKILL_NAME_REGEX.test(name)) {
 					return localize('commands.new.skill.name.invalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens");
 				}
 				if (name.startsWith('-') || name.endsWith('-')) {

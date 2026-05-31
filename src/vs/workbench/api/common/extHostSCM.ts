@@ -1026,6 +1026,24 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		sourceControls.push(sourceControl);
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
 
+		Event.once(sourceControl.onDidDispose)(() => {
+			this.logService.trace('ExtHostSCM#disposeSourceControl', extension.identifier.value, id, label, rootUri);
+
+			this._sourceControls.delete(sourceControl.handle);
+
+			const sourceControls = this._sourceControlsByExtension.get(extension.identifier);
+			if (sourceControls) {
+				const index = sourceControls.indexOf(sourceControl);
+				if (index !== -1) {
+					sourceControls.splice(index, 1);
+				}
+
+				if (sourceControls.length === 0) {
+					this._sourceControlsByExtension.delete(extension.identifier);
+				}
+			}
+		});
+
 		return sourceControl;
 	}
 

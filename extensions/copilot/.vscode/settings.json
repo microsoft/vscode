@@ -1,0 +1,145 @@
+{
+	"files.trimTrailingWhitespace": true,
+	"[typescript][typescriptreact][javascript]": {
+		"editor.insertSpaces": false,
+		"editor.formatOnSave": true,
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "always"
+		}
+	},
+	"[json]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true,
+		"files.insertFinalNewline": false
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[yaml]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[python]": {
+		"editor.defaultFormatter": "charliermarsh.ruff",
+		"editor.formatOnSave": true,
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "explicit"
+		}
+	},
+	"search.exclude": {
+		"**/*.egg-info/**/*": true,
+		"src/base/util/*.bpe": true,
+		"src/base/util/tokenizer_*.json": true,
+		"src/extension/chatSessions/vscode-node/test/fixtures/**": true,
+		"src/extension/completions-core/dist": true,
+		"src/extension/prompts/node/test/fixtures/**/*": true,
+		"src/extension/test/node/fixtures/**/*": true,
+		"src/platform/parser/test/node/fixtures/**/*": true,
+		"test/simulation/fixtures": true
+	},
+	"files.watcherExclude": {
+		".simulation": true,
+		".vscode-test": true,
+		".build": true,
+	},
+	"files.readonlyInclude": {
+		"src/util/vs/**": true,
+		"test/simulation/cache/base.sqlite": true
+	},
+	"git.branchProtection": [
+		"main",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash",
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	],
+	"typescript.preferences.quoteStyle": "single",
+	"typescript.format.enable": true,
+	"typescript.format.insertSpaceAfterCommaDelimiter": true,
+	"typescript.format.insertSpaceAfterSemicolonInForStatements": true,
+	"typescript.format.insertSpaceBeforeAndAfterBinaryOperators": true,
+	"typescript.format.insertSpaceAfterKeywordsInControlFlowStatements": true,
+	"typescript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": true,
+	"typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": false,
+	"typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": false,
+	"typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": false,
+	"typescript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": true,
+	"typescript.format.insertSpaceBeforeFunctionParenthesis": false,
+	"typescript.format.placeOpenBraceOnNewLineForFunctions": false,
+	"typescript.format.placeOpenBraceOnNewLineForControlBlocks": false,
+	"json.schemas": [
+		{
+			"fileMatch": [
+				"**/*.conversation.json"
+			],
+			"url": "./.vscode/conversation.schema.json"
+		},
+		{
+			"fileMatch": [
+				"**/*.state.json"
+			],
+			"url": "./.vscode/state.schema.json"
+		}
+	],
+	"git.detectSubmodules": false,
+	"githubPullRequests.upstreamRemote": "never",
+	"extension-test-runner.debugOptions": {
+		"outFiles": [
+			"${workspaceFolder}/dist/**/*.js"
+		]
+	},
+	"files.associations": {
+		"**/*.conversation.json": "jsonc"
+	},
+	"workbench.editorAssociations": {
+		// Use the default diff editor instead of the default custom editor view.
+		"{git,gitlens}:/**/*.w.json": "default",
+		"*.workspaceRecording.jsonl": "web-editor"
+	},
+	"editor.experimental.preferTreeSitter.typescript": false,
+	"editor.experimental.preferTreeSitter.regex": false,
+	"editor.experimental.preferTreeSitter.css": true,
+	"mochaExplorer.files": "dist/test-unit.js",
+	"mochaExplorer.ui": "tdd",
+	"mochaExplorer.timeout": 5000,
+	"web-editors.editorTypes": {
+		"ast.w": "https://microsoft.github.io/vscode-web-editor-text-tools/?editor=ast-viewer",
+		"textRange.w": "https://microsoft.github.io/vscode-web-editor-text-tools/?editor=selection-editor",
+		"jsonUi.w": "https://microsoft.github.io/vscode-web-editor-json-ui/",
+		"diff.w": "https://microsoft.github.io/vscode-web-editor-text-tools/?editor=diff",
+		"text.w": "https://microsoft.github.io/vscode-web-editor-text-tools/?editor=text",
+		"recording.w.json": "https://microsoft.github.io/vscode-workbench-recorder-viewer/",
+		"scoredEdits.w.json": "https://microsoft.github.io/vscode-workbench-recorder-viewer/?editRating",
+		"workspaceRecording.jsonl": "https://microsoft.github.io/vscode-workbench-recorder-viewer/?jsonl=true",
+	},
+	"explorer.fileNesting.patterns": {
+		"vscode.d.ts": "vscode.proposed.*.ts",
+	},
+	"git.diagnosticsCommitHook.enabled": true,
+	"git.diagnosticsCommitHook.sources": {
+		"*": "error",
+		"ts": "warning",
+		"eslint": "warning"
+	},
+	"githubPullRequests.codingAgent.enabled": true,
+	"githubPullRequests.codingAgent.uiIntegration": true,
+	"python-envs.defaultEnvManager": "ms-python.python:system",
+	"python-envs.pythonProjects": [],
+	"chat.tools.terminal.autoApprove": {
+		"npx vitest": true
+	},
+	"chat.agentSkillsLocations": {
+		".github/skills/.local": true,
+		".agents/skills/.local": true,
+		".claude/skills/.local": true,
+	}
+}
