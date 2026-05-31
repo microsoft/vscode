@@ -64,10 +64,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
 
+	private readonly _onDidCompleteAuthentication = this._register(new Emitter<void>());
+	readonly onDidCompleteAuthentication = this._onDidCompleteAuthentication.event;
+
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths (account/session changes, reconnect)
 		// happen silently in the background and should not flicker the UI.
+		//
+		// We still fire `onDidCompleteAuthentication` on every settle so
+		// consumers (e.g. the sessions list) can refresh in response to
+		// fresh credentials being pushed to the agent host — including the
+		// common startup race where the first pass settles with no token
+		// (locking `authenticationPending` to false) and a later pass
+		// finally pushes the real token.
+		if (!pending) {
+			this._onDidCompleteAuthentication.fire();
+		}
 		if (this._authenticationSettled) {
 			return;
 		}

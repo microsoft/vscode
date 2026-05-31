@@ -957,6 +957,18 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
 
+	/**
+	 * Fires every time an authentication pass completes (driven by
+	 * {@link setAuthenticationPending}(false)), regardless of the sticky
+	 * behavior of {@link authenticationPending}. Consumers use this to
+	 * refresh state that depends on the latest credentials having been
+	 * pushed to the agent host — even when the first auth pass settled
+	 * without resolving a token (e.g. before the user signed in), so the
+	 * `authenticationPending` observable has already locked to `false` and
+	 * subsequent successful passes do not produce a value change.
+	 */
+	readonly onDidCompleteAuthentication: Event<void>;
+
 	restartAgentHost(): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;

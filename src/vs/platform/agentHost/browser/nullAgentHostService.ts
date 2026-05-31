@@ -31,6 +31,7 @@ export class NullAgentHostService implements IAgentHostService {
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
+	readonly onDidCompleteAuthentication = Event.None;
 
 	get rootState(): IAgentSubscription<RootState> { return notSupported(); }
 

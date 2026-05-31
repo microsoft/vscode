@@ -50,6 +50,9 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
 
+	private readonly _onDidCompleteAuthentication = this._register(new Emitter<void>());
+	readonly onDidCompleteAuthentication: Event<void> = this._onDidCompleteAuthentication.event;
+
 	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
 	private _connectStarted = false;
 
@@ -115,6 +118,9 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	// ---- IAgentHostService local-only surface (stubs) -----------------------
 
 	setAuthenticationPending(pending: boolean): void {
+		if (!pending) {
+			this._onDidCompleteAuthentication.fire();
+		}
 		if (this._authenticationSettled) {
 			return;
 		}

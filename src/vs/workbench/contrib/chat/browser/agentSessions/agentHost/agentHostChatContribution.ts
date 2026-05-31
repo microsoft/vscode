@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -103,6 +104,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._authTokenCache.clear();
 			for (const controller of this._listControllers.values()) {
 				controller.resetCache();
+			}
+		}));
+
+		// Re-fetch session lists whenever an authentication pass completes.
+		// This catches the startup race where the first auth pass settles
+		// without resolving a token (e.g. before the GitHub session is
+		// ready); any initial `listSessions()` that fired in parallel will
+		// have rejected with `AHP_AUTH_REQUIRED` and left the chat session
+		// list empty. Once a later pass pushes a real token the controllers
+		// would otherwise stay empty until the user forced a refresh
+		// (e.g. by starting a new session).
+		this._register(this._agentHostService.onDidCompleteAuthentication(() => {
+			for (const controller of this._listControllers.values()) {
+				controller.resetCache();
+				void controller.refresh(CancellationToken.None);
 			}
 		}));
 

@@ -100,6 +100,19 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			this._cacheInitialized = true;
 			this._refreshSessions();
 		}));
+
+		// Re-fetch sessions whenever an authentication pass completes — even
+		// after the sticky `authenticationPending` observable has locked.
+		// This covers the startup race where the very first auth pass
+		// settles with no token (e.g. the GitHub session isn't ready yet)
+		// and a later pass finally pushes the real token. Without this, the
+		// initial `_refreshSessions()` above silently fails with
+		// `AHP_AUTH_REQUIRED` and we never retry until some unrelated event
+		// (e.g. the user starting a new session) forces a refresh.
+		this._register(this._agentHostService.onDidCompleteAuthentication(() => {
+			this._cacheInitialized = true;
+			this._refreshSessions();
+		}));
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
