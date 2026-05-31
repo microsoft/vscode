@@ -115,7 +115,6 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			});
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
-
 		remoteAgentService.getEnvironment().then(async env => {
 			this._os = env?.os || OS;
 			this._updateDefaultProfile();

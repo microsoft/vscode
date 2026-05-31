@@ -51,8 +51,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 	private _ensurePtyHost() {
 		if (!this.__connection) {
-			const [_, _2, store] = this._startPtyHost();
-			this.ptyHostStore.value = store;
+			this._startPtyHost();
 		}
 	}
 
@@ -89,7 +88,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 
-	private readonly ptyHostStore = this._register(new MutableDisposable());
+	private readonly _ptyHostStore = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly _ptyHostStarter: IPtyHostStarter,
@@ -141,11 +140,12 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		}
 	}
 
-	private _startPtyHost(): [IPtyHostConnection, IPtyService, DisposableStore] {
+	private _startPtyHost(): void {
 		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
 		const store = new DisposableStore();
 		store.add(connection.store);
+		this._ptyHostStore.value = store;
 
 		// Log a full stack trace which will tell the exact reason the pty host is starting up
 		if (this._logService.getLevel() === LogLevel.Trace) {
@@ -154,8 +154,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
-		const heartbeatListener = heartbeatService.onBeat(() => this._handleHeartbeat());
-		store.add(heartbeatListener);
+		store.add(heartbeatService.onBeat(() => this._handleHeartbeat()));
 		this._handleHeartbeat(true);
 
 		// Handle exit
@@ -195,8 +194,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 			}
 		}));
 		this._refreshIgnoreProcessNames();
-
-		return [connection, proxy, store];
 	}
 
 	async createProcess(
@@ -367,13 +364,13 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	async restartPtyHost(): Promise<void> {
 		this._disposePtyHost();
 		this._isResponsive = true;
-		const [_, _2, store] = this._startPtyHost();
-		this.ptyHostStore.value = store;
+		this._startPtyHost();
 	}
 
 	private _disposePtyHost(): void {
+		this._clearHeartbeatTimeouts();
 		this._proxy.shutdownAll();
-		this.ptyHostStore.value = undefined;
+		this._ptyHostStore.clear();
 	}
 
 	private _handleHeartbeat(isConnecting?: boolean) {
