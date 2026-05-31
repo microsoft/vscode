@@ -208,6 +208,8 @@ export interface IMakeChatRequestOptions {
 	 * Used to detect when the WebSocket stateful marker predates a summary.
 	 */
 	summarizedAtRoundId?: string;
+	/** Append a Responses API compaction trigger input item to this request. */
+	triggerResponsesApiCompaction?: boolean;
 	/** Enable retrying once on simple network errors like ECONNRESET. */
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
@@ -521,7 +523,6 @@ function networkRequest(
 		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
 	}
 }
-
 export function canRetryOnceNetworkError(reason: any) {
 	return [
 		'ECONNRESET',

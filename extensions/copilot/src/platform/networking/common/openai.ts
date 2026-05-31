@@ -108,10 +108,7 @@ export interface APIErrorResponse {
 }
 
 export const openAIContextManagementCompactionType = 'compaction';
-
-export const modelsWithoutResponsesContextManagement = new Set(['gpt-5', 'gpt-5.1', 'gpt-5.2']);
-
-
+export const openAIContextManagementCompactionTriggerType = 'compaction_trigger';
 
 export interface OpenAIContextManagement {
 	type: typeof openAIContextManagementCompactionType;
@@ -123,6 +120,10 @@ export interface OpenAIContextManagementResponse {
 	encrypted_content: string;
 	type: typeof openAIContextManagementCompactionType;
 	id: string;
+}
+
+export interface OpenAIContextManagementCompactionTrigger {
+	type: typeof openAIContextManagementCompactionTriggerType;
 }
 
 
