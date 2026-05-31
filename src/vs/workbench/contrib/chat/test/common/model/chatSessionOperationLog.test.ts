@@ -685,15 +685,21 @@ suite('ChatSessionOperationLog', () => {
 			assert.strictEqual(parsed.label, 'ok');
 		});
 
-		test('makeTruncatingReplacer respects total budget', () => {
+		test('makeTruncatingReplacer respects total budget without overshooting', () => {
+			const STRING_CAP = 1024 * 1024;
+			const TOTAL_CAP = 1024 * 1024;
 			const medium = 'y'.repeat(200 * 1024); // under per-string cap
 			const obj: any = {};
 			for (let i = 0; i < 20; i++) {
 				obj[`k${i}`] = medium;
 			}
-			const json = JSON.stringify(obj, Adapt.makeTruncatingReplacer(1024 * 1024, 1024 * 1024));
+			const json = JSON.stringify(obj, Adapt.makeTruncatingReplacer(STRING_CAP, TOTAL_CAP));
 			const parsed = JSON.parse(json);
-			assert.ok(json.length < 2 * 1024 * 1024, `expected < 2 MiB, got ${json.length}`);
+			// Sum of preserved strings must not exceed the total budget.
+			const preservedChars = Object.values(parsed)
+				.filter((v): v is string => typeof v === 'string' && v === medium)
+				.reduce((sum, v) => sum + v.length, 0);
+			assert.ok(preservedChars <= TOTAL_CAP, `preserved ${preservedChars} chars exceeded budget ${TOTAL_CAP}`);
 			// Leading keys intact, later replaced with total-budget marker
 			assert.strictEqual(parsed.k0, medium);
 			assert.ok(Object.values(parsed).some(v => typeof v === 'string' && (v as string).includes('entry exceeded size budget')));

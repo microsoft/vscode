@@ -217,20 +217,26 @@ type Entry =
 const LF = VSBuffer.fromString('\n');
 
 /**
- * Per-string cap applied when {@link stringifyEntryWithFallback} retries after
- * `JSON.stringify` throws `RangeError: Invalid string length` (V8's max string
- * length is ~512 MiB on 64-bit). Any single string longer than this is
- * replaced with a marker on retry. Generous so it triggers only on outliers.
+ * Per-string cap (in UTF-16 code units, matching `string.length`) applied when
+ * {@link stringifyEntryWithFallback} retries after `JSON.stringify` throws
+ * `RangeError: Invalid string length` (V8's max string length is ~512 MiB on
+ * 64-bit). Any single string longer than this is replaced with a marker on
+ * retry. Generous so it triggers only on outliers.
  */
-export const PERSIST_ENTRY_MAX_STRING_BYTES = 1 * 1024 * 1024;
+export const PERSIST_ENTRY_MAX_STRING_CHARS = 1 * 1024 * 1024;
 
 /**
- * Total-size budget for the retry of {@link stringifyEntryWithFallback}. Once
+ * Total-size budget (sum of `string.length` for tracked strings, in UTF-16
+ * code units) for the retry of {@link stringifyEntryWithFallback}. Once the
  * cumulative tracked size during serialization exceeds this, remaining values
- * are replaced with a marker. Sized well under V8's max string length so the
- * retry is guaranteed to succeed even on pathologically large entries.
+ * are replaced with a marker.
+ *
+ * This is an approximation: JSON escaping, property keys, and non-string
+ * payload are not counted, so the actual output may be moderately larger.
+ * The cap is sized well under V8's max string length to leave ample headroom
+ * for that overhead.
  */
-export const PERSIST_ENTRY_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+export const PERSIST_ENTRY_MAX_TOTAL_CHARS = 100 * 1024 * 1024;
 
 const TRUNCATION_MARKER_PREFIX = '[VS Code: value truncated for persistence';
 const TRUNCATION_MARKER_TOTAL = `${TRUNCATION_MARKER_PREFIX}; entry exceeded size budget]`;
@@ -252,27 +258,32 @@ export function stringifyEntryWithFallback(entry: unknown): string {
 		if (!(e instanceof RangeError)) {
 			throw e;
 		}
-		return JSON.stringify(entry, makeTruncatingReplacer(PERSIST_ENTRY_MAX_STRING_BYTES, PERSIST_ENTRY_MAX_TOTAL_BYTES));
+		return JSON.stringify(entry, makeTruncatingReplacer(PERSIST_ENTRY_MAX_STRING_CHARS, PERSIST_ENTRY_MAX_TOTAL_CHARS));
 	}
 }
 
 /**
  * Exported for testing only. Builds the stateful `JSON.stringify` replacer
  * used by {@link stringifyEntryWithFallback} on its retry path.
+ *
+ * Sizes are tracked in UTF-16 code units (`string.length`); JSON escaping,
+ * property keys, and non-string payload are not counted.
  */
-export function makeTruncatingReplacer(maxStringBytes: number, maxTotalBytes: number): (key: string, value: unknown) => unknown {
+export function makeTruncatingReplacer(maxStringChars: number, maxTotalChars: number): (key: string, value: unknown) => unknown {
 	let total = 0;
 	return (_key, val) => {
-		if (total >= maxTotalBytes) {
-			return TRUNCATION_MARKER_TOTAL;
-		}
 		if (typeof val === 'string') {
-			if (val.length > maxStringBytes) {
-				const marker = `${TRUNCATION_MARKER_PREFIX}; original ${val.length} chars]`;
-				total += marker.length + 2;
-				return marker;
+			let emitted: string;
+			if (val.length > maxStringChars) {
+				emitted = `${TRUNCATION_MARKER_PREFIX}; original ${val.length} chars]`;
+			} else if (total + val.length + 2 > maxTotalChars) {
+				emitted = TRUNCATION_MARKER_TOTAL;
+			} else {
+				total += val.length + 2;
+				return val;
 			}
-			total += val.length + 2;
+			total += emitted.length + 2;
+			return emitted;
 		}
 		return val;
 	};
