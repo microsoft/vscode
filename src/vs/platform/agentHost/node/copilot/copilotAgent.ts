@@ -493,7 +493,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
-			env['RUBBER_DUCK_AGENT'] = 'true';
 
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
@@ -1547,6 +1546,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				tools: [...shellTools, ...callbacks.clientTools],
+				// Pass the GitHub token at the session level. The SDK's
+				// client-level `gitHubToken` authenticates the CLI process,
+				// but each session also needs its own token resolved into a
+				// GitHub identity (login, Copilot plan, endpoints) to drive
+				// model routing and quota — without this the session
+				// errors with "Session was not created with authentication
+				// info or custom provider" on first send. See #318693.
+				gitHubToken: this._githubToken,
 				// Enable infinite sessions so the SDK provisions a workspace
 				// directory (containing `plan.md`, `checkpoints/`, `files/`).
 				// The workspace is required for plan mode to work — without

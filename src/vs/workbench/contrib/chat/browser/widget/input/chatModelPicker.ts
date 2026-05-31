@@ -1317,10 +1317,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
@@ -1384,7 +1381,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();

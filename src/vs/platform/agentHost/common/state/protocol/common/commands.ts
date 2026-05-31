@@ -96,7 +96,7 @@ export interface InitializeResult {
 	/** Suggested default directory for remote filesystem browsing */
 	defaultDirectory?: URI;
 	/**
-	 * Characters that, when typed in a {@link UserMessage} input, SHOULD cause
+	 * Characters that, when typed in a {@link Message} input, SHOULD cause
 	 * the client to issue a `completions` request with
 	 * {@link CompletionItemKind.UserMessage}. Typically includes characters like
 	 * `'@'` or `'/'`.
@@ -351,6 +351,7 @@ export interface ResourceReadResult {
  * How {@link ResourceWriteParams.data} is placed within the target file.
  *
  * Each mode interprets {@link ResourceWriteParams.position} differently:
+ *
  * - `truncate` (default): rooted at the **start** of the file. The file is
  *   truncated at `position` (0 by default) and `data` is written from that
  *   offset, so the resulting file is `existing[0..position] + data`. With

@@ -15,7 +15,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
-import { ISandboxDependencyStatus, IWindowsMxcFilesystemPolicy } from './sandboxHelperService.js';
+import { ISandboxDependencyStatus, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
@@ -78,6 +78,8 @@ export interface ITerminalSandboxEngineHost {
 	getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined>;
 	/** Resolves host environment variables needed by the Windows MXC process container. */
 	getWindowsMxcEnvironment(): Promise<string[] | undefined>;
+	/** Builds a Windows MXC payload from a target-environment MXC sandbox policy. */
+	buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined>;
 	/**
 	 * Returns the effective value of a sandbox-related configuration setting,
 	 * or `undefined` when the setting is not configured. Implementations are
@@ -552,6 +554,9 @@ export class TerminalSandboxEngine extends Disposable {
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
 			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
+		const windowsSchemaVersion = this._os === OperatingSystem.Windows
+			? this._getSettingValue<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
+			: undefined;
 		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
@@ -565,11 +570,11 @@ export class TerminalSandboxEngine extends Disposable {
 			const filesystemPolicy = await this._getWindowsMxcFilesystemPolicy();
 			const env = await this._getWindowsMxcEnvironment();
 			allowWritePaths = await this._resolveFileSystemPaths([
-				...this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths),
+				...this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
 				...filesystemPolicy.readwritePaths
 			]);
-			allowReadPaths = await this._resolveFileSystemPaths([...(await this._updateAllowReadPathsWithAllowWrite(windowsFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths)), ...filesystemPolicy.readonlyPaths]);
-			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(windowsFileSystemSetting.denyRead));
+			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
+			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
 			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
@@ -582,18 +587,19 @@ export class TerminalSandboxEngine extends Disposable {
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(linuxFileSystemSetting.denyRead));
 			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
 		}
-		const sandboxSettings = this._os === OperatingSystem.Windows ? this._windowsMxcRuntime.createConfig({
+		const sandboxSettings = this._os === OperatingSystem.Windows ? await this._windowsMxcRuntime.createConfig({
 			command: this._commandLine ?? '',
 			shell: this._commandShell,
 			cwd: this._commandCwd ?? this._getDefaultWindowsMxcCwd(),
 			tempDir: this._tempDir,
+			schemaVersion: windowsSchemaVersion,
 			allowNetwork,
 			networkDomains: this.getResolvedNetworkDomains(),
 			allowReadPaths,
 			allowWritePaths,
 			denyReadPaths,
 			env: this._windowsMxcEnvironment ?? [],
-		}) : {
+		}, this._buildSandboxPayload) : {
 			network: allowNetwork ? { allowedDomains: [], deniedDomains: [], enabled: false } : this.getResolvedNetworkDomains(),
 			filesystem: {
 				denyRead: denyReadPaths,
@@ -610,6 +616,10 @@ export class TerminalSandboxEngine extends Disposable {
 		await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
 		return this._sandboxConfigPath;
 	}
+
+	private readonly _buildSandboxPayload = (commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined> => {
+		return this._host.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
+	};
 
 	private _getCommandRuntimeFileSystemPaths(runtimeSetting: Record<string, unknown>, key: 'allowRead' | 'allowWrite'): string[] {
 		const filesystem = runtimeSetting.filesystem;

@@ -200,9 +200,9 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 
 		async resourceRead(): Promise<ResourceReadResult> { return { data: '', encoding: ContentEncoding.Utf8 }; }
 		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceCopy(): Promise<{}> { return {}; }
 		async resourceDelete(): Promise<{}> { return {}; }
 		async resourceMove(): Promise<{}> { return {}; }
-		async resourceCopy(): Promise<{}> { return {}; }
 		async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 			const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri)!;
 			return { uri: uri.toString(), type: ResourceType.File };
