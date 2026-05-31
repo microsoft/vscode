@@ -168,7 +168,7 @@ interface IItemHeightChangeParams {
 }
 
 export function shouldScheduleInitialHeightChange(normalizedHeight: number, allocatedHeight: number | undefined): boolean {
-	return typeof allocatedHeight !== 'number' || normalizedHeight > Math.ceil(allocatedHeight);
+	return typeof allocatedHeight !== 'number' || normalizedHeight > allocatedHeight;
 }
 
 const forceVerboseLayoutTracing = false

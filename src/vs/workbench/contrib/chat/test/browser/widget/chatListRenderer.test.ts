@@ -21,7 +21,7 @@ suite('ChatListRenderer', () => {
 			], [
 				true,
 				false,
-				false,
+				true,
 				true,
 				false,
 			]);
