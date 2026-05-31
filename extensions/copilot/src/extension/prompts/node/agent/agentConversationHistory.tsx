@@ -80,11 +80,16 @@ export class AgentConversationHistory extends PromptElement<AgentConversationHis
 
 			const metadata = turn.responseChatResult?.metadata as IResultMetadata | undefined;
 			const isSummaryTurn = i === summaryTurnIndex;
+			// Read both the summary text and the rounds we keep from one source so the
+			// summary index stays valid for the slice below. `turn.rounds` is the same
+			// reference as `metadata.toolCallRounds` whenever the latter is non-empty,
+			// which is always the case on a summary turn (the summary lives on a real round).
+			const rounds = turn.rounds;
 
 			if (isSummaryTurn) {
 				// The summary stands in for this turn's user message and the rounds up
 				// to and including the summarized one.
-				history.push(<UserMessage><Tag name='conversation-summary'>{contextHistory[i].rounds[summaryRoundIndex].summary}</Tag></UserMessage>);
+				history.push(<UserMessage><Tag name='conversation-summary'>{rounds[summaryRoundIndex].summary}</Tag></UserMessage>);
 			} else if (metadata?.renderedUserMessage) {
 				history.push(<UserMessage><Chunk>{renderedMessageToTsxChildren(metadata.renderedUserMessage, false)}</Chunk></UserMessage>);
 			} else {
@@ -93,7 +98,7 @@ export class AgentConversationHistory extends PromptElement<AgentConversationHis
 
 			if (Array.isArray(metadata?.toolCallRounds) && metadata.toolCallRounds?.length > 0) {
 				// On the summarized turn, only the rounds after the summary remain.
-				const toolCallRounds = isSummaryTurn ? metadata.toolCallRounds.slice(summaryRoundIndex + 1) : metadata.toolCallRounds;
+				const toolCallRounds = isSummaryTurn ? rounds.slice(summaryRoundIndex + 1) : metadata.toolCallRounds;
 				if (toolCallRounds.length > 0) {
 					// If a tool call limit is exceeded, the tool call from this turn will
 					// have been aborted and any result should be found in the next turn.
