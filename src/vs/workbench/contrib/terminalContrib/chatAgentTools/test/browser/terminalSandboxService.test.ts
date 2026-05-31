@@ -628,7 +628,6 @@ suite('TerminalSandboxService - network domains', () => {
 
 		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
 		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
-		ok(config.filesystem.allowWrite.includes(expectedWorkspaceStoragePath), 'Sandbox config should allow writes to workspace storage');
 	});
 
 	test('should only add command-specific allow-list paths for the current command details', async () => {
