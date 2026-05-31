@@ -10,19 +10,17 @@ import { InlineChatController } from './inlineChatController.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class InlineChatNotebookContribution {
 
-	private readonly _store = new DisposableStore();
+	readonly #store = new DisposableStore();
 
 	constructor(
 		@IInlineChatSessionService sessionService: IInlineChatSessionService,
-		@IEditorService editorService: IEditorService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
 
-		this._store.add(sessionService.onWillStartSession(newSessionEditor => {
+		this.#store.add(sessionService.onWillStartSession(newSessionEditor => {
 			const candidate = CellUri.parse(newSessionEditor.getModel().uri);
 			if (!candidate) {
 				return;
@@ -51,6 +49,6 @@ export class InlineChatNotebookContribution {
 	}
 
 	dispose(): void {
-		this._store.dispose();
+		this.#store.dispose();
 	}
 }

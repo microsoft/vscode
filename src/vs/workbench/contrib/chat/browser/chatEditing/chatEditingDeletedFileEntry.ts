@@ -199,6 +199,10 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 		await this._fileService.writeFile(this.modifiedURI, VSBuffer.fromString(this._originalContent));
 	}
 
+	resetEditTrackerToInitialContent(): Promise<void> {
+		return Promise.resolve();
+	}
+
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
 		// A deleted file is never identical to its original (unless original was empty)
 		return this._originalContent === '';

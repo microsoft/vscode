@@ -139,8 +139,14 @@ export interface ICwdDetectionCapability {
 	readonly type: TerminalCapability.CwdDetection;
 	readonly onDidChangeCwd: Event<string>;
 	readonly cwds: string[];
+	/**
+	 * Whether the current cwd came from a trusted source. This is `true` only when the cwd was
+	 * reported by the VS Code shell integration with a valid nonce. OSC 7, OSC 9;9 and OSC 1337
+	 * cwd updates are always considered untrusted because their protocols have no nonce.
+	 */
+	readonly isTrusted: boolean;
 	getCwd(): string;
-	updateCwd(cwd: string): void;
+	updateCwd(cwd: string, isTrusted?: boolean): void;
 }
 
 export interface IShellEnvDetectionCapability {

@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { IDebugSession } from '../../common/debug.js';
+import { IDebugSession, IInstructionBreakpoint } from '../../common/debug.js';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from '../../common/debugModel.js';
 import { MockDebugStorage } from './mockDebug.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -25,6 +25,119 @@ suite('DebugModel', () => {
 			const strigified = JSON.stringify(fbp);
 			const parsed = JSON.parse(strigified);
 			assert.equal(parsed.id, fbp.getId());
+		});
+	});
+
+	suite('InstructionBreakpoint', () => {
+		function createModel(disposable: DisposableStore): DebugModel {
+			const storage = disposable.add(new TestStorageService());
+			const model = new DebugModel(
+				disposable.add(new MockDebugStorage(storage)),
+				upcastPartial<ITextFileService>({ isDirty: (_: unknown) => false }),
+				undefined!,
+				new NullLogService()
+			);
+			disposable.add(model);
+			return model;
+		}
+
+		// Regression test for microsoft/vscode#289678: if the debug adapter hands
+		// out a new `instructionReference` for the same memory location (e.g.
+		// after a symbol reload or certain stepping operations), removal by
+		// reference+offset must still succeed when the caller supplies the
+		// resolved address.
+		test('removeInstructionBreakpoints prefers address match when instructionReference has changed', () => {
+			const disposable = new DisposableStore();
+			try {
+				const model = createModel(disposable);
+				const address = BigInt(0x1000);
+				model.addInstructionBreakpoint({
+					instructionReference: 'oldRef',
+					offset: 0,
+					address,
+					canPersist: false,
+					enabled: true,
+					hitCondition: undefined,
+					condition: undefined,
+					logMessage: undefined,
+				});
+
+				assert.strictEqual(model.getInstructionBreakpoints().length, 1);
+
+				// Simulate the disassembly view asking for removal after the
+				// debug adapter handed out a new instruction reference.
+				model.removeInstructionBreakpoints('newRef', 0, address);
+
+				assert.strictEqual(model.getInstructionBreakpoints().length, 0);
+			} finally {
+				disposable.dispose();
+			}
+		});
+
+		test('removeInstructionBreakpoints falls back to instructionReference+offset when address not supplied', () => {
+			const disposable = new DisposableStore();
+			try {
+				const model = createModel(disposable);
+				model.addInstructionBreakpoint({
+					instructionReference: 'ref',
+					offset: 4,
+					address: BigInt(0x2000),
+					canPersist: false,
+					enabled: true,
+					hitCondition: undefined,
+					condition: undefined,
+					logMessage: undefined,
+				});
+
+				// Non-matching reference leaves the breakpoint in place.
+				model.removeInstructionBreakpoints('other', 4);
+				assert.strictEqual(model.getInstructionBreakpoints().length, 1);
+
+				// Matching reference+offset removes it.
+				model.removeInstructionBreakpoints('ref', 4);
+				assert.strictEqual(model.getInstructionBreakpoints().length, 0);
+			} finally {
+				disposable.dispose();
+			}
+		});
+
+		test('removeInstructionBreakpoints with only address removes the matching entry and leaves others', () => {
+			const disposable = new DisposableStore();
+			try {
+				const model = createModel(disposable);
+				const keep: IInstructionBreakpoint[] = [];
+
+				model.addInstructionBreakpoint({
+					instructionReference: 'refA',
+					offset: 0,
+					address: BigInt(0x3000),
+					canPersist: false,
+					enabled: true,
+					hitCondition: undefined,
+					condition: undefined,
+					logMessage: undefined,
+				});
+				model.addInstructionBreakpoint({
+					instructionReference: 'refB',
+					offset: 0,
+					address: BigInt(0x4000),
+					canPersist: false,
+					enabled: true,
+					hitCondition: undefined,
+					condition: undefined,
+					logMessage: undefined,
+				});
+
+				model.removeInstructionBreakpoints(undefined, undefined, BigInt(0x3000));
+
+				const remaining = model.getInstructionBreakpoints();
+				assert.strictEqual(remaining.length, 1);
+				assert.strictEqual(remaining[0].address, BigInt(0x4000));
+				keep.push(...remaining);
+				assert.strictEqual(keep.length, 1);
+			} finally {
+				disposable.dispose();
+			}
 		});
 	});
 

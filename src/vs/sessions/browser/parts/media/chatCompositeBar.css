@@ -1,0 +1,165 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-composite-bar {
+	display: flex;
+	align-items: center;
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+	padding: 0 4px;
+	height: 35px;
+	flex-shrink: 0;
+	overflow: hidden;
+	container-type: inline-size;
+}
+
+/* The ScrollableElement wrapper holding the tabs is the shrinkable flex item */
+.chat-composite-bar > .monaco-scrollable-element {
+	flex: 0 1 auto;
+	min-width: 0;
+	height: 100%;
+}
+
+.chat-composite-bar-tabs {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	gap: 0;
+}
+
+.chat-composite-bar-inline-toolbar {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-toolbar {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: auto;
+	padding-left: 4px;
+}
+
+.chat-composite-bar.chat-composite-bar-toolbar-floating {
+	position: absolute;
+	top: 0px;
+	right: 0px;
+	container-type: unset;
+}
+
+/* Base tab: preserve chat title casing while keeping the same pill treatment */
+.chat-composite-bar-tab {
+	display: flex;
+	align-items: center;
+	position: relative;
+	padding: 0 8px;
+	cursor: pointer;
+	color: var(--chat-tab-inactive-foreground);
+	font-weight: 500;
+	font-size: 12px;
+	line-height: 22px;
+	height: 26px;
+	border-radius: 4px;
+	user-select: none;
+	flex-shrink: 0;
+	max-width: min(200px, 40cqi);
+}
+
+.chat-composite-bar-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-composite-bar-tab:hover {
+	color: var(--chat-tab-active-foreground);
+}
+
+/* Active state: background container instead of underline — mirrors auxiliarybar checked */
+.session-view .chat-composite-bar-tab.active {
+	color: var(--chat-tab-active-foreground);
+}
+
+.session-view.is-active .chat-composite-bar-tab.active {
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
+}
+
+/* Reduce right padding when close button is present to avoid excess spacing */
+.chat-composite-bar-tab:has(.chat-composite-bar-tab-actions) {
+	padding-right: 2px;
+}
+
+/* Indicator: rendered inline between the label and the close action.
+	Shows a small blue dot for unread, a yellow dot when input is needed,
+	or a spinner for in-progress.
+	Only one mode is set on the element at a time (mutually exclusive in JS). */
+.chat-composite-bar-tab-indicator {
+	display: none;
+	width: 16px;
+	height: 16px;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	flex-shrink: 0;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator {
+	display: flex;
+}
+
+.chat-composite-bar-tab-indicator-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before,
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before {
+	background-color: var(--vscode-textLink-foreground);
+}
+
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
+	background-color: var(--vscode-list-warningForeground);
+}
+
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
+	font-size: 12px;
+}
+
+.chat-composite-bar-tab:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Close action — always visible, like the status indicator */
+.chat-composite-bar-tab-actions {
+	display: flex;
+	margin-left: 2px;
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label {
+	width: 16px;
+	height: 16px;
+	border-radius: 4px;
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}

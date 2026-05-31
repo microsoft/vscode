@@ -20,7 +20,7 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 	constructor(
 		@IStateReadService private readonly stateReadonlyService: IStateReadService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
+		@INativeEnvironmentService protected readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {

@@ -5,10 +5,9 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isEqual, relativePath } from '../../../../../base/common/resources.js';
@@ -20,7 +19,6 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -43,10 +41,16 @@ IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any
 
 If the tool returns an error, retry with corrected input - ensure the file path is correct, the line content matches the actual file content, and the symbol name appears in that line.`;
 
-export class UsagesTool extends Disposable implements IToolImpl {
+/**
+ * Static description that does not depend on the set of registered reference
+ * providers, so it stays byte-stable across requests as language extensions
+ * activate during a turn.
+ */
+const StaticModelDescription = BaseModelDescription + `
 
-	private readonly _onDidUpdateToolData = this._store.add(new Emitter<void>());
-	readonly onDidUpdateToolData = this._onDidUpdateToolData.event;
+If the file's language has no reference provider registered, the tool returns an error.`;
+
+export class UsagesTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -56,37 +60,25 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
-
-		this._store.add(Event.debounce(
-			this._languageFeaturesService.referenceProvider.onDidChange,
-			() => { },
-			2000
-		)((() => this._onDidUpdateToolData.fire())));
 	}
 
 	getToolData(): IToolData {
-		const languageIds = this._languageFeaturesService.referenceProvider.registeredLanguageIds;
+		return this._buildToolData(
+			StaticModelDescription,
+			localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
+		);
+	}
 
-		let modelDescription = BaseModelDescription;
-		if (languageIds.has('*')) {
-			modelDescription += '\n\nSupported for all languages.';
-		} else if (languageIds.size > 0) {
-			const sorted = [...languageIds].sort();
-			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
-		} else {
-			modelDescription += '\n\nNo languages currently have reference providers registered.';
-		}
-
+	private _buildToolData(modelDescription: string, userDescription: string): IToolData {
 		return {
 			id: UsagesToolId,
 			toolReferenceName: 'usages',
 			canBeReferencedInPrompt: false,
 			icon: ThemeIcon.fromId(Codicon.references.id),
 			displayName: localize('tool.usages.displayName', 'List Code Usages'),
-			userDescription: localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
+			userDescription,
 			modelDescription,
 			source: ToolDataSource.Internal,
-			when: ContextKeyExpr.has('config.chat.tools.usagesTool.enabled'),
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -123,7 +115,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as ISymbolToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService);
+		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}
@@ -316,16 +308,6 @@ export class UsagesToolContribution extends Disposable implements IWorkbenchCont
 		super();
 
 		const usagesTool = this._store.add(instantiationService.createInstance(UsagesTool));
-
-		let registration: IDisposable | undefined;
-		const registerUsagesTool = () => {
-			registration?.dispose();
-			toolsService.flushToolUpdates();
-			const toolData = usagesTool.getToolData();
-			registration = toolsService.registerTool(toolData, usagesTool);
-		};
-		registerUsagesTool();
-		this._store.add(usagesTool.onDidUpdateToolData(registerUsagesTool));
-		this._store.add({ dispose: () => registration?.dispose() });
+		this._store.add(toolsService.registerTool(usagesTool.getToolData(), usagesTool));
 	}
 }

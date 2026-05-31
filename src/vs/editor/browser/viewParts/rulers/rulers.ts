@@ -34,9 +34,6 @@ export class Rulers extends ViewPart {
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	// --- begin event handlers
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parse, YamlNode, YamlScalarNode, YamlMapNode, YamlSequenceNode, YamlParseError } from '../../common/yaml.js';
+import { parse, parseFrontMatter, parseCommaSeparatedList, YamlNode, YamlScalarNode, YamlMapNode, YamlSequenceNode, YamlParseError } from '../../common/yaml.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 // Helper to parse and assert no errors
@@ -719,6 +719,22 @@ suite('YAML Parser', () => {
 			assertScalar(input, map.properties[0].value, { value: 'John' });
 			assertScalar(input, map.properties[1].value, { value: '30' });
 		});
+
+		test('multiple --- document separators: only first document is parsed', () => {
+			const input = [
+				'---',
+				'key1: value1',
+				'key2: value2',
+				'---',
+				'key3: value3',
+			].join('\n');
+			const node = parseOk(input);
+			const map = assertMap(node, 2);
+			assertScalar(input, map.properties[0].key, { value: 'key1' });
+			assertScalar(input, map.properties[0].value, { value: 'value1' });
+			assertScalar(input, map.properties[1].key, { value: 'key2' });
+			assertScalar(input, map.properties[1].value, { value: 'value2' });
+		});
 	});
 
 	suite('Old test suite', () => {
@@ -1127,6 +1143,192 @@ suite('YAML Parser', () => {
 			const node = parse(input, errors, { allowDuplicateKeys: true });
 			assertMap(node, 2);
 			assert.strictEqual(errors.length, 0);
+		});
+	});
+
+	suite('parseMarkdown', () => {
+
+		test('no frontmatter returns undefined header and full input as body', () => {
+			const input = 'Just some markdown text\nwithout frontmatter.';
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.strictEqual(result.header, undefined);
+			assert.strictEqual(result.body, input);
+		});
+
+		test('empty input returns undefined header and empty body', () => {
+			const result = parseFrontMatter('');
+			assert.ok(result);
+			assert.strictEqual(result.header, undefined);
+			assert.strictEqual(result.body, '');
+		});
+
+		test('frontmatter with body', () => {
+			const input = [
+				'---',
+				'title: Hello',
+				'author: World',
+				'---',
+				'# Heading',
+				'Body text here.',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			const map = assertMap(result.header, 2);
+			assert.strictEqual((map.properties[0].value as YamlScalarNode).value, 'Hello');
+			assert.strictEqual((map.properties[1].value as YamlScalarNode).value, 'World');
+			assert.strictEqual(result.getStringValue('title'), 'Hello');
+			assert.strictEqual(result.getStringValue('author'), 'World');
+			assert.strictEqual(result.body, '# Heading\nBody text here.');
+		});
+
+		test('frontmatter only, no body', () => {
+			const input = [
+				'---',
+				'key: value',
+				'---',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			const map = assertMap(result.header, 1);
+			assert.strictEqual((map.properties[0].value as YamlScalarNode).value, 'value');
+			assert.strictEqual(result.getStringValue('key'), 'value');
+			assert.strictEqual(result.body, '');
+		});
+
+		test('empty frontmatter strips delimiters', () => {
+			const input = [
+				'---',
+				'---',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.strictEqual(result.header, undefined);
+			assert.strictEqual(result.body, '');
+		});
+
+		test('comment-only frontmatter strips delimiters and preserves body', () => {
+			const input = [
+				'---',
+				'# note',
+				'---',
+				'Body text here.',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.strictEqual(result.header, undefined);
+			assert.strictEqual(result.body, 'Body text here.');
+		});
+
+		test('getStringValue returns the scalar for a known key', () => {
+			const input = [
+				'---',
+				'name: my-agent',
+				'tools: foo, bar',
+				'---',
+				'body content',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.strictEqual(result.getStringValue('name'), 'my-agent');
+			assert.deepStrictEqual(result.getStringArrayValue('tools'), ['foo', 'bar']);
+		});
+
+		test('getStringArrayValue returns array for a sequence key', () => {
+			const input = [
+				'---',
+				'tags:',
+				'  - foo',
+				'  - bar',
+				'  - baz',
+				'---',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.deepStrictEqual(result.getStringArrayValue('tags'), ['foo', 'bar', 'baz']);
+		});
+
+		test('getStringArrayValue splits comma-separated scalar into array', () => {
+			const input = [
+				'---',
+				'tags: foo, bar, baz',
+				'---',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.deepStrictEqual(result.getStringArrayValue('tags'), ['foo', 'bar', 'baz']);
+		});
+
+	});
+
+	suite('parseCommaSeparatedList', () => {
+
+		test('empty string produces empty array', () => {
+			const items = parseCommaSeparatedList('');
+			assert.deepStrictEqual(items, []);
+		});
+
+		test('single unquoted item', () => {
+			const items = parseCommaSeparatedList('hello', 0);
+			assert.strictEqual(items.length, 1);
+			assert.strictEqual(items[0].value, 'hello');
+			assert.strictEqual(items[0].format, 'none');
+		});
+
+		test('multiple unquoted items', () => {
+			const items = parseCommaSeparatedList('foo, bar, baz');
+			assert.deepStrictEqual(items.map(i => i.value), ['foo', 'bar', 'baz']);
+		});
+
+		test('double-quoted items', () => {
+			// Value is: "hello", "world"  — pass it directly as a string with known offset.
+			const items = parseCommaSeparatedList('"hello", "world"', 0);
+			assert.strictEqual(items.length, 2);
+			assert.strictEqual(items[0].value, 'hello');
+			assert.strictEqual(items[0].format, 'double');
+			assert.strictEqual(items[1].value, 'world');
+			assert.strictEqual(items[1].format, 'double');
+		});
+
+		test('single-quoted items', () => {
+			const items = parseCommaSeparatedList(`'foo', 'bar'`, 0);
+			assert.strictEqual(items.length, 2);
+			assert.strictEqual(items[0].value, 'foo');
+			assert.strictEqual(items[0].format, 'single');
+			assert.strictEqual(items[1].value, 'bar');
+			assert.strictEqual(items[1].format, 'single');
+		});
+
+		test('mixed quoted and unquoted items', () => {
+			const items = parseCommaSeparatedList(`plain, "double", 'single'`);
+			assert.strictEqual(items.length, 3);
+			assert.deepStrictEqual([items[0].value, items[0].format], ['plain', 'none']);
+			assert.deepStrictEqual([items[1].value, items[1].format], ['double', 'double']);
+			assert.deepStrictEqual([items[2].value, items[2].format], ['single', 'single']);
+		});
+
+		test('trailing whitespace trimmed from unquoted items', () => {
+			const items = parseCommaSeparatedList('  foo  ,  bar  ');
+			assert.strictEqual(items.length, 2);
+			assert.strictEqual(items[0].value, 'foo');
+			assert.strictEqual(items[1].value, 'bar');
+		});
+
+		test('offsets are relative to the provided offset', () => {
+			const value = 'a, b, c';
+			const offset = 10;
+			const items = parseCommaSeparatedList(value, offset);
+			assert.strictEqual(items.length, 3);
+			// Each item's rawValue should appear at startOffset within `offset + value`
+			const doc = ' '.repeat(offset) + value;
+			for (const item of items) {
+				assert.strictEqual(doc.substring(item.startOffset, item.endOffset), item.rawValue);
+			}
+		});
+
+		test('whitespace-only string produces empty array', () => {
+			const items = parseCommaSeparatedList('   ');
+			assert.deepStrictEqual(items, []);
 		});
 	});
 });

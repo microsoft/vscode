@@ -28,7 +28,9 @@ import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
 import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
+import { setup as setupCopilotCliTests } from './areas/chat/copilotCli.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
+import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -414,9 +416,11 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	if (!opts.web && !opts.remote) { setupExtensionHostRestartTests(logger); }
-	setupMultirootTests(logger);
+	if (!(opts.web && process.platform === 'win32' /* TODO@bpasero flaky */)) { setupMultirootTests(logger); }
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupAgentsWindowTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });

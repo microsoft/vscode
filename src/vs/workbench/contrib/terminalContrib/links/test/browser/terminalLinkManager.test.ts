@@ -22,10 +22,14 @@ import { ITerminalConfiguration, ITerminalProcessManager } from '../../../../ter
 import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTerminal.test.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import type { ILink, Terminal } from '@xterm/xterm';
+import { IXtermCore } from '../../../../terminal/browser/xterm-private.js';
 import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -107,6 +111,114 @@ suite('TerminalLinkManager', () => {
 			linkManager.dispose();
 			linkManager.externalProvideLinksCb = async () => undefined;
 		});
+	});
+
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	type TestableLinkManager = { _showHover: (...args: unknown[]) => IDisposable | undefined };
+
+	function overrideXtermEvent<T>(terminal: Terminal, eventName: string, handler: (listener: (e: T) => void) => IDisposable): IDisposable {
+		const originalDescriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(terminal), eventName);
+		Object.defineProperty(terminal, eventName, { value: handler, configurable: true });
+		return {
+			dispose: () => {
+				if (originalDescriptor) {
+					Object.defineProperty(terminal, eventName, originalDescriptor);
+				} else {
+					delete (terminal as unknown as Record<string, unknown>)[eventName];
+				}
+			}
+		};
+	}
+
+	function mockXtermCoreRenderService(): IDisposable {
+		interface XtermWithCore extends Terminal { _core: IXtermCore }
+		const xtermWithCore = xterm as unknown as XtermWithCore;
+		const origRenderService = xtermWithCore._core?._renderService;
+		if (!xtermWithCore._core) { (xtermWithCore as XtermWithCore)._core = {} as IXtermCore; }
+		xtermWithCore._core._renderService = { dimensions: { css: { cell: { width: 8, height: 16 } } }, _renderer: {} };
+		return {
+			dispose: () => { xtermWithCore._core._renderService = origRenderService!; }
+		};
+	}
+
+	suite('OSC 8 hover', () => {
+		test('should cancel delayed tooltip when leave happens before hover delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 10);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover || !linkHandler.leave) {
+				throw new Error('Expected linkHandler with hover/leave callbacks');
+			}
+			let hoverShownCount = 0;
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = () => {
+				hoverShownCount++;
+				return undefined;
+			};
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const event = new MouseEvent('mousemove');
+			try {
+				linkHandler.hover(event, 'http://example.com', range);
+				linkHandler.leave(event, 'http://example.com', range);
+				await timeout(0);
+				strictEqual(hoverShownCount, 0);
+			} finally {
+				testableLinkManager._showHover = originalShowHover;
+			}
+		}));
+
+		/**
+		 * Triggers the hover callback, flushes the 0ms scheduler, then
+		 * fires the given xterm event and asserts the hover was disposed.
+		 */
+		async function assertHoverDismissedOnEvent(
+			overrideEvent: (setFireEvent: (fn: () => void) => void) => IDisposable,
+		): Promise<void> {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover) {
+				throw new Error('Expected linkHandler with hover callback');
+			}
+			let hoverDisposed = false;
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = () => ({
+				dispose: () => { hoverDisposed = true; }
+			});
+			const renderServiceRestore = mockXtermCoreRenderService();
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			let fireEvent: (() => void) | undefined;
+			const eventRestore = overrideEvent(fn => { fireEvent = fn; });
+			try {
+				linkHandler.hover(new MouseEvent('mousemove'), 'http://example.com', range);
+				await timeout(0);
+				strictEqual(hoverDisposed, false);
+				fireEvent?.();
+				strictEqual(hoverDisposed, true);
+			} finally {
+				eventRestore.dispose();
+				renderServiceRestore.dispose();
+				testableLinkManager._showHover = originalShowHover;
+			}
+		}
+
+		test('should dismiss shown tooltip on scroll', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await assertHoverDismissedOnEvent(setFire => {
+				return overrideXtermEvent<number>(xterm, 'onScroll', listener => {
+					setFire(() => listener(1));
+					return { dispose: () => { } };
+				});
+			});
+		}));
+
+		test('should dismiss shown tooltip on render', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await assertHoverDismissedOnEvent(setFire => {
+				return overrideXtermEvent<{ start: number; end: number }>(xterm, 'onRender', listener => {
+					setFire(() => listener({ start: 0, end: 5 }));
+					return { dispose: () => { } };
+				});
+			});
+		}));
 	});
 
 	suite('getLinks and open recent link', () => {
