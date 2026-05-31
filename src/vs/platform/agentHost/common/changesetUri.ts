@@ -57,9 +57,6 @@ export const uncommittedChangesetLabel = (): string => localize('uncommittedChan
 /** Localized human-readable description for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetDescription = (): string => localize('uncommittedChangeset.description', "Show uncommitted changes in this session");
 
-/** Localized human-readable label for the per-turn changeset template entry. */
-export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.label', "This Turn");
-
 /**
  * Returns the description shown next to the `Branch Changes` catalogue
  * entry. When both `branchName` and `baseBranchName` are known
@@ -263,7 +260,6 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
 export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummary[] {
 	return [
 		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri) },
-		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() },
-		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
+		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() }
 	];
 }

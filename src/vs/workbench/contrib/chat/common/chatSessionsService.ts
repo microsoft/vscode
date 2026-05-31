@@ -31,6 +31,30 @@ export interface IChatSessionCommandContribution {
 	readonly when?: string;
 }
 
+export interface IChatSessionProviderOptionModelMetadata {
+	readonly name: string;
+	readonly id: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tooltip?: string;
+	readonly pricing?: string;
+	readonly multiplierNumeric?: number;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly priceCategory?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+	};
+}
+
 export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
@@ -40,6 +64,8 @@ export interface IChatSessionProviderOptionItem {
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
 	readonly slashCommand?: string;
+	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 	// [key: string]: any;
 }
 
@@ -191,6 +217,8 @@ export type IChatSessionHistoryItem = {
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
 	modeInstructions?: IChatRequestModeInstructions;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -200,6 +228,12 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+export interface IChatSessionServerRequest {
+	readonly prompt: string;
+	readonly variableData?: IChatRequestVariableData;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
+}
 
 /**
  * A set of well-known session types
@@ -255,7 +289,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
+	readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.

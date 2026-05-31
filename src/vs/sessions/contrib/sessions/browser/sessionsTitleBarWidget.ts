@@ -5,7 +5,8 @@
 
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
-import { Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
@@ -14,7 +15,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMenuService, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -355,8 +356,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
+		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession.
+		const marshalledArg = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: { resource: sessionData.resource },
+			sessions: [{ resource: sessionData.resource }],
+		};
+		const wrapForExtensions = (action: IAction): IAction => {
+			if (!(action instanceof MenuItemAction) || !action.item.source) {
+				return action;
+			}
+			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			wrapped.tooltip = action.tooltip;
+			wrapped.checked = action.checked;
+			return wrapped;
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions))),
 			getAnchor: () => new StandardMouseEvent(getActiveWindow(), e),
 		});
 

@@ -24,6 +24,22 @@ import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 /**
+ * Persist a preferred session type into the picker's stored preference.
+ * Owned by this module so callers don't depend on the wire format.
+ */
+export function writeStoredSessionTypePref(
+	storageService: IStorageService,
+	pick: { readonly providerId?: string; readonly sessionTypeId: string },
+): void {
+	storageService.store(
+		STORAGE_KEY_LAST_SESSION_TYPE,
+		JSON.stringify({ providerId: pick.providerId, sessionTypeId: pick.sessionTypeId }),
+		StorageScope.PROFILE,
+		StorageTarget.USER,
+	);
+}
+
+/**
  * A picked session type, paired with the provider that serves it. Two
  * providers can advertise the same session type id (e.g. both expose
  * 'copilot-cli'), so callers need both to route session creation to the
@@ -116,6 +132,15 @@ export class SessionTypePicker extends Disposable {
 		// (e.g. a remote agent host discovers a new agent).
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			refresh(this.sessionsManagementService.activeSession.get());
+		}));
+		// Re-read when the stored preference changes (e.g. handoff IPC from
+		// the main vscode window pre-seeds Copilot CLI [Local] when opening
+		// the agents window from an empty workspace).
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
+			if (!this.sessionsManagementService.activeSession.get()) {
+				this._picked = this._readStoredPick();
+				this._updateTriggerLabel();
+			}
 		}));
 	}
 

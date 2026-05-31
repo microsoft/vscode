@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -21,7 +22,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -31,7 +32,7 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -55,12 +56,14 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
+import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -388,6 +391,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 
 	const chatAgentService = new MockChatAgentService();
 	const chatWidgetService = new MockChatWidgetService();
+	const chatSessionContributions: IChatSessionsExtensionPoint[] = [];
 	const openerService: { openedUrls: (string | URI)[]; openShouldFail: boolean; openResult: boolean } & Partial<IOpenerService> = {
 		openedUrls: [],
 		openShouldFail: false,
@@ -411,7 +415,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatSessionsService, {
 		registerChatSessionItemController: () => toDisposable(() => { }),
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
-		registerChatSessionContribution: () => toDisposable(() => { }),
+		registerChatSessionContribution: contribution => {
+			chatSessionContributions.push(contribution);
+			return toDisposable(() => { });
+		},
 	});
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
@@ -489,6 +496,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+	instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,
 		get: () => undefined,
@@ -536,7 +544,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions };
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService> }) {
@@ -1090,7 +1098,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			assert.strictEqual(agentHostService.turnActions[0].action.type, 'session/turnStarted');
-			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
+			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.text, 'Hello');
 			assert.strictEqual(AgentSession.id(URI.parse(session)), 'new-turntest');
 		}));
 
@@ -1174,7 +1182,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'session/turnComplete', turnId: action.turnId } as SessionAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
-			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).userMessage.text), ['Recovered']);
+			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Recovered']);
 		}));
 
 		test('rejects generic contributed-chat untitled resource', async () => {
@@ -2249,7 +2257,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
-					userMessage: { text: 'What is 2+2?' },
+					message: { text: 'What is 2+2?', origin: { kind: MessageKind.User } },
 					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: '4' }],
 					usage: undefined,
 					state: TurnState.Complete,
@@ -2286,8 +2294,9 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
-					userMessage: {
+					message: {
 						text: '/act-on-feedback',
+						origin: { kind: MessageKind.User },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'Feedback',
@@ -2391,14 +2400,14 @@ suite('AgentHostChatContribution', () => {
 				turns: [
 					{
 						id: 'turn-1',
-						userMessage: { text: 'Q1' },
+						message: { text: 'Q1', origin: { kind: MessageKind.User } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
 						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
 						state: TurnState.Complete,
 					},
 					{
 						id: 'turn-2',
-						userMessage: { text: 'Q2' },
+						message: { text: 'Q2', origin: { kind: MessageKind.User } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-2', content: 'A2' }],
 						usage: undefined,
 						state: TurnState.Complete,
@@ -2406,7 +2415,7 @@ suite('AgentHostChatContribution', () => {
 				],
 				activeTurn: {
 					id: 'turn-active',
-					userMessage: { text: 'Q3' },
+					message: { text: 'Q3', origin: { kind: MessageKind.User } },
 					responseParts: [],
 					usage: { _meta: { cost: 1 } },
 				},
@@ -2603,7 +2612,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
-					userMessage: { text: 'run ls' },
+					message: { text: 'run ls', origin: { kind: MessageKind.User } },
 					state: TurnState.Complete,
 					responseParts: [{
 						kind: 'toolCall' as const, toolCall: {
@@ -2648,7 +2657,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
-					userMessage: { text: 'do something' },
+					message: { text: 'do something', origin: { kind: MessageKind.User } },
 					state: TurnState.Complete,
 					responseParts: [{
 						kind: 'toolCall' as const, toolCall: { status: 'completed' as const, toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', confirmed: 'not-needed' as const, success: false, pastTenseMessage: 'Reading file' },
@@ -2679,7 +2688,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
-					userMessage: { text: 'search' },
+					message: { text: 'search', origin: { kind: MessageKind.User } },
 					state: TurnState.Complete,
 					responseParts: [{
 						kind: 'toolCall' as const, toolCall: { status: 'completed' as const, toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Searched for pattern' },
@@ -2872,8 +2881,36 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/test.ts').toString(), label: 'test.ts', displayKind: 'document' },
+			]);
+		}));
+
+		test('screenshot variable becomes embedded image attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const screenshotBuffer = VSBuffer.fromString('screenshot bytes');
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'describe this screenshot',
+				variables: {
+					variables: [
+						convertBufferToScreenshotVariable(screenshotBuffer),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{
+					type: MessageAttachmentKind.EmbeddedResource,
+					label: 'Screenshot',
+					displayKind: 'image',
+					data: encodeBase64(screenshotBuffer),
+					contentType: 'image/png',
+				},
 			]);
 		}));
 
@@ -2893,7 +2930,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/test.ts').toString(), label: 'test.ts', displayKind: 'document', _meta: { provider: 'fs', score: 0.42 } },
 			]);
 		}));
@@ -2932,7 +2969,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [{
+			assert.deepStrictEqual(turnAction.message.attachments, [{
 				type: MessageAttachmentKind.Simple,
 				label: 'Feedback',
 				modelRepresentation: 'Feedback text for the model',
@@ -2971,7 +3008,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/src').toString(), label: 'src', displayKind: 'directory' },
 			]);
 		}));
@@ -2992,7 +3029,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{
 					type: MessageAttachmentKind.Resource,
 					uri: URI.file('/workspace/foo.ts').toString(),
@@ -3029,7 +3066,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{
 					type: MessageAttachmentKind.Resource,
 					uri: URI.file('/workspace/foo.ts').toString(),
@@ -3070,7 +3107,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.userMessage.attachments, undefined);
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('non-file URI variables are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3090,7 +3127,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.userMessage.attachments, undefined);
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('tool variables are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3109,7 +3146,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.userMessage.attachments, undefined);
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('mixed variables extracts only supported types', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -3131,7 +3168,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/lib').toString(), label: 'lib', displayKind: 'directory' },
 			]);
@@ -3148,7 +3185,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.strictEqual(turnAction.userMessage.attachments, undefined);
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		// ---- Working-directory rebasing -----------------------------------
@@ -3206,7 +3243,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/lib').toString(), label: 'lib', displayKind: 'directory' },
 				{
@@ -3264,7 +3301,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/source/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
 			]);
 		}));
@@ -3290,7 +3327,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/elsewhere/elsewhere.ts').toString(), label: 'elsewhere.ts', displayKind: 'document' },
 			]);
 		}));
@@ -3310,6 +3347,20 @@ suite('AgentHostChatContribution', () => {
 			// Let async work settle
 			await timeout(10);
 		}));
+
+		test('local agent contribution advertises image attachments', () => {
+			const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', models: [] }],
+				activeSessions: 0,
+			});
+
+			assert.deepStrictEqual(chatSessionContributions.map(c => ({ type: c.type, supportsImageAttachments: c.capabilities?.supportsImageAttachments })), [
+				{ type: 'agent-host-copilot', supportsImageAttachments: true },
+			]);
+		});
 	});
 
 	// ---- IAgentConnection unification -------------------------------------
@@ -3623,7 +3674,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Turn dispatched via connection.dispatchAction
 			assert.strictEqual(agentHostService.turnActions.length, 1);
-			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
+			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.text, 'Test message');
 		}));
 	});
 
@@ -3651,13 +3702,13 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-completed',
-					userMessage: { text: 'First message' },
+					message: { text: 'First message', origin: { kind: MessageKind.User } },
 					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'md-1', content: 'First response' }],
 					usage: undefined,
 					state: TurnState.Complete,
 				}],
 				activeTurn: {
-					...createActiveTurn('turn-active', { text: 'Second message' }),
+					...createActiveTurn('turn-active', { text: 'Second message', origin: { kind: MessageKind.User } }),
 					responseParts: activeTurnParts,
 				},
 			};
@@ -3869,7 +3920,7 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-done',
-					userMessage: { text: 'Hello' },
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
 					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'md-1', content: 'Hi' }],
 					usage: undefined,
 					state: TurnState.Complete,
@@ -3936,7 +3987,7 @@ suite('AgentHostChatContribution', () => {
 					modifiedAt: Date.now(),
 				}),
 				lifecycle: SessionLifecycle.Ready,
-				activeTurn: createActiveTurn('active-turn-1', { text: 'Working' }),
+				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }),
 			});
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/restored-pending-sync' });
@@ -3959,7 +4010,7 @@ suite('AgentHostChatContribution', () => {
 				type: ActionType.SessionPendingMessageSet,
 				kind: 'queued',
 				id: 'queued-request-1',
-				userMessage: { text, attachments: undefined },
+				message: { text, origin: { kind: MessageKind.User } },
 			});
 		});
 
@@ -3977,7 +4028,7 @@ suite('AgentHostChatContribution', () => {
 					modifiedAt: Date.now(),
 				}),
 				lifecycle: SessionLifecycle.Ready,
-				queuedMessages: [{ id: 'queued-request-1', userMessage: { text: 'old queued text' } }],
+				queuedMessages: [{ id: 'queued-request-1', message: { text: 'old queued text', origin: { kind: MessageKind.User } } }],
 			});
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-text-update' });
@@ -4000,7 +4051,7 @@ suite('AgentHostChatContribution', () => {
 				type: ActionType.SessionPendingMessageSet,
 				kind: 'queued',
 				id: 'queued-request-1',
-				userMessage: { text, attachments: undefined },
+				message: { text, origin: { kind: MessageKind.User } },
 			});
 		});
 
@@ -4041,7 +4092,7 @@ suite('AgentHostChatContribution', () => {
 				action: {
 					type: 'session/turnStarted',
 					turnId: serverTurnId,
-					userMessage: { text: 'queued message text' },
+					message: { text: 'queued message text', origin: { kind: MessageKind.User } },
 				} as SessionAction,
 				serverSeq: 3,
 				origin: undefined, // Server-originated — no client origin
@@ -4086,7 +4137,7 @@ suite('AgentHostChatContribution', () => {
 			const serverTurnId = 'server-turn-progress';
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'auto queued' } } as SessionAction,
+				action: { type: 'session/turnStarted', session, turnId: serverTurnId, message: { text: 'auto queued', origin: { kind: MessageKind.User } } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
 			await timeout(10);
@@ -4194,7 +4245,7 @@ suite('AgentHostChatContribution', () => {
 			const serverTurnId = 'server-turn-tool-dedup';
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'queued' } } as SessionAction,
+				action: { type: 'session/turnStarted', session, turnId: serverTurnId, message: { text: 'queued', origin: { kind: MessageKind.User } } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
 			await timeout(10);
@@ -4272,7 +4323,7 @@ suite('AgentHostChatContribution', () => {
 			const serverTurnId = 'server-turn-md-initial';
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'queued' } } as SessionAction,
+				action: { type: 'session/turnStarted', session, turnId: serverTurnId, message: { text: 'queued', origin: { kind: MessageKind.User } } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
 			agentHostService.fireAction({
@@ -4325,7 +4376,7 @@ suite('AgentHostChatContribution', () => {
 			// Add a queued message to the protocol state so it's tracked.
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'session/pendingMessageSet', session, kind: 'queued', id: 'q-1', userMessage: { text: 'will be consumed' } } as SessionAction,
+				action: { type: 'session/pendingMessageSet', session, kind: 'queued', id: 'q-1', message: { text: 'will be consumed', origin: { kind: MessageKind.User } } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
 			await timeout(10);
@@ -4335,7 +4386,7 @@ suite('AgentHostChatContribution', () => {
 			chatService.removePendingRequestCalls.length = 0;
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'session/turnStarted', session, turnId: 'server-turn-q', userMessage: { text: 'will be consumed' }, queuedMessageId: 'q-1' } as SessionAction,
+				action: { type: 'session/turnStarted', session, turnId: 'server-turn-q', message: { text: 'will be consumed', origin: { kind: MessageKind.User } }, queuedMessageId: 'q-1' } as SessionAction,
 				serverSeq: 4, origin: undefined,
 			});
 			await timeout(10);
@@ -4371,7 +4422,7 @@ suite('AgentHostChatContribution', () => {
 			// Set a steering message on the protocol state.
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'session/pendingMessageSet', session, kind: 'steering', id: 'steer-1', userMessage: { text: 'be more careful' } } as SessionAction,
+				action: { type: 'session/pendingMessageSet', session, kind: 'steering', id: 'steer-1', message: { text: 'be more careful', origin: { kind: MessageKind.User } } } as SessionAction,
 				serverSeq: 3, origin: undefined,
 			});
 			await timeout(10);
@@ -4614,7 +4665,7 @@ suite('AgentHostChatContribution', () => {
 				toolInput: '{}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			} as ToolCallState;
-			const activeTurn = createActiveTurn('child-turn-1', { text: 'do work' });
+			const activeTurn = createActiveTurn('child-turn-1', { text: 'do work', origin: { kind: MessageKind.User } });
 			activeTurn.responseParts.push({ kind: ResponsePartKind.ToolCall, toolCall: innerTool });
 			return {
 				...createSessionState(summary),
@@ -4701,7 +4752,7 @@ suite('AgentHostChatContribution', () => {
 			fireChild({
 				type: 'session/turnStarted',
 				turnId: childTurnId,
-				userMessage: { text: '' },
+				message: { text: '', origin: { kind: MessageKind.User } },
 			} as SessionAction);
 			fireChild({
 				type: 'session/toolCallStart', session: childSessionUri, turnId: childTurnId,

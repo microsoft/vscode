@@ -96,7 +96,7 @@ export interface InitializeResult {
 	/** Suggested default directory for remote filesystem browsing */
 	defaultDirectory?: URI;
 	/**
-	 * Characters that, when typed in a {@link UserMessage} input, SHOULD cause
+	 * Characters that, when typed in a {@link Message} input, SHOULD cause
 	 * the client to issue a `completions` request with
 	 * {@link CompletionItemKind.UserMessage}. Typically includes characters like
 	 * `'@'` or `'/'`.
@@ -294,9 +294,15 @@ export const enum ContentEncoding {
  * Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
  * use `utf-8` encoding.
  *
+ * Like all `resource*` methods, `resourceRead` is symmetrical and MAY be
+ * sent in either direction. Hosts use it to fetch content from a
+ * client-published URI (e.g. `virtual://my-client/...` plugins); clients
+ * use it to read host-side files. The receiver enforces access via the
+ * same permission/`resourceRequest` flow regardless of which peer initiated.
+ *
  * @category Commands
  * @method resourceRead
- * @direction Client → Server
+ * @direction Client ↔ Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the URI does not exist.
@@ -342,22 +348,59 @@ export interface ResourceReadResult {
 // ─── resourceWrite ───────────────────────────────────────────────────────────
 
 /**
+ * How {@link ResourceWriteParams.data} is placed within the target file.
+ *
+ * Each mode interprets {@link ResourceWriteParams.position} differently:
+ *
+ * - `truncate` (default): rooted at the **start** of the file. The file is
+ *   truncated at `position` (0 by default) and `data` is written from that
+ *   offset, so the resulting file is `existing[0..position] + data`. With
+ *   `position` omitted this is a full overwrite.
+ * - `append`: rooted at the **end** of the file. `position` counts bytes
+ *   backwards from EOF, so `position: 0` (the default) writes at EOF —
+ *   POSIX append — and `position: 5` inserts `data` 5 bytes before the
+ *   current EOF, shifting those trailing 5 bytes after the inserted region.
+ *   The server MUST evaluate the effective EOF and write atomically with
+ *   respect to other appenders so concurrent `append` writes do not
+ *   clobber each other.
+ * - `insert`: rooted at the **start** of the file. `position` (0 by default)
+ *   is the byte offset at which `data` is spliced in; bytes at or after
+ *   `position` are shifted right by `data.length`. `insert` always grows
+ *   the file — use `truncate` to overwrite bytes in place.
+ *
+ * @category Commands
+ */
+export const enum ResourceWriteMode {
+	Truncate = 'truncate',
+	Append = 'append',
+	Insert = 'insert',
+}
+
+/**
  * Writes content to a file on the server's filesystem.
  *
  * Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
  * use `utf-8` encoding.
  *
- * If the file does not exist, it is created. If the file already exists, it is
- * overwritten unless `createOnly` is set.
+ * If the file does not exist, it is created. If the file already exists, the
+ * effect on existing bytes depends on {@link ResourceWriteParams.mode}:
+ * `truncate` (default) overwrites from the chosen offset onward, `append`
+ * preserves all existing bytes and adds `data` at a position rooted at EOF,
+ * and `insert` preserves all existing bytes and splices `data` in at an
+ * offset rooted at the start of the file.
+ *
+ * Like all `resource*` methods, `resourceWrite` is symmetrical and MAY be
+ * sent in either direction.
  *
  * @category Commands
  * @method resourceWrite
- * @direction Client → Server
+ * @direction Client ↔ Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the parent directory does not exist.
  * @throws `PermissionDenied` (`-32009`) if the client is not permitted to write to the path.
  * @throws `AlreadyExists` (`-32010`) if `createOnly` is set and the file already exists.
+ * @throws `Conflict` (`-32011`) if `ifMatch` is set and the current `etag` does not match.
  * @example
  * ```jsonc
  * // Client → Server
@@ -384,6 +427,28 @@ export interface ResourceWriteParams extends BaseParams {
 	 * overwriting it. Useful for safe creation of new files.
 	 */
 	createOnly?: boolean;
+	/**
+	 * How `data` is placed within the target file. Defaults to `'truncate'`
+	 * (full overwrite) when omitted. See {@link ResourceWriteMode} for the
+	 * meaning of each mode and how it interprets {@link position}.
+	 */
+	mode?: ResourceWriteMode;
+	/**
+	 * Byte offset interpreted according to {@link mode}. Defaults to `0`.
+	 * - `truncate`: offset from the start of the file at which to truncate
+	 *   before writing.
+	 * - `append`: bytes back from EOF at which to insert `data`.
+	 * - `insert`: offset from the start of the file at which to splice in
+	 *   `data`.
+	 */
+	position?: number;
+	/**
+	 * Optimistic-concurrency token previously returned by
+	 * {@link ResourceResolveResult.etag}. When set, the server MUST fail with
+	 * `Conflict` if the current `etag` does not match — preventing lost
+	 * updates between a `resourceResolve` and a subsequent `resourceWrite`.
+	 */
+	ifMatch?: string;
 }
 
 /**
@@ -406,9 +471,12 @@ export interface ResourceWriteResult {
  * If the target does not exist, is not a directory, or cannot be accessed, the
  * server MUST return a JSON-RPC error.
  *
+ * Like all `resource*` methods, `resourceList` is symmetrical and MAY be
+ * sent in either direction.
+ *
  * @category Commands
  * @method resourceList
- * @direction Client → Server
+ * @direction Client ↔ Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the directory does not exist.
@@ -446,9 +514,12 @@ export interface ResourceListResult {
  * If the destination already exists, it is overwritten unless `failIfExists`
  * is set.
  *
+ * Like all `resource*` methods, `resourceCopy` is symmetrical and MAY be
+ * sent in either direction.
+ *
  * @category Commands
  * @method resourceCopy
- * @direction Client → Server
+ * @direction Client ↔ Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the source does not exist.
@@ -481,9 +552,12 @@ export interface ResourceCopyResult {
 /**
  * Deletes a resource at a URI on the server's filesystem.
  *
+ * Like all `resource*` methods, `resourceDelete` is symmetrical and MAY be
+ * sent in either direction.
+ *
  * @category Commands
  * @method resourceDelete
- * @direction Client → Server
+ * @direction Client ↔ Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the resource does not exist.
@@ -570,9 +644,12 @@ export interface ResourceRequestResult {
  * If the destination already exists, it is overwritten unless `failIfExists`
  * is set.
  *
+ * Like all `resource*` methods, `resourceMove` is symmetrical and MAY be
+ * sent in either direction.
+ *
  * @category Commands
  * @method resourceMove
- * @direction Client → Server
+ * @direction Client ↔ Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the source does not exist.
@@ -598,6 +675,133 @@ export interface ResourceMoveParams extends BaseParams {
  * An empty object on success.
  */
 export interface ResourceMoveResult {
+}
+
+// ─── resourceResolve ─────────────────────────────────────────────────────────
+
+/**
+ * Discriminant for {@link ResourceResolveResult.type}.
+ *
+ * @category Commands
+ */
+export const enum ResourceType {
+	File = 'file',
+	Directory = 'directory',
+	Symlink = 'symlink',
+}
+
+/**
+ * Resolves a resource — the combination of POSIX `stat` and `realpath`.
+ *
+ * `resourceResolve` returns metadata about the resource together with its
+ * canonical URI after symlink resolution. Use this in place of any
+ * `resourceExists` shim: a missing resource MUST surface as a `NotFound`
+ * JSON-RPC error rather than a success with a sentinel value. Callers that
+ * truly need a boolean check should attempt `resourceResolve` and treat
+ * `NotFound` as "does not exist".
+ *
+ * Like all `resource*` methods, `resourceResolve` is symmetrical and MAY be
+ * sent in either direction.
+ *
+ * @category Commands
+ * @method resourceResolve
+ * @direction Client ↔ Server
+ * @messageType Request
+ * @version 1
+ * @throws `NotFound` (`-32008`) if the resource does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the caller is not permitted to stat the URI.
+ * @example
+ * ```jsonc
+ * // Client → Server
+ * { "jsonrpc": "2.0", "id": 20, "method": "resourceResolve",
+ *   "params": { "channel": "ahp-root://", "uri": "file:///workspace/hello.txt" } }
+ *
+ * // Server → Client
+ * { "jsonrpc": "2.0", "id": 20, "result": {
+ *   "uri": "file:///workspace/hello.txt",
+ *   "type": "file",
+ *   "size": 5,
+ *   "mtime": "2026-01-15T12:34:56.789Z",
+ *   "etag": "W/\"5-abc123\""
+ * }}
+ * ```
+ */
+export interface ResourceResolveParams extends BaseParams {
+	channel: 'ahp-root://';
+	/** URI to resolve */
+	uri: URI;
+	/**
+	 * When `true` (default), follow symlinks and report the metadata of the
+	 * link target — and set `uri` in the result to the canonical (realpath)
+	 * URI. When `false`, stat the link itself (lstat semantics) and report
+	 * `type: 'symlink'`.
+	 */
+	followSymlinks?: boolean;
+}
+
+/**
+ * Result of the `resourceResolve` command.
+ */
+export interface ResourceResolveResult {
+	/**
+	 * Canonical URI after symlink resolution. Equal to the requested URI when
+	 * `followSymlinks` is `false` or the URI does not traverse a symlink.
+	 */
+	uri: URI;
+	/** Resource kind. */
+	type: ResourceType;
+	/**
+	 * Size in bytes. Omitted for directories when the provider cannot
+	 * cheaply compute it.
+	 */
+	size?: number;
+	/** Last-modified time in ISO 8601 format, when known. */
+	mtime?: string;
+	/** Creation time in ISO 8601 format, when known. */
+	ctime?: string;
+	/** Sniffed MIME type, when known (e.g. `"text/plain"`, `"image/png"`). */
+	contentType?: string;
+	/**
+	 * Opaque per-provider version token. When present, pass it as
+	 * {@link ResourceWriteParams.ifMatch} on a subsequent `resourceWrite` to
+	 * detect concurrent modifications.
+	 */
+	etag?: string;
+}
+
+// ─── resourceMkdir ───────────────────────────────────────────────────────────
+
+/**
+ * Creates a directory on the server's filesystem with `mkdir -p` semantics.
+ *
+ * The server MUST create any missing parent directories. Creating a
+ * directory that already exists is a no-op success. If `uri` already
+ * exists but is **not** a directory, the server MUST fail with
+ * `AlreadyExists`.
+ *
+ * Like all `resource*` methods, `resourceMkdir` is symmetrical and MAY be
+ * sent in either direction.
+ *
+ * @category Commands
+ * @method resourceMkdir
+ * @direction Client ↔ Server
+ * @messageType Request
+ * @version 1
+ * @throws `PermissionDenied` (`-32009`) if the caller is not permitted to create the directory.
+ * @throws `AlreadyExists` (`-32010`) if `uri` already exists as a non-directory.
+ */
+export interface ResourceMkdirParams extends BaseParams {
+	channel: 'ahp-root://';
+	/** Directory URI to create (parents created as needed). */
+	uri: URI;
+}
+
+/**
+ * Result of the `resourceMkdir` command.
+ *
+ * An empty object on success.
+ */
+export interface ResourceMkdirResult {
 }
 
 // ─── authenticate ────────────────────────────────────────────────────────────

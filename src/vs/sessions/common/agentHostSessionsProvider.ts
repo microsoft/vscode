@@ -8,7 +8,7 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -112,6 +112,18 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * advertised.
 	 */
 	getCustomAgents(sessionId: string): readonly AgentCustomization[];
+
+	readonly onDidChangeCustomizations: Event<void>;
+
+	/**
+	 * Returns the full set of customizations.
+	 */
+	getCustomizations(sessionId: string): readonly Customization[];
+
+	/**
+	 * Returns the working directory for the session, if provided by the host.
+	 */
+	getWorkingDirectory(sessionId: string): string | undefined;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so
