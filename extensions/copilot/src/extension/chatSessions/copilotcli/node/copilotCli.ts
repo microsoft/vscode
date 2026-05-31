@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
+import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -160,16 +160,15 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		try {
 			const models = await getAvailableModels(authInfo);
 			return models.map(model => {
-				const tokenPrices = model.billing?.token_prices;
-				const normalizedPricing = normalizeTokenPricing(tokenPrices);
+				const pricing = normalizeTokenPrices(model.billing?.token_prices);
 				return {
 					id: model.id,
 					name: model.name,
 					multiplier: model.billing?.multiplier,
 					priceCategory: model.model_picker_price_category,
-					inputCost: normalizedPricing?.inputPrice,
-					outputCost: normalizedPricing?.outputPrice,
-					cacheCost: normalizedPricing?.cachePrice,
+					inputCost: pricing?.default.inputPrice,
+					outputCost: pricing?.default.outputPrice,
+					cacheCost: pricing?.default.cachePrice,
 					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
 					maxOutputTokens: model.capabilities.limits.max_output_tokens,
 					maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
@@ -192,7 +191,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				return this._resolvedModelInfos?? [];
+				return this._resolvedModelInfos ?? [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -533,12 +532,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
-			// The SDK's sandbox auto-detection looks for `mxc-bin/` next to `sdk/index.js`, but the
-			// binary actually ships at `<package-root>/mxc-bin/`. Point `MXC_BIN_DIR` at the right
-			// location so `spawnSandboxFromConfig` can find `mxc-exec-mac` / `lxc-exec` / `wxc-exec.exe`.
-			if (!process.env['MXC_BIN_DIR']) {
-				process.env['MXC_BIN_DIR'] = path.join(this.extensionContext.extensionPath, 'node_modules', '@github', 'copilot', 'mxc-bin');
-			}
+			// The SDK's sandbox auto-detection looks for `mxc-bin/<arch>/wxc-exec.exe` (and the
+			// Linux/macOS equivalents) under `MXC_BIN_DIR`. VS Code core ships the MXC
+			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`, so
+			// point `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
+			// from the product build (see build/.moduleignore).
+			process.env['MXC_BIN_DIR'] = path.join(this.envService.appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin');
 			return await import('@github/copilot/sdk');
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Failed to load @github/copilot/sdk: ${error}`);
@@ -633,25 +632,3 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
 }
-
-const AIC_DIVISOR = 1_000_000_000;
-const TOKENS_PER_MILLION = 1_000_000;
-
-/**
- * Converts raw billing token prices (nano-AICs with a batch_size) into
- * normalized AICs per million tokens, matching the normalization in
- * chatEndpoint.ts for non-CLI models.
- */
-function normalizeTokenPricing(tokenPrices: { input_price?: number; output_price?: number; cache_price?: number; batch_size?: number } | undefined): { inputPrice: number; outputPrice: number; cachePrice: number | undefined } | undefined {
-	if (!tokenPrices || tokenPrices.input_price === undefined || tokenPrices.output_price === undefined) {
-		return undefined;
-	}
-	const batchSize = tokenPrices.batch_size ?? TOKENS_PER_MILLION;
-	const scale = TOKENS_PER_MILLION / batchSize;
-	return {
-		inputPrice: (tokenPrices.input_price / AIC_DIVISOR) * scale,
-		outputPrice: (tokenPrices.output_price / AIC_DIVISOR) * scale,
-		cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / AIC_DIVISOR) * scale : undefined,
-	};
-}
-

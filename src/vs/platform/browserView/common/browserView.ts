@@ -29,6 +29,10 @@ export enum BrowserViewCommandId {
 	OpenExternal = `${commandPrefix}.openExternal`,
 	OpenSettings = `${commandPrefix}.openSettings`,
 
+	// Favorites
+	AddFavorite = `${commandPrefix}.addFavorite`,
+	RemoveFavorite = `${commandPrefix}.removeFavorite`,
+
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
@@ -101,7 +105,15 @@ export interface IBrowserViewBounds {
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
+	/**
+	 * JPEG quality from 0-100. Only applies when `format` is `'jpeg'`.
+	 */
 	quality?: number;
+	/**
+	 * Encoding for the captured image. Defaults to `'jpeg'`.
+	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
+	 */
+	format?: 'jpeg' | 'png';
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**

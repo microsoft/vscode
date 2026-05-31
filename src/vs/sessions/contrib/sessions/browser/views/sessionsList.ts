@@ -6,7 +6,7 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
-import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
@@ -69,6 +69,8 @@ const PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 // Duration of the cross-fade when the icon swaps to a different glyph/variant.
 const ICON_SWAP_FADE_MS = 180;
+
+const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 
 // Marker dataset key on the outgoing element during a cross-fade swap. Lets a
 // follow-up swap (before the previous fade finishes) skip re-processing it.
@@ -690,6 +692,7 @@ interface ISessionSectionTemplate {
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
+	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
@@ -697,6 +700,8 @@ interface ISessionSectionTemplate {
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
+
+	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -711,6 +716,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -718,7 +725,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, count, toolbar, contextKeyService, disposables };
+		return { container, label, count, toolbar, chevron, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -726,6 +733,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		if (!isSessionSection(element)) {
 			return;
 		}
+		this.templatesByElement.set(element, template);
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
 			template.count.textContent = '';
@@ -735,10 +743,39 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.count.style.display = '';
 		}
 
+		this.updateChevron(template, node.collapsible, node.collapsed);
+
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		template.toolbar.context = element;
+	}
+
+	/**
+	 * Updates the expand/collapse chevron for an already-rendered section. The
+	 * tree only re-invokes `renderTwistie` (not `renderElement`) when a section's
+	 * collapse state toggles, so the owning list forwards collapse changes here.
+	 */
+	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
+		const template = this.templatesByElement.get(element);
+		if (template) {
+			this.updateChevron(template, true, collapsed);
+		}
+	}
+
+	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
+		template.chevron.className = 'session-section-chevron';
+		if (collapsible) {
+			template.chevron.classList.add('collapsible');
+			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
+		}
+	}
+
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
+		if (isSessionSection(node.element)) {
+			this.templatesByElement.delete(node.element);
+		}
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
@@ -773,8 +810,8 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		} else {
 			template.textContent = element.kind === 'folders'
 				? element.remainingCount === 1
-					? localize('showMoreWorkspaceCompact', "+{0} workspace", element.remainingCount)
-					: localize('showMoreWorkspacesCompact', "+{0} workspaces", element.remainingCount)
+					? localize('showMoreWorkspaceCompact', "+{0} more workspace", element.remainingCount)
+					: localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
 				: localize('showMoreCompact', "+{0} more", element.remainingCount);
 		}
 	}
@@ -982,6 +1019,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
+		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
+			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}));
+		this._register(DOM.addDisposableListener(this.listContainer.ownerDocument, DOM.EventType.KEY_DOWN, () => {
+			this.listContainer.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}, true));
 
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
@@ -1002,6 +1045,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
 		// observe the workbench's value rather than shadowing it with a fresh
@@ -1016,7 +1060,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			delegate,
 			[
 				sessionRenderer,
-				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
+				sectionRenderer,
 				showMoreRenderer,
 			],
 			{
@@ -1031,6 +1075,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return `show-more:${element.kind}:${element.mode}:${element.sectionLabel}`;
 						}
 						return element.resource.toString();
+					},
+					getGroupId: (element: SessionListItem) => {
+						if (isSessionSection(element)) {
+							return NotSelectableGroupId;
+						}
+						if (isSessionShowMore(element)) {
+							return NotSelectableGroupId;
+						}
+						return 1;
 					}
 				},
 				horizontalScrolling: false,
@@ -1115,12 +1168,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeCollapseState(e => {
-			if (this.suspendCollapseStatePersistence) {
-				return;
-			}
 			const element = e.node.element;
 			if (element && isSessionSection(element)) {
-				this.saveSectionCollapseState(element.id, e.node.collapsed);
+				sectionRenderer.updateCollapseState(element, e.node.collapsed);
+				if (!this.suspendCollapseStatePersistence) {
+					this.saveSectionCollapseState(element.id, e.node.collapsed);
+				}
 			}
 		}));
 

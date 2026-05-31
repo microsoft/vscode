@@ -170,6 +170,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 

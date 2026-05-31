@@ -204,9 +204,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
+		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = AICustomizationSources.local; // TODO
-			const groupKey = undefined; //sessionCustomization.clientId ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
+			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory) ? AICustomizationSources.local : AICustomizationSources.user;
+			const groupKey = sessionCustomization.clientId ? REMOTE_CLIENT_GROUP : undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, groupKey)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
 					...child,
