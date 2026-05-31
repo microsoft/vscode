@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -1110,7 +1111,7 @@ suite('CopilotChatSessionsProvider', () => {
 		await provider.deleteSession(session.sessionId);
 	});
 
-	test('sendRequest keeps temp CLI session when accepted request does not commit', async () => {
+	test('sendRequest keeps temp CLI session when accepted request does not commit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const provider = createProviderForSendTests(disposables, model, async () => ({
 			kind: 'sent' as const,
 			data: {
@@ -1119,11 +1120,6 @@ suite('CopilotChatSessionsProvider', () => {
 				agent: new class extends mock<IChatAgentData>() { }(),
 			} as IChatSendRequestData,
 		}));
-		Object.defineProperty(provider, '_waitForCommittedSession', {
-			value: async () => {
-				throw new Error('Timed out waiting for session commit');
-			}
-		});
 		const workspace = URI.file('/test/project');
 		const session = provider.createNewSession(workspace, CopilotCLISessionType.id);
 
@@ -1150,7 +1146,44 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		await provider.deleteSession(session.sessionId);
-	});
+	}));
+
+	test('sendRequest keeps temp CLI chat in an existing group when accepted request does not commit', () => runWithFakedTimers({ useFakeTimers: true, startTime: 10 }, async () => {
+		const rootResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/root-cli-session' });
+		model.addSession(createMockAgentSession(rootResource, { title: 'Root', createdAt: 1 }));
+		const provider = createProviderForSendTests(disposables, model, async () => ({
+			kind: 'sent' as const,
+			data: {
+				responseCompletePromise: Promise.resolve(),
+				responseCreatedPromise: Promise.resolve({} as IChatResponseModel),
+				agent: new class extends mock<IChatAgentData>() { }(),
+			} as IChatSendRequestData,
+		}));
+		const session = provider.getSessions()[0];
+		const chat = await provider.createNewChat(session.sessionId);
+
+		const events: { removed: number; changed: number }[] = [];
+		disposables.add(provider.onDidChangeSessions(e => events.push({ removed: e.removed.length, changed: e.changed.length })));
+
+		const returnedSession = await provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
+
+		assert.deepStrictEqual({
+			returnedResource: returnedSession.resource.toString(),
+			chats: returnedSession.chats.get().map(chat => ({ resource: chat.resource.toString(), status: chat.status.get() })),
+			removedEvents: events.filter(e => e.removed > 0).length,
+			changedEvents: events.filter(e => e.changed > 0).length,
+		}, {
+			returnedResource: rootResource.toString(),
+			chats: [
+				{ resource: rootResource.toString(), status: SessionStatus.Completed },
+				{ resource: chat.resource.toString(), status: SessionStatus.Completed },
+			],
+			removedEvents: 0,
+			changedEvents: 2,
+		});
+
+		await provider.deleteSession(session.sessionId);
+	}));
 
 	// ---- Rename -------
 
