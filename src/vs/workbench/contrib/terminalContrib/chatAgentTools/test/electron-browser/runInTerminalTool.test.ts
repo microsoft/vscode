@@ -440,15 +440,15 @@ suite('RunInTerminalTool', () => {
 			ok(toolData.modelDescription?.includes('Running commands outside the sandbox is disabled'), 'Expected model description to explain that unsandboxed commands are disabled');
 		});
 
-		test('should hide allow-network requests in schema when per-command network access is disabled', async () => {
+		test('should not recommend allow-network requests in model description when per-command network access is disabled', async () => {
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
 
-			ok(!properties?.['requestAllowNetwork'], 'Expected no requestAllowNetwork when per-command network access is disabled');
-			ok(!properties?.['requestAllowNetworkReason'], 'Expected no requestAllowNetworkReason when per-command network access is disabled');
-			ok(toolData.modelDescription?.includes('chat.agent.sandbox.retryWithAllowNetworkRequests'), 'Expected model description to identify the disabled network request setting');
+			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema so disabled requests can fail with a clear message');
+			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema so disabled requests can fail with a clear message');
+			ok(!toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description not to recommend allow-network requests when per-command network access is disabled');
 		});
 
 		test('should not include requestUnsandboxedExecution in schema when sandbox is disabled', async () => {
@@ -524,7 +524,7 @@ suite('RunInTerminalTool', () => {
 			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
 			ok(toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description to recommend network-enabled sandbox execution first');
-			ok(toolData.modelDescription?.includes('network-enabled sandbox retry is not sufficient'), 'Expected model description to constrain unsandboxing after a network retry');
+			ok(toolData.modelDescription?.includes('Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox'), 'Expected model description to constrain allow-network requests to sandbox network failures');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {
