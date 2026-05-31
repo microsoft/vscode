@@ -970,7 +970,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
 			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
 			: undefined;
-		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting);
+		const allowedHosts = readStringArraySetting(this.configurationService, 'chat.agent.allowedNetworkDomains');
+		const blockedHosts = readStringArraySetting(this.configurationService, 'chat.agent.deniedNetworkDomains');
+		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting, { allowedHosts, blockedHosts });
 	}
 
 	public async getSession(options: IGetSessionOptions, token: CancellationToken): Promise<RefCountedSession | undefined> {
@@ -1586,6 +1588,7 @@ export function buildSandboxConfigForCLI(
 	platform: NodeJS.Platform,
 	sandboxSetting: string | undefined,
 	fileSystemSetting: IAgentSandboxFileSystemSettings | undefined,
+	networkHosts?: { allowedHosts?: readonly string[]; blockedHosts?: readonly string[] },
 ): SessionOptions['sandboxConfig'] {
 	const sandboxEnabled = platform === 'win32'
 		? sandboxSetting === 'allowNetwork'
@@ -1620,6 +1623,14 @@ export function buildSandboxConfigForCLI(
 		}
 	}
 
+	// `allowNetwork` opens outbound to everything and ignores the host allow/block lists. Otherwise,
+	// mirror the terminal sandbox runtime: when an allow- or block-list is set we open outbound so
+	// the host filter is actually enforced (the SDK strips host lists when outbound is off). A
+	// deny-list-only configuration still permits non-denied domains.
+	const allowAllNetwork = sandboxSetting === 'allowNetwork';
+	const allowedHosts = !allowAllNetwork && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
+	const blockedHosts = !allowAllNetwork && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
+	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,
 		userPolicy: {
@@ -1629,8 +1640,19 @@ export function buildSandboxConfigForCLI(
 				...(denied.size ? { deniedPaths: [...denied] } : {}),
 			},
 			network: {
-				allowOutbound: sandboxSetting === 'allowNetwork',
+				allowOutbound,
+				...(allowOutbound && allowedHosts ? { allowedHosts } : {}),
+				...(allowOutbound && blockedHosts ? { blockedHosts } : {}),
 			},
 		},
 	};
+}
+
+function readStringArraySetting(configurationService: IConfigurationService, settingId: string): readonly string[] | undefined {
+	const raw = configurationService.getNonExtensionConfig<unknown>(settingId);
+	if (!Array.isArray(raw)) {
+		return undefined;
+	}
+	const values = raw.filter((v): v is string => typeof v === 'string' && v.length > 0);
+	return values.length ? values : undefined;
 }
