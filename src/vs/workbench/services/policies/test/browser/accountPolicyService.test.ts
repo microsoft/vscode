@@ -35,6 +35,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly onDidChangePolicyData = Event.None;
 	readonly copilotTokenInfo = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -43,6 +45,10 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return this.defaultAccount.authenticationProvider;
+	}
+
+	resolveGitHubUrl(path: string): string {
+		return `https://github.com/${path}`;
 	}
 
 	async refresh(): Promise<IDefaultAccount | null> {

@@ -35,7 +35,7 @@ suite('FindTextInFilesResult', () => {
 			}
 		};
 
-		const endpoint = await services.get(IEndpointProvider).getChatEndpoint('copilot-base');
+		const endpoint = await services.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 		const renderer = PromptRenderer.create(services.get(IInstantiationService), endpoint, clz, {});
 
 		const r = await renderer.render();

@@ -19,7 +19,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { TestChatRequest } from '../../../test/node/testHelpers';
 import { ToolName } from '../../../tools/common/toolNames';
-import { getAgentTools, isBackgroundTodoAgentEnabled, isTodoToolExplicitlyEnabled } from '../agentIntent';
+import { AgentIntentInvocation, getAgentTools, isBackgroundTodoAgentEnabled, isTodoToolExplicitlyEnabled } from '../agentIntent';
 
 // ─── isTodoToolExplicitlyEnabled unit tests ──────────────────────
 
@@ -136,5 +136,77 @@ describe('getAgentTools background todo enablement', () => {
 		(request as any).toolReferences = [{ name: 'read_file' }];
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, mockEndpoint);
 		expect(hasTodoTool(tools)).toBe(false);
+	});
+});
+
+// ─── _maybeStartBackgroundTodoPass subagent guard ────────────────
+
+// The method is private and lives on a heavyweight class that requires many
+// injected services to construct. To keep these tests focused on the guard's
+// behaviour, we invoke the prototype method directly against a minimal stub
+// that supplies only the fields the guard touches. TypeScript's `private`
+// modifier is compile-time only, so the method is reachable at runtime.
+
+describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', () => {
+
+	function getMethod(): (this: unknown, promptContext: unknown, token: unknown) => void {
+		return (AgentIntentInvocation.prototype as unknown as { _maybeStartBackgroundTodoPass: (this: unknown, promptContext: unknown, token: unknown) => void })._maybeStartBackgroundTodoPass;
+	}
+
+	function makeStub(request: TestChatRequest, processorLookup: () => unknown) {
+		return {
+			request,
+			_getOrCreateBackgroundTodoProcessor: processorLookup,
+			configurationService: { getExperimentBasedConfig: () => false },
+			expService: {},
+			instantiationService: {},
+			toolsService: {},
+			telemetryService: {},
+			logService: { debug: () => { } },
+		};
+	}
+
+	test('returns early without touching the processor when request is from a subagent', () => {
+		let processorLookups = 0;
+		const request = new TestChatRequest('do work');
+		(request as unknown as { subAgentInvocationId: string }).subAgentInvocationId = 'subagent-uuid-1';
+
+		const stub = makeStub(request, () => {
+			processorLookups++;
+			return undefined;
+		});
+
+		getMethod().call(stub, { conversation: { sessionId: 'sess-1' } }, {});
+
+		expect(processorLookups).toBe(0);
+	});
+
+	test('proceeds past the guard when the request has no subAgentInvocationId', () => {
+		let processorLookups = 0;
+		const request = new TestChatRequest('do work');
+
+		const stub = makeStub(request, () => {
+			processorLookups++;
+			return undefined;
+		});
+
+		getMethod().call(stub, { conversation: { sessionId: 'sess-1' } }, {});
+
+		expect(processorLookups).toBe(1);
+	});
+
+	test('treats an empty-string subAgentInvocationId as not-a-subagent', () => {
+		let processorLookups = 0;
+		const request = new TestChatRequest('do work');
+		(request as unknown as { subAgentInvocationId: string }).subAgentInvocationId = '';
+
+		const stub = makeStub(request, () => {
+			processorLookups++;
+			return undefined;
+		});
+
+		getMethod().call(stub, { conversation: { sessionId: 'sess-1' } }, {});
+
+		expect(processorLookups).toBe(1);
 	});
 });

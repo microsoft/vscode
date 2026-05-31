@@ -18,7 +18,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
@@ -141,7 +141,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesPageScrollbar: DomScrollableElement | undefined;
 	private detailsPageScrollbar: DomScrollableElement | undefined;
 
-	private detailsScrollbar: DomScrollableElement | undefined;
+	private readonly detailsScrollbar = this._register(new MutableDisposable<DomScrollableElement>());
 
 	private buildSlideThrottle = this._register(new Throttler());
 
@@ -149,9 +149,9 @@ export class GettingStartedPage extends EditorPane {
 
 	private contextService: IContextKeyService;
 
-	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
-	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
-	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
+	private readonly recentlyOpenedList = this._register(new MutableDisposable<GettingStartedIndexList<RecentEntry>>());
+	private readonly startList = this._register(new MutableDisposable<GettingStartedIndexList<IWelcomePageStartEntry>>());
+	private readonly gettingStartedList = this._register(new MutableDisposable<GettingStartedIndexList<IResolvedWalkthrough>>());
 
 	private stepsSlide!: HTMLElement;
 	private categoriesSlide!: HTMLElement;
@@ -259,6 +259,12 @@ export class GettingStartedPage extends EditorPane {
 			this.container.querySelectorAll<HTMLDivElement>(`[x-category-description-for="${category.id}"]`).forEach(step => (step as HTMLDivElement).innerText = ourCategory.description);
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
+				this.container.classList.toggle('animatable', this.shouldAnimate());
+			}
+		}));
+
 		this._register(this.gettingStartedService.onDidProgressStep(step => {
 			const category = this.gettingStartedCategories.find(c => c.id === step.category);
 			if (!category) { throw Error('Could not find category with ID: ' + step.category); }
@@ -272,11 +278,6 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(category.id);
 			}
 
-			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
-					this.container.classList.toggle('animatable', this.shouldAnimate());
-				}
-			}));
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
@@ -509,7 +510,7 @@ export class GettingStartedPage extends EditorPane {
 		const selectedCategory = this.gettingStartedCategories.find(category => category.id === categoryId);
 		if (!selectedCategory) { throw Error('Could not find category with ID ' + categoryId); }
 		this.setHiddenCategories([...this.getHiddenCategories().add(categoryId)]);
-		this.gettingStartedList?.rerender();
+		this.gettingStartedList.value?.rerender();
 	}
 
 	private markAllStepsComplete() {
@@ -858,7 +859,7 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		this.detailsPageScrollbar?.scanDomNode();
-		this.detailsScrollbar?.scanDomNode();
+		this.detailsScrollbar.value?.scanDomNode();
 	}
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hcDark: URI; hcLight: URI; dark: URI; light: URI }) {
@@ -1096,9 +1097,7 @@ export class GettingStartedPage extends EditorPane {
 			return li;
 		};
 
-		if (this.recentlyOpenedList) { this.recentlyOpenedList.dispose(); }
-
-		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
+		const recentlyOpenedList = this.recentlyOpenedList.value = new GettingStartedIndexList(
 			{
 				title: localize('recent', "Recent"),
 				klass: 'recently-opened',
@@ -1140,13 +1139,13 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private refreshRecentlyOpened(): void {
-		if (!this.recentlyOpenedList) {
+		if (!this.recentlyOpenedList.value) {
 			return;
 		}
 
 		this.recentlyOpened.then(({ workspaces }) => {
 			const workspacesWithID = this.filterRecentlyOpened(workspaces);
-			this.recentlyOpenedList?.setEntries(workspacesWithID);
+			this.recentlyOpenedList.value?.setEntries(workspacesWithID);
 		}).catch(onUnexpectedError);
 	}
 
@@ -1161,9 +1160,7 @@ export class GettingStartedPage extends EditorPane {
 					this.iconWidgetFor(entry),
 					$('span', {}, entry.title)));
 
-		if (this.startList) { this.startList.dispose(); }
-
-		const startList = this.startList = new GettingStartedIndexList(
+		const startList = this.startList.value = new GettingStartedIndexList(
 			{
 				title: localize('start', "Start"),
 				klass: 'start-container',
@@ -1225,7 +1222,7 @@ export class GettingStartedPage extends EditorPane {
 						$('.progress-bar-inner'))));
 		};
 
-		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
+
 
 		const rankWalkthrough = (e: IResolvedWalkthrough) => {
 			let rank: number | null = e.order;
@@ -1239,7 +1236,7 @@ export class GettingStartedPage extends EditorPane {
 			return rank;
 		};
 
-		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
+		const gettingStartedList = this.gettingStartedList.value = new GettingStartedIndexList(
 			{
 				title: localize('walkthroughs', "Walkthroughs"),
 				klass: 'getting-started',
@@ -1266,14 +1263,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	layout(size: Dimension) {
-		this.detailsScrollbar?.scanDomNode();
+		this.detailsScrollbar.value?.scanDomNode();
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
 
-		this.startList?.layout(size);
-		this.gettingStartedList?.layout(size);
-		this.recentlyOpenedList?.layout(size);
+		this.startList.value?.layout(size);
+		this.gettingStartedList.value?.layout(size);
+		this.recentlyOpenedList.value?.layout(size);
 
 		if (this.editorInput?.selectedStep && this.currentMediaType) {
 			this.mediaDisposables.clear();
@@ -1289,7 +1286,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
-		this.detailsScrollbar?.scanDomNode();
+		this.detailsScrollbar.value?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
@@ -1504,7 +1501,7 @@ export class GettingStartedPage extends EditorPane {
 		if (!this.editorInput) {
 			return;
 		}
-		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
+
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			// Remove internal extension id specifier from exposed id's
@@ -1635,8 +1632,8 @@ export class GettingStartedPage extends EditorPane {
 					: []),
 			)
 		);
-		this.detailsScrollbar = this._register(new DomScrollableElement(stepsContainer, { className: 'steps-container' }));
-		const stepListComponent = this.detailsScrollbar.getDomNode();
+		this.detailsScrollbar.value = new DomScrollableElement(stepsContainer, { className: 'steps-container' });
+		const stepListComponent = this.detailsScrollbar.value.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
 		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && this.productService.enableTelemetry) {
@@ -1648,7 +1645,7 @@ export class GettingStartedPage extends EditorPane {
 		const toExpand = category.steps.find(step => this.contextService.contextMatchesRules(step.when) && !step.done) ?? category.steps[0];
 		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, preserveFocus);
 
-		this.detailsScrollbar.scanDomNode();
+		this.detailsScrollbar.value?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
 
 		this.registerDispatchListeners();
@@ -1700,7 +1697,7 @@ export class GettingStartedPage extends EditorPane {
 					this.editorInput.walkthroughPageTitle = undefined;
 				}
 
-				if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
+				if (this.gettingStartedCategories.length !== this.gettingStartedList.value?.itemCount) {
 					// extensions may have changed in the time since we last displayed the walkthrough list
 					// rebuild the list
 					this.buildCategoriesSlide();

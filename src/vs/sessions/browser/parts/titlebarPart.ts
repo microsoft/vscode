@@ -14,7 +14,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { agentsPanelForeground } from '../../common/theme.js';
+import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, getContentWidth } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -29,6 +29,7 @@ import { IEditorGroupsContainer } from '../../../workbench/services/editor/commo
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
+import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 
@@ -75,8 +76,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	//#endregion
 
-	private rootContainer!: HTMLElement;
-	private windowControlsContainer: HTMLElement | undefined;
+	protected rootContainer!: HTMLElement;
+	protected windowControlsContainer: HTMLElement | undefined;
 
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
@@ -263,16 +264,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		if (this.element) {
 			this.element.classList.toggle('inactive', this.isInactive);
 
-			// Titlebar is transparent — it inherits the sidebar/gradient background via CSS.
-			// Only set foreground color for text/icon contrast.
-			this.element.style.backgroundColor = '';
+			const titleBarBackground = this.getColor(agentsBackground); // transparent background not supported on some platforms
+			this.element.style.backgroundColor = titleBarBackground || '';
 
 			const titleForeground = this.getColor(agentsPanelForeground);
 			this.element.style.color = titleForeground || '';
 		}
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	protected onContextMenu(e: MouseEvent): void {
 		const event = new StandardMouseEvent(getWindow(this.element), e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
@@ -472,6 +472,18 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 		for (const part of this.parts) {
 			part.registerVariables(variables);
 		}
+	}
+
+	private _windowTitle: WindowTitle | undefined;
+
+	get windowTitle(): WindowTitle {
+		// The Agents window title bar does not render `window.title`, so we
+		// lazily construct a `WindowTitle` only when a consumer (e.g. a custom
+		// command center widget) actually asks for one.
+		if (!this._windowTitle) {
+			this._windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, mainWindow));
+		}
+		return this._windowTitle;
 	}
 
 	//#endregion

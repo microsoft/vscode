@@ -2,7 +2,9 @@ name: Component Fixtures
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'release/*'
   pull_request:
     branches:
       - main
@@ -110,6 +112,8 @@ jobs:
       - name: Check fixture errors
         id: fixture_errors
         if: always()
+        # TODO: "render" should just return a non-zero exit code if any fixture had an error (and print the errors), so we don't need to parse the manifest here.
+        # Then we can remove this step.
         run: |
           MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
           if [ ! -f "$MANIFEST" ]; then
@@ -144,6 +148,7 @@ jobs:
 
       - name: Check blocks-ci screenshots
         id: blocks-ci
+        if: always()
         # The service URL is baked into the committed blocks-ci-screenshots.md
         # as `![screenshot](<service-url>/images/<hash>)` (see
         # build/lib/screenshotBlocksCi.ts). It is passed here so the script
@@ -164,10 +169,15 @@ jobs:
               echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
               echo "$CONTENT" >> "$GITHUB_OUTPUT"
               echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+              PATCH=$(diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true)
+              echo "patch<<BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
+              echo "$PATCH" >> "$GITHUB_OUTPUT"
+              echo "BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
             }
 
       - name: Upload screenshots as artifact
         uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
@@ -177,10 +187,6 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For PRs, diff against the merge-base with the target branch.
-            # This isolates the visual effect of just this PR's divergence
-            # from target. Using pull_request.base.sha would be wrong: it's
-            # the target-branch tip at PR creation time and can be stale,
-            # causing unrelated target-branch commits to show up as diffs.
             TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
             git fetch --no-tags --depth=50 origin "${{ github.event.pull_request.base.ref }}"
             BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
@@ -206,9 +212,6 @@ jobs:
         run: |
           cd test/componentFixtures/.screenshots/current
           zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
-          # Tolerate service outages: warn instead of failing the step so the
-          # rest of the workflow (and CI) is not blocked when the screenshot
-          # service is unreachable.
           set +e
           STATUS=$(curl -sS -o /tmp/screenshot-upload.out -w '%{http_code}' \
             -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
@@ -235,10 +238,6 @@ jobs:
         run: |
           BASE_MANIFEST=/tmp/base-manifest.json
           URL="https://hediet-screenshots.azurewebsites.net/commits/${{ github.repository_owner }}/${{ github.event.repository.name }}/$BASE_SHA"
-          # Tolerate service outages: bash `set -e` would otherwise abort this
-          # step if curl can't connect (since the `STATUS=$(...)` substitution
-          # propagates the non-zero exit). Capture the exit code explicitly
-          # and emit a warning instead.
           set +e
           STATUS=$(curl -sS -o "$BASE_MANIFEST" -w '%{http_code}' "$URL")
           CURL_EXIT=$?
@@ -255,7 +254,7 @@ jobs:
 
       - name: Diff screenshots
         id: diff
-        if: steps.base_manifest.outputs.path
+        if: always()
         run: |
           BODY=$(node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
@@ -276,44 +275,55 @@ jobs:
             cat .tmp/screenshotDiffReport.json
             echo "::endgroup::"
           fi
-        continue-on-error: true
 
-      - name: Write job summary
-        if: steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false'
+      - name: Build comment body
+        id: comment_body
+        if: always() && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
+        # Single source of truth for the markdown body shared by the job
+        # summary (the only surface fork PRs see) and the non-fork PR comment.
+        # Fixture rendering errors are already part of COMMENT_BODY via the
+        # "Errored" section emitted by screenshotDiffReport.ts, so reporting
+        # errors is not tied to blocks-ci here.
         run: |
-          BODY="${COMMENT_BODY}"
-          if [ -n "$BLOCKS_CI_CONTENT" ]; then
-            if [ -n "$BODY" ]; then BODY+=$'\n\n---\n\n'; fi
-            BODY+="### blocks-ci screenshots changed"$'\n\n'
-            BODY+="Replace the contents of \`test/componentFixtures/blocks-ci-screenshots.md\` with:"$'\n\n'
-            BODY+="<details>"$'\n'"<summary>Updated blocks-ci-screenshots.md</summary>"$'\n\n'
-            BODY+="\`\`\`md"$'\n'"${BLOCKS_CI_CONTENT}"$'\n'"\`\`\`"$'\n\n'
-            BODY+="</details>"
-          fi
-          echo "$BODY" >> "$GITHUB_STEP_SUMMARY"
+          {
+            if [ -n "$COMMENT_BODY" ]; then
+              printf '%s\n' "$COMMENT_BODY"
+            fi
+            if [ -n "$BLOCKS_CI_CONTENT" ]; then
+              if [ -n "$COMMENT_BODY" ]; then printf '\n---\n\n'; fi
+              printf '### blocks-ci screenshots changed\n\n'
+              printf 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n'
+              printf '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n'
+              printf '```md\n%s\n```\n\n' "$BLOCKS_CI_CONTENT"
+              printf '</details>\n'
+              if [ -n "$BLOCKS_CI_PATCH" ]; then
+                printf '\n<details open>\n<summary>Patch</summary>\n\n'
+                printf '```diff\n%s\n```\n\n' "$BLOCKS_CI_PATCH"
+                printf '</details>\n'
+              fi
+            fi
+          } > /tmp/comment-body.md
+          echo "path=/tmp/comment-body.md" >> "$GITHUB_OUTPUT"
         env:
           COMMENT_BODY: ${{ steps.diff.outputs.body }}
           BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
+
+      - name: Write job summary
+        if: always() && steps.comment_body.outputs.path
+        run: cat "${{ steps.comment_body.outputs.path }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment (non-fork PR only)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         with:
           script: |
+            const fs = require('fs');
             const marker = '<!-- screenshot-diff-report -->';
-            let body = process.env.COMMENT_BODY || '';
-            const blocksCiContent = process.env.BLOCKS_CI_CONTENT;
-
-            if (blocksCiContent) {
-              if (body) { body += '\n\n---\n\n'; }
-              body += '### blocks-ci screenshots changed\n\n';
-              body += 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n';
-              body += '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n';
-              body += '```md\n' + blocksCiContent + '\n```\n\n';
-              body += '</details>';
-            }
-
-            const hasContent = body || blocksCiContent;
+            const bodyPath = process.env.COMMENT_BODY_PATH;
+            let body = bodyPath && fs.existsSync(bodyPath)
+              ? fs.readFileSync(bodyPath, 'utf8').replace(/\s+$/, '')
+              : '';
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -323,7 +333,7 @@ jobs:
             });
             const existing = comments.find(c => c.body?.startsWith(marker));
 
-            if (!hasContent) {
+            if (!body) {
               // No changes to report — update existing comment if present, otherwise do nothing
               if (existing) {
                 const baseSha = (process.env.BASE_SHA || '').slice(0, 8);
@@ -360,8 +370,7 @@ jobs:
               });
             }
         env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+          COMMENT_BODY_PATH: ${{ steps.comment_body.outputs.path }}
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
           CURRENT_SHA: ${{ github.sha }}
 

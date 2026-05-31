@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platfo
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
+import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
@@ -66,6 +66,13 @@ interface AnthropicStreamEvent {
 			output_tokens: number;
 			cache_creation_input_tokens?: number;
 			cache_read_input_tokens?: number;
+			cache_creation?: {
+				ephemeral_1h_input_tokens?: number;
+				ephemeral_5m_input_tokens?: number;
+			};
+			output_tokens_details?: {
+				thinking_tokens?: number;
+			};
 		};
 	};
 	index?: number;
@@ -92,6 +99,13 @@ interface AnthropicStreamEvent {
 		input_tokens?: number;
 		cache_creation_input_tokens?: number;
 		cache_read_input_tokens?: number;
+		cache_creation?: {
+			ephemeral_1h_input_tokens?: number;
+			ephemeral_5m_input_tokens?: number;
+		};
+		output_tokens_details?: {
+			thinking_tokens?: number;
+		};
 	};
 	copilot_usage?: {
 		total_nano_aiu: number;
@@ -179,9 +193,24 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const validToolNames = finalTools.length > 0 ? new Set(finalTools.map(t => t.name)) : undefined;
 	const messagesResult = rawMessagesToMessagesAPI(options.messages, toolSearchEnabled ? validToolNames : undefined);
 
+	// Subagent requests are out of scope for the extended cache TTL — their
+	// context is short-lived. The three subagent call sites (search loop,
+	// execution loop, Task-tool-spawned agent) all set
+	// `interactionTypeOverride: 'conversation-subagent'`, which is also the
+	// source of truth for the `X-Interaction-Type` wire header.
+	//
+	// The rolling message breakpoints default to the 5m TTL and only upgrade to
+	// 1h when the `extendedTtlMessages` sub-toggle is on (which itself requires
+	// the parent `extendedTtl` to be on — see `isExtendedCacheTtlMessagesEnabled`).
+	const isSubagent = options.interactionTypeOverride === 'conversation-subagent';
+	const useExtendedCacheTtl = isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
+	const cacheTtl = useExtendedCacheTtl ? '1h' : undefined;
+	const useExtendedCacheTtlMessages = isExtendedCacheTtlMessagesEnabled(useExtendedCacheTtl, configurationService, experimentationService);
+	const messageCacheTtl = useExtendedCacheTtlMessages ? '1h' : undefined;
+
 	clearAllCacheControl(messagesResult);
-	addMessagesApiCacheControl(messagesResult);
-	addToolsAndSystemCacheControl(finalTools, messagesResult);
+	addMessagesApiCacheControl(messagesResult, messageCacheTtl);
+	addToolsAndSystemCacheControl(finalTools, messagesResult, cacheTtl);
 
 	// Guard: The Anthropic Messages API requires the conversation to end with a user message.
 	// A trailing assistant message is treated as a prefill request, which is not supported
@@ -214,7 +243,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	return {
 		model,
 		...messagesResult,
-		stream: true,
+		stream: options.requestOptions?.stream ?? true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
 		max_tokens: options.postOptions.max_tokens,
 		thinking: thinkingConfig,
@@ -491,21 +520,33 @@ export function clearAllCacheControl(
 	}
 }
 
-/** Marks the last non-deferred tool and the last system block for caching. */
+/**
+ * Marks the last non-deferred tool and the last system block for caching.
+ *
+ * When {@link cacheTtl} is `'1h'`, the breakpoints request the extended cache
+ * TTL. Sending this requires the `extended-cache-ttl-2025-04-11` Anthropic
+ * beta header — see {@link IChatEndpoint.getExtraHeaders}. When omitted, the
+ * default 5 minute TTL is used.
+ */
 export function addToolsAndSystemCacheControl(
 	tools: AnthropicMessagesTool[],
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	cacheTtl?: '1h',
 ): void {
+	const cacheControl = cacheTtl
+		? { type: 'ephemeral' as const, ttl: cacheTtl }
+		: { type: 'ephemeral' as const };
+
 	for (let i = tools.length - 1; i >= 0; i--) {
 		if (!tools[i].defer_loading) {
-			tools[i].cache_control = { type: 'ephemeral' };
+			tools[i].cache_control = cacheControl;
 			break;
 		}
 	}
 
 	const lastSystemBlock = messagesResult.system?.at(-1);
 	if (lastSystemBlock && !lastSystemBlock.cache_control) {
-		lastSystemBlock.cache_control = { type: 'ephemeral' };
+		lastSystemBlock.cache_control = cacheControl;
 	}
 }
 
@@ -525,26 +566,27 @@ export function addToolsAndSystemCacheControl(
  */
 export function addMessagesApiCacheControl(
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	cacheTtl?: '1h',
 ): void {
 	const messages = messagesResult.messages;
 	let marked = 0;
 	for (let i = messages.length - 1; i >= 0 && marked < 2; i--) {
 		const msg = messages[i];
 		if (Array.isArray(msg.content) && msg.content.some(b => typeof b === 'object' && contentBlockSupportsCacheControl(b))) {
-			markLastCacheableBlock(msg);
+			markLastCacheableBlock(msg, cacheTtl);
 			marked++;
 		}
 	}
 }
 
-function markLastCacheableBlock(msg: MessageParam): void {
+function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
 	if (!Array.isArray(msg.content)) {
 		return;
 	}
 	for (let j = msg.content.length - 1; j >= 0; j--) {
 		const block = msg.content[j];
 		if (typeof block === 'object' && contentBlockSupportsCacheControl(block)) {
-			block.cache_control = { type: 'ephemeral' };
+			block.cache_control = cacheTtl ? { type: 'ephemeral', ttl: cacheTtl } : { type: 'ephemeral' };
 			return;
 		}
 	}
@@ -558,6 +600,12 @@ export async function processResponseFromMessagesEndpoint(
 	finishCallback: FinishedCallback,
 	telemetryData: TelemetryData
 ): Promise<AsyncIterableObject<ChatCompletion>> {
+	// Route based on Content-Type: non-streaming Anthropic responses return
+	// application/json, streaming returns text/event-stream.
+	const contentType = response.headers.get('content-type') ?? '';
+	if (!contentType.includes('text/event-stream')) {
+		return processNonStreamingResponseFromMessagesEndpoint(telemetryService, logService, response, finishCallback, telemetryData);
+	}
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
@@ -618,6 +666,327 @@ export async function processResponseFromMessagesEndpoint(
 	});
 }
 
+/**
+ * Inputs for {@link buildAnthropicCompletion}. Both the streaming
+ * `message_stop` handler and the non-streaming response handler
+ * populate this from their respective data sources.
+ */
+interface AnthropicCompletionState {
+	readonly model: string;
+	readonly messageId: string;
+	readonly stopReason: string | null | undefined;
+	readonly textContent: string;
+	readonly toolCalls: readonly { id: string; name: string; arguments: string }[];
+	readonly inputTokens: number;
+	readonly outputTokens: number;
+	readonly cacheCreationTokens: number;
+	readonly cacheCreation1hTokens: number | undefined;
+	readonly cacheCreation5mTokens: number | undefined;
+	readonly cacheReadTokens: number;
+	/**
+	 * Anthropic-reported thinking (reasoning) tokens, a subset of
+	 * `output_tokens`. Surfaced as `completion_tokens_details.reasoning_tokens`
+	 * to match the OpenAI/CAPI naming used elsewhere in telemetry. Undefined
+	 * when the server did not include `output_tokens_details`.
+	 */
+	readonly thinkingTokens: number | undefined;
+	readonly requestId: string;
+	readonly ghRequestId: string;
+	readonly serverExperiments: string;
+	readonly telemetryData: TelemetryData;
+	readonly copilotUsage?: { total_nano_aiu: number };
+}
+
+/**
+ * Map an Anthropic `stop_reason` string to a {@link FinishedCompletionReason}.
+ */
+function mapStopReason(stopReason: string | null | undefined): FinishedCompletionReason {
+	switch (stopReason) {
+		case 'refusal':
+			return FinishedCompletionReason.ClientDone;
+		case 'max_tokens':
+		case 'model_context_window_exceeded':
+			return FinishedCompletionReason.Length;
+		default:
+			return FinishedCompletionReason.Stop;
+	}
+}
+
+/**
+ * Build a {@link ChatCompletion} from the accumulated Anthropic response
+ * state. Shared between the streaming (`message_stop`) and non-streaming
+ * response handlers so token accounting, finish-reason mapping, and
+ * message construction are defined in exactly one place.
+ *
+ * @param logService Used for the cache-token consistency warning.
+ */
+function buildAnthropicCompletion(state: AnthropicCompletionState, logService: ILogService): ChatCompletion {
+	const computedPromptTokens = state.inputTokens + state.cacheCreationTokens + state.cacheReadTokens;
+	if (computedPromptTokens < state.cacheReadTokens) {
+		logService.warn(`[messagesAPI] Token count inconsistency: computed prompt_tokens (${computedPromptTokens}) < cached_tokens (${state.cacheReadTokens}). Raw values: inputTokens=${state.inputTokens}, cacheCreationTokens=${state.cacheCreationTokens}, cacheReadTokens=${state.cacheReadTokens}`);
+	}
+
+	return {
+		blockFinished: true,
+		choiceIndex: 0,
+		model: state.model,
+		tokens: [],
+		telemetryData: state.telemetryData,
+		requestId: {
+			headerRequestId: state.requestId,
+			gitHubRequestId: state.ghRequestId,
+			completionId: state.messageId,
+			created: Date.now(),
+			deploymentId: '',
+			serverExperiments: state.serverExperiments,
+		},
+		usage: {
+			prompt_tokens: computedPromptTokens,
+			completion_tokens: state.outputTokens,
+			total_tokens: computedPromptTokens + state.outputTokens,
+			prompt_tokens_details: {
+				cached_tokens: state.cacheReadTokens,
+				cache_creation_input_tokens: state.cacheCreationTokens,
+				...(state.cacheCreation1hTokens !== undefined || state.cacheCreation5mTokens !== undefined
+					? {
+						anthropic_cache_creation: {
+							...(state.cacheCreation1hTokens !== undefined ? { ephemeral_1h_input_tokens: state.cacheCreation1hTokens } : {}),
+							...(state.cacheCreation5mTokens !== undefined ? { ephemeral_5m_input_tokens: state.cacheCreation5mTokens } : {}),
+						},
+					}
+					: {}),
+			},
+			completion_tokens_details: {
+				reasoning_tokens: state.thinkingTokens ?? 0,
+				accepted_prediction_tokens: 0,
+				rejected_prediction_tokens: 0,
+			},
+			copilot_usage: state.copilotUsage,
+		},
+		finishReason: mapStopReason(state.stopReason),
+		message: {
+			role: Raw.ChatRole.Assistant,
+			content: state.textContent ? [{
+				type: Raw.ChatCompletionContentPartKind.Text,
+				text: state.textContent
+			}] : [],
+			...(state.toolCalls.length > 0 ? {
+				toolCalls: state.toolCalls.map(tc => ({
+					id: tc.id,
+					type: 'function' as const,
+					function: {
+						name: tc.name,
+						arguments: tc.arguments
+					}
+				}))
+			} : {})
+		}
+	};
+}
+
+/**
+ * Shape of an Anthropic Messages API non-streaming response.
+ * Tagged union: successful responses have `type: 'message'`, error
+ * responses have `type: 'error'`.
+ */
+type AnthropicNonStreamingResponse =
+	| {
+		type: 'message';
+		id: string;
+		role: string;
+		content: readonly (
+			| { type: 'text'; text: string }
+			| { type: 'tool_use'; id: string; name: string; input: unknown }
+			| { type: 'thinking'; thinking: string; signature: string }
+			| { type: 'redacted_thinking'; data: string }
+		)[];
+		model: string;
+		stop_reason: string | null;
+		usage: {
+			input_tokens: number;
+			output_tokens: number;
+			cache_creation_input_tokens?: number;
+			cache_read_input_tokens?: number;
+			cache_creation?: {
+				ephemeral_1h_input_tokens?: number;
+				ephemeral_5m_input_tokens?: number;
+			};
+			output_tokens_details?: {
+				thinking_tokens?: number;
+			};
+		};
+	}
+	| {
+		type: 'error';
+		error: { type?: string; message?: string };
+	};
+
+/**
+ * Process a non-streaming response from the Anthropic Messages API.
+ * Returns the same `ChatCompletion` shape as the streaming path.
+ *
+ * NOTE: Thinking / redacted_thinking content blocks are intentionally
+ * not surfaced. If a future caller needs them, this function must be
+ * extended to include them in the `ChatCompletion.message` and in the
+ * `finishCallback` delta.
+ */
+export async function processNonStreamingResponseFromMessagesEndpoint(
+	telemetryService: ITelemetryService,
+	logService: ILogService,
+	response: Response,
+	finishCallback: FinishedCallback,
+	telemetryData: TelemetryData
+): Promise<AsyncIterableObject<ChatCompletion>> {
+	return new AsyncIterableObject<ChatCompletion>(async feed => {
+		const { headerRequestId, serverExperiments } = getRequestId(response.headers);
+		const requestId = headerRequestId || generateUuid();
+		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
+
+		const bodyText = await response.text();
+
+		let parsed: AnthropicNonStreamingResponse;
+		try {
+			parsed = JSON.parse(bodyText);
+		} catch (e) {
+			feed.reject(new Error(`Failed to parse non-streaming Anthropic response: ${e instanceof Error ? e.message : String(e)}`));
+			return;
+		}
+
+		if (parsed.type === 'error') {
+			feed.reject(new Error(`Anthropic API error: ${parsed.error?.message ?? 'Unknown error'}`));
+			return;
+		}
+
+		// Extract content blocks — guard against missing content array
+		// (shouldn't happen for type=message, but be defensive).
+		let textContent = '';
+		const toolCalls: { id: string; name: string; arguments: string }[] = [];
+		for (const block of parsed.content ?? []) {
+			switch (block.type) {
+				case 'text':
+					textContent += block.text;
+					break;
+				case 'tool_use':
+					toolCalls.push({
+						id: block.id,
+						name: block.name,
+						arguments: JSON.stringify(block.input),
+					});
+					break;
+				case 'thinking':
+				case 'redacted_thinking':
+					// Intentionally not surfaced — see function JSDoc.
+					break;
+				default: {
+					// Parity with streaming path: log + emit telemetry for unknown block types
+					const unknownType = (block as { type: string }).type;
+					logService.warn(`[messagesAPI] non-streaming: unknown content_block type '${unknownType}' for model ${parsed.model}`);
+					/* __GDPR__
+						"messagesApi.unknownContentBlock" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks unknown Anthropic content block types",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that emitted the unknown block" },
+							"blockType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unknown content_block.type string" }
+						}
+					*/
+					telemetryService.sendMSFTTelemetryEvent('messagesApi.unknownContentBlock', {
+						requestId,
+						model: parsed.model,
+						blockType: unknownType,
+					});
+					break;
+				}
+			}
+		}
+
+		// Report text and tool calls to finishedCb so callers that rely on
+		// the callback (e.g. for OTEL tracing, progress, langModelServer SSE
+		// forwarding) see the complete response — matching the streaming path.
+		const delta: IResponseDelta = {
+			text: textContent,
+			...(toolCalls.length > 0 ? {
+				copilotToolCalls: toolCalls.map(tc => ({
+					id: tc.id,
+					name: tc.name,
+					arguments: tc.arguments,
+				})),
+			} : {}),
+		};
+		await finishCallback(textContent, 0, delta);
+
+		if (parsed.stop_reason === 'refusal') {
+			logService.warn(`[messagesAPI] non-streaming: Refusal received for model ${parsed.model}`);
+
+			/* __GDPR__
+				"messagesApi.refusal" : {
+					"owner": "bhavyaus",
+					"comment": "Tracks Anthropic refusal responses including cyber and other policy categories",
+					"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+					"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that produced the refusal" },
+					"category": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The refusal category (e.g. cyber, content_policy)" }
+				}
+			*/
+			telemetryService.sendMSFTTelemetryEvent('messagesApi.refusal',
+				{
+					requestId,
+					model: parsed.model,
+					category: 'unknown',
+				}
+			);
+		}
+
+		const usage = parsed.usage;
+		const completion = buildAnthropicCompletion({
+			model: parsed.model,
+			messageId: parsed.id,
+			stopReason: parsed.stop_reason,
+			textContent,
+			toolCalls,
+			inputTokens: usage?.input_tokens ?? 0,
+			outputTokens: usage?.output_tokens ?? 0,
+			cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
+			cacheCreation1hTokens: usage?.cache_creation?.ephemeral_1h_input_tokens,
+			cacheCreation5mTokens: usage?.cache_creation?.ephemeral_5m_input_tokens,
+			cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
+			thinkingTokens: usage?.output_tokens_details?.thinking_tokens,
+			requestId,
+			ghRequestId,
+			serverExperiments,
+			telemetryData,
+		}, logService);
+
+		logService.info(`[messagesAPI] non-streaming message returned. finish reason: [${completion.finishReason}]`);
+
+		const dataToSendToTelemetry = telemetryData.extendedBy({
+			completionChoiceFinishReason: completion.finishReason,
+			headerRequestId: completion.requestId.headerRequestId
+		});
+		telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
+
+		const telemetryMessage = rawMessageToCAPI(completion.message);
+		let telemetryDataWithUsage = telemetryData;
+		if (completion.usage) {
+			telemetryDataWithUsage = telemetryData.extendedBy({}, {
+				promptTokens: completion.usage.prompt_tokens,
+				completionTokens: completion.usage.completion_tokens,
+				totalTokens: completion.usage.total_tokens,
+				...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+				...(completion.usage.completion_tokens_details && {
+					reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+					acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+					rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+				}),
+			});
+		}
+		sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
+
+		feed.emitOne(completion);
+	}, async () => {
+		await response.body.destroy();
+	});
+}
+
 export class AnthropicMessagesProcessor {
 	private textAccumulator: string = '';
 	private toolCallAccumulator: Map<number, { id: string; name: string; arguments: string }> = new Map();
@@ -628,7 +997,10 @@ export class AnthropicMessagesProcessor {
 	private inputTokens: number = 0;
 	private outputTokens: number = 0;
 	private cacheCreationTokens: number = 0;
+	private cacheCreation1hTokens: number | undefined;
+	private cacheCreation5mTokens: number | undefined;
 	private cacheReadTokens: number = 0;
+	private thinkingTokens: number | undefined;
 	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
@@ -708,7 +1080,10 @@ export class AnthropicMessagesProcessor {
 					this.inputTokens = chunk.message.usage.input_tokens ?? 0;
 					this.outputTokens = chunk.message.usage.output_tokens ?? 0;
 					this.cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
+					this.cacheCreation1hTokens = chunk.message.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
+					this.cacheCreation5mTokens = chunk.message.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
+					this.thinkingTokens = chunk.message.usage.output_tokens_details?.thinking_tokens ?? this.thinkingTokens;
 				}
 				return;
 			case 'content_block_start':
@@ -818,7 +1193,10 @@ export class AnthropicMessagesProcessor {
 					this.outputTokens = chunk.usage.output_tokens;
 					this.inputTokens = chunk.usage.input_tokens ?? this.inputTokens;
 					this.cacheCreationTokens = chunk.usage.cache_creation_input_tokens ?? this.cacheCreationTokens;
+					this.cacheCreation1hTokens = chunk.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
+					this.cacheCreation5mTokens = chunk.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
+					this.thinkingTokens = chunk.usage.output_tokens_details?.thinking_tokens ?? this.thinkingTokens;
 				}
 				if (chunk.copilot_usage && typeof chunk.copilot_usage.total_nano_aiu === 'number') {
 					this.copilotUsage = chunk.copilot_usage;
@@ -902,73 +1280,25 @@ export class AnthropicMessagesProcessor {
 					);
 				}
 
-				let finishReason: FinishedCompletionReason;
-				switch (this.stopReason) {
-					case 'refusal':
-						finishReason = FinishedCompletionReason.ClientDone;
-						break;
-					case 'max_tokens':
-					case 'model_context_window_exceeded':
-						finishReason = FinishedCompletionReason.Length;
-						break;
-					default:
-						finishReason = FinishedCompletionReason.Stop;
-						break;
-				}
-
-				const computedPromptTokens = this.inputTokens + this.cacheCreationTokens + this.cacheReadTokens;
-				if (computedPromptTokens < this.cacheReadTokens) {
-					this.logService.warn(`[messagesAPI] Token count inconsistency: computed prompt_tokens (${computedPromptTokens}) < cached_tokens (${this.cacheReadTokens}). Raw values: inputTokens=${this.inputTokens}, cacheCreationTokens=${this.cacheCreationTokens}, cacheReadTokens=${this.cacheReadTokens}`);
-				}
-
-				return {
-					blockFinished: true,
-					choiceIndex: 0,
+				return buildAnthropicCompletion({
 					model: this.model,
-					tokens: [],
+					messageId: this.messageId,
+					stopReason: this.stopReason,
+					textContent: this.textAccumulator,
+					toolCalls: this.completedToolCalls,
+					inputTokens: this.inputTokens,
+					outputTokens: this.outputTokens,
+					cacheCreationTokens: this.cacheCreationTokens,
+					cacheCreation1hTokens: this.cacheCreation1hTokens,
+					cacheCreation5mTokens: this.cacheCreation5mTokens,
+					cacheReadTokens: this.cacheReadTokens,
+					thinkingTokens: this.thinkingTokens,
+					requestId: this.requestId,
+					ghRequestId: this.ghRequestId,
+					serverExperiments: this.serverExperiments,
 					telemetryData: this.telemetryData,
-					requestId: {
-						headerRequestId: this.requestId,
-						gitHubRequestId: this.ghRequestId,
-						completionId: this.messageId,
-						created: Date.now(),
-						deploymentId: '',
-						serverExperiments: this.serverExperiments,
-					},
-					usage: {
-						prompt_tokens: computedPromptTokens,
-						completion_tokens: this.outputTokens,
-						total_tokens: computedPromptTokens + this.outputTokens,
-						prompt_tokens_details: {
-							cached_tokens: this.cacheReadTokens,
-							cache_creation_input_tokens: this.cacheCreationTokens,
-						},
-						completion_tokens_details: {
-							reasoning_tokens: 0,
-							accepted_prediction_tokens: 0,
-							rejected_prediction_tokens: 0,
-						},
-						copilot_usage: this.copilotUsage,
-					},
-					finishReason,
-					message: {
-						role: Raw.ChatRole.Assistant,
-						content: this.textAccumulator ? [{
-							type: Raw.ChatCompletionContentPartKind.Text,
-							text: this.textAccumulator
-						}] : [],
-						...(this.completedToolCalls.length > 0 ? {
-							toolCalls: this.completedToolCalls.map(tc => ({
-								id: tc.id,
-								type: 'function' as const,
-								function: {
-									name: tc.name,
-									arguments: tc.arguments
-								}
-							}))
-						} : {})
-					}
-				};
+					copilotUsage: this.copilotUsage,
+				}, this.logService);
 			}
 			case 'error': {
 				const errorMessage = (chunk as unknown as { error?: { message?: string } }).error?.message || 'Unknown error';

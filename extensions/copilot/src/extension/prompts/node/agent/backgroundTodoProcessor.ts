@@ -58,9 +58,10 @@ export type BackgroundTodoDecisionReason =
 	| 'noDelta'
 	| 'processorInProgress'
 	| 'initialPlanNeeded'
-	| 'meaningfulActivity'
-	| 'contextThresholdReached'
-	| 'contextOnlyWaiting'
+	| 'initialActivity'
+	| 'initialBackoff'
+	| 'substantiveActivity'
+	| 'belowThreshold'
 	| 'todoListExistsNoNewActivity'
 	| 'ready';
 
@@ -84,6 +85,8 @@ export interface IBackgroundTodoPolicyInput {
 	readonly isAgentPrompt: boolean;
 	/** The current prompt context for delta computation. */
 	readonly promptContext: IBuildPromptContext;
+	/** ID of the current user turn, used to reset turn-scoped policy backoff. */
+	readonly turnId?: string;
 	/** Whether a todo list already exists for this session. `undefined` means unknown. */
 	readonly todoListExists?: boolean;
 }
@@ -128,11 +131,23 @@ export interface IBackgroundTodoResult {
  */
 export class BackgroundTodoProcessor {
 
-	/** Minimum number of context-only tool calls before triggering a background pass. */
-	static readonly CONTEXT_TOOL_CALL_THRESHOLD = 5;
+	/** Minimum number of substantive tool calls to trigger the very first
+	 *  background pass (no todo list exists yet). The fast model can still no-op if there's nothing to track. */
+	static readonly INITIAL_SUBSTANTIVE_THRESHOLD = 3;
 
-	/** Minimum number of meaningful tool calls before triggering a background pass. */
-	static readonly MEANINGFUL_TOOL_CALL_THRESHOLD = 3;
+	/** Minimum number of substantive tool calls to trigger a subsequent
+	 *  background pass after the initial one. Higher than the initial
+	 *  threshold so the plan isn't re-rendered after every single tool
+	 *  call once a todo list already exists. Coalescing handles back-pressure
+	 *  beyond this. */
+	static readonly SUBSEQUENT_SUBSTANTIVE_THRESHOLD = 7;
+
+	/** Upper bound for the progressive initial-branch threshold.  After
+	 *  each no-op pass the required substantive call count doubles
+	 *  (INITIAL_SUBSTANTIVE_THRESHOLD × 2^n), capped here so exploration-heavy
+	 *  sessions keep getting checked — just less frequently — rather than
+	 *  stopping entirely. */
+	static readonly MAX_INITIAL_BACKOFF_THRESHOLD = 48;
 
 	private _state: BackgroundTodoProcessorState = BackgroundTodoProcessorState.Idle;
 	private _promise: Promise<void> | undefined;
@@ -140,6 +155,11 @@ export class BackgroundTodoProcessor {
 	private _lastError: unknown;
 	private _hasCreatedTodos: boolean = false;
 	private _passCount: number = 0;
+	/** Number of consecutive no-op passes that completed while no todos had been
+	 *  created yet.  Used to back off the initial-branch firing threshold. */
+	private _consecutiveInitialNoops: number = 0;
+	/** Turn ID most recently observed by policy evaluation or direct regular-pass queueing. */
+	private _lastSeenTurnId: string | undefined;
 
 	// ── Two-slot queue ──────────────────────────────────────────
 	// Regular passes coalesce into one slot; final review occupies a
@@ -156,11 +176,6 @@ export class BackgroundTodoProcessor {
 	/** Turn ID for which final review has already been attempted/queued.
 	 *  Prevents duplicate finalize passes within a single turn. */
 	private _finalReviewAttemptedTurnId: string | undefined;
-	/** The most recent execution context from any {@link requestRegularPass}
-	 *  call.  Used by {@link requestFinalReview} to build the synthetic
-	 *  final-review delta when no explicit context is provided. */
-	private _lastExecutionContext: IBackgroundTodoExecutionContext | undefined;
-
 	readonly deltaTracker = new BackgroundTodoDeltaTracker();
 
 	constructor(
@@ -182,6 +197,8 @@ export class BackgroundTodoProcessor {
 	 * Callers supply only the external context they already have.
 	 */
 	shouldRun(input: IBackgroundTodoPolicyInput): IBackgroundTodoDecisionResult {
+		this._resetInitialBackoffForTurn(input.turnId);
+
 		// ── Hard gates ────────────────────────────────────────────
 		if (input.todoToolExplicitlyEnabled) {
 			return { decision: BackgroundTodoDecision.Skip, reason: 'todoToolExplicitlyEnabled' };
@@ -199,32 +216,64 @@ export class BackgroundTodoProcessor {
 		}
 
 		if (this._state === BackgroundTodoProcessorState.InProgress) {
-			this._logService?.debug(`[BackgroundTodo] policy: Wait (processorInProgress) — meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}, rounds=${delta.metadata.newRoundCount}`);
+			this._logService?.debug(`[BackgroundTodo] policy: Wait (processorInProgress) — substantive=${delta.metadata.substantiveToolCallCount}, rounds=${delta.metadata.newRoundCount}`);
 			return { decision: BackgroundTodoDecision.Wait, reason: 'processorInProgress', delta };
 		}
 
-		const { meaningfulToolCallCount, contextToolCallCount, isInitialDelta, isRequestOnly } = delta.metadata;
+		const { currentTurnSubstantiveToolCallCount, isInitialDelta, isRequestOnly } = delta.metadata;
 
 		// ── Initial request (no tool calls yet) ────────────────────
 		if (isRequestOnly && isInitialDelta) {
-			// No tool activity yet — wait for meaningful work before creating
+			// No tool activity yet — wait for any work before creating
 			// a plan. Running here would force the fast model to guess a plan
 			// from the user request alone, which is too early.
 			return { decision: BackgroundTodoDecision.Wait, reason: 'initialPlanNeeded', delta };
 		}
 
-		// ── Meaningful work → run after threshold ────────────────────
-		if (meaningfulToolCallCount >= BackgroundTodoProcessor.MEANINGFUL_TOOL_CALL_THRESHOLD) {
-			this._logService?.debug(`[BackgroundTodo] policy: Run (meaningfulActivity) — meaningful=${meaningfulToolCallCount} >= threshold=${BackgroundTodoProcessor.MEANINGFUL_TOOL_CALL_THRESHOLD}, context=${contextToolCallCount}, rounds=${delta.metadata.newRoundCount}`);
-			return { decision: BackgroundTodoDecision.Run, reason: 'meaningfulActivity', delta };
+		// ── First-pass fast path / progressive backoff ─────────────
+		// No todos exist yet for this session.  We want to fire early so
+		// even pure-exploration sessions get a plan as soon as there is
+		// something to track — but not re-invoke copilot-utility-small on every
+		// INITIAL_SUBSTANTIVE_THRESHOLD reads when the model keeps no-op'ing.
+		//
+		// After each no-op the required threshold doubles (exponential
+		// backoff), capped at MAX_INITIAL_BACKOFF_THRESHOLD so we keep
+		// checking occasionally rather than stopping entirely.
+		//
+		//   noop 0 → threshold  3  (INITIAL_SUBSTANTIVE_THRESHOLD)
+		//   noop 1 → threshold  6
+		//   noop 2 → threshold 12
+		//   noop 3 → threshold 24
+		//   noop 4+ → threshold 48 (MAX_INITIAL_BACKOFF_THRESHOLD, then steady)
+		if (!this._hasCreatedTodos) {
+			const effectiveThreshold = Math.min(
+				BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD << this._consecutiveInitialNoops,
+				BackgroundTodoProcessor.MAX_INITIAL_BACKOFF_THRESHOLD,
+			);
+			if (currentTurnSubstantiveToolCallCount >= effectiveThreshold) {
+				this._logService?.debug(`[BackgroundTodo] policy: Run (initialActivity) — substantive=${currentTurnSubstantiveToolCallCount} >= effective threshold=${effectiveThreshold} (noops=${this._consecutiveInitialNoops}), rounds=${delta.metadata.newRoundCount}`);
+				return { decision: BackgroundTodoDecision.Run, reason: 'initialActivity', delta };
+			}
+			const reason = this._consecutiveInitialNoops > 0 ? 'initialBackoff' : 'belowThreshold';
+			this._logService?.debug(`[BackgroundTodo] policy: Wait (${reason}) — substantive=${currentTurnSubstantiveToolCallCount} < effective threshold=${effectiveThreshold} (noops=${this._consecutiveInitialNoops}), rounds=${delta.metadata.newRoundCount}`);
+			return { decision: BackgroundTodoDecision.Wait, reason, delta };
 		}
 
-		// Context-only activity (read_file, list_dir, search, etc.) is exploration
-		// and never on its own a reason to fire the bg agent — a research-only
-		// request can rack up dozens of read calls without producing any work to
-		// track. Wait until the agent does something mutating.
-		this._logService?.debug(`[BackgroundTodo] policy: Wait (contextOnlyWaiting) — context=${contextToolCallCount}, meaningful=${meaningfulToolCallCount}`);
-		return { decision: BackgroundTodoDecision.Wait, reason: 'contextOnlyWaiting', delta };
+		// ── Subsequent passes (todos already exist) ─────────────────
+		if (currentTurnSubstantiveToolCallCount >= BackgroundTodoProcessor.SUBSEQUENT_SUBSTANTIVE_THRESHOLD) {
+			this._logService?.debug(`[BackgroundTodo] policy: Run (substantiveActivity) — substantive=${currentTurnSubstantiveToolCallCount} >= threshold=${BackgroundTodoProcessor.SUBSEQUENT_SUBSTANTIVE_THRESHOLD}, rounds=${delta.metadata.newRoundCount}`);
+			return { decision: BackgroundTodoDecision.Run, reason: 'substantiveActivity', delta };
+		}
+
+		this._logService?.debug(`[BackgroundTodo] policy: Wait (belowThreshold) — substantive=${currentTurnSubstantiveToolCallCount}, rounds=${delta.metadata.newRoundCount}`);
+		return { decision: BackgroundTodoDecision.Wait, reason: 'belowThreshold', delta };
+	}
+
+	private _resetInitialBackoffForTurn(turnId: string | undefined): void {
+		if (turnId !== undefined && turnId !== this._lastSeenTurnId) {
+			this._consecutiveInitialNoops = 0;
+			this._lastSeenTurnId = turnId;
+		}
 	}
 
 	// ── Public queue API ────────────────────────────────────────
@@ -232,15 +281,19 @@ export class BackgroundTodoProcessor {
 	/**
 	 * Enqueue or coalesce a regular background pass. If a pass is already
 	 * running, the delta is stashed and will drain when the current pass
-	 * completes.  Always updates {@link _lastExecutionContext}.
+	 * completes.
+	 *
+	 * @param turnId The ID of the turn that triggered this pass. Kept for direct
+	 * queueing callers that do not evaluate {@link shouldRun} first.
 	 */
 	requestRegularPass(
 		delta: IBackgroundTodoDelta,
 		context: IBackgroundTodoExecutionContext,
 		parentToken?: CancellationToken,
+		turnId?: string,
 	): void {
-		this._lastExecutionContext = context;
-		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, state=${this._state}`);
+		this._resetInitialBackoffForTurn(turnId);
+		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}, state=${this._state}, turnId=${turnId}`);
 		this._pendingRegularDelta = delta;
 		this._pendingRegularContext = context;
 		this._pendingRegularToken = parentToken;
@@ -253,13 +306,12 @@ export class BackgroundTodoProcessor {
 	 * the processor is currently Idle, InProgress, or Failed.
 	 *
 	 * No-op when:
-	 * - No execution context has been recorded (no prompt build happened).
 	 * - No todos have been created yet (nothing to finalize).
 	 * - Final review was already requested for the given {@link turnId}.
 	 */
-	requestFinalReview(turnId: string, parentToken?: CancellationToken): void {
-		if (!this._hasCreatedTodos || !this._lastExecutionContext) {
-			this._logService?.debug(`[BackgroundTodo] final review skipped — hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
+	requestFinalReview(turnId: string, context: IBackgroundTodoExecutionContext, parentToken?: CancellationToken): void {
+		if (!this._hasCreatedTodos) {
+			this._logService?.debug('[BackgroundTodo] final review skipped - no todos have been created');
 			return;
 		}
 		if (this._finalReviewAttemptedTurnId === turnId) {
@@ -269,7 +321,7 @@ export class BackgroundTodoProcessor {
 		this._finalReviewAttemptedTurnId = turnId;
 		this._logService?.debug(`[BackgroundTodo] final review requested for turn ${turnId} — currentState=${this._state}`);
 
-		this._pendingFinalReview = { ...this._lastExecutionContext, isFinalReview: true };
+		this._pendingFinalReview = { ...context, isFinalReview: true };
 		this._pendingFinalReviewToken = parentToken;
 		this._drainQueue();
 	}
@@ -315,7 +367,7 @@ export class BackgroundTodoProcessor {
 	): void {
 		if (this._state === BackgroundTodoProcessorState.InProgress) {
 			// Coalesce into the regular-pass slot so _drainQueue picks it up.
-			this._logService?.debug(`[BackgroundTodo] coalescing delta (pass #${this._passCount} in progress) — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}`);
+			this._logService?.debug(`[BackgroundTodo] coalescing delta (pass #${this._passCount} in progress) — newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}`);
 			this._pendingRegularDelta = delta;
 			this._pendingRegularContext = undefined; // will use work callback directly
 			this._pendingRegularToken = parentToken;
@@ -395,22 +447,19 @@ export class BackgroundTodoProcessor {
 
 			// Build a synthetic delta from the full trajectory so the
 			// finalize prompt sees every round.
-			const allRounds = collectAllRounds(
+			const allRoundsWithTurns = collectAllRounds(
 				finalCtx.promptContext.history,
 				finalCtx.promptContext.toolCallRounds ?? [],
 			);
-			if (allRounds.length === 0) {
+			if (allRoundsWithTurns.length === 0) {
 				return;
 			}
-			let meaningful = 0;
-			let contextual = 0;
+			const allRounds = allRoundsWithTurns.map(r => r.round);
+			let substantive = 0;
 			for (const round of allRounds) {
 				for (const call of round.toolCalls) {
-					const category = classifyTool(call.name);
-					if (category === 'meaningful') {
-						meaningful++;
-					} else if (category === 'context') {
-						contextual++;
+					if (classifyTool(call.name) === 'substantive') {
+						substantive++;
 					}
 				}
 			}
@@ -421,15 +470,15 @@ export class BackgroundTodoProcessor {
 				sessionResource: extractSessionResource(finalCtx.promptContext),
 				metadata: {
 					newRoundCount: allRounds.length,
-					newToolCallCount: meaningful + contextual,
-					meaningfulToolCallCount: meaningful,
-					contextToolCallCount: contextual,
+					newToolCallCount: substantive,
+					substantiveToolCallCount: substantive,
+					currentTurnSubstantiveToolCallCount: substantive,
 					isInitialDelta: false,
 					isRequestOnly: false,
 				},
 			};
 
-			this._logService?.debug(`[BackgroundTodo] draining final review — rounds=${allRounds.length}, meaningful=${meaningful}, context=${contextual}`);
+			this._logService?.debug(`[BackgroundTodo] draining final review — rounds=${allRounds.length}, substantive=${substantive}`);
 			this._runPass(
 				delta,
 				(d, t) => BackgroundTodoProcessor._doExecute(d, finalCtx, t),
@@ -454,7 +503,7 @@ export class BackgroundTodoProcessor {
 		this._cts = cts;
 		const token = cts.token;
 
-		this._logService?.debug(`[BackgroundTodo] starting pass #${passNum} — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}, advanceCursor=${advanceCursor}`);
+		this._logService?.debug(`[BackgroundTodo] starting pass #${passNum} — newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}, advanceCursor=${advanceCursor}`);
 
 		const passPromise = work(delta, token).then(
 			(result) => {
@@ -464,6 +513,11 @@ export class BackgroundTodoProcessor {
 				}
 				if (result.outcome === 'success') {
 					this._hasCreatedTodos = true;
+					this._consecutiveInitialNoops = 0;
+				} else if (!this._hasCreatedTodos) {
+					// noop on the initial branch — back off so exploration-heavy sessions
+					// don't re-invoke copilot-utility-small every INITIAL_SUBSTANTIVE_THRESHOLD reads.
+					this._consecutiveInitialNoops++;
 				}
 				this._logService?.debug(`[BackgroundTodo] pass #${passNum} completed: outcome=${result.outcome}, durationMs=${result.durationMs ?? '?'}, model=${result.model ?? '?'}, promptTokens=${result.promptTokens ?? '?'}, completionTokens=${result.completionTokens ?? '?'}`);
 				if (advanceCursor) {
@@ -503,7 +557,7 @@ export class BackgroundTodoProcessor {
 	}
 
 	/**
-	 * The actual background work: render the todo prompt against copilot-fast,
+	 * The actual background work: render the todo prompt against copilot-utility-small,
 	 * parse tool calls, and invoke the todo tool.
 	 */
 	private static async _doExecute(
@@ -515,16 +569,16 @@ export class BackgroundTodoProcessor {
 		const conversationId = context.promptContext.conversation?.sessionId;
 		const associatedRequestId = context.promptContext.conversation?.getLatestTurn()?.id;
 
-		context.logService.debug(`[BackgroundTodo] executing pass — session=${conversationId}, requestId=${associatedRequestId}, newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}`);
+		context.logService.debug(`[BackgroundTodo] executing pass — session=${conversationId}, requestId=${associatedRequestId}, newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}`);
 
 		let fastEndpoint: IChatEndpoint;
 		try {
 			fastEndpoint = await context.instantiationService.invokeFunction(async (accessor) => {
 				const ep = accessor.get(IEndpointProvider);
-				return ep.getChatEndpoint('copilot-fast');
+				return ep.getChatEndpoint('copilot-utility-small');
 			});
 		} catch (err) {
-			context.logService.warn(`[BackgroundTodo] copilot-fast endpoint unavailable, skipping pass: ${err}`);
+			context.logService.warn(`[BackgroundTodo] copilot-utility-small endpoint unavailable, skipping pass: ${err}`);
 			BackgroundTodoProcessor._sendTelemetry(context.telemetryService, 'skipped', conversationId, associatedRequestId, Date.now() - startTime);
 			return { outcome: 'noop' };
 		}
@@ -615,7 +669,6 @@ export class BackgroundTodoProcessor {
 			location: ChatLocation.Other,
 			requestOptions: {
 				temperature: 0,
-				stream: false,
 				tools: normalizedTools,
 			},
 			userInitiatedRequest: false,
@@ -629,7 +682,7 @@ export class BackgroundTodoProcessor {
 		// propagate as errors so the delta is NOT marked processed — a later pass
 		// can retry with fresh or coalesced activity.
 		if (response.type !== ChatFetchResponseType.Success) {
-			context.logService.warn(`[BackgroundTodo] copilot-fast returned non-success response: ${response.type}`);
+			context.logService.warn(`[BackgroundTodo] copilot-utility-small returned non-success response: ${response.type}`);
 			BackgroundTodoProcessor._sendTelemetry(context.telemetryService, 'modelError', conversationId, associatedRequestId, durationMs);
 			throw new Error(`Background todo model request failed: ${response.type}`);
 		}
@@ -738,7 +791,7 @@ export class BackgroundTodoProcessor {
 		this._pendingRegularAdvanceCursor = true;
 		this._pendingFinalReview = undefined;
 		this._pendingFinalReviewToken = undefined;
-		this._lastExecutionContext = undefined;
+		this._lastSeenTurnId = undefined;
 		this._finalReviewAttemptedTurnId = undefined;
 	}
 }
@@ -750,30 +803,16 @@ export class BackgroundTodoProcessor {
 
 // ── Tool classification ─────────────────────────────────────────
 
-export type ToolCategory = 'context' | 'meaningful' | 'excluded';
-
-/** Read-only exploration tools — counted but not treated as meaningful progress. */
-const CONTEXT_TOOLS: ReadonlySet<string> = new Set([
-	ToolName.ReadFile,
-	ToolName.FindFiles,
-	ToolName.FindTextInFiles,
-	ToolName.ListDirectory,
-	ToolName.Codebase,
-	ToolName.GetErrors,
-	ToolName.GetScmChanges,
-	ToolName.CoreTestFailure,
-	ToolName.ViewImage,
-	ToolName.ReadProjectStructure,
-	ToolName.SearchWorkspaceSymbols,
-	ToolName.GetNotebookSummary,
-	ToolName.ReadCellOutput,
-	ToolName.GithubSemanticRepoSearch,
-	ToolName.GithubTextSearch,
-	// Browser read-only
-	ToolName.CoreScreenshotPage,
-	ToolName.CoreReadPage,
-	ToolName.CoreNavigatePage,
-]);
+/**
+ * Tool classification used by the policy and the prompt:
+ * - `substantive`: the agent did real work (file I/O, search, terminal,
+ *   subagents, browser, GitHub, etc). Counted as a progress signal regardless
+ *   of whether the call mutated state — pure exploration is still progress
+ *   the bg agent should be able to plan around.
+ * - `excluded`: infrastructure noise that does not represent progress on
+ *   the user's request (todo list updates, agent switches, confirmations).
+ */
+export type ToolCategory = 'substantive' | 'excluded';
 
 /** Infrastructure tools that are not progress signals at all. */
 const EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
@@ -792,13 +831,7 @@ const EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export function classifyTool(name: string): ToolCategory {
-	if (EXCLUDED_TOOLS.has(name)) {
-		return 'excluded';
-	}
-	if (CONTEXT_TOOLS.has(name)) {
-		return 'context';
-	}
-	return 'meaningful';
+	return EXCLUDED_TOOLS.has(name) ? 'excluded' : 'substantive';
 }
 
 // ── Target extraction ───────────────────────────────────────────
@@ -935,6 +968,9 @@ export interface IBackgroundTodoHistoryRound {
 	readonly id: string;
 	/** Position in the chronological list, starting at 1. */
 	readonly index: number;
+	/** 1-based turn index this round belongs to.  Rounds from history turns
+	 *  precede the current turn's rounds.  Used to render `<turn>` boundaries. */
+	readonly turnIndex: number;
 	/** Optional model thinking text rendered as a block in the round chunk. */
 	readonly thinking?: string;
 	/** Tool calls issued during the round; excluded tools are filtered out. */
@@ -960,7 +996,7 @@ export interface IBackgroundTodoHistory {
 // ── Builder ─────────────────────────────────────────────────────
 
 export interface IBuildBackgroundTodoHistoryOptions {
-	readonly allRounds: readonly IToolCallRound[];
+	readonly allRounds: readonly IToolCallRoundWithTurn[];
 	readonly newRoundIds: ReadonlySet<string>;
 }
 
@@ -971,7 +1007,8 @@ export function buildBackgroundTodoHistory(opts: IBuildBackgroundTodoHistoryOpti
 	const newRounds: IBackgroundTodoHistoryRound[] = [];
 	let index = 0;
 
-	for (const round of allRounds) {
+	for (const roundWithTurn of allRounds) {
+		const round = roundWithTurn.round;
 		const summaries = summarizeToolCalls(round.toolCalls);
 		const thinking = serializeThinking(round.thinking);
 		const response = round.response.trim().length > 0 ? round.response : undefined;
@@ -985,6 +1022,7 @@ export function buildBackgroundTodoHistory(opts: IBuildBackgroundTodoHistoryOpti
 		const historyRound: IBackgroundTodoHistoryRound = {
 			id: round.id,
 			index,
+			turnIndex: roundWithTurn.turnIndex,
 			thinking,
 			toolCalls: summaries,
 			response,
@@ -1098,6 +1136,33 @@ export function renderBackgroundTodoRound(round: IBackgroundTodoHistoryRound): s
 }
 
 /**
+ * Render a list of rounds grouped by `turnIndex`, wrapping consecutive
+ * same-turn rounds inside `<turn index="N">…</turn>` tags.  This saves
+ * tokens compared to repeating a `turn` attribute on every `<round>`.
+ */
+export function renderRoundsGroupedByTurn(rounds: readonly IBackgroundTodoHistoryRound[]): string {
+	if (rounds.length === 0) {
+		return '';
+	}
+	const lines: string[] = [];
+	let currentTurn: number | undefined;
+	for (const round of rounds) {
+		if (round.turnIndex !== currentTurn) {
+			if (currentTurn !== undefined) {
+				lines.push('</turn>');
+			}
+			lines.push(`<turn index="${round.turnIndex}">`);
+			currentTurn = round.turnIndex;
+		}
+		lines.push(renderBackgroundTodoRound(round));
+	}
+	if (currentTurn !== undefined) {
+		lines.push('</turn>');
+	}
+	return lines.join('\n');
+}
+
+/**
  * Compute a prompt-tsx priority for a previous-context round so newer
  * rounds survive budget pressure ahead of older history. Values are
  * clamped to the [700, 879] range so they stay below the system
@@ -1111,17 +1176,27 @@ export function computeRoundPriority(round: IBackgroundTodoHistoryRound, totalPr
 	return Math.min(879, 700 + Math.min(round.index, totalPreviousRounds));
 }
 
+/** A tool-call round annotated with its 1-based turn index. */
+export interface IToolCallRoundWithTurn {
+	readonly round: IToolCallRound;
+	readonly turnIndex: number;
+}
+
 /**
  * Collect all tool-call rounds from history turns and current-turn rounds
- * in chronological order.
+ * in chronological order, annotated with 1-based turn indices.
  */
-export function collectAllRounds(history: readonly Turn[], currentRounds: readonly IToolCallRound[]): IToolCallRound[] {
-	const all: IToolCallRound[] = [];
-	for (const turn of history) {
-		for (const round of turn.rounds) {
-			all.push(round);
+export function collectAllRounds(history: readonly Turn[], currentRounds: readonly IToolCallRound[]): IToolCallRoundWithTurn[] {
+	const all: IToolCallRoundWithTurn[] = [];
+	for (let i = 0; i < history.length; i++) {
+		const turnIndex = i + 1;
+		for (const round of history[i].rounds) {
+			all.push({ round, turnIndex });
 		}
 	}
-	all.push(...currentRounds);
+	const currentTurnIndex = history.length + 1;
+	for (const round of currentRounds) {
+		all.push({ round, turnIndex: currentTurnIndex });
+	}
 	return all;
 }
