@@ -10,7 +10,7 @@ import { AgentSession, IAgentHostService } from '../../../../../../platform/agen
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { Customization, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -20,28 +20,42 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
 
-export const IAgentHostCustomAgentsService = createDecorator<IAgentHostCustomAgentsService>('agentHostCustomAgentsService');
+export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
-export interface IAgentHostCustomAgentsService {
+export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents: Event<void>;
+	readonly onDidChangeCustomizations: Event<void>;
 
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
+
+	getCustomizations(sessionResource: URI): readonly Customization[];
+
+	getWorkingDirectory(sessionResource: URI): string | undefined;
 }
 
-export class NullAgentHostCustomAgentsService implements IAgentHostCustomAgentsService {
+export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents = Event.None;
+	readonly onDidChangeCustomizations = Event.None;
 	getCustomAgents(_sessionResource: URI): readonly AgentCustomization[] {
 		return [];
 	}
+	getCustomizations(_sessionResource: URI): readonly Customization[] {
+		return [];
+	}
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		return undefined;
+	}
 }
 
-class WorkbenchAgentHostCustomAgentsService extends Disposable implements IAgentHostCustomAgentsService {
+class WorkbenchAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
+	private readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
+	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
 	private readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, IDisposable & { readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
 
 	constructor(
@@ -52,20 +66,28 @@ class WorkbenchAgentHostCustomAgentsService extends Disposable implements IAgent
 		super();
 
 		this._register(this._agentHostService.onDidAction(envelope => {
-			if (envelope.action.type === ActionType.SessionCustomizationsChanged
-				|| envelope.action.type === ActionType.SessionCustomizationUpdated
-				|| envelope.action.type === ActionType.SessionAgentChanged) {
-				this._onDidChangeCustomAgents.fire();
+			switch (envelope.action.type) {
+				case ActionType.SessionCustomizationsChanged:
+				case ActionType.SessionCustomizationUpdated:
+					this._fireCustomizationsChanged();
+					this._fireCustomAgentsChanged();
+					break;
+				case ActionType.SessionAgentChanged:
+					this._fireCustomAgentsChanged();
+					break;
 			}
 		}));
 		this._register(this._provisionalSessionService.onDidChange(sessionResource => {
 			this._sessionStateSubscriptions.deleteAndDispose(sessionResource.toString());
-			this._onDidChangeCustomAgents.fire();
+			this._fireCustomizationsChanged();
+			this._fireCustomAgentsChanged();
 		}));
 		this._register(chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
 				this._sessionStateSubscriptions.deleteAndDispose(sessionResource.toString());
 			}
+			this._fireCustomizationsChanged();
+			this._fireCustomAgentsChanged();
 		}));
 	}
 
@@ -77,6 +99,16 @@ class WorkbenchAgentHostCustomAgentsService extends Disposable implements IAgent
 		}
 
 		return [];
+	}
+
+	getCustomizations(sessionResource: URI): readonly Customization[] {
+		const sessionState = this._readSessionState(sessionResource);
+		return sessionState?.customizations ?? [];
+	}
+
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		const sessionState = this._readSessionState(sessionResource);
+		return sessionState?.summary.workingDirectory;
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
@@ -95,7 +127,8 @@ class WorkbenchAgentHostCustomAgentsService extends Disposable implements IAgent
 		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => {
-			this._onDidChangeCustomAgents.fire();
+			this._fireCustomizationsChanged();
+			this._fireCustomAgentsChanged();
 		});
 		const entry = {
 			backendSession,
@@ -107,6 +140,14 @@ class WorkbenchAgentHostCustomAgentsService extends Disposable implements IAgent
 		};
 		this._sessionStateSubscriptions.set(key, entry);
 		return entry;
+	}
+
+	private _fireCustomAgentsChanged(): void {
+		this._onDidChangeCustomAgents.fire();
+	}
+
+	private _fireCustomizationsChanged(): void {
+		this._onDidChangeCustomizations.fire();
 	}
 
 	private _resolveBackendSession(sessionResource: URI): URI | undefined {
@@ -128,4 +169,4 @@ class WorkbenchAgentHostCustomAgentsService extends Disposable implements IAgent
 	}
 }
 
-registerSingleton(IAgentHostCustomAgentsService, WorkbenchAgentHostCustomAgentsService, InstantiationType.Delayed);
+registerSingleton(IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService, InstantiationType.Delayed);

@@ -161,6 +161,8 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
+	isAutoUpdateDelayed(extension: IExtension): boolean;
+	getAutoUpdateDelayRemaining(extension: IExtension): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
@@ -189,10 +191,10 @@ export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 
-export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
+export type AutoUpdateConfigurationValue = 'on' | 'delayed' | 'off';
 
 export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
+	autoUpdate: AutoUpdateConfigurationValue;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;

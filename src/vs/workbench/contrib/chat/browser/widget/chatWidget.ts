@@ -1686,6 +1686,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
+				if (currentElement.modelId) {
+					this.input.switchModelByIdentifier(currentElement.modelId);
+				}
 				this.input.setEditing(true, isEditingSentRequest);
 				this._onDidChangeActiveInputEditor.fire();
 			} else {
@@ -1787,10 +1790,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!isInput) {
 			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
 			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-			const currentModel = this.input.selectedLanguageModel.get();
-			if (currentModel) {
-				this.inputPart.switchModel(currentModel.metadata);
-			}
 
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {

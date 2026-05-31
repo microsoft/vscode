@@ -1,8 +1,6 @@
 name: Chat Performance Comparison
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       baseline_build:
