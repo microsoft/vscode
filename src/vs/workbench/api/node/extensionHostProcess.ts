@@ -242,13 +242,21 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol({ socket, initialChunk: initialDataChunk });
 						protocol.sendResume();
-						Event.once(protocol.onDidDispose)(() => onTerminate('renderer disconnected'));
+						let didDisconnect = false;
+						Event.once(protocol.onDidDispose)(() => {
+							didDisconnect = true;
+							disconnectRunner1.cancel();
+							disconnectRunner2.cancel();
+							onTerminate('renderer disconnected');
+						});
 						resolve(protocol);
 
 						// Wait for rich client to reconnect
 						protocol.onSocketClose(() => {
 							// The socket has closed, let's give the renderer a certain amount of time to reconnect
-							disconnectRunner1.schedule();
+							if (!didDisconnect) {
+								disconnectRunner1.schedule();
+							}
 						});
 					}
 				}
