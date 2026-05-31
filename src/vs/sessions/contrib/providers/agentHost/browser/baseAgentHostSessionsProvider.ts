@@ -1106,6 +1106,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected _cacheInitialized = false;
 
+	/**
+	 * Backoff timer that retries {@link _refreshSessions} after a failed
+	 * attempt. A failed initial list (e.g. the agent threw
+	 * `AHP_AUTH_REQUIRED` because its token wasn't yet effective server-side,
+	 * or a transient offline/network error) must not leave the session list
+	 * permanently empty. The timer is armed only on failure and cancelled on
+	 * the next successful refresh.
+	 */
+	private readonly _sessionRefreshRetry = this._register(new MutableDisposable());
+
+	/** Current backoff delay (ms) for the session-refresh retry. */
+	private _sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
+
+	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
+	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
+
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
 		@IChatService protected readonly _chatService: IChatService,
@@ -2112,7 +2128,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (this._cacheInitialized) {
 			return;
 		}
-		this._cacheInitialized = true;
+		// `_refreshSessions` owns `_cacheInitialized` — it flips it to `true`
+		// only once `listSessions()` actually returns. A call that races
+		// before the connection/auth is ready will fail and arm a retry
+		// rather than permanently pinning an empty cache.
 		this._refreshSessions();
 	}
 
@@ -2121,8 +2140,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection) {
 			return;
 		}
+		// Cancel any pending retry; this attempt supersedes it.
+		this._sessionRefreshRetry.clear();
 		try {
 			const sessions = await connection.listSessions();
+			// A successful return (even an empty list) means the cache is
+			// authoritative. Mark it initialized and reset the backoff.
+			this._cacheInitialized = true;
+			this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
 			const currentKeys = new Set<string>();
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
@@ -2158,10 +2183,43 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
 			}
-		} catch {
-			// Connection may not be ready yet
+		} catch (err) {
+			// The connection / agent may not be ready yet — e.g. the agent
+			// throws `AHP_AUTH_REQUIRED` until its token is effective
+			// server-side, or there's a transient offline/network error. We
+			// must NOT mark the cache initialized (that would conflate a
+			// failure with a genuinely-empty success and never recover), and
+			// we deliberately do NOT pop a sign-in dialog just to render the
+			// list. Instead, retry silently in the background with backoff.
+			this._logService.trace(`[AgentHostSessionsProvider] listSessions failed; scheduling retry: ${err}`);
+			this._scheduleSessionRefreshRetry(announceExistingAsAdded);
 		}
 	}
+
+	/**
+	 * Arm a backoff retry of {@link _refreshSessions}. Used after a failed
+	 * refresh so a transient startup failure self-heals without requiring an
+	 * unrelated AHP event (a turn completing, a session being added) to force
+	 * a re-fetch. Cancelled on the next successful refresh.
+	 */
+	private _scheduleSessionRefreshRetry(announceExistingAsAdded: boolean): void {
+		const delay = this._sessionRefreshRetryDelay;
+		this._sessionRefreshRetryDelay = Math.min(delay * 2, BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MAX_MS);
+		this._sessionRefreshRetry.value = disposableTimeout(() => {
+			this._refreshSessions(announceExistingAsAdded);
+		}, delay);
+	}
+
+	/**
+	 * Cancel any pending session-refresh retry and reset the backoff. Called
+	 * by subclasses when the connection goes away (the stale timer would
+	 * otherwise fire against a dead connection and no-op).
+	 */
+	protected _cancelSessionRefreshRetry(): void {
+		this._sessionRefreshRetry.clear();
+		this._sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
+	}
+
 
 	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISession | undefined> {
 		await this._refreshSessions();
