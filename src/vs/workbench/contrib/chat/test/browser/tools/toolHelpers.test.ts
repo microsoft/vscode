@@ -9,7 +9,10 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../pl
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { resolveToolUri, findLineNumber, findSymbolColumn, errorResult } from '../../../browser/tools/toolHelpers.js';
+import { resolveToolUri, findLineNumber, findSymbolColumn, errorResult, getChatPermissionLevelForToolInvocation, getSandboxPrecheckInputsForToolInvocation } from '../../../browser/tools/toolHelpers.js';
+import type { IChatService } from '../../../common/chatService/chatService.js';
+import { ChatPermissionLevel } from '../../../common/constants.js';
+import type { IChatWidgetService } from '../../../browser/chat.js';
 
 suite('Tool Helpers', () => {
 
@@ -37,6 +40,20 @@ suite('Tool Helpers', () => {
 				return null;
 			},
 		} as unknown as IWorkspaceContextService;
+	}
+
+	function createMockChatService(requests: readonly { id: string; modeInfo?: { permissionLevel?: ChatPermissionLevel } }[] | undefined): IChatService {
+		return {
+			_serviceBrand: undefined,
+			getSession: () => requests ? { getRequests: () => requests } : undefined,
+		} as unknown as IChatService;
+	}
+
+	function createMockChatWidgetService(permissionLevel: ChatPermissionLevel | undefined): IChatWidgetService {
+		return {
+			_serviceBrand: undefined,
+			getWidgetBySessionResource: () => permissionLevel === undefined ? undefined : { input: { currentModeInfo: { permissionLevel } } },
+		} as unknown as IChatWidgetService;
 	}
 
 	suite('resolveToolUri', () => {
@@ -84,6 +101,83 @@ suite('Tool Helpers', () => {
 			const workingDirectory = URI.parse('file:///session-dir');
 			const result = resolveToolUri({ symbol: 'x', lineContent: 'x', uri: 'file:///absolute/path.ts' }, ws, workingDirectory);
 			assert.strictEqual(result?.toString(), 'file:///absolute/path.ts');
+		});
+	});
+
+	suite('getChatPermissionLevelForToolInvocation', () => {
+
+		test('returns undefined when there is no chat session resource', () => {
+			const result = getChatPermissionLevelForToolInvocation(undefined, undefined, createMockChatWidgetService(ChatPermissionLevel.Default), createMockChatService([]));
+			assert.strictEqual(result, undefined);
+		});
+
+		test('prefers the request permission level for the provided request id', () => {
+			const sessionResource = URI.parse('vscode-chat://session/test');
+			const result = getChatPermissionLevelForToolInvocation(
+				sessionResource,
+				'request-2',
+				createMockChatWidgetService(ChatPermissionLevel.Default),
+				createMockChatService([
+					{ id: 'request-1', modeInfo: { permissionLevel: ChatPermissionLevel.Default } },
+					{ id: 'request-2', modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } },
+				]),
+			);
+
+			assert.strictEqual(result, ChatPermissionLevel.AutoApprove);
+		});
+
+		test('falls back to the live widget permission level when the request is not found', () => {
+			const sessionResource = URI.parse('vscode-chat://session/test');
+			const result = getChatPermissionLevelForToolInvocation(
+				sessionResource,
+				'missing-request',
+				createMockChatWidgetService(ChatPermissionLevel.Autopilot),
+				createMockChatService([{ id: 'request-1', modeInfo: { permissionLevel: ChatPermissionLevel.Default } }]),
+			);
+
+			assert.strictEqual(result, ChatPermissionLevel.Autopilot);
+		});
+
+		test('falls back to the latest request permission level when there is no widget', () => {
+			const sessionResource = URI.parse('vscode-chat://session/test');
+			const result = getChatPermissionLevelForToolInvocation(
+				sessionResource,
+				undefined,
+				createMockChatWidgetService(undefined),
+				createMockChatService([
+					{ id: 'request-1', modeInfo: { permissionLevel: ChatPermissionLevel.Default } },
+					{ id: 'request-2', modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } },
+				]),
+			);
+
+			assert.strictEqual(result, ChatPermissionLevel.AutoApprove);
+		});
+	});
+
+	suite('getSandboxPrecheckInputsForToolInvocation', () => {
+
+		test('returns undefined when there is no chat permission level', () => {
+			const result = getSandboxPrecheckInputsForToolInvocation(undefined, undefined, createMockChatWidgetService(ChatPermissionLevel.AutoApprove), createMockChatService([]));
+			assert.strictEqual(result, undefined);
+		});
+
+		test('returns undefined for the default chat permission level', () => {
+			const sessionResource = URI.parse('vscode-chat://session/test');
+			const result = getSandboxPrecheckInputsForToolInvocation(sessionResource, undefined, createMockChatWidgetService(ChatPermissionLevel.Default), createMockChatService([]));
+			assert.deepStrictEqual(result, { isDefaultApprovalPermissionEnabled: true });
+		});
+
+		test('disables default approval permission for auto-approve chat permission levels', () => {
+			const sessionResource = URI.parse('vscode-chat://session/test');
+
+			assert.deepStrictEqual(
+				getSandboxPrecheckInputsForToolInvocation(sessionResource, undefined, createMockChatWidgetService(ChatPermissionLevel.AutoApprove), createMockChatService([])),
+				{ isDefaultApprovalPermissionEnabled: false }
+			);
+			assert.deepStrictEqual(
+				getSandboxPrecheckInputsForToolInvocation(sessionResource, undefined, createMockChatWidgetService(ChatPermissionLevel.Autopilot), createMockChatService([])),
+				{ isDefaultApprovalPermissionEnabled: false }
+			);
 		});
 	});
 

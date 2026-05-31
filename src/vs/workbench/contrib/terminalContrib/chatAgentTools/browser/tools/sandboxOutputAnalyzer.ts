@@ -30,9 +30,18 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 		}
 
 		const os = await this._sandboxService.getOS();
-		const fileSystemSetting = os === OperatingSystem.Linux
-			? TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem
-			: TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem;
+		let fileSystemSetting: TerminalChatAgentToolsSettingId;
+		switch (os) {
+			case OperatingSystem.Linux:
+				fileSystemSetting = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem;
+				break;
+			case OperatingSystem.Windows:
+				fileSystemSetting = TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem;
+				break;
+			default:
+				fileSystemSetting = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem;
+				break;
+		}
 
 		const prefix = knownFailure
 			? 'Command failed while running in sandboxed mode. If the command failed due to sandboxing:'

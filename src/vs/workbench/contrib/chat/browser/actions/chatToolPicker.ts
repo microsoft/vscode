@@ -319,7 +319,7 @@ export async function showToolsPicker(
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
-					label: source.label,
+					label: source.serverLabel || source.label,
 					checked: undefined,
 					collapsed,
 					children,

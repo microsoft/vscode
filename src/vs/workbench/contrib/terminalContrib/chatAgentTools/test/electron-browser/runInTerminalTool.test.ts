@@ -37,10 +37,10 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/wi
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
-import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -94,6 +94,10 @@ suite('RunInTerminalTool', () => {
 	let chatSessions: Map<string, ChatModel>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
+
+	function isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs: ITerminalSandboxPrecheckInputs | undefined): boolean {
+		return precheckInputs?.isDefaultApprovalPermissionEnabled !== false;
+	}
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
@@ -194,14 +198,16 @@ suite('RunInTerminalTool', () => {
 		});
 		terminalSandboxService = {
 			_serviceBrand: undefined,
-			isEnabled: async () => sandboxEnabled,
+			isEnabled: async (precheckInputs) => sandboxEnabled && isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs),
 			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command: string, requestUnsandboxedExecution?: boolean) => ({
 				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
 				isSandboxWrapped: !requestUnsandboxedExecution,
 			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
-			checkForSandboxingPrereqs: async () => sandboxPrereqResult,
+			checkForSandboxingPrereqs: async (_forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs) => isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs)
+				? sandboxPrereqResult
+				: { enabled: false, sandboxConfigPath: undefined, failedCheck: undefined },
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
@@ -318,10 +324,21 @@ suite('RunInTerminalTool', () => {
 		}
 	}
 
-	function createChatModelWithRequest(sessionResource: URI): ChatModel {
+	function createChatModeInfo(permissionLevel: ChatPermissionLevel): IChatRequestModeInfo {
+		return {
+			kind: undefined,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			modeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+			permissionLevel,
+		};
+	}
+
+	function createChatModelWithRequest(sessionResource: URI, modeInfo?: IChatRequestModeInfo, requestId?: string): ChatModel {
 		const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'retry';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, modeInfo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, requestId);
 		chatSessions.set(sessionResource.toString(), model);
 		return model;
 	}
@@ -498,6 +515,110 @@ suite('RunInTerminalTool', () => {
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+		});
+
+		test('should enable sandboxing when chat permission level is default', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+			const sessionResource = LocalChatSessionUri.forSession('sandbox-default-permission-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Default } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
+			const defaultPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const preparedInvocation = await defaultPermissionTool.prepareToolInvocation({
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					mode: 'sync',
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+			strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
+		});
+
+		test('should disable sandboxing when chat permission level is elevated', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const originalWrapCommand = terminalSandboxService.wrapCommand.bind(terminalSandboxService);
+			for (const permissionLevel of [ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot]) {
+				let wrapCalls = 0;
+				terminalSandboxService.wrapCommand = async (...args) => {
+					wrapCalls++;
+					return originalWrapCommand(...args);
+				};
+
+				const sessionResource = LocalChatSessionUri.forSession(`sandbox-${permissionLevel}-permission-session`);
+				instantiationService.stub(IChatWidgetService, {
+					getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+					lastFocusedWidget: undefined,
+				});
+				const elevatedPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+				const preparedInvocation = await elevatedPermissionTool.prepareToolInvocation({
+					parameters: {
+						command: 'echo hello',
+						explanation: 'Print hello',
+						goal: 'Print hello',
+						mode: 'sync',
+					} as IRunInTerminalInputParams,
+					chatSessionResource: sessionResource,
+				} as IToolInvocationPreparationContext, CancellationToken.None);
+
+				const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+				strictEqual(terminalData.commandLine.isSandboxWrapped, false, `Expected no sandbox wrapping for ${permissionLevel}`);
+				strictEqual(terminalData.requestUnsandboxedExecution, false, `Expected no unsandbox confirmation for ${permissionLevel}`);
+				strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello`');
+				strictEqual(wrapCalls, 0, `Expected sandbox wrapping to be skipped for ${permissionLevel}`);
+				terminalSandboxService.wrapCommand = originalWrapCommand;
+			}
+		});
+
+		test('should use request permission level before current widget permission level', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const sessionResource = LocalChatSessionUri.forSession('sandbox-request-permission-session');
+			const requestId = 'sandbox-request-permission-request';
+			createChatModelWithRequest(sessionResource, createChatModeInfo(ChatPermissionLevel.AutoApprove), requestId);
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Default } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
+			const requestPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const preparedInvocation = await requestPermissionTool.prepareToolInvocation({
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					mode: 'sync',
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+				chatRequestId: requestId,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, false);
+			strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello`');
 		});
 
 		test('should not show sandbox wrapper in chat when sandboxed async command is detached', async () => {

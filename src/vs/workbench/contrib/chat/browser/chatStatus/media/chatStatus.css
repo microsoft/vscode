@@ -43,6 +43,11 @@
 	cursor: default;
 }
 
+.chat-status-bar-entry-tooltip .contributed-section {
+	display: flex;
+	flex-direction: column;
+}
+
 .chat-status-bar-entry-tooltip .collapsible-header:focus {
 	outline: none;
 }
@@ -104,13 +109,12 @@
 
 .chat-status-bar-entry-tooltip .contributed-detail {
 	font-size: 12px;
+	line-height: 16px;
 	font-weight: 400;
 	color: var(--vscode-descriptionForeground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 	min-width: 0;
-	flex-shrink: 1;
+	padding-bottom: 6px;
+	white-space: normal;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content {
@@ -212,6 +216,9 @@
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-title {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
 	font-size: 13px;
 	line-height: 18px;
 	font-weight: 600;
@@ -248,6 +255,7 @@
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
 	font-size: 12px;
+	font-weight: normal;
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;

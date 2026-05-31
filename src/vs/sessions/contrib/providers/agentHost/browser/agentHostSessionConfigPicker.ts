@@ -14,12 +14,12 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -29,6 +29,7 @@ import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -43,8 +44,10 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
+import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -150,9 +153,8 @@ function hasShownAutoApproveWarning(value: string): boolean {
 }
 
 /**
- * Filters out autopilot if disabled, and marks bypass/autopilot as disabled
- * if enterprise policy restricts auto-approval. Returns the filtered items
- * and policy state.
+ * Marks bypass/autopilot as disabled if enterprise policy restricts
+ * auto-approval. Returns the items and policy state.
  */
 function applyAutoApproveFiltering(
 	items: readonly IConfigPickerItem[],
@@ -162,10 +164,8 @@ function applyAutoApproveFiltering(
 	if (property !== SessionConfigKey.AutoApprove) {
 		return { items, policyRestricted: false };
 	}
-	const isAutopilotEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 	const policyRestricted = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-	const filtered = isAutopilotEnabled ? items : items.filter(item => item.value !== 'autopilot');
-	return { items: filtered, policyRestricted };
+	return { items, policyRestricted };
 }
 
 /**
@@ -249,10 +249,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
-			if (session) {
-				session.loading.read(reader);
-			}
+			this._sessionsManagementService.activeSession.read(reader);
 			this._renderConfigPickers();
 		}));
 
@@ -302,6 +299,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// non-mutable properties like `isolation` must remain visible and
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
+		// Disable interactions while a resolve is in flight. Schema is
+		// preserved so chips stay visible. Not `session.loading` —
+		// that also covers the required-values-missing state where
+		// chips must remain interactive.
+		const isLoading = provider.isSessionConfigResolving(session.sessionId).get();
 
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
@@ -338,7 +340,17 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
+			// `renderPickerTrigger`'s `disabled` flag means "read-only"
+			// (renders a `<span>` with `aria-readonly`). The resolving
+			// state is transient and uses `.disabled` on the slot (see
+			// CSS in `chatWidget.css`) + `aria-disabled` on the trigger,
+			// keeping it focusable and using correct ARIA semantics. The
+			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			if (!isReadOnly && isLoading) {
+				slot.classList.add('disabled');
+				trigger.setAttribute('aria-disabled', 'true');
+			}
 			this._renderTrigger(trigger, property, schema, value, isReadOnly);
 		}
 	}
@@ -401,9 +413,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
@@ -411,7 +420,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
-
+		// Mobile bottom-sheet override dispatches through this entry
+		// point, so guard here for both invocation paths.
+		if (provider.isSessionConfigResolving(sessionId).get()) {
+			return;
+		}
 
 		const rawItems = await this._getItems(provider, sessionId, property, schema);
 		const { items, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
@@ -448,7 +461,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				provider.setSessionConfigValue(sessionId, property, item.value).catch(() => { /* best-effort */ });
 			},
 			onFilter: schema.enumDynamic
-				? query => this._filterDelayer.trigger(async () => toActionItems(property, await this._getItems(provider, sessionId, property, schema, query), provider.getSessionConfig(sessionId)?.values[property]))
+				? query => this._filterDelayer.trigger(async () => {
+					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
+					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property], filteredPolicyRestricted);
+				})
 				: undefined,
 			onHide: () => trigger.focus(),
 		};
@@ -768,6 +785,16 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			NEW_SESSION_APPROVE_PICKER_ID,
 			() => this._createNewSessionPermissionPicker(),
 		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			RUNNING_SESSION_CONFIG_PICKER_ID,
+			this._createRunningSessionPermissionPickerFactory(),
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostClaudePermissionModePicker)),
+		));
 	}
 
 	/**
@@ -779,6 +806,28 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		const delegate = this._instantiationService.createInstance(AgentHostPermissionPickerDelegate);
 		const picker = this._instantiationService.createInstance(MobilePermissionPicker, delegate);
 		return new PickerActionViewItem(picker, delegate);
+	}
+
+	/**
+	 * Inside a running chat widget (`ChatInputSecondary`), use the workbench
+	 * {@link PermissionPickerActionItem} so it matches the rest of the
+	 * chat-input secondary toolbar (which is what the extension-host CLI
+	 * already uses).
+	 */
+	private _createRunningSessionPermissionPickerFactory(): IActionViewItemFactory {
+		return (action, _options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			const pickerOptions: IChatInputPickerOptions = {
+				compact: constObservable(true),
+			};
+			return instantiationService.createInstance(
+				AgentHostPermissionPickerActionItem,
+				action,
+				pickerOptions,
+			);
+		};
 	}
 }
 
@@ -804,7 +853,6 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { }
 });
 
-
 // ---- New session mode picker (NewSessionConfig) ----
 
 const NEW_SESSION_MODE_PICKER_ID = 'sessions.agentHost.newSessionModePicker';
@@ -826,6 +874,49 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 					IsPhoneLayoutContext.negate(),
 				),
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+
+// ---- Running session config picker (ChatInputSecondary) ----
+
+const RUNNING_SESSION_CONFIG_PICKER_ID = 'sessions.agentHost.runningSessionConfigPicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_CONFIG_PICKER_ID,
+			title: localize2('agentHostRunningSessionConfigPicker', "Session Approvals"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 10,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+const RUNNING_SESSION_PERMISSION_MODE_PICKER_ID = 'sessions.agentHost.runningSessionPermissionModePicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
+			title: localize2('agentHostRunningSessionPermissionModePicker', "Approvals"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 11,
+				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});
 	}
