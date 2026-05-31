@@ -95,7 +95,6 @@ export const CopilotCLISessionType: ISessionType = {
  */
 export interface IAgentHostAdapterOptions {
 	readonly icon: ThemeIcon;
-	readonly description: IMarkdownString | undefined;
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
@@ -300,7 +299,7 @@ export class AgentHostSessionAdapter implements ISession {
 				}
 			}
 
-			return this._options.description;
+			return undefined;
 		});
 
 		if (metadata.isArchived) {
@@ -1154,7 +1153,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
 			getConnection: () => this.connection,
-			description: undefined,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
