@@ -1106,6 +1106,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected _cacheInitialized = false;
 
+	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
+	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
+
 	/**
 	 * Backoff timer that retries {@link _refreshSessions} after a failed
 	 * attempt. A failed initial list (e.g. the agent threw
@@ -1118,9 +1121,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Current backoff delay (ms) for the session-refresh retry. */
 	private _sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
-
-	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
-	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
 
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
