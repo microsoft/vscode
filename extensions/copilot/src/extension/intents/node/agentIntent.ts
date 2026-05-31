@@ -134,7 +134,7 @@ export function resolveSummarizeThresholdTokens(value: number | undefined, effec
 		return Math.max(1, Math.floor(effectiveMaxTokens * value));
 	}
 	if (value < 100) {
-		throw new Error(`Setting github.copilot.${settingId} is too low; use a ratio between 0 and 1 (e.g. 0.8 for 80%) or an absolute token count of at least 100.`);
+		throw new Error(`Setting github.copilot.${settingId} is too low; use a ratio in the range (0, 1] (e.g. 0.8 for 80%) or an absolute token count of at least 100.`);
 	}
 	// Absolute token count.
 	return value;
