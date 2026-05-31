@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, gitHubInfoEqual, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -961,7 +961,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 
-	private readonly _baseGitHubInfo: ReturnType<typeof observableValue<IGitHubInfo | undefined>>;
+	private readonly _baseGitHubInfo: ReturnType<typeof observableValueOpts<IGitHubInfo | undefined>>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 
 	readonly permissionLevel: IObservable<ChatPermissionLevel> = constObservable(ChatPermissionLevel.Default);
@@ -984,13 +984,18 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
 
-		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
-		this.gitHubInfo = derived(this, reader => {
+		this._baseGitHubInfo = observableValueOpts({ owner: this, equalsFn: gitHubInfoEqual }, this._extractGitHubInfo(session));
+		this.gitHubInfo = derivedOpts({ owner: this, equalsFn: gitHubInfoEqual }, reader => {
 			const base = this._baseGitHubInfo.read(reader);
 			if (!base?.pullRequest || !this._gitHubService) {
 				return base;
 			}
-			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+			// Hold the PR model reference in `delayedStore` (not `store`) so the cached,
+			// ref-counted model survives across recomputations. With `store`, the reference
+			// is released before the recompute runs, dropping the refcount to 0 and disposing
+			// the model, so `livePR` momentarily reads `undefined` and the icon resets to the
+			// fallback dot — causing a visible cross-fade flicker in the session list.
+			const prModelRef = reader.delayedStore.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
 			const livePR = prModelRef.object.pullRequest.read(reader);
 			if (!livePR) {
 				return base;

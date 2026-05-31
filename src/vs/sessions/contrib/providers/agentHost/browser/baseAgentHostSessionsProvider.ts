@@ -36,7 +36,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, gitHubInfoEqual, ISession, ISessionAgentRef, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
@@ -261,7 +261,7 @@ export class AgentHostSessionAdapter implements ISession {
 					gitHubService.findPullRequestNumberByHeadBranch(coords.owner, coords.repo, coords.branch)
 				);
 			});
-		this.gitHubInfo = derived<IGitHubInfo | undefined>(this, reader => {
+		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: gitHubInfoEqual }, reader => {
 			const coords = gitHubCoords.read(reader);
 			if (!coords) {
 				return undefined;
@@ -274,7 +274,12 @@ export class AgentHostSessionAdapter implements ISession {
 			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
 			let icon: ThemeIcon | undefined;
 			if (gitHubService) {
-				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
+				// Hold the PR model reference in `delayedStore` (not `store`) so the cached,
+				// ref-counted model survives across recomputations. With `store`, the reference
+				// is released before the recompute runs, dropping the refcount to 0 and disposing
+				// the model, so `livePR` momentarily reads `undefined` and the icon resets to the
+				// fallback dot — causing a visible cross-fade flicker in the session list.
+				const ref = reader.delayedStore.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
 				const livePR = ref.object.pullRequest.read(reader);
 				if (livePR) {
 					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
