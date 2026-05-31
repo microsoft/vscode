@@ -1344,7 +1344,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async showMarkupPreview(newContent: IMarkupCellInitialization) {
+	async showMarkupPreview(newContent: IMarkupCellInitialization, forceRerender = false) {
 		if (this._disposed) {
 			return;
 		}
@@ -1354,8 +1354,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return this.createMarkupPreview(newContent);
 		}
 
-		const sameContent = newContent.content === entry.content;
-		const sameMetadata = (equals(newContent.metadata, entry.metadata));
+		// When `forceRerender` is set the preview must be re-rendered even if the content and
+		// metadata are unchanged, so that resources such as <img> tags are re-fetched (see #151151).
+		const sameContent = !forceRerender && newContent.content === entry.content;
+		const sameMetadata = !forceRerender && (equals(newContent.metadata, entry.metadata));
 		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkupCell',
