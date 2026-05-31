@@ -24,6 +24,9 @@ export interface ILanguageModelsConfigurationService {
 
 	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]>;
 
+	/** Resolves after the first config-file load, so callers can distinguish empty from not-yet-loaded. */
+	readonly whenReady: Promise<void>;
+
 	getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[];
 
 	addLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup>;

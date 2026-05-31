@@ -44,6 +44,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
 
+	private readonly _whenReady: Promise<void>;
+	get whenReady(): Promise<void> { return this._whenReady; }
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -55,7 +58,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	) {
 		super();
 		this.modelsConfigurationFile = userDataProfileService.currentProfile.languageModelsResource;
-		this.updateLanguageModelsConfiguration();
+		this._whenReady = this.updateLanguageModelsConfiguration();
 		// Watch the parent folder for reliable change detection across platforms (especially Windows
 		// where `fs.watch` on individual files can miss in-place writes).
 		this._register(fileService.watch(uriIdentityService.extUri.dirname(this.modelsConfigurationFile)));
