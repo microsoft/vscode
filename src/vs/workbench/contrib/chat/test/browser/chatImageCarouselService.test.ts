@@ -184,6 +184,17 @@ suite('ChatImageCarouselService helpers', () => {
 			const data = new Uint8Array([1]);
 			assert.strictEqual(buildSingleImageArgs(uri, data).mimeType, 'image/png');
 		});
+
+		test('decodes percent-encoded filename for display', () => {
+			const uri = URI.file('/path/to/Element%20Screenshot.png');
+			const data = new Uint8Array([1, 2, 3]);
+			assert.deepStrictEqual(buildSingleImageArgs(uri, data), {
+				name: 'Element Screenshot.png',
+				mimeType: 'image/png',
+				data,
+				title: 'Element Screenshot.png',
+			});
+		});
 	});
 
 	suite('collectCarouselSections', () => {
@@ -204,7 +215,7 @@ suite('ChatImageCarouselService helpers', () => {
 				mimeType: result[0].images[0].mimeType,
 				data: [...result[0].images[0].data],
 			}, {
-				id: URI.from({ scheme: 'data', path: 'cat.png' }).toString(),
+				id: URI.from({ scheme: 'data', path: 'img-1/cat.png' }).toString(),
 				name: 'cat.png',
 				mimeType: 'image/png',
 				data: [1, 2, 3],

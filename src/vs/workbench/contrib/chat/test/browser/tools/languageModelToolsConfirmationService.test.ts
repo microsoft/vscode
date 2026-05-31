@@ -44,12 +44,13 @@ suite('LanguageModelToolsConfirmationService', () => {
 		};
 	}
 
-	async function createCombinationRef(toolId: string, parameters: unknown, combinationLabel: string): Promise<ILanguageModelToolConfirmationRef> {
+	async function createCombinationRef(toolId: string, parameters: unknown, combinationLabel: string, combinationArgs?: string): Promise<ILanguageModelToolConfirmationRef> {
 		return {
 			...createToolRef(toolId, ToolDataSource.Internal, parameters),
 			combination: {
 				label: combinationLabel,
 				key: await computeCombinationKey(toolId, parameters),
+				arguments: combinationArgs,
 			},
 		};
 	}
@@ -664,5 +665,41 @@ suite('LanguageModelToolsConfirmationService', () => {
 		// tool2 should be auto-confirmed (boolean true, no label)
 		const ref2 = createToolRef('tool2');
 		assert.deepStrictEqual(newService.getPreConfirmAction(ref2), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+	});
+
+	test('object storage format with arguments round-trips across restart', () => {
+		// Pre-seed storage with the new object format containing arguments
+		const storageService = instantiationService.get(IStorageService);
+		const data: Record<string, string | boolean | { label?: string; arguments?: string }> = {
+			'tool1:combination:12345': { label: 'Allow reading foo.txt', arguments: '["foo.txt"]' },
+			'tool2:combination:67890': { label: 'Allow command with args' },
+		};
+		storageService.store('chat/autoconfirm-combination', JSON.stringify(data), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		const newService = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+
+		// Both combination keys should be auto-confirmed
+		const ref1: ILanguageModelToolConfirmationRef = {
+			...createToolRef('tool1'),
+			combination: { label: 'Allow reading foo.txt', key: 'tool1:combination:12345', arguments: '["foo.txt"]' },
+		};
+		const ref2: ILanguageModelToolConfirmationRef = {
+			...createToolRef('tool2'),
+			combination: { label: 'Allow command with args', key: 'tool2:combination:67890' },
+		};
+
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref1), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref2), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+	});
+
+	test('combination approval with arguments persists via workspace scope', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"', '{"file":"foo.txt"}');
+
+		const actions = service.getPreConfirmActions(ref);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'workspace');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+
+		assert.deepStrictEqual(service.getPreConfirmAction(ref), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
 	});
 });

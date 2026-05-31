@@ -61,7 +61,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 		this.loggerChannel.setCallResult('getRegisteredLoggers', []);
 	}
 
-	start(): IAgentHostConnection {
+	async start(): Promise<IAgentHostConnection> {
 		const store = new DisposableStore();
 		const client: IChannelClient = {
 			getChannel: <T extends IChannel>(name: string): T => {
@@ -133,6 +133,12 @@ suite('ServerAgentHostManager', () => {
 		));
 	}
 
+	// `ServerAgentHostManager._start()` is async (awaits `starter.start()`).
+	// Wait a microtask so the channel listeners are wired up before tests fire events.
+	async function waitForStart(): Promise<void> {
+		await Promise.resolve();
+	}
+
 	function fireActiveSessions(count: number): void {
 		starter.agentHostChannel.getEmitter('onDidAction').fire({
 			action: { type: 'root/activeSessionsChanged', activeSessions: count },
@@ -145,25 +151,29 @@ suite('ServerAgentHostManager', () => {
 		starter.connectionTrackerChannel.getEmitter('onDidChangeConnectionCount').fire(count);
 	}
 
-	test('no lifetime token initially', () => {
+	test('no lifetime token initially', async () => {
 		createManager();
+		await waitForStart();
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
 	});
 
-	test('acquires token when sessions become active', () => {
+	test('acquires token when sessions become active', async () => {
 		createManager();
+		await waitForStart();
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('acquires token when clients connect (no active sessions)', () => {
+	test('acquires token when clients connect (no active sessions)', async () => {
 		createManager();
+		await waitForStart();
 		fireConnectionCount(2);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('releases token only when both sessions and connections are zero', () => {
+	test('releases token only when both sessions and connections are zero', async () => {
 		createManager();
+		await waitForStart();
 
 		// Sessions active, no connections
 		fireActiveSessions(1);
@@ -182,8 +192,9 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
 	});
 
-	test('releases token only when connections drop after sessions already idle', () => {
+	test('releases token only when connections drop after sessions already idle', async () => {
 		createManager();
+		await waitForStart();
 
 		fireConnectionCount(3);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
@@ -192,8 +203,9 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
 	});
 
-	test('process exit resets both signals and clears token', () => {
+	test('process exit resets both signals and clears token', async () => {
 		createManager();
+		await waitForStart();
 
 		fireActiveSessions(2);
 		fireConnectionCount(1);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -13,10 +13,10 @@ import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
-import { INodeProcess, IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { generateUuid } from '../../base/common/uuid.js';
@@ -36,7 +36,6 @@ import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
-import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
 import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
@@ -83,6 +82,7 @@ import { ITelemetryServiceConfig, TelemetryService } from '../../platform/teleme
 import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
+import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
 import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
@@ -125,7 +125,7 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
-import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
+import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -139,6 +139,8 @@ import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js'
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
+import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -224,6 +226,62 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
+		});
+
+		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
+		const invalidateScreenSourceCache = () => {
+			cachedScreenSources = undefined;
+		};
+		electronScreen.on('display-added', invalidateScreenSourceCache);
+		electronScreen.on('display-removed', invalidateScreenSourceCache);
+		electronScreen.on('display-metrics-changed', invalidateScreenSourceCache);
+		this._register(toDisposable(() => {
+			electronScreen.off('display-added', invalidateScreenSourceCache);
+			electronScreen.off('display-removed', invalidateScreenSourceCache);
+			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
+		}));
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+			try {
+				const frame = request.frame;
+				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
+
+				const displays = electronScreen.getAllDisplays();
+				let targetDisplay = displays[0];
+				if (win) {
+					const winBounds = win.getBounds();
+					targetDisplay = electronScreen.getDisplayNearestPoint({
+						x: winBounds.x + winBounds.width / 2,
+						y: winBounds.y + winBounds.height / 2,
+					});
+				}
+
+				if (!cachedScreenSources) {
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+				}
+
+				let match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				if (!match) {
+					// Cache may be stale even without a topology event
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+					match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				}
+
+				const chosen = match ?? cachedScreenSources[0];
+				if (!chosen) {
+					// No screen sources available (permission denied or transient failure).
+					callback({});
+					return;
+				}
+				callback({ video: chosen });
+			} catch {
+				callback({});
+			}
 		});
 
 		//#endregion
@@ -749,11 +807,6 @@ export class CodeApplication extends Disposable {
 
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
 			if (windowOpenable) {
-				if ((process as INodeProcess).isEmbeddedApp) {
-					this.logService.trace('app#resolveInitialProtocolUrls() agents app skipping window openable:', protocolUrl.uri.toString(true));
-					continue; // Agents app: skip all window openables (file/folder/workspace)
-				}
-
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
 
@@ -898,27 +951,6 @@ export class CodeApplication extends Disposable {
 
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
-
-		// Agents app: ensure the agents window is open, then let other handlers process the URL.
-		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.trace('app#handleProtocolUrl() agents app handling protocol URL:', uri.toString(true));
-
-			// Skip window openables (file/folder/workspace) for security
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(uri);
-			if (windowOpenable) {
-				this.logService.trace('app#handleProtocolUrl() agents app skipping window openable:', uri.toString(true));
-				return true;
-			}
-
-			// Ensure agents window is open to receive the URL
-			const windows = await windowsMainService.openAgentsWindow({ context: OpenContext.LINK, cli: this.environmentMainService.args });
-			const window = windows.at(0);
-			window?.focus();
-			await window?.ready();
-
-			// Return false to let subsequent handlers (e.g., URLHandlerChannelClient) forward the URL
-			return false;
-		}
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
@@ -1086,9 +1118,6 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
-		// Browser Elements
-		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
-
 		// Browser View
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
@@ -1104,6 +1133,8 @@ export class CodeApplication extends Disposable {
 		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
+		services.set(ITerminalSandboxService, new SyncDescriptor(NullTerminalSandboxService));
+		services.set(IAgentNetworkFilterService, new SyncDescriptor(AgentNetworkFilterService, undefined, true));
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
 		// Webview Manager
@@ -1134,8 +1165,8 @@ export class CodeApplication extends Disposable {
 		services.set(ILocalPtyService, ptyHostService);
 
 		// Agent Host
-		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
-			const agentHostStarter = new ElectronAgentHostStarter(this.environmentMainService, this.lifecycleMainService, this.logService);
+		if (isAgentHostEnabled(this.configurationService)) {
+			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 		}
 
@@ -1167,7 +1198,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date, this.productService.telemetryAppName);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1235,8 +1266,13 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
 		// Update
-		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
+		const updateService = accessor.get(IUpdateService);
+		const updateChannel = new UpdateChannel(updateService);
 		mainProcessElectronServer.registerChannel('update', updateChannel);
+
+		// Show a native "no updates available" dialog from the focused app's main
+		// process to avoid double dialogs across apps and ensure a native dialog.
+		this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService)));
 
 		// Metered Connection
 		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);
@@ -1250,11 +1286,6 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
-
-		// Browser Elements
-		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
-		mainProcessElectronServer.registerChannel('browserElements', browserElementsChannel);
-		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
 
 		// Browser View
 		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
@@ -1328,7 +1359,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
+		const loggerChannel = this._register(new LoggerChannel(accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
@@ -1353,7 +1384,7 @@ export class CodeApplication extends Disposable {
 		const args = this.environmentMainService.args;
 
 		// Handle agents window first based on context
-		if ((process as INodeProcess).isEmbeddedApp || (args['agents'] && this.productService.quality !== 'stable')) {
+		if (args['agents']) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
@@ -1648,6 +1679,7 @@ export class CodeApplication extends Disposable {
 				}));
 			});
 		}
+
 	}
 
 	private async installMutex(): Promise<void> {

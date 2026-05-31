@@ -23,6 +23,7 @@ import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
 import { RemoteNativeMpcDiscovery } from '../common/discovery/nativeMcpRemoteDiscovery.js';
 import { PluginMcpDiscovery } from '../common/discovery/pluginMcpDiscovery.js';
 import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspaceMcpDiscoveryAdapter.js';
+import { WorkspaceDotMcpDiscovery } from '../common/discovery/workspaceDotMcpDiscovery.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
@@ -39,7 +40,7 @@ import { IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 import { BrowserMcpGatewayService } from './mcpGatewayService.js';
 import { McpGatewayToolBrokerContribution } from './mcpGatewayToolBrokerContribution.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, SetOAuthClientSecret, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpElicitationService } from './mcpElicitationService.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
@@ -47,7 +48,6 @@ import { McpConfigMigrationContribution } from './mcpMigration.js';
 import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { McpServerEditor } from './mcpServerEditor.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { McpServersViewsContribution } from './mcpServersView.js';
 import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchService.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
@@ -63,6 +63,7 @@ mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(InstalledMcpServersDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ExtensionMcpDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(CursorWorkspaceMcpDiscoveryAdapter));
+mcpDiscoveryRegistry.register(new SyncDescriptor(WorkspaceDotMcpDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(PluginMcpDiscovery));
 
 registerWorkbenchContribution2('mcpDiscovery', McpDiscovery, WorkbenchPhase.AfterRestored);
@@ -81,6 +82,7 @@ registerAction2(AddConfigurationAction);
 registerAction2(InstallFromManifestAction);
 registerAction2(RemoveStoredInput);
 registerAction2(EditStoredInput);
+registerAction2(SetOAuthClientSecret);
 registerAction2(StartServer);
 registerAction2(StopServer);
 registerAction2(ShowOutput);
@@ -101,7 +103,6 @@ registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, W
 registerWorkbenchContribution2('mcpAddContext', McpAddContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(MCPContextsInitialisation.ID, MCPContextsInitialisation, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(McpConfigMigrationContribution.ID, McpConfigMigrationContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(McpServersViewsContribution.ID, McpServersViewsContribution, WorkbenchPhase.AfterRestored);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);

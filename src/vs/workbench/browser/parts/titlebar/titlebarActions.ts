@@ -16,6 +16,14 @@ import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleC
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
 
+/**
+ * Menu group for actions contributed to {@link MenuId.TitleBar} that should render
+ * **before** the layout controls (instead of trailing them like the default group).
+ * Use this group to surface a leading affordance that should remain visible even
+ * when layout controls are toggled off.
+ */
+export const TitleBarLeadingActionsGroup = '0_leading';
+
 // --- Context Menu Actions --- //
 
 export class ToggleTitleBarConfigAction extends Action2 {

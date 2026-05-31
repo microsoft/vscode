@@ -33,6 +33,25 @@ suite('MarkdownRenderer', () => {
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
 		});
+
+		test('Strips links with disallowed schemes (default config)', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
+			// No <a> element should remain because the scheme isn't allowed.
+			assert.strictEqual(result.querySelector('a'), null);
+		});
+
+		test('Preserves link when scheme is allowed via allowedLinkSchemes.augment', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					allowedLinkSchemes: { augment: ['vscode-agent-host'] },
+				},
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
+			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/file/-/path/to/foo.ts');
+		});
 	});
 
 	suite('Images', () => {
@@ -852,6 +871,20 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('codespan inside <body> wrapped markdown', () => {
+				// The chat content renderer wraps `supportHtml` markdown in
+				// `<body>...</body>` so dompurify keeps leading comments. That
+				// makes `</body>` the literal last token — the paragraph with
+				// the bare backtick is no longer at the end. The fixup must
+				// still close the codespan while preserving the trailing html.
+				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('<body>\n\nCreated isolated worktree for branch `xyz`\n\n</body>');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});

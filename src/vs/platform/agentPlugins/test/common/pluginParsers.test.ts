@@ -7,6 +7,11 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { CustomizationType, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
+
+function stubMcpCustomization(): McpServerCustomization {
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test' };
+}
 import {
 	parseComponentPathConfig,
 	resolveComponentDirs,
@@ -102,6 +107,26 @@ suite('pluginParsers', () => {
 			const dirs = resolveComponentDirs(pluginUri, 'skills', { paths: ['../../outside'], exclusive: false });
 			// Should only have the default dir, the traversal path is rejected
 			assert.strictEqual(dirs.length, 1);
+		});
+
+		test('allows paths that escape plugin root but stay within boundaryUri', () => {
+			const boundaryUri = URI.file('/workspace');
+			const dirs = resolveComponentDirs(pluginUri, 'skills', { paths: ['../shared-skills'], exclusive: false }, boundaryUri);
+			assert.strictEqual(dirs.length, 2);
+			assert.ok(dirs[1].path.endsWith('/shared-skills'));
+		});
+
+		test('rejects paths that escape boundaryUri', () => {
+			const boundaryUri = URI.file('/workspace');
+			const dirs = resolveComponentDirs(pluginUri, 'skills', { paths: ['../../outside'], exclusive: false }, boundaryUri);
+			assert.strictEqual(dirs.length, 1);
+		});
+
+		test('falls back to pluginUri when boundaryUri is not an ancestor of pluginUri', () => {
+			const boundaryUri = URI.file('/unrelated/directory');
+			const dirs = resolveComponentDirs(pluginUri, 'skills', { paths: ['custom'], exclusive: false }, boundaryUri);
+			assert.strictEqual(dirs.length, 2);
+			assert.ok(dirs[1].path.endsWith('/custom'));
 		});
 	});
 
@@ -222,6 +247,7 @@ suite('pluginParsers', () => {
 					command: '${MY_TOOL}',
 					args: ['--key=${API_KEY}'],
 				},
+				customization: stubMcpCustomization(),
 			};
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${env:MY_TOOL}');
@@ -236,6 +262,7 @@ suite('pluginParsers', () => {
 					type: McpServerType.LOCAL as const,
 					command: '${env:ALREADY_QUALIFIED}',
 				},
+				customization: stubMcpCustomization(),
 			};
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${env:ALREADY_QUALIFIED}');
@@ -249,6 +276,7 @@ suite('pluginParsers', () => {
 					type: McpServerType.LOCAL as const,
 					command: '${lowercase}',
 				},
+				customization: stubMcpCustomization(),
 			};
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${lowercase}');

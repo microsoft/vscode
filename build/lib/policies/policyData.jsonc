@@ -39,18 +39,33 @@
     ],
     "policies": [
         {
-            "key": "extensions.gallery.serviceUrl",
-            "name": "ExtensionGalleryServiceUrl",
-            "category": "Extensions",
-            "minimumVersion": "1.99",
+            "key": "mcp.enterpriseManagedAuth.idp",
+            "name": "McpEnterpriseManagedAuthIdp",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
             "localization": {
                 "description": {
-                    "key": "extensions.gallery.serviceUrl",
-                    "value": "Configure the Marketplace service URL to connect to"
+                    "key": "mcp.enterpriseManagedAuth.idp.policy",
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
                 }
             },
-            "type": "string",
-            "default": "",
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                }
+            },
+            "type": "object",
+            "default": {},
             "included": false
         },
         {
@@ -62,6 +77,36 @@
                 "description": {
                     "key": "mcp.gallery.serviceUrl",
                     "value": "Configure the MCP Gallery service URL to connect to"
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false
+        },
+        {
+            "key": "chat.approvedAccountOrganizations",
+            "name": "ChatApprovedAccountOrganizations",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.118",
+            "localization": {
+                "description": {
+                    "key": "chat.approvedAccountOrganizations.policy.description",
+                    "value": "Setting this policy to a non-empty list activates the Approved Account gate: all AI features are disabled until the user signs into a GitHub account whose organizations intersect this list AND the account-side policy data has resolved. Comparison is case-insensitive. Use '*' as a wildcard to accept any signed-in GitHub or GHE account (use this for GHE deployments where the organization list is not surfaced)."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": false
+        },
+        {
+            "key": "extensions.gallery.serviceUrl",
+            "name": "ExtensionGalleryServiceUrl",
+            "category": "Extensions",
+            "minimumVersion": "1.99",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.serviceUrl",
+                    "value": "Configure the Marketplace service URL to connect to"
                 }
             },
             "type": "string",
@@ -92,6 +137,21 @@
                 "description": {
                     "key": "autoApprove3.description",
                     "value": "Global auto approve also known as \"YOLO mode\" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the `#chat.autoReply#` setting."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.sessionSync.enabled",
+            "name": "CopilotSessionSync",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.121",
+            "localization": {
+                "description": {
+                    "key": "chat.sessionSync.enabled.policy",
+                    "value": "Enable session sync to GitHub.com for cross-device Copilot session history. When disabled by organization policy, session data is kept local only."
                 }
             },
             "type": "boolean",
@@ -163,6 +223,51 @@
             "included": true
         },
         {
+            "key": "chat.plugins.enabled",
+            "name": "ChatPluginsEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.enabled",
+                    "value": "Enable agent plugin integration in chat."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.plugins.enabledPlugins",
+            "name": "ChatEnabledPlugins",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.enabledPlugins.policy",
+                    "value": "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": true
+        },
+        {
+            "key": "chat.plugins.strictMarketplaces",
+            "name": "ChatStrictMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.strictMarketplaces.policy",
+                    "value": "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.agent.enabled",
             "name": "ChatAgentMode",
             "category": "InteractiveSession",
@@ -175,6 +280,51 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.networkFilter",
+            "name": "ChatAgentNetworkFilter",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.networkFilter",
+                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.allowedNetworkDomains",
+            "name": "ChatAgentAllowedNetworkDomains",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.allowedNetworkDomains",
+                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.enabled#` is set to `allowNetwork`, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": true
+        },
+        {
+            "key": "chat.agent.deniedNetworkDomains",
+            "name": "ChatAgentDeniedNetworkDomains",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.deniedNetworkDomains",
+                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.enabled#` is set to `allowNetwork`. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
+                }
+            },
+            "type": "array",
+            "default": [],
             "included": true
         },
         {
@@ -208,6 +358,40 @@
             "included": true
         },
         {
+            "key": "extensions.autoUpdate",
+            "name": "ExtensionsAutoUpdate",
+            "category": "Extensions",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdate",
+                    "value": "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.autoUpdate.on",
+                        "value": "Enabled extensions are updated automatically."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.delayed",
+                        "value": "Enabled extensions are updated automatically, but only 6 hours after a new version has been published."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.off",
+                        "value": "Extensions are not updated automatically."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "on",
+            "enum": [
+                "on",
+                "delayed",
+                "off"
+            ],
+            "included": true
+        },
+        {
             "key": "chat.tools.terminal.enableAutoApprove",
             "name": "ChatToolsTerminalEnableAutoApprove",
             "category": "IntegratedTerminal",
@@ -216,6 +400,85 @@
                 "description": {
                     "key": "autoApproveMode.description",
                     "value": "Controls whether to allow auto approval in the run in terminal tool."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.enabled",
+            "name": "ChatAgentSandboxEnabled",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.enabledSetting",
+                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "agentSandbox.enabledSetting.offDescription",
+                        "value": "Disable sandboxing for agent mode tools."
+                    },
+                    {
+                        "key": "agentSandbox.enabledSetting.onDescription",
+                        "value": "Enable sandboxing for agent mode tools."
+                    },
+                    {
+                        "key": "agentSandbox.enabledSetting.allowNetworkDescription",
+                        "value": "Enable sandboxing for agent mode tools and allow all network domains."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "off",
+            "enum": [
+                "off",
+                "on",
+                "allowNetwork"
+            ],
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowUnsandboxedCommands",
+            "name": "ChatAgentSandboxAllowUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.autoApproveUnsandboxedCommands",
+            "name": "ChatAgentSandboxAutoApproveUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.autoApproveUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both `#chat.agent.sandbox.enabled#` and `#chat.agent.sandbox.allowUnsandboxedCommands#` are enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowAutoApprove",
+            "name": "ChatAgentSandboxAllowAutoApprove",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowAutoApprove",
+                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
                 }
             },
             "type": "boolean",

@@ -127,11 +127,6 @@ jobs:
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
-      - script: node build/azure-pipelines/common/checkCopilotChatCompatibility.ts --warn-only
-        displayName: Check Copilot Chat compatibility
-        continueOnError: true
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
-
       - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"

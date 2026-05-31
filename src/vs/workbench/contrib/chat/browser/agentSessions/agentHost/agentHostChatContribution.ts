@@ -5,36 +5,31 @@
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
-import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { resolveTokenForResource } from './agentHostAuth.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
-import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -51,10 +46,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
 	private _loggedConnection: LoggingAgentConnection | undefined;
-	private _clientState: SessionClientState | undefined;
+
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
+	/** List controllers keyed by agent provider, for cache resets on reconnect. */
+	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
+
+	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
+	private readonly _authTokenCache = new AgentHostAuthTokenCache();
+
+	private readonly _isSessionsWindow: boolean;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -67,10 +69,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
+
+		this._isSessionsWindow = environmentService.isSessionsWindow;
 
 		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
@@ -80,51 +84,35 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._loggedConnection = this._register(this._instantiationService.createInstance(
 			LoggingAgentConnection,
 			this._agentHostService,
-			'agentHostIpc.local',
+			`agenthost.${this._agentHostService.clientId}`,
 			'Agent Host (Local)'));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
-		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService, () => this._agentHostService.nextClientSeq()));
-
-		// Forward action envelopes from the host to client state
-		this._register(this._loggedConnection.onDidAction(envelope => {
-			// Only root actions are relevant here; session actions are
-			// handled by individual session handlers.
-			if (!isSessionAction(envelope.action)) {
-				this._clientState!.receiveEnvelope(envelope);
-			}
-		}));
-
-		// Forward notifications to client state
-		this._register(this._loggedConnection.onDidNotification(n => {
-			this._clientState!.receiveNotification(n);
-		}));
-
 		// React to root state changes (agent discovery / removal)
-		this._register(this._clientState.onDidChangeRootState(rootState => {
+		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(rootState);
 		}));
 
-		this._initializeAndSubscribe();
-	}
-
-	private async _initializeAndSubscribe(): Promise<void> {
-		try {
-			const snapshot = await this._loggedConnection!.subscribe(URI.parse(ROOT_STATE_URI));
-			if (this._store.isDisposed) {
-				return;
+		// Clear the auth cache whenever the local agent host (re)starts so the
+		// first post-restart authenticate RPC is never skipped as "unchanged".
+		// Also reset each list controller's session cache so the next refresh
+		// re-fetches via listSessions() rather than serving a stale in-memory list.
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			this._authTokenCache.clear();
+			for (const controller of this._listControllers.values()) {
+				controller.resetCache();
 			}
-			// Feed snapshot into client state - fires onDidChangeRootState
-			this._clientState!.handleSnapshot(ROOT_STATE_URI, snapshot.state, snapshot.fromSeq);
-		} catch (err) {
-			this._logService.error('[AgentHost] Failed to subscribe to root state', err);
-			this._loggedConnection!.logError('subscribe(root)', err);
+		}));
+
+		// Process initial root state if already available
+		const initialRootState = this._agentHostService.rootState.value;
+		if (initialRootState && !(initialRootState instanceof Error)) {
+			this._handleRootStateChange(initialRootState);
 		}
 	}
 
-	private _handleRootStateChange(rootState: IRootState): void {
+	private _handleRootStateChange(rootState: RootState): void {
 		const incoming = new Set(rootState.agents.map(a => a.provider));
 
 		// Remove agents that are no longer present
@@ -134,6 +122,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._modelProviders.delete(provider);
 			}
 		}
+
+		// Authenticate using protectedResources from agent info
+		this._authenticateWithServer(rootState.agents)
+			.catch(() => { /* best-effort */ });
 
 		// Register new agents and push model updates to existing ones
 		for (const agent of rootState.agents) {
@@ -147,50 +139,62 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _registerAgent(agent: IAgentInfo): void {
+	private _registerAgent(agent: AgentInfo): void {
 		const store = new DisposableStore();
 		this._agentRegistrations.set(agent.provider, store);
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// Chat session contribution
+		// In the Agents app, the agent-host displayName is unambiguous because
+		// only agent-host sessions exist there. In VS Code, the same picker
+		// also lists the extension-host harness with the same displayName
+		// (e.g. "Copilot CLI"), so suffix with "- Agent Host" to disambiguate.
+		const displayName = this._isSessionsWindow
+			? agent.displayName
+			: localize('agentHost.displayName', "{0} - Agent Host", agent.displayName);
+
+		// Chat session contribution.
+		// In the Agents app, hide the delegation picker for local agent host
+		// sessions (matches behavior of remote agent host sessions). In VS Code,
+		// keep the picker available so users can hand off to other targets.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
-			displayName: agent.displayName,
+			displayName,
 			description: agent.description,
+			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined, 'local'));
+		this._listControllers.set(agent.provider, listController);
+		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
-		// Customization sync provider + bundler + observable
-		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
-		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
+		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
+		const syncProvider = agentRegistration.syncProvider;
+
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
+		// `[Local]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: agent.displayName,
+			label: localize('agentHostHarnessLabel.local', "{0} [Local]", agent.displayName),
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [],
 			hideGenerateButton: true,
-			getStorageSourceFilter: () => ({ sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin] }),
+			getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 			syncProvider,
+			itemProvider,
 		}));
-
-		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
-		const updateCustomizations = async () => {
-			const refs = await this._resolveCustomizations(syncProvider, bundler);
-			customizations.set(refs, undefined);
-		};
-		store.add(syncProvider.onDidChange(() => updateCustomizations()));
-		updateCustomizations(); // resolve initial state
 
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
@@ -201,137 +205,76 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
-			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
-			customizations,
+			isNewSession: sessionResource => listController.isNewSession(sessionResource),
+			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
-		// Language model provider
+		// Language model provider.
+		// Order matters: `updateModels` must be called after
+		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
 		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
-		modelProvider.updateModels(agent.models);
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
+		modelProvider.updateModels(agent.models);
 
-		// Push auth token and refresh models from server
-		this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ });
-		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
-		store.add(this._authenticationService.onDidChangeSessions(() =>
-			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
+		// Re-authenticate when credentials change
+		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
+			const agents = this._getRootAgents();
+			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
+		}));
+		store.add(this._authenticationService.onDidChangeSessions(() => {
+			const agents = this._getRootAgents();
+			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
+		}));
+	}
+
+	private _getRootAgents(): readonly AgentInfo[] {
+		const rootState = this._agentHostService.rootState.value;
+		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
 	}
 
 	/**
-	 * Resolves the customizations to include in the active client set.
-	 *
-	 * Classifies sync provider entries as plugins (matched against
-	 * installed plugins) or individual files (bundled into a synthetic
-	 * Open Plugin).
+	 * Authenticate using protectedResources from agent info in root state.
+	 * Resolves tokens via the standard VS Code authentication service.
 	 */
-	private async _resolveCustomizations(
-		syncProvider: AgentCustomizationSyncProvider,
-		bundler: SyncedCustomizationBundler,
-	): Promise<ICustomizationRef[]> {
-		const entries = syncProvider.getSelectedEntries();
-		if (entries.length === 0) {
-			return [];
-		}
-
-		const plugins = this._agentPluginService.plugins.get();
-		const refs: ICustomizationRef[] = [];
-		const individualFiles: { uri: URI; type: PromptsType }[] = [];
-
-		for (const entry of entries) {
-			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
-			if (plugin) {
-				refs.push({
-					uri: plugin.uri.toString() as ProtocolURI,
-					displayName: plugin.label,
-				});
-			} else if (entry.type) {
-				individualFiles.push({ uri: entry.uri, type: entry.type });
-			}
-		}
-
-		if (individualFiles.length > 0) {
-			const result = await bundler.bundle(individualFiles);
-			if (result) {
-				refs.push(result.ref);
-			}
-		}
-
-		return refs;
-	}
-
-	/**
-	 * Discover auth requirements from the server's resource metadata
-	 * and authenticate using matching tokens resolved via the standard
-	 * VS Code authentication service (same flow as MCP auth).
-	 */
-	private async _authenticateWithServer(): Promise<void> {
+	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
+		this._agentHostService.setAuthenticationPending(true);
 		try {
-			const metadata = await this._loggedConnection!.getResourceMetadata();
-			this._logService.trace(`[AgentHost] Resource metadata: ${metadata.resources.length} resource(s)`);
-			for (const resource of metadata.resources) {
-				const resourceUri = URI.parse(resource.resource);
-				const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
-				if (token) {
-					this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
-					await this._loggedConnection!.authenticate({ resource: resource.resource, token });
-				} else {
-					this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
-				}
-			}
+			await authenticateProtectedResources(agents, {
+				authTokenCache: this._authTokenCache,
+				authenticationService: this._authenticationService,
+				logPrefix: '[AgentHost]',
+				logService: this._logService,
+				authenticate: request => this._loggedConnection!.authenticate(request),
+			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
 			this._loggedConnection!.logError('authenticateWithServer', err);
+		} finally {
+			this._agentHostService.setAuthenticationPending(false);
 		}
-	}
-
-	/**
-	 * Resolve a bearer token for a set of authorization servers using the
-	 * standard VS Code authentication service provider resolution.
-	 */
-	private _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
-		return resolveTokenForResource(resourceServer, authorizationServers, scopes, this._authenticationService, this._logService, '[AgentHost]');
 	}
 
 	/**
 	 * Interactively prompt the user to authenticate when the server requires it.
-	 * Fetches resource metadata, resolves the auth provider, creates a session
-	 * (which triggers the login UI), and pushes the token to the server.
-	 * Returns true if authentication succeeded.
+	 * Uses protectedResources from root state, resolves the auth provider,
+	 * creates a session (which triggers the login UI), and pushes the token
+	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(): Promise<boolean> {
+	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
 		try {
-			const metadata = await this._loggedConnection!.getResourceMetadata();
-			for (const resource of metadata.resources) {
-				for (const server of resource.authorization_servers ?? []) {
-					const serverUri = URI.parse(server);
-					const resourceUri = URI.parse(resource.resource);
-					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
-					if (!providerId) {
-						continue;
-					}
-
-					// createSession will show the login UI if no session exists
-					const scopes = [...(resource.scopes_supported ?? [])];
-					const session = await this._authenticationService.createSession(providerId, scopes, {
-						activateImmediate: true,
-						authorizationServer: serverUri,
-					});
-
-					await this._loggedConnection!.authenticate({
-						resource: resource.resource,
-						token: session.accessToken,
-					});
-					this._logService.info(`[AgentHost] Interactive authentication succeeded for ${resource.resource}`);
-					return true;
-				}
-			}
+			return await resolveAuthenticationInteractively(protectedResources, {
+				authTokenCache: this._authTokenCache,
+				authenticationService: this._authenticationService,
+				logPrefix: '[AgentHost]',
+				logService: this._logService,
+				authenticate: request => this._loggedConnection!.authenticate(request),
+			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
 			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);

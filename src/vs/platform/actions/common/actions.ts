@@ -88,7 +88,9 @@ export class MenuId {
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly EditorTitleLayout = new MenuId('EditorTitleLayout');
 	static readonly ModalEditorTitle = new MenuId('ModalEditorTitle');
+	static readonly ModalEditorTitleContext = new MenuId('ModalEditorTitleContext');
 	static readonly ModalEditorEditorTitle = new MenuId('ModalEditorEditorTitle');
 	static readonly CompactWindowEditorTitle = new MenuId('CompactWindowEditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
@@ -263,11 +265,10 @@ export class MenuId {
 	static readonly ChatModePicker = new MenuId('ChatModePicker');
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
 	static readonly ChatEditingSessionChangesToolbar = new MenuId('ChatEditingSessionChangesToolbar');
-	static readonly ChatEditingSessionApplySubmenu = new MenuId('ChatEditingSessionApplySubmenu');
 	static readonly ChatEditingSessionTitleToolbar = new MenuId('ChatEditingSessionTitleToolbar');
-	static readonly ChatEditingSessionChangeToolbar = new MenuId('ChatEditingSessionChangeToolbar');
 	static readonly ChatEditingSessionChangesVersionsSubmenu = new MenuId('ChatEditingSessionChangesVersionsSubmenu');
 	static readonly ChatEditingSessionChangesFileHeaderToolbar = new MenuId('ChatEditingSessionChangesFileHeaderToolbar');
+	static readonly ChatEditingSessionChangesFileHeaderRightToolbar = new MenuId('ChatEditingSessionChangesFileHeaderRightToolbar');
 	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
 	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
 	static readonly ChatEditingDeletedNotebookCell = new MenuId('ChatEditingDeletedNotebookCell');
@@ -294,7 +295,7 @@ export class MenuId {
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
 	static readonly InlineChatEditorAffordance = new MenuId('InlineChatEditorAffordance');
-	static readonly InlineChatInput = new MenuId('InlineChatInput');
+
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorContent = new MenuId('MultiDiffEditorContent');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
@@ -302,6 +303,8 @@ export class MenuId {
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
 	static readonly BrowserNavigationToolbar = new MenuId('BrowserNavigationToolbar');
 	static readonly BrowserActionsToolbar = new MenuId('BrowserActionsToolbar');
+	static readonly BrowserChatActionsMenu = new MenuId('BrowserChatActionsMenu');
+	static readonly BrowserEmulationToolbar = new MenuId('BrowserEmulationToolbar');
 	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
 	static readonly AgentSessionSectionContext = new MenuId('AgentSessionSectionContext');
@@ -309,7 +312,11 @@ export class MenuId {
 	static readonly AgentSessionsToolbar = new MenuId('AgentSessionsToolbar');
 	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 	static readonly AgentSessionSectionToolbar = new MenuId('AgentSessionSectionToolbar');
+	static readonly SessionItemContextMenu = new MenuId('SessionItemContextMenu');
 	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
+	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
+	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
+	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');
 	static readonly ChatViewSessionTitleNavigationToolbar = new MenuId('ChatViewSessionTitleNavigationToolbar');
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatContextUsageActions = new MenuId('ChatContextUsageActions');

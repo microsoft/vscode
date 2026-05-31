@@ -13,8 +13,10 @@ import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData, ModifiedFilesConfirmationTool, ModifiedFilesConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
+import { ReviewPlanTool, ReviewPlanToolData } from './reviewPlanTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 import { SetArtifactsTool, SetArtifactsToolData } from './setArtifactsTool.js';
+import { SetArtifactRulesTool, SetArtifactRulesToolData } from './setArtifactRulesTool.js';
 import { TaskCompleteTool, TaskCompleteToolData } from './taskCompleteTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -35,6 +37,9 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(AskQuestionsToolData, askQuestionsTool));
 		this._register(toolsService.vscodeToolSet.addTool(AskQuestionsToolData));
 
+		const reviewPlanTool = this._register(instantiationService.createInstance(ReviewPlanTool));
+		this._register(toolsService.registerTool(ReviewPlanToolData, reviewPlanTool));
+
 		const todoToolData = createManageTodoListToolData();
 		const manageTodoListTool = this._register(instantiationService.createInstance(ManageTodoListTool));
 		this._register(toolsService.registerTool(todoToolData, manageTodoListTool));
@@ -51,20 +56,25 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(TaskCompleteToolData, taskCompleteTool));
 
 		const setArtifactsTool = instantiationService.createInstance(SetArtifactsTool);
+		const setArtifactRulesTool = instantiationService.createInstance(SetArtifactRulesTool);
 		const setArtifactsRegistration = this._register(new MutableDisposable());
+		const setArtifactRulesRegistration = this._register(new MutableDisposable());
 		const updateArtifactsRegistration = () => {
-			if (configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled) &&
-				configurationService.getValue<string>(ChatConfiguration.ArtifactsMode) === 'tool') {
+			if (configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled)) {
 				if (!setArtifactsRegistration.value) {
 					setArtifactsRegistration.value = toolsService.registerTool(SetArtifactsToolData, setArtifactsTool);
 				}
+				if (!setArtifactRulesRegistration.value) {
+					setArtifactRulesRegistration.value = toolsService.registerTool(SetArtifactRulesToolData, setArtifactRulesTool);
+				}
 			} else {
 				setArtifactsRegistration.clear();
+				setArtifactRulesRegistration.clear();
 			}
 		};
 		updateArtifactsRegistration();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ArtifactsEnabled) || e.affectsConfiguration(ChatConfiguration.ArtifactsMode)) {
+			if (e.affectsConfiguration(ChatConfiguration.ArtifactsEnabled)) {
 				updateArtifactsRegistration();
 			}
 		}));
