@@ -139,6 +139,8 @@ export interface IChatListItemTemplate {
 	dragHandle?: HTMLElement;
 
 	readonly rowContainer: HTMLElement;
+	/** Height allocated by the list for the currently rendered row. */
+	allocatedHeight?: number;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
@@ -163,6 +165,10 @@ export interface IChatListItemTemplate {
 interface IItemHeightChangeParams {
 	element: ChatTreeItem;
 	height: number;
+}
+
+export function shouldScheduleInitialHeightChange(normalizedHeight: number, allocatedHeight: number | undefined): boolean {
+	return typeof allocatedHeight !== 'number' || normalizedHeight > Math.ceil(allocatedHeight);
 }
 
 const forceVerboseLayoutTracing = false
@@ -363,6 +369,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
 		} else {
+			// First measurements that already fit are just initialization. Only schedule
+			// a first update when the row would otherwise clip newly rendered content.
+			if (!shouldScheduleInitialHeightChange(normalizedHeight, template.allocatedHeight)) {
+				return;
+			}
+
 			const element = template.currentElement;
 			const scheduledHeight = normalizedHeight;
 			dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
@@ -670,7 +682,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return template;
 	}
 
-	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
+	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
+		templateData.allocatedHeight = details?.height;
 		this._elementBeingRendered = node.element;
 		try {
 			this.renderChatTreeItem(node.element, index, templateData);
