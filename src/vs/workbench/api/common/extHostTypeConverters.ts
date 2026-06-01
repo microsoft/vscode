@@ -256,17 +256,27 @@ export namespace Diagnostic {
 		// Sanitize range to ensure all coordinates are finite numbers. Non-finite
 		// values (NaN, Infinity) get serialized to JSON null and produce invalid
 		// LSP code action requests, see https://github.com/microsoft/vscode/issues/177094.
-		const range = Range.from(value.range);
+		let range = Range.from(value.range);
 		if (range && (
 			!Number.isFinite(range.startLineNumber)
 			|| !Number.isFinite(range.startColumn)
 			|| !Number.isFinite(range.endLineNumber)
 			|| !Number.isFinite(range.endColumn)
 		)) {
-			range.startLineNumber = 1;
-			range.startColumn = 1;
-			range.endLineNumber = 1;
-			range.endColumn = 1;
+			// Replace only the non-finite coordinates so valid ones are kept, and
+			// derive the end fallback from the (sanitized) start so we never emit a
+			// range whose end precedes its start.
+			const startLineNumber = Number.isFinite(range.startLineNumber) ? range.startLineNumber : 1;
+			const startColumn = Number.isFinite(range.startColumn) ? range.startColumn : 1;
+			let endLineNumber = Number.isFinite(range.endLineNumber) ? range.endLineNumber : startLineNumber;
+			let endColumn = Number.isFinite(range.endColumn) ? range.endColumn : startColumn;
+			if (endLineNumber < startLineNumber) {
+				endLineNumber = startLineNumber;
+			}
+			if (endLineNumber === startLineNumber && endColumn < startColumn) {
+				endColumn = startColumn;
+			}
+			range = { startLineNumber, startColumn, endLineNumber, endColumn };
 		}
 
 		return {

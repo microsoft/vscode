@@ -255,7 +255,7 @@ suite('extHostTypeConverters', function () {
 			assert.strictEqual(marker.message, 'hello');
 		});
 
-		test('from sanitizes NaN positions to a valid range', function () {
+		test('from sanitizes an all-NaN range to (1,1,1,1)', function () {
 			// Extensions may inadvertently construct positions with NaN
 			// (e.g. from arithmetic involving undefined). NaN serializes to
 			// JSON null which breaks LSP code action requests -- see
@@ -265,38 +265,52 @@ suite('extHostTypeConverters', function () {
 				'broken',
 			);
 			const marker = DiagnosticConverter.from(diag);
-			assert.ok(Number.isFinite(marker.startLineNumber));
-			assert.ok(Number.isFinite(marker.startColumn));
-			assert.ok(Number.isFinite(marker.endLineNumber));
-			assert.ok(Number.isFinite(marker.endColumn));
 			assert.strictEqual(marker.startLineNumber, 1);
 			assert.strictEqual(marker.startColumn, 1);
 			assert.strictEqual(marker.endLineNumber, 1);
 			assert.strictEqual(marker.endColumn, 1);
 		});
 
-		test('from sanitizes a NaN character in an otherwise valid range', function () {
+		test('from replaces only the non-finite coordinate and keeps the rest', function () {
+			// The Range constructor reorders positions, so the NaN character ends
+			// up as the end column; the finite line/column survive sanitization and
+			// the missing end column falls back to the start column (an empty range).
 			const diag = new Diagnostic(
 				new Range(new Position(2, NaN), new Position(2, 5)),
 				'broken',
 			);
 			const marker = DiagnosticConverter.from(diag);
-			assert.ok(Number.isFinite(marker.startLineNumber));
-			assert.ok(Number.isFinite(marker.startColumn));
-			assert.ok(Number.isFinite(marker.endLineNumber));
-			assert.ok(Number.isFinite(marker.endColumn));
+			assert.strictEqual(marker.startLineNumber, 3);
+			assert.strictEqual(marker.startColumn, 6);
+			assert.strictEqual(marker.endLineNumber, 3);
+			assert.strictEqual(marker.endColumn, 6);
 		});
 
-		test('from sanitizes Infinity positions to a valid range', function () {
+		test('from keeps a non-finite end from preceding a finite start', function () {
+			// Range reorders so the finite (5,3) becomes the start and the NaN
+			// position becomes the end; the end must fall back to the start rather
+			// than inverting the range.
+			const diag = new Diagnostic(
+				new Range(new Position(NaN, NaN), new Position(5, 3)),
+				'broken',
+			);
+			const marker = DiagnosticConverter.from(diag);
+			assert.strictEqual(marker.startLineNumber, 6);
+			assert.strictEqual(marker.startColumn, 4);
+			assert.strictEqual(marker.endLineNumber, 6);
+			assert.strictEqual(marker.endColumn, 4);
+		});
+
+		test('from sanitizes an Infinity end line to (1,1,1,1)', function () {
 			const diag = new Diagnostic(
 				new Range(new Position(0, 0), new Position(Infinity, 0)),
 				'broken',
 			);
 			const marker = DiagnosticConverter.from(diag);
-			assert.ok(Number.isFinite(marker.startLineNumber));
-			assert.ok(Number.isFinite(marker.startColumn));
-			assert.ok(Number.isFinite(marker.endLineNumber));
-			assert.ok(Number.isFinite(marker.endColumn));
+			assert.strictEqual(marker.startLineNumber, 1);
+			assert.strictEqual(marker.startColumn, 1);
+			assert.strictEqual(marker.endLineNumber, 1);
+			assert.strictEqual(marker.endColumn, 1);
 		});
 	});
 });
