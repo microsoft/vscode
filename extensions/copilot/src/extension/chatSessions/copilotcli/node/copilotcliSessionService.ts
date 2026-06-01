@@ -1627,9 +1627,15 @@ export function buildSandboxConfigForCLI(
 	// mirror the terminal sandbox runtime: when an allow- or block-list is set we open outbound so
 	// the host filter is actually enforced (the SDK strips host lists when outbound is off). A
 	// deny-list-only configuration still permits non-denied domains.
+	//
+	// macOS Seatbelt has no per-host filter — the runtime strips both lists and would silently
+	// degrade `allowOutbound: true` to "allow all outbound". To avoid surprising the user with
+	// unrestricted access when they explicitly configured host rules, fail closed on darwin: keep
+	// outbound off and drop the unenforceable lists.
 	const allowAllNetwork = sandboxSetting === 'allowNetwork';
-	const allowedHosts = !allowAllNetwork && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
-	const blockedHosts = !allowAllNetwork && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
+	const hostListsEnforceable = platform !== 'darwin';
+	const allowedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
+	const blockedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
 	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,

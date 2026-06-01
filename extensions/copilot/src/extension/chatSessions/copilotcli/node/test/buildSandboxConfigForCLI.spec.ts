@@ -159,6 +159,18 @@ describe('buildSandboxConfigForCLI', () => {
 				allowOutbound: false,
 			});
 		});
+
+		it('drops host lists and keeps outbound closed on darwin (Seatbelt has no per-host filter)', () => {
+			expect(buildSandboxConfigForCLI('darwin', 'on', undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] })?.userPolicy?.network).toEqual({
+				allowOutbound: false,
+			});
+		});
+
+		it('darwin `allowNetwork` still opens outbound (host lists were already ignored)', () => {
+			expect(buildSandboxConfigForCLI('darwin', 'allowNetwork', undefined, { allowedHosts: ['github.com'] })?.userPolicy?.network).toEqual({
+				allowOutbound: true,
+			});
+		});
 	});
 });
 
