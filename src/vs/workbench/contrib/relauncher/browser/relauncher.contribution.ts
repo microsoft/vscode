@@ -35,6 +35,7 @@ interface IConfiguration extends IWindowsConfiguration {
 		extensionUnification?: { enabled?: boolean };
 		agentHost?: {
 			enabled?: boolean;
+			rubberDuck?: { enabled?: boolean };
 			otel?: {
 				enabled?: boolean;
 				exporterType?: string;
@@ -68,6 +69,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
 		'chat.agentHost.enabled',
+		'chat.agentHost.rubberDuck.enabled',
 		'chat.agentHost.otel.enabled',
 		'chat.agentHost.otel.exporterType',
 		'chat.agentHost.otel.otlpEndpoint',
@@ -92,6 +94,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
 	private readonly agentHostEnabled = new ChangeObserver('boolean');
+	private readonly agentHostRubberDuckEnabled = new ChangeObserver('boolean');
 	private readonly agentHostOTelEnabled = new ChangeObserver('boolean');
 	private readonly agentHostOTelExporterType = new ChangeObserver('string');
 	private readonly agentHostOTelOtlpEndpoint = new ChangeObserver('string');
@@ -195,6 +198,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Agent Host
 		processChanged(this.agentHostEnabled.handleChange(config.chat?.agentHost?.enabled));
+		processChanged(this.agentHostRubberDuckEnabled.handleChange(config.chat?.agentHost?.rubberDuck?.enabled));
 
 		// Agent Host OTel: settings are forwarded as env vars when the agent host
 		// child process is spawned (see `electronAgentHostStarter.ts`). The child
