@@ -671,4 +671,178 @@ suite('VisibleSessions', () => {
 			});
 		});
 	});
+
+	suite('removeMany', () => {
+
+		test('removing the active middle session falls back to its leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C] active:C
+			model.setActive(B);            // active flips to B (sticky), keeps slot
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'A',
+				sticky: ['A', 'C'],
+			});
+		});
+
+		test('removing the active first session falls back to the new first slot', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+			model.setActive(A);            // active A (sticky), keeps slot
+			model.removeMany(['A']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['B'],
+				active: 'B',
+				sticky: ['B'],
+			});
+		});
+
+		test('removing the active last session falls back to its leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing the only visible active session clears the active observable', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			model.setActive(A);            // [A] active:A
+			model.removeMany(['A']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: [],
+				active: undefined,
+				sticky: [],
+			});
+		});
+
+		test('removing the active session falls back to the empty slot when it is the leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined
+			model.insertAt(B, A.sessionId, 'right'); // [A, B, undefined] active:B (non-sticky)
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing the active empty slot falls back to its leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined (empty slot)
+			model.removeMany([undefined]);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing a non-active session leaves the active session unchanged', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C] active:C
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'C',
+				sticky: ['A', 'C'],
+			});
+		});
+
+		test('removing the active session along with its leftward neighbour falls back further left', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C] active:C
+
+			model.removeMany(['B', 'C']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing all visible sessions including the active clears the active observable', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+
+			model.removeMany(['A', 'B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: [],
+				active: undefined,
+				sticky: [],
+			});
+		});
+	});
 });
+

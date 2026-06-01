@@ -59,6 +59,8 @@ export interface SessionStoreSqlParams {
 	readonly query?: string;
 	readonly force?: boolean;
 	readonly description: string;
+	/** Originating /chronicle slash command (e.g. 'tips', 'cost-tips', 'search', 'improve'). Used for telemetry attribution only. */
+	readonly subcommand?: 'standup' | 'tips' | 'cost-tips' | 'search' | 'improve' | 'reindex';
 }
 
 /** Cloud SQL dialect sessions query. */
@@ -99,17 +101,18 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 		token: CancellationToken,
 	): Promise<vscode.LanguageModelToolResult> {
 		const action = options.input.action ?? 'query';
+		const subcommand = options.input.subcommand;
 
 		switch (action) {
 			case 'standup':
-				return this._invokeStandup(token);
+				return this._invokeStandup(subcommand ?? 'standup', token);
 			case 'reindex':
-				return this._invokeReindex(options.input.force ?? false, token);
+				return this._invokeReindex(options.input.force ?? false, subcommand ?? 'reindex', token);
 			default:
-				return this._invokeQuery(options.input.query ?? '', token);
+				return this._invokeQuery(options.input.query ?? '', subcommand, token);
 		}
 	}
-	private async _invokeQuery(rawQuery: string, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	private async _invokeQuery(rawQuery: string, subcommand: SessionStoreSqlParams['subcommand'], token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		// Strip trailing semicolons — models often append them
 		const sql = rawQuery.trim().replace(/;+\s*$/, '');
 
@@ -120,7 +123,7 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 		// Security check: block mutating / side-effecting statements
 		for (const pattern of BLOCKED_PATTERNS) {
 			if (pattern.test(sql)) {
-				this._sendTelemetry('blocked', 0, 0, false, 'blocked_mutating_sql');
+				this._sendTelemetry({ command: 'query', subcommand, target: 'local', blocked: true, rowCount: 0, durationMs: 0, success: false, error: 'blocked_mutating_sql' });
 				return new LanguageModelToolResult([
 					new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT or WITH queries are allowed.'),
 				]);
@@ -131,7 +134,7 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 		// comments first so a comment prefix cannot smuggle a non-query past the check.
 		const firstKeywordSrc = stripLeadingCommentsAndWhitespace(sql);
 		if (!/^(SELECT|WITH)\b/i.test(firstKeywordSrc)) {
-			this._sendTelemetry('blocked', 0, 0, false, 'blocked_not_select_or_with');
+			this._sendTelemetry({ command: 'query', subcommand, target: 'local', blocked: true, rowCount: 0, durationMs: 0, success: false, error: 'blocked_not_select_or_with' });
 			return new LanguageModelToolResult([
 				new LanguageModelTextPart('Error: Blocked SQL statement. Only SELECT or WITH queries are allowed.'),
 			]);
@@ -139,7 +142,7 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 
 		// Block multiple statements — only one query per call
 		if (sql.includes(';')) {
-			this._sendTelemetry('blocked', 0, 0, false, 'multiple_statements');
+			this._sendTelemetry({ command: 'query', subcommand, target: 'local', blocked: true, rowCount: 0, durationMs: 0, success: false, error: 'multiple_statements' });
 			return new LanguageModelToolResult([
 				new LanguageModelTextPart('Error: Only one SQL statement per call. Remove semicolons and split into separate calls.'),
 			]);
@@ -149,6 +152,8 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 		const hasCloud = this._indexingPreference.hasCloudConsent();
 		const startTime = Date.now();
 		let source = hasCloud ? 'cloud' : 'local';
+		let target: 'local' | 'cloud' = hasCloud ? 'cloud' : 'local';
+		let fallback = false;
 
 		try {
 			let rows: Record<string, unknown>[];
@@ -161,13 +166,15 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 
 				if (cloudResult && 'error' in cloudResult) {
 					// Cloud query failed — surface the error so model can fix its query
-					this._sendTelemetry('cloud', 0, Date.now() - startTime, false, cloudResult.error.substring(0, 100));
+					this._sendTelemetry({ command: 'query', subcommand, target: 'cloud', rowCount: 0, durationMs: Date.now() - startTime, success: false, error: cloudResult.error.substring(0, 100) });
 					return new LanguageModelToolResult([new LanguageModelTextPart(
 						`Error from cloud: ${cloudResult.error}\n\nReminder: Cloud uses DuckDB SQL syntax. Use \`now() - INTERVAL '1 day'\` for date math, \`ILIKE\` for text search (no FTS5/MATCH).`
 					)]);
 				} else if (!cloudResult) {
 					// Auth/network failure — fall back to local
 					source = 'local_fallback';
+					target = 'local';
+					fallback = true;
 					rows = this._executeLocal(sql);
 				} else {
 					rows = cloudResult.rows;
@@ -183,14 +190,14 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 				truncated = true;
 			}
 
-			this._sendTelemetry(source, rows.length, Date.now() - startTime, true);
+			this._sendTelemetry({ command: 'query', subcommand, target, fallback, rowCount: rows.length, durationMs: Date.now() - startTime, success: true });
 
 			// Format as table
 			const result = formatSqlResult(rows, truncated, source);
 			return new LanguageModelToolResult([new LanguageModelTextPart(result)]);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			this._sendTelemetry(source, 0, Date.now() - startTime, false, message.substring(0, 100));
+			this._sendTelemetry({ command: 'query', subcommand, target, fallback, rowCount: 0, durationMs: Date.now() - startTime, success: false, error: message.substring(0, 100) });
 			return new LanguageModelToolResult([new LanguageModelTextPart(`Error: ${message}`)]);
 		}
 	}
@@ -208,8 +215,10 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 	 * Standup action: pre-fetch last 24h sessions + turns + files + refs,
 	 * merge local/cloud, dedup, and return formatted data for the model to summarise.
 	 */
-	private async _invokeStandup(_token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	private async _invokeStandup(subcommand: NonNullable<SessionStoreSqlParams['subcommand']>, _token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const startTime = Date.now();
+		const hadCloudConsent = this._indexingPreference.hasCloudConsent();
+		const target: 'local' | 'cloud' = hadCloudConsent ? 'cloud' : 'local';
 
 		try {
 			// Always query local SQLite (has current machine's sessions)
@@ -217,7 +226,7 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 
 			// Query cloud if user has cloud consent
 			let cloudSessions: { sessions: AnnotatedSession[]; refs: AnnotatedRef[] } = { sessions: [], refs: [] };
-			if (this._indexingPreference.hasCloudConsent()) {
+			if (hadCloudConsent) {
 				cloudSessions = await this._queryCloudStore();
 			}
 
@@ -290,11 +299,11 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			}
 
 			const prompt = buildStandupPrompt(capped, cappedRefs, cappedTurns, cappedFiles);
-			this._sendTelemetry('standup', capped.length, Date.now() - startTime, true);
+			this._sendTelemetry({ command: 'standup', subcommand, target, rowCount: capped.length, durationMs: Date.now() - startTime, success: true });
 			return new LanguageModelToolResult([new LanguageModelTextPart(prompt)]);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			this._sendTelemetry('standup', 0, Date.now() - startTime, false, message.substring(0, 100));
+			this._sendTelemetry({ command: 'standup', subcommand, target, rowCount: 0, durationMs: Date.now() - startTime, success: false, error: message.substring(0, 100) });
 			return new LanguageModelToolResult([new LanguageModelTextPart(`Error fetching standup data: ${message}`)]);
 		}
 	}
@@ -303,8 +312,10 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 	 * Reindex action: rebuild the local session store from debug logs,
 	 * then trigger cloud sync if enabled.
 	 */
-	private async _invokeReindex(force: boolean, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	private async _invokeReindex(force: boolean, subcommand: NonNullable<SessionStoreSqlParams['subcommand']>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const startTime = Date.now();
+		const hadCloudConsent = this._indexingPreference.hasCloudConsent();
+		const target: 'local' | 'cloud' = hadCloudConsent ? 'cloud' : 'local';
 
 		try {
 			const statsBefore = this._sessionStore.getStats();
@@ -352,11 +363,11 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 				}
 			}
 
-			this._sendTelemetry('reindex', result.processed, Date.now() - startTime, true);
+			this._sendTelemetry({ command: 'reindex', subcommand, target, rowCount: result.processed, durationMs: Date.now() - startTime, success: true });
 			return new LanguageModelToolResult([new LanguageModelTextPart(lines.join('\n'))]);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			this._sendTelemetry('reindex', 0, Date.now() - startTime, false, message.substring(0, 100));
+			this._sendTelemetry({ command: 'reindex', subcommand, target, rowCount: 0, durationMs: Date.now() - startTime, success: false, error: message.substring(0, 100) });
 			return new LanguageModelToolResult([new LanguageModelTextPart(`Error during reindex: ${message}`)]);
 		}
 	}
@@ -464,33 +475,56 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 		}
 	}
 
-	private _sendTelemetry(source: string, rowCount: number, durationMs: number, success: boolean, error?: string): void {
+	private _sendTelemetry(args: {
+		command: 'query' | 'standup' | 'reindex';
+		subcommand?: SessionStoreSqlParams['subcommand'];
+		target: 'local' | 'cloud';
+		blocked?: boolean;
+		fallback?: boolean;
+		rowCount: number;
+		durationMs: number;
+		success: boolean;
+		error?: string;
+	}): void {
+		const { command, subcommand, target, blocked, fallback, rowCount, durationMs, success, error } = args;
+		// Back-compat: derive the original `source` value so existing dashboards keep working.
+		const source = blocked
+			? 'blocked'
+			: fallback
+				? 'local_fallback'
+				: command === 'query'
+					? target
+					: command;
+		const properties = {
+			command,
+			subcommand: subcommand ?? 'unknown',
+			target,
+			source,
+			success: success ? 'true' : 'false',
+		};
+		const measurements = { rowCount, durationMs };
 		if (success) {
 			/* __GDPR__
 "chronicle.sqlQuery" : {
 "owner": "vijayu",
-"comment": "Tracks session store SQL query execution and failures",
-"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Query target: local, cloud, or blocked." },
+"comment": "Tracks chronicle session-store tool invocations (query/standup/reindex) and outcomes",
+"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool action invoked: query, standup, or reindex." },
+"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Originating /chronicle slash command (standup, tips, cost-tips, search, improve, reindex) or 'unknown' for ad-hoc model calls." },
+"target": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the invocation primarily targeted the local SQLite store or the cloud session store." },
+"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Fine-grained source: local, cloud, local_fallback, blocked, standup, or reindex (kept for back-compat)." },
+"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the invocation succeeded (true/false)." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message." },
 "rowCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of rows returned." },
-"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Query duration in milliseconds." }
+"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Invocation duration in milliseconds." }
 }
 */
-			this._telemetryService.sendMSFTTelemetryEvent('chronicle.sqlQuery', {
-				source,
-			}, {
-				rowCount,
-				durationMs,
-			});
+			this._telemetryService.sendMSFTTelemetryEvent('chronicle.sqlQuery', properties, measurements);
 		} else {
 
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.sqlQuery', {
-				source,
+				...properties,
 				error: error ?? 'unknown',
-			}, {
-				rowCount,
-				durationMs,
-			});
+			}, measurements);
 		}
 	}
 

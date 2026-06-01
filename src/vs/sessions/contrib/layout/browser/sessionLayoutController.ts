@@ -233,6 +233,14 @@ export class LayoutController extends Disposable {
 			}
 		}));
 
+		// Invariant: the editor part must never be visible without the auxiliary bar.
+		this._enforceAuxiliaryBarWhenEditorVisible();
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.EDITOR_PART && e.visible) {
+				this._enforceAuxiliaryBarWhenEditorVisible();
+			}
+		}));
+
 		// --- Editor working sets ---
 
 		this._useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
@@ -296,6 +304,15 @@ export class LayoutController extends Disposable {
 	}
 
 	// --- Auxiliary bar ---
+
+	private _enforceAuxiliaryBarWhenEditorVisible(): void {
+		if (
+			this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) &&
+			!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+		) {
+			this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		}
+	}
 
 	private _captureViewState(sessionResource: URI): void {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);

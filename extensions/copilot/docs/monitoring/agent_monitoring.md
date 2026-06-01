@@ -640,7 +640,7 @@ copilot-chat invoke_agent claude               [~33s]
 | `gen_ai.agent.name` | `claude` |
 | `gen_ai.provider.name` | `github` |
 | `gen_ai.request.model` | `claude-haiku-4.5` |
-| `gen_ai.response.model` | `claude-haiku-4-5` |
+| `gen_ai.response.model` | `claude-haiku-4.5` |
 | `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
 | `gen_ai.usage.output_tokens` | `1100` |
 | `gen_ai.usage.cache_read.input_tokens` | `64062` |

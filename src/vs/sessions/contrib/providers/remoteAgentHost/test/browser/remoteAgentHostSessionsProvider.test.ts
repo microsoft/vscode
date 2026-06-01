@@ -41,8 +41,6 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../servi
 // ---- Mock connection --------------------------------------------------------
 
 class MockAgentConnection extends mock<IAgentConnection>() {
-	declare readonly _serviceBrand: undefined;
-
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
@@ -1132,7 +1130,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.workspace.get()?.label, 'project [Test Host]');
 	});
 
-	test('non-web: session description is the host label', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('non-web: idle session description is undefined', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('desc-sess', { summary: 'Desc Test' }));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
@@ -1140,11 +1138,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Desc Test');
-		const description = session?.description.get();
-		assert.ok(description, 'description should be defined on non-web');
-		// MarkdownString.appendText escapes spaces as &nbsp; — verify the
-		// host label is present rather than the exact serialized form.
-		assert.ok(description!.value.includes('Test') && description!.value.includes('Host'));
+		assert.strictEqual(session?.description.get(), undefined);
 	}));
 
 	test('web: session description is undefined (host filter dropdown replaces it)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

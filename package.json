@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.122.0",
-  "distro": "8c72533c6dd351f5f8f785eff758768c032523e0",
+  "version": "1.123.0",
+  "distro": "a3cfd833a1e920be078f82f96b69776d2de2149a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -23,6 +23,7 @@
     "compile-client": "npm run gulp compile",
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
     "watchd": "deemon npm run watch",
     "watch-webd": "deemon npm run watch-web",
@@ -90,8 +91,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "1.0.49",
-    "@github/copilot-sdk": "1.0.0-beta.4",
+    "@github/copilot": "1.0.55-3",
+    "@github/copilot-sdk": "1.0.0-beta.8",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -99,11 +100,11 @@
     "@microsoft/dev-tunnels-management": "^1.3.41",
     "@microsoft/dev-tunnels-ssh": "^3.12.22",
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
-    "@microsoft/mxc-sdk": "0.2.1",
+    "@microsoft/mxc-sdk": "0.3.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.46-14",
-    "@vscode/copilot-api": "^0.4.1",
+    "@vscode/copilot-api": "^0.4.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
     "@vscode/iconv-lite-umd": "0.7.1",
@@ -149,12 +150,13 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
     "ws": "^8.19.0",
-    "yauzl": "^3.0.0",
+    "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.128",
+    "@openai/codex": "^0.134.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
@@ -264,7 +266,8 @@
     "serialize-javascript": "^7.0.3",
     "ssh2": {
       "cpu-features": "0.0.0"
-    }
+    },
+    "yauzl": "^3.3.1"
   },
   "repository": {
     "type": "git",

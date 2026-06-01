@@ -23,7 +23,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -153,7 +153,7 @@ suite('AgentSideEffects', () => {
 	}
 
 	function startTurn(turnId: string): void {
-		stateManager.dispatchClientAction(sessionUri.toString(), { type: ActionType.SessionTurnStarted, turnId, userMessage: { text: 'hello' } },
+		stateManager.dispatchClientAction(sessionUri.toString(), { type: ActionType.SessionTurnStarted, turnId, message: { text: 'hello', origin: { kind: MessageKind.User } } },
 			{ clientId: 'test', clientSeq: 1 },
 		);
 	}
@@ -195,7 +195,7 @@ suite('AgentSideEffects', () => {
 			const action: SessionAction = {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello world' },
+				message: { text: 'hello world', origin: { kind: MessageKind.User } },
 			};
 			sideEffects.handleAction(sessionUri.toString(), action);
 
@@ -221,7 +221,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello world', attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'direct.ts', displayKind: 'document' }] },
+				message: { text: 'hello world', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'direct.ts', displayKind: 'document' }] },
 			});
 
 			assert.deepStrictEqual(telemetryService.events, [{
@@ -246,7 +246,7 @@ suite('AgentSideEffects', () => {
 			const action: SessionAction = {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello world', attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }] },
+				message: { text: 'hello world', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }] },
 			};
 
 			sideEffects.handleAction(sessionUri.toString(), action);
@@ -264,8 +264,9 @@ suite('AgentSideEffects', () => {
 			const action: SessionAction = {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: {
+				message: {
 					text: 'hello world',
+					origin: { kind: MessageKind.User },
 					attachments: [{
 						type: MessageAttachmentKind.Resource,
 						uri: fileUri.toString(),
@@ -317,7 +318,7 @@ suite('AgentSideEffects', () => {
 			noAgentSideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
 
 			const errorAction = envelopes.find(e => e.action.type === ActionType.SessionError);
@@ -351,7 +352,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'Fix the login bug' },
+				message: { text: 'Fix the login bug', origin: { kind: MessageKind.User } },
 			});
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
@@ -370,7 +371,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: '   ' },
+				message: { text: '   ', origin: { kind: MessageKind.User } },
 			});
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
@@ -387,7 +388,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: longMessage },
+				message: { text: longMessage, origin: { kind: MessageKind.User } },
 			});
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
@@ -416,7 +417,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-2',
-				userMessage: { text: 'second message' },
+				message: { text: 'second message', origin: { kind: MessageKind.User } },
 			});
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
@@ -442,7 +443,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
@@ -621,13 +622,13 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Steering,
 				id: 'steer-1',
-				userMessage: { text: 'focus on tests' },
+				message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), action);
 
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
-			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', userMessage: { text: 'focus on tests' } });
+			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
 		});
 
@@ -638,7 +639,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,
 				id: 'q-1',
-				userMessage: { text: 'queued message' },
+				message: { text: 'queued message', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), action);
@@ -660,7 +661,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,
 				id: 'q-uri',
-				userMessage: { text: 'queued message', attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }] },
+				message: { text: 'queued message', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }] },
 			};
 
 			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
@@ -680,7 +681,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,
 				id: 'q-telemetry',
-				userMessage: { text: 'queued message' },
+				message: { text: 'queued message', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), action);
@@ -706,7 +707,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,
 				id: 'q-rm',
-				userMessage: { text: 'will be removed' },
+				message: { text: 'will be removed', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), setAction);
@@ -730,11 +731,11 @@ suite('AgentSideEffects', () => {
 			setupSession();
 
 			// Add two queued messages
-			const setA = { type: ActionType.SessionPendingMessageSet as const, kind: PendingMessageKind.Queued, id: 'q-a', userMessage: { text: 'A' } };
+			const setA = { type: ActionType.SessionPendingMessageSet as const, kind: PendingMessageKind.Queued, id: 'q-a', message: { text: 'A', origin: { kind: MessageKind.User } } };
 			stateManager.dispatchClientAction(sessionUri.toString(), setA, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), setA);
 
-			const setB = { type: ActionType.SessionPendingMessageSet as const, kind: PendingMessageKind.Queued, id: 'q-b', userMessage: { text: 'B' } };
+			const setB = { type: ActionType.SessionPendingMessageSet as const, kind: PendingMessageKind.Queued, id: 'q-b', message: { text: 'B', origin: { kind: MessageKind.User } } };
 			stateManager.dispatchClientAction(sessionUri.toString(), setB, { clientId: 'test', clientSeq: 2 });
 			sideEffects.handleAction(sessionUri.toString(), setB);
 
@@ -764,7 +765,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,
 				id: 'q-auto',
-				userMessage: { text: 'auto queued' },
+				message: { text: 'auto queued', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), setAction);
@@ -807,7 +808,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Queued,
 				id: 'q-wait',
-				userMessage: { text: 'should wait' },
+				message: { text: 'should wait', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), setAction);
@@ -834,7 +835,7 @@ suite('AgentSideEffects', () => {
 				type: ActionType.SessionPendingMessageSet as const,
 				kind: PendingMessageKind.Steering,
 				id: 'steer-rm',
-				userMessage: { text: 'steer me' },
+				message: { text: 'steer me', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), action);
@@ -1059,7 +1060,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello world' },
+				message: { text: 'hello world', origin: { kind: MessageKind.User } },
 			});
 
 			assert.deepStrictEqual(telemetryService.events, []);
