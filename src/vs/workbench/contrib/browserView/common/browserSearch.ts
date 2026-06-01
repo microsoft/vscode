@@ -51,7 +51,7 @@ function encodeQuery(query: string): string {
 export const BROWSER_SEARCH_ENGINES: readonly IBrowserSearchEngine[] = [
 	{
 		id: BrowserSearchEngineId.Bing,
-		label: localize('browser.search.engine.bing', "Bing (Default)"),
+		label: localize('browser.search.engine.bing', "Bing"),
 		buildSearchUrl: (q) => `https://www.bing.com/search?q=${encodeQuery(q)}`,
 	},
 	{

@@ -41,8 +41,8 @@ import { SiteInfoWidget } from './siteInfoWidget.js';
 import { AddressBarInputPreviewWidget } from './addressBarInputPreviewWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { BrowserSearchEnabledSettingId, BrowserSearchEngineId, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE, buildSearchUrl, resolveAddressBarInputType } from '../common/browserSearch.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { BROWSER_SEARCH_ENGINES, BrowserSearchEnabledSettingId, BrowserSearchEngineId, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE, buildSearchUrl, resolveAddressBarInputType } from '../common/browserSearch.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -422,6 +422,10 @@ export class BrowserEditor extends EditorPane {
 	private _overlayPauseContainer!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
+	private _searchPickerContainer!: HTMLElement;
+	private _searchPickerVisible = false;
+	private _searchPickerQuery = '';
+	private readonly _searchPickerDisposables = this._register(new DisposableStore());
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _hasUrlContext!: IContextKey<boolean>;
@@ -538,6 +542,12 @@ export class BrowserEditor extends EditorPane {
 		// Create welcome container (shown when no URL is loaded)
 		this._welcomeContainer = this.createWelcomeContainer();
 		placeholderContents.appendChild(this._welcomeContainer);
+
+		// Create search picker container (shown when the user enters a search query
+		// while address bar search is disabled). Hidden by default.
+		this._searchPickerContainer = $('.browser-search-picker-container');
+		this._searchPickerContainer.style.display = 'none';
+		placeholderContents.appendChild(this._searchPickerContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -702,15 +712,19 @@ export class BrowserEditor extends EditorPane {
 		const hasError = !!this._model?.error;
 		const isViewingPage = !hasError && hasUrl;
 		const isPaused = isViewingPage && this._editorVisible && this._overlayVisible;
+		const showSearchPicker = this._searchPickerVisible;
 
-		// Welcome container: shown when no URL is loaded
-		this._welcomeContainer.style.display = hasUrl ? 'none' : '';
+		// Search picker: shown over everything else when active
+		this._searchPickerContainer.style.display = showSearchPicker ? '' : 'none';
 
-		// Error container: shown when there's a load error
-		this._errorContainer.style.display = hasError ? '' : 'none';
+		// Welcome container: shown when no URL is loaded (and picker isn't active)
+		this._welcomeContainer.style.display = (!hasUrl && !showSearchPicker) ? '' : 'none';
+
+		// Error container: shown when there's a load error (and picker isn't active)
+		this._errorContainer.style.display = (hasError && !showSearchPicker) ? '' : 'none';
 
 		// Placeholder screenshot: shown when there is a page loaded (even when the view is not hidden, so hiding is smooth)
-		this._placeholderScreenshot.style.display = isViewingPage ? '' : 'none';
+		this._placeholderScreenshot.style.display = (isViewingPage && !showSearchPicker) ? '' : 'none';
 
 		// Pause overlay: fades in when an overlay is detected
 		this._overlayPauseContainer.classList.toggle('visible', isPaused);
@@ -742,7 +756,7 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private get shouldShowView(): boolean {
-		return this._editorVisible && !this._overlayVisible && !this._model?.error && !!this._model?.url;
+		return this._editorVisible && !this._overlayVisible && !this._searchPickerVisible && !this._model?.error && !!this._model?.url;
 	}
 
 	private checkOverlays(): void {
@@ -915,15 +929,28 @@ export class BrowserEditor extends EditorPane {
 
 	async navigateToUrl(url: string): Promise<void> {
 		if (this._model) {
-			this.group.pinEditor(this.input); // pin editor on navigation
-
 			const searchEnabled = this.configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
 			const searchEngine = this.configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
+			const kind = resolveAddressBarInputType(url);
+
+			// When search is disabled and the user typed something that isn't a
+			// recognizable URL, show a friendly picker to enable search instead
+			// of attempting a navigation that would fail with "Failed to Load
+			// Page". This covers both clear queries (e.g. "weather today") and
+			// ambiguous inputs (e.g. "vs code") that we'd otherwise route to
+			// search when enabled.
+			if (!searchEnabled && (kind === 'query' || kind === 'unknown')) {
+				this.showSearchPicker(url.trim());
+				return;
+			}
+
+			this.hideSearchPicker();
+			this.group.pinEditor(this.input); // pin editor on navigation
+
 			// When search is disabled, always navigate as URL. Otherwise, only
 			// inputs explicitly classified as `'url'` are navigated as URLs;
 			// `'query'` and `'unknown'` fall back to search (Chrome default).
-			const kind = searchEnabled ? resolveAddressBarInputType(url) : 'url';
-			const isSearch = kind === 'query' || kind === 'unknown';
+			const isSearch = searchEnabled && (kind === 'query' || kind === 'unknown');
 
 			if (isSearch) {
 				url = buildSearchUrl(url, searchEngine);
@@ -1008,6 +1035,189 @@ export class BrowserEditor extends EditorPane {
 
 		container.appendChild(content);
 		return container;
+	}
+
+	/**
+	 * Show a friendly page prompting the user to pick a search engine and
+	 * enable address bar search. Called when the user enters a query into
+	 * the address bar while `BrowserSearchEnabledSettingId` is `false`.
+	 */
+	private showSearchPicker(query: string): void {
+		this._searchPickerQuery = query;
+		this._searchPickerVisible = true;
+		this._searchPickerDisposables.clear();
+
+		while (this._searchPickerContainer.firstChild) {
+			this._searchPickerContainer.removeChild(this._searchPickerContainer.firstChild);
+		}
+
+		const groupId = `browser-search-picker-engine-${Date.now()}`;
+		const titleId = `${groupId}-title`;
+		const descriptionId = `${groupId}-description`;
+
+		const content = $('.browser-search-picker-content');
+		content.setAttribute('role', 'dialog');
+		content.setAttribute('aria-labelledby', titleId);
+		content.setAttribute('aria-describedby', descriptionId);
+
+		// Source badge: makes it visually obvious this is VS Code chrome asking,
+		// not content rendered by a web page. The VS Code codicon + label
+		// mirror the trust signal used by browser permission prompts.
+		const sourceBadge = $('.browser-search-picker-source-badge');
+		sourceBadge.appendChild(renderIcon(Codicon.vscode));
+		const sourceBadgeLabel = $('span.browser-search-picker-source-badge-label');
+		sourceBadgeLabel.textContent = localize('browser.searchPicker.sourceBadge', "Visual Studio Code");
+		sourceBadge.appendChild(sourceBadgeLabel);
+		content.appendChild(sourceBadge);
+
+		const iconContainer = $('.browser-search-picker-icon');
+		iconContainer.setAttribute('aria-hidden', 'true');
+		iconContainer.appendChild(renderIcon(Codicon.search));
+		content.appendChild(iconContainer);
+
+		const title = $('h2.browser-search-picker-title');
+		title.id = titleId;
+		title.textContent = localize('browser.searchPicker.title', "Pick a Search Engine");
+		content.appendChild(title);
+
+		const description = $('.browser-search-picker-description');
+		description.id = descriptionId;
+		if (query) {
+			// Render the query as a distinct chip so it's visually clear that
+			// the highlighted text is the user's own input. We localize the
+			// sentence with a unique sentinel placeholder, then split on it
+			// and inject a styled <span> for the query. `textContent` on each
+			// piece keeps the rendering XSS-safe.
+			const queryPlaceholder = '\u0000__BROWSER_SEARCH_QUERY__\u0000';
+			const template = localize('browser.searchPicker.descriptionWithQuery', "Choose a search engine below to search for \u201C{0}\u201D from the address bar. You can change this selection anytime in Settings.", queryPlaceholder);
+			const [before, after] = template.split(queryPlaceholder);
+			description.appendChild(document.createTextNode(before));
+			const queryChip = $('span.browser-search-picker-query');
+			queryChip.textContent = query;
+			description.appendChild(queryChip);
+			description.appendChild(document.createTextNode(after ?? ''));
+		} else {
+			description.textContent = localize('browser.searchPicker.description', "Choose a search engine below to search from the address bar. You can change this selection anytime in Settings.");
+		}
+		content.appendChild(description);
+
+		const fieldset = document.createElement('fieldset');
+		fieldset.className = 'browser-search-picker-engines';
+		const legend = document.createElement('legend');
+		legend.className = 'browser-search-picker-legend';
+		legend.textContent = localize('browser.searchPicker.engineLegend', "Search engine");
+		fieldset.appendChild(legend);
+
+		const currentEngine = this.configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
+		const radios: HTMLInputElement[] = [];
+		for (const engine of BROWSER_SEARCH_ENGINES) {
+			const label = document.createElement('label');
+			label.className = 'browser-search-picker-engine-option';
+
+			const radio = document.createElement('input');
+			radio.type = 'radio';
+			radio.name = groupId;
+			radio.value = engine.id;
+			radio.checked = engine.id === currentEngine;
+			radios.push(radio);
+
+			const text = document.createElement('span');
+			text.className = 'browser-search-picker-engine-label';
+			text.textContent = engine.label;
+
+			label.appendChild(radio);
+			label.appendChild(text);
+			fieldset.appendChild(label);
+		}
+		// If for some reason no radio matched, select the first.
+		if (!radios.some(r => r.checked) && radios.length > 0) {
+			radios[0].checked = true;
+		}
+
+		content.appendChild(fieldset);
+
+		const actionContainer = $('.browser-search-picker-actions');
+		actionContainer.classList.toggle('reverse', isMacintosh || isLinux);
+		const buttonBar = this._searchPickerDisposables.add(new ButtonBar(actionContainer));
+
+		const primaryButton = buttonBar.addButton({ ...defaultButtonStyles });
+		primaryButton.label = localize('browser.searchPicker.enable', "Enable Search");
+		this._searchPickerDisposables.add(primaryButton.onDidClick(() => this.enableSearchAndNavigate(radios)));
+
+		const secondaryButton = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
+		secondaryButton.label = localize('browser.searchPicker.cancel', "Cancel");
+		this._searchPickerDisposables.add(secondaryButton.onDidClick(() => {
+			this.hideSearchPicker();
+			this._navigationBar.focusUrlInput();
+		}));
+
+		content.appendChild(actionContainer);
+		this._searchPickerContainer.appendChild(content);
+
+		// Submit on Enter when focus is inside the picker. From a radio,
+		// Enter moves focus to the primary button instead of submitting so
+		// the user has one more chance to confirm or change selection.
+		this._searchPickerDisposables.add(addDisposableListener(content, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter') {
+				const target = e.target as HTMLElement | null;
+				// Let the primary/secondary buttons handle their own Enter activation.
+				if (target && target.tagName === 'BUTTON') {
+					return;
+				}
+				e.preventDefault();
+				if (target && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'radio') {
+					primaryButton.focus();
+					return;
+				}
+				this.enableSearchAndNavigate(radios);
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				this.hideSearchPicker();
+				this._navigationBar.focusUrlInput();
+			}
+		}));
+
+		this.updateVisibility();
+
+		// Focus the currently selected radio so the user can immediately
+		// arrow-key through engines and press Enter to confirm.
+		const selectedRadio = radios.find(r => r.checked) ?? radios[0];
+		selectedRadio?.focus();
+	}
+
+	private hideSearchPicker(): void {
+		if (!this._searchPickerVisible) {
+			return;
+		}
+		this._searchPickerVisible = false;
+		this._searchPickerQuery = '';
+		this._searchPickerDisposables.clear();
+		while (this._searchPickerContainer.firstChild) {
+			this._searchPickerContainer.removeChild(this._searchPickerContainer.firstChild);
+		}
+		this.updateVisibility();
+	}
+
+	private async enableSearchAndNavigate(radios: readonly HTMLInputElement[]): Promise<void> {
+		const selected = radios.find(r => r.checked) ?? radios[0];
+		const engineId = (selected?.value as BrowserSearchEngineId | undefined) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
+		const query = this._searchPickerQuery;
+
+		try {
+			await this.configurationService.updateValue(BrowserSearchEngineSettingId, engineId, ConfigurationTarget.USER);
+			await this.configurationService.updateValue(BrowserSearchEnabledSettingId, true, ConfigurationTarget.USER);
+		} catch (error) {
+			this.logService.error('BrowserEditor.enableSearchAndNavigate: Failed to update search settings', error);
+			return;
+		}
+
+		this.hideSearchPicker();
+
+		if (query) {
+			await this.navigateToUrl(query);
+		} else {
+			this._navigationBar.focusUrlInput();
+		}
 	}
 
 	private setBackgroundImage(buffer: VSBuffer | undefined): void {
@@ -1115,6 +1325,8 @@ export class BrowserEditor extends EditorPane {
 		// Cancel any scheduled timers
 		this.cancelScheduledScreenshot();
 		this.cancelFocus();
+
+		this.hideSearchPicker();
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
