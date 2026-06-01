@@ -84,6 +84,21 @@
             "included": false
         },
         {
+            "key": "extensions.gallery.serviceUrl",
+            "name": "ExtensionGalleryServiceUrl",
+            "category": "Extensions",
+            "minimumVersion": "1.99",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.serviceUrl",
+                    "value": "Configure the Marketplace service URL to connect to"
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",
