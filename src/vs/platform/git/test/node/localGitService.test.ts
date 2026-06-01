@@ -37,6 +37,13 @@ function createDivergedPullError(): cp.ExecFileException {
 	return error;
 }
 
+function createPullError(message: string, stderr: string, code = 128): cp.ExecFileException {
+	const error = new Error(message) as cp.ExecFileException & { stderr: string };
+	error.code = code;
+	error.stderr = stderr;
+	return error;
+}
+
 suite('LocalGitService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	void store;
@@ -93,19 +100,28 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
-	test('pull rethrows errors after retries when repo is not diverged', async () => {
-		const pullError = new Error('fatal: Failed to pull') as cp.ExecFileException;
-		pullError.code = 128;
-
+	test('pull rethrows non-fast-forward errors without retrying', async () => {
+		const pullError = createPullError('fatal: Failed to pull', 'fatal: Authentication failed');
 		const expectations: IExecFileExpectation[] = [
 			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },
 			{ args: ['pull', '--ff-only'], error: pullError, stderr: 'fatal: Authentication failed' },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await assert.rejects(
+			() => service.pull('test-op', 'C:\\repo', { allowHardResetOnDivergence: true }),
+			/Failed to pull/
+		);
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('pull rethrows retry failures that are not fast-forward related', async () => {
+		const retryError = createPullError('fatal: Failed to pull', 'fatal: Authentication failed');
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },
+			{ args: ['pull', '--ff-only'], error: createDivergedPullError() },
 			{ args: ['fetch', '--prune'] },
-			{ args: ['pull', '--ff-only'], error: pullError, stderr: 'fatal: Authentication failed' },
-			{ args: ['status', '--porcelain'], stdout: '' },
-			{ args: ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], stdout: 'origin/main\n' },
-			{ args: ['rev-list', '--count', 'HEAD..@{u}'], stdout: '1\n' },
-			{ args: ['rev-list', '--count', '@{u}..HEAD'], stdout: '0\n' },
+			{ args: ['pull', '--ff-only'], error: retryError, stderr: 'fatal: Authentication failed' },
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 

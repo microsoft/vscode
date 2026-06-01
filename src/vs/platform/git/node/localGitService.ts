@@ -54,6 +54,10 @@ export class LocalGitService implements ILocalGitService {
 		try {
 			await this._exec(operationId, ['pull', '--ff-only'], repoPath);
 		} catch (err) {
+			if (!this._isFastForwardPullFailure(err)) {
+				throw err;
+			}
+
 			const error = err as { message?: string };
 			this._logService.warn(`[LocalGitService] Fast-forward pull failed for ${repoPath}: ${error?.message ?? String(err)}. Retrying after fetch.`);
 			await this._exec(operationId, ['fetch', '--prune'], repoPath);
@@ -61,6 +65,10 @@ export class LocalGitService implements ILocalGitService {
 			try {
 				await this._exec(operationId, ['pull', '--ff-only'], repoPath);
 			} catch (retryErr) {
+				if (!this._isFastForwardPullFailure(retryErr)) {
+					throw retryErr;
+				}
+
 				if (!options?.allowHardResetOnDivergence) {
 					throw retryErr;
 				}
@@ -77,6 +85,16 @@ export class LocalGitService implements ILocalGitService {
 
 		const after = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 		return before !== after;
+	}
+
+	private _isFastForwardPullFailure(err: unknown): err is cp.ExecFileException & { stderr?: string } {
+		const error = err as (cp.ExecFileException & { stderr?: string; message?: string }) | undefined;
+		if (error?.code !== 128) {
+			return false;
+		}
+
+		const details = `${error.stderr ?? ''}\n${error.message ?? ''}`;
+		return /not possible to fast-forward|non-fast-forward/i.test(details);
 	}
 
 	private async _getSafeHardResetTarget(operationId: string, repoPath: string): Promise<string | undefined> {
