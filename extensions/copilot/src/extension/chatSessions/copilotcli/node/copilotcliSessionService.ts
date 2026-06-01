@@ -954,7 +954,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 		const sandboxConfig = this.getSandboxConfig();
 		if (sandboxConfig) {
-			allOptions.sandboxConfig = sandboxConfig;
+			// allOptions.sandboxConfig = sandboxConfig;
+			console.log('Disabled saboxConfig for now as we want to test in prod without it first');
 		}
 
 		return allOptions as Readonly<SessionOptions>;
