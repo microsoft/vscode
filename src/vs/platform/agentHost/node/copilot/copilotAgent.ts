@@ -299,30 +299,53 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
+			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
 		})));
 
-		// Restart the CLI client when session sync setting changes (only if idle)
+		// Restart the CLI client when a setting baked into the client/subprocess at
+		// startup changes (only if idle). Both session sync (a client option) and the
+		// rubber duck flag (a subprocess env var) are applied in `_ensureClient`, so
+		// they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			this._restartClientIfSessionSyncChanged().catch(err =>
-				this._logService.error('[Copilot] Failed to restart client after session sync change', err)
+			this._restartClientIfStartupConfigChanged().catch(err =>
+				this._logService.error('[Copilot] Failed to restart client after config change', err)
 			);
 		}));
 	}
 
 	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
+	private _lastRubberDuckEnabled: boolean = this._isRubberDuckEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
 	}
 
-	private async _restartClientIfSessionSyncChanged(): Promise<void> {
-		const current = this._isSessionSyncEnabled();
-		if (this._lastSessionSyncEnabled === current) {
+	private _isRubberDuckEnabled(): boolean {
+		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.RubberDuck) === true;
+	}
+
+	/**
+	 * Restarts the CLI client when a config value that is only read at client
+	 * startup ({@link _isSessionSyncEnabled} client option, {@link _isRubberDuckEnabled}
+	 * subprocess env var) has changed. Any active sessions are disposed before
+	 * the client is stopped; the latest values are picked up the next time
+	 * {@link _ensureClient} runs.
+	 */
+	private async _restartClientIfStartupConfigChanged(): Promise<void> {
+		const sessionSync = this._isSessionSyncEnabled();
+		const rubberDuck = this._isRubberDuckEnabled();
+		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck) {
 			return;
 		}
-		this._lastSessionSyncEnabled = current;
-		if (this._client && this._sessions.size === 0) {
-			this._logService.info(`[Copilot] Session sync changed to ${current}, restarting CopilotClient`);
+		const changed = [
+			this._lastSessionSyncEnabled !== sessionSync ? `sessionSync=${sessionSync}` : undefined,
+			this._lastRubberDuckEnabled !== rubberDuck ? `rubberDuck=${rubberDuck}` : undefined,
+		].filter((v): v is string => v !== undefined).join(', ');
+		this._lastSessionSyncEnabled = sessionSync;
+		this._lastRubberDuckEnabled = rubberDuck;
+		if (this._client) {
+			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
+			this._sessions.clearAndDisposeAll();
 			await this._stopClient();
 		}
 	}
@@ -493,6 +516,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
+
+			// Enable the rubber duck critic subagent in the CLI when the agent host
+			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
+			// gating this experimental feature
+			if (this._isRubberDuckEnabled()) {
+				env['RUBBER_DUCK_AGENT'] = 'true';
+			} else {
+				delete env['RUBBER_DUCK_AGENT'];
+			}
 
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
