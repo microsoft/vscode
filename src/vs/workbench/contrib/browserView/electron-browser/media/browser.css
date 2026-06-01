@@ -29,6 +29,7 @@
 	flex-direction: column;
 	width: 100%;
 	height: 100%;
+	outline: none !important;
 
 	.browser-navbar {
 		display: flex;
@@ -61,27 +62,11 @@
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius: var(--vscode-cornerRadius-medium);
 
-		&:has(.browser-url-input:focus) {
+		&:has(.browser-url-display:focus) {
 			border-color: var(--vscode-focusBorder);
 		}
-	}
-
-	.browser-url-input {
-		flex: 1;
-		min-width: 0;
-		padding: 4px 8px;
-		font-size: 13px;
-		line-height: 17px;
-		background-color: transparent;
-		color: var(--vscode-input-foreground);
-		border: none;
-		border-radius: var(--vscode-cornerRadius-small);
-		outline: none !important;
-		text-overflow: ellipsis;
-		overflow: hidden;
-		white-space: nowrap;
 	}
 
 	.browser-url-bar-widgets {
@@ -112,6 +97,87 @@
 
 		.codicon {
 			font-size: 14px;
+		}
+	}
+
+	.browser-emulation-toolbar {
+		flex-shrink: 0;
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 4px 8px;
+		font-size: 12px;
+		background-color: var(--vscode-editorWidget-background);
+		color: var(--vscode-editorWidget-foreground);
+		border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+		margin-bottom: 3px;
+
+		.browser-emulation-toolbar-groups {
+			display: flex;
+			align-items: center;
+			flex-flow: row wrap;
+			gap: 4px;
+		}
+
+		.monaco-select-box {
+			height: 22px;
+			padding: 0 22px 0 6px;
+			font-size: inherit;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.monaco-inputbox > .ibwrapper > input {
+			font-size: inherit;
+		}
+
+		.browser-emulation-toolbar-group {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			flex-shrink: 0;
+		}
+
+		.browser-emulation-toolbar-preset { min-width: 150px; max-width: 220px; }
+		.browser-emulation-toolbar-zoom { min-width: 78px; }
+
+		.browser-emulation-toolbar-label {
+			opacity: 0.8;
+			user-select: none;
+			white-space: nowrap;
+		}
+
+		.browser-emulation-toolbar-input {
+			.monaco-inputbox {
+				height: 22px;
+
+				> .ibwrapper > input {
+					text-align: center;
+					padding: 0 4px;
+
+					/* Hide the spinner buttons that some browsers render for number inputs. */
+					&::-webkit-inner-spin-button,
+					&::-webkit-outer-spin-button {
+						appearance: none;
+						margin: 0;
+					}
+				}
+			}
+		}
+
+		.browser-emulation-toolbar-dimensions .browser-emulation-toolbar-input { width: 56px; }
+		.browser-emulation-toolbar-dpr .browser-emulation-toolbar-input { width: 44px; }
+
+		.browser-emulation-toolbar-spacer {
+			flex: 1;
+		}
+
+		.browser-emulation-toolbar-actions {
+			display: flex;
+			align-items: center;
+			flex-shrink: 0;
+
+			.actions-container { gap: 2px; }
 		}
 	}
 
@@ -177,6 +243,37 @@
 		}
 	}
 
+	.browser-favorite-indicator-container {
+		display: flex;
+		align-items: center;
+		margin: 0;
+		flex-shrink: 0;
+
+		.browser-favorite-indicator {
+			padding: 2px;
+			border-radius: var(--vscode-cornerRadius-small);
+			border-width: 0;
+			color: var(--vscode-descriptionForeground);
+			background-color: transparent;
+			outline: none !important;
+
+			&:focus-visible {
+				outline: 1px solid var(--vscode-focusBorder) !important;
+				outline-offset: 0px !important;
+			}
+
+			.codicon {
+				margin: 0;
+				font-size: 16px;
+			}
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground) !important;
+				color: var(--vscode-foreground);
+			}
+		}
+	}
+
 	.browser-share-toggle-container {
 		display: flex;
 		align-items: center;
@@ -230,23 +327,17 @@
 		min-height: 0;
 		position: relative;
 		margin-top: 1px;
+		box-sizing: border-box;
 	}
 
 	.browser-container {
-		/*
-		 * Snap dimensions to multiples of 1/zoomFactor CSS pixels so that
-		 * width*zoomFactor and height*zoomFactor are always integers. This
-		 * avoids sub-pixel mismatches between the WebContentsView
-		 * (whose bounds are rounded to integer DIPs) and this CSS container,
-		 * which would cause visible shifts when swapping between the live
-		 * view and the placeholder screenshot.
-		 */
-		width: round(down, 100% - 6px, calc(1px / var(--zoom-factor, 1)));
-		height: round(down, 100% - 3px, calc(1px / var(--zoom-factor, 1)));
-		margin: 0 auto;
 		overflow: visible;
 		border-radius: var(--vscode-cornerRadius-small);
-		position: relative;
+		/*  Absolutely positioned within the wrapper; size and position are set
+			inline from JS (already snapped to the physical-pixel grid) so the
+			WebContentsView placed by the main process and the placeholder
+			screenshot align on the same pixels. */
+		position: absolute;
 		outline: none !important;
 		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
 
@@ -309,6 +400,51 @@
 		}
 	}
 
+	.browser-container > .monaco-sash {
+		--vscode-sash-size: 8px;
+		--vscode-sash-hover-size: 4px;
+
+		&:not(.disabled)::before {
+			border-radius: 2px;
+			background: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
+			transition: background-color 0.1s ease-out;
+		}
+
+		&.hover::before,
+		&.active::before {
+			background: var(--vscode-sash-hoverBorder);
+		}
+
+		/* SE corner drag handle indicator. */
+		& > .orthogonal-drag-handle {
+			box-sizing: border-box;
+			border-radius: 2px;
+
+			&.end {
+				cursor: nwse-resize !important;
+			}
+		}
+
+		&.horizontal > .orthogonal-drag-handle.end {
+			&::before {
+				content: '';
+				position: absolute;
+				color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
+				left: 10px;
+				top: 2px;
+				width: 8px;
+				height: 8px;
+				background: repeating-linear-gradient(135deg, transparent 0px 4px, currentColor 4px 20px);
+				border-radius: 2px;
+				transition: color 0.1s ease-out;
+			}
+		}
+	}
+
+	.browser-container > .monaco-sash.vertical:is(.hover, .active) + .monaco-sash.horizontal:is(.hover, .active) > .orthogonal-drag-handle.end::before {
+		color: var(--vscode-sash-hoverBorder);
+	}
+
 	.browser-placeholder-contents {
 		width: 100%;
 		height: 100%;
@@ -324,8 +460,14 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: contain;
+		background-size: 100% 100%;
 		background-repeat: no-repeat;
+	}
+
+	.browser-container--dragging .browser-placeholder-screenshot {
+		opacity: 0.9;
+		background-size: cover;
+		filter: blur(10px);
 	}
 
 	.browser-overlay-paused {
@@ -563,42 +705,14 @@
 		}
 	}
 
-	/* Address bar input preview (magnifying glass / globe) shown in the same
-		slot as the site-info indicator while the URL input is focused. */
-	.browser-address-bar-preview-container {
-		display: flex;
-		align-items: center;
-		flex-shrink: 0;
-		margin-left: 4px;
-	}
-
-	.browser-address-bar-preview-indicator {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 16px;
-		height: 24px;
-
-		.codicon {
-			font-size: 15px;
-			margin: 0;
-			color: var(--vscode-descriptionForeground);
-		}
-	}
-
-	/* URL input wrapper for display/input swap */
-	.browser-url-input-wrapper {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		min-width: 0;
-	}
-
 	.browser-url-display {
 		flex: 1;
-		padding: 4px 8px;
+		min-width: 0;
+		display: block;
+		box-sizing: border-box;
+		padding: 4px 6px;
 		font-size: 13px;
-		line-height: 17px;
+		line-height: normal;
 		color: var(--vscode-input-foreground);
 		cursor: text;
 		white-space: nowrap;
@@ -606,8 +720,10 @@
 		text-overflow: ellipsis;
 		outline: none !important;
 
-		&.placeholder {
+		&:empty::before {
+			content: attr(data-placeholder);
 			color: var(--vscode-input-placeholderForeground);
+			pointer-events: none;
 		}
 	}
 
@@ -716,163 +832,6 @@
 		&:focus-visible {
 			outline: 1px solid var(--vscode-focusBorder);
 			outline-offset: 2px;
-		}
-	}
-
-	/* Search engine picker (shown when the user enters a query while
-		address bar search is disabled). Uses the sidebar background so it's
-		visually distinct from any page content — a malicious web page can't
-		easily mimic VS Code chrome — and includes a "Visual Studio Code"
-		source badge to make the origin of the prompt unambiguous. */
-	.browser-search-picker-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		align-items: flex-start;
-		justify-content: center;
-		padding: 64px 40px;
-		background-color: var(--vscode-sideBar-background);
-		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
-		overflow-y: auto;
-	}
-
-	.browser-search-picker-content {
-		max-width: 520px;
-		width: 100%;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.browser-search-picker-source-badge {
-		display: inline-flex;
-		align-self: flex-start;
-		align-items: center;
-		gap: 6px;
-		padding: 3px 10px 3px 8px;
-		margin-bottom: 24px;
-		border-radius: 999px;
-		background-color: var(--vscode-badge-background);
-		color: var(--vscode-badge-foreground);
-		font-size: 11px;
-		font-weight: 500;
-		line-height: 16px;
-
-		.codicon {
-			font-size: 13px;
-			color: inherit;
-		}
-	}
-
-	.browser-search-picker-source-badge-label {
-		white-space: nowrap;
-	}
-
-	.browser-search-picker-icon {
-		margin-bottom: 12px;
-
-		.codicon {
-			font-size: 28px;
-			color: var(--vscode-descriptionForeground);
-		}
-	}
-
-	.browser-search-picker-title {
-		font-size: 18px;
-		font-weight: 600;
-		color: var(--vscode-foreground);
-		margin: 0 0 12px;
-		line-height: 1.3;
-	}
-
-	.browser-search-picker-description {
-		font-size: 13px;
-		color: var(--vscode-descriptionForeground);
-		line-height: 20px;
-		margin: 0 0 16px;
-		word-break: break-word;
-	}
-
-	.browser-search-picker-query {
-		color: var(--vscode-foreground);
-		font-weight: 600;
-		overflow-wrap: anywhere;
-	}
-
-	.browser-search-picker-engines {
-		display: flex;
-		flex-direction: column;
-		width: 100%;
-		margin: 0 0 20px;
-		padding: 0;
-		border: none;
-	}
-
-	.browser-search-picker-legend {
-		/* Visually hidden but available to assistive tech. */
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		padding: 0;
-		margin: -1px;
-		overflow: hidden;
-		clip: rect(0, 0, 0, 0);
-		white-space: nowrap;
-		border: 0;
-	}
-
-	.browser-search-picker-engine-option {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 6px 8px;
-		border-radius: var(--vscode-cornerRadius-small);
-		cursor: pointer;
-		color: var(--vscode-foreground);
-		font-size: 13px;
-		line-height: 20px;
-
-		&:hover {
-			background-color: var(--vscode-list-hoverBackground);
-		}
-
-		input[type="radio"] {
-			margin: 0;
-			flex-shrink: 0;
-			accent-color: var(--vscode-focusBorder);
-			cursor: pointer;
-
-			&:focus-visible {
-				outline: 1px solid var(--vscode-focusBorder);
-				outline-offset: 2px;
-			}
-		}
-	}
-
-	.browser-search-picker-engine-label {
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.browser-search-picker-actions {
-		display: flex;
-		justify-content: flex-end;
-		flex-direction: row;
-		gap: 8px;
-		width: 100%;
-
-		&.reverse {
-			flex-direction: row-reverse;
-			justify-content: flex-start;
-		}
-
-		.monaco-button {
-			width: fit-content;
 		}
 	}
 }

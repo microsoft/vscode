@@ -363,6 +363,36 @@ export interface IChatWorkspaceEdit {
 	edits: IChatWorkspaceFileEdit[];
 }
 
+/**
+ * The kind of file operation an {@link IChatExternalEdit} represents.
+ */
+export type ChatExternalEditKind = 'create' | 'delete' | 'rename' | 'edit';
+
+/**
+ * A summary of a file edit that has been performed externally (i.e. by an
+ * agent or tool outside of chat's own editing pipeline). Carries everything
+ * needed to render a static "edit pill" without round-tripping through
+ * {@link IChatEditingSession} for diff computation: the producer already
+ * knows the URIs and diff stats up-front.
+ */
+export interface IChatExternalEdit {
+	kind: 'externalEdit';
+	/** The resulting file URI (after-URI for create/edit/rename, before-URI for delete). */
+	uri: URI;
+	/** The kind of file operation. */
+	editKind: ChatExternalEditKind;
+	/** For renames, the file URI before the operation. */
+	originalUri?: URI;
+	/** URI from which the "before" content can be read (for diff viewing). Absent for creates. */
+	beforeContentUri?: URI;
+	/** URI from which the "after" content can be read (for diff viewing). Absent for deletes. */
+	afterContentUri?: URI;
+	/** Pre-computed diff display metadata. */
+	diff?: { added: number; removed: number };
+	/** Optional undo-stop id (typically the tool call id) for grouping. */
+	undoStopId?: string;
+}
+
 export interface IChatConfirmation {
 	title: string;
 	message: string | IMarkdownString;
@@ -556,6 +586,10 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
+	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
+	requestAllowNetwork?: boolean;
+	/** The model-provided reason for requesting unrestricted network access within the sandbox */
+	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -580,6 +614,10 @@ export interface IChatTerminalToolInvocationData {
 	autoApproveInfo?: IMarkdownString;
 	/** Names of missing sandbox dependencies that the user may choose to install */
 	missingSandboxDependencies?: string[];
+	/** Approved repair actions that may make an installed but unusable sandbox dependency work. */
+	sandboxRemediations?: string[];
+	/** User-visible reason a sandbox prerequisite cannot be repaired automatically. */
+	sandboxPrerequisiteFailure?: string;
 }
 
 /**
@@ -1148,6 +1186,7 @@ export type IChatProgress =
 	| IChatTextEdit
 	| IChatNotebookEdit
 	| IChatWorkspaceEdit
+	| IChatExternalEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation

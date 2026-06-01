@@ -37,16 +37,16 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/wi
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
-import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxCommand, TerminalSandboxPreCheckRemediation, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
-import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -95,6 +95,10 @@ suite('RunInTerminalTool', () => {
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
+	function isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs: ITerminalSandboxPrecheckInputs | undefined): boolean {
+		return precheckInputs?.isDefaultApprovalPermissionEnabled !== false;
+	}
+
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		workspaceContextService = new TestContextService();
@@ -107,6 +111,7 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, false);
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
 		sandboxEnabled = false;
@@ -194,14 +199,16 @@ suite('RunInTerminalTool', () => {
 		});
 		terminalSandboxService = {
 			_serviceBrand: undefined,
-			isEnabled: async () => sandboxEnabled,
+			isEnabled: async (precheckInputs) => sandboxEnabled && isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs),
 			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command: string, requestUnsandboxedExecution?: boolean) => ({
 				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
 				isSandboxWrapped: !requestUnsandboxedExecution,
 			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
-			checkForSandboxingPrereqs: async () => sandboxPrereqResult,
+			checkForSandboxingPrereqs: async (_forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs) => isDefaultChatPermissionSandboxPrecheckInputs(precheckInputs)
+				? sandboxPrereqResult
+				: { enabled: false, sandboxConfigPath: undefined, failedCheck: undefined },
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
@@ -213,6 +220,7 @@ suite('RunInTerminalTool', () => {
 				await terminal.sendText(`sudo apt install -y ${missingDependencies.join(' ')}`, true);
 				return { exitCode: 0 };
 			},
+			runSandboxRemediation: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
@@ -273,7 +281,8 @@ suite('RunInTerminalTool', () => {
 	}
 
 	async function invokeToolTest(
-		params: Partial<IRunInTerminalInputParams>
+		params: Partial<IRunInTerminalInputParams>,
+		selectedCustomButton?: string,
 	): Promise<IToolResult> {
 		const parameters = {
 			command: 'echo hello',
@@ -292,6 +301,7 @@ suite('RunInTerminalTool', () => {
 			parameters,
 			context: { sessionResource: LocalChatSessionUri.forSession('run-in-terminal-test') },
 			toolSpecificData: preparedInvocation.toolSpecificData,
+			selectedCustomButton,
 		} as IToolInvocation, countTokens, noProgress, CancellationToken.None);
 	}
 
@@ -318,16 +328,37 @@ suite('RunInTerminalTool', () => {
 		}
 	}
 
-	function createChatModelWithRequest(sessionResource: URI): ChatModel {
+	function createChatModeInfo(permissionLevel: ChatPermissionLevel): IChatRequestModeInfo {
+		return {
+			kind: undefined,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			modeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+			permissionLevel,
+		};
+	}
+
+	function createChatModelWithRequest(sessionResource: URI, modeInfo?: IChatRequestModeInfo, requestId?: string): ChatModel {
 		const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'retry';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, modeInfo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, requestId);
 		chatSessions.set(sessionResource.toString(), model);
 		return model;
 	}
 
+	type AutomaticSandboxRetryKindForTest = 'unsandboxed' | 'allowNetwork';
+
+	function confirmAutomaticSandboxRetry(tool: RunInTerminalTool, retryKind: AutomaticSandboxRetryKindForTest, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
+		return (tool as unknown as Record<string, (retryKind: AutomaticSandboxRetryKindForTest, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticSandboxRetry'](retryKind, sessionResource, command, shell, blockedDomains, undefined, CancellationToken.None);
+	}
+
 	function confirmAutomaticUnsandboxRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
-		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, undefined, CancellationToken.None);
+		return confirmAutomaticSandboxRetry(tool, 'unsandboxed', sessionResource, command, shell, blockedDomains);
+	}
+
+	function confirmAutomaticAllowNetworkRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
+		return confirmAutomaticSandboxRetry(tool, 'allowNetwork', sessionResource, command, shell, blockedDomains);
 	}
 
 	async function assertAutomaticUnsandboxRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined): Promise<void> {
@@ -345,8 +376,34 @@ suite('RunInTerminalTool', () => {
 		strictEqual(await shouldRetry, false);
 	}
 
+	async function assertAutomaticAllowNetworkRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined, expectedTitle: string): Promise<void> {
+		const model = createChatModelWithRequest(sessionResource);
+		const shouldRetry = confirmAutomaticAllowNetworkRetry(tool, sessionResource, command, shell, blockedDomains);
+		const request = model.getRequests().at(-1);
+		const response = request?.response;
+		ok(response, 'Expected chat request with response');
+		const elicitation = response.response.value.find(part => part.kind === 'elicitation2');
+		ok(elicitation?.kind === 'elicitation2', 'Expected automatic allow-network retry elicitation');
+		const title = elicitation.title;
+		ok(typeof title !== 'string', 'Expected automatic allow-network retry title to be markdown');
+		strictEqual(title.value, expectedTitle);
+		const reject = elicitation.reject;
+		ok(reject, 'Expected automatic allow-network retry elicitation to have a reject action');
+
+		await reject();
+		strictEqual(await shouldRetry, false);
+	}
+
+	function getAutomaticSandboxRetryTitle(tool: RunInTerminalTool, retryKind: AutomaticSandboxRetryKindForTest, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
+		return (tool as unknown as Record<string, (retryKind: AutomaticSandboxRetryKindForTest, shellType: string, blockedDomains: string[] | undefined) => IMarkdownString>)['_getAutomaticSandboxRetryTitle'](retryKind, shellType, blockedDomains);
+	}
+
 	function getAutomaticUnsandboxRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
-		return (tool as unknown as Record<string, (shellType: string, blockedDomains: string[] | undefined) => IMarkdownString>)['_getAutomaticUnsandboxRetryTitle'](shellType, blockedDomains);
+		return getAutomaticSandboxRetryTitle(tool, 'unsandboxed', shellType, blockedDomains);
+	}
+
+	function getAutomaticAllowNetworkRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
+		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
 
 	suite('sandbox invocation messaging', () => {
@@ -359,7 +416,8 @@ suite('RunInTerminalTool', () => {
 			ok(toolData.modelDescription?.includes('The /tmp directory is not guaranteed to be accessible or writable and must be avoided'), 'Expected sandboxed tool description to discourage /tmp usage');
 		});
 
-		test('should include requestUnsandboxedExecution in schema when sandbox is enabled', async () => {
+		test('should include sandbox escalation requests in schema when sandbox is enabled', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
@@ -367,6 +425,8 @@ suite('RunInTerminalTool', () => {
 			const allowToRunUnsandboxedCommandsProperty = properties?.['allowToRunUnsandboxedCommands'] as { const?: boolean; default?: boolean; description?: string } | undefined;
 			const requestUnsandboxedExecutionProperty = properties?.['requestUnsandboxedExecution'] as { description?: string } | undefined;
 			const requestUnsandboxedExecutionReasonProperty = properties?.['requestUnsandboxedExecutionReason'] as { description?: string } | undefined;
+			const requestAllowNetworkProperty = properties?.['requestAllowNetwork'] as { description?: string } | undefined;
+			const requestAllowNetworkReasonProperty = properties?.['requestAllowNetworkReason'] as { description?: string } | undefined;
 
 			ok(properties?.['allowToRunUnsandboxedCommands'], 'Expected allowToRunUnsandboxedCommands in schema when sandbox is enabled');
 			strictEqual(allowToRunUnsandboxedCommandsProperty?.const, true, 'Expected allowToRunUnsandboxedCommands const to match the setting value');
@@ -374,12 +434,17 @@ suite('RunInTerminalTool', () => {
 			ok(allowToRunUnsandboxedCommandsProperty?.description?.includes('chat.agent.sandbox.allowUnsandboxedCommands'), 'Expected allowToRunUnsandboxedCommands description to mention the source setting');
 			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution in schema when sandbox is enabled');
 			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason in schema when sandbox is enabled');
+			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork in schema when sandbox is enabled');
+			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason in schema when sandbox is enabled');
 			ok(requestUnsandboxedExecutionProperty?.description?.includes('Only set this when the command clearly needs unsandboxed access'), 'Expected schema description to require a clear need for unsandboxed access');
 			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('why this command must run outside the terminal sandbox'), 'Expected reason schema description to require concrete sandbox justification');
+			ok(requestAllowNetworkProperty?.description?.includes('remain in the terminal sandbox but run with unrestricted network access'), 'Expected network schema description to retain sandboxing');
+			ok(requestAllowNetworkReasonProperty?.description?.includes('needs unrestricted network access'), 'Expected network reason schema description to request justification');
 		});
 
 		test('should set allowToRunUnsandboxedCommands from setting in schema when unsandboxed commands are disabled', async () => {
 			setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
@@ -391,7 +456,21 @@ suite('RunInTerminalTool', () => {
 			strictEqual(allowToRunUnsandboxedCommandsProperty?.default, false, 'Expected allowToRunUnsandboxedCommands to reflect the disabled setting');
 			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution to remain in schema when sandbox is enabled');
 			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason to remain in schema when sandbox is enabled');
+			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema when unsandboxed commands are disabled');
+			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema when unsandboxed commands are disabled');
 			ok(toolData.modelDescription?.includes('Running commands outside the sandbox is disabled'), 'Expected model description to explain that unsandboxed commands are disabled');
+		});
+
+		test('should not recommend allow-network requests in model description when per-command network access is disabled', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
+			sandboxEnabled = true;
+
+			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
+			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
+
+			ok(properties?.['requestAllowNetwork'], 'Expected requestAllowNetwork to remain in schema so disabled requests can fail with a clear message');
+			ok(properties?.['requestAllowNetworkReason'], 'Expected requestAllowNetworkReason to remain in schema so disabled requests can fail with a clear message');
+			ok(!toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description not to recommend allow-network requests when per-command network access is disabled');
 		});
 
 		test('should not include requestUnsandboxedExecution in schema when sandbox is disabled', async () => {
@@ -403,6 +482,8 @@ suite('RunInTerminalTool', () => {
 			ok(!properties?.['allowToRunUnsandboxedCommands'], 'Expected no allowToRunUnsandboxedCommands when sandbox is disabled');
 			ok(!properties?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution in schema when sandbox is disabled');
 			ok(!properties?.['requestUnsandboxedExecutionReason'], 'Expected no requestUnsandboxedExecutionReason in schema when sandbox is disabled');
+			ok(!properties?.['requestAllowNetwork'], 'Expected no requestAllowNetwork in schema when sandbox is disabled');
+			ok(!properties?.['requestAllowNetworkReason'], 'Expected no requestAllowNetworkReason in schema when sandbox is disabled');
 		});
 
 		test('should reflect sandbox setting changes in tool data', async () => {
@@ -452,7 +533,65 @@ suite('RunInTerminalTool', () => {
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
 		});
 
+		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+				remediations: [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction],
+			};
+
+			const result = await executeToolTest({ command: 'echo hello' });
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+
+			ok(result?.confirmationMessages, 'Expected confirmation messages for bubblewrap repair');
+			strictEqual(result?.confirmationMessages?.customOptions?.length, 3, 'Expected recommended repair, fallback, and cancel choices');
+			strictEqual(terminalData?.sandboxRemediations?.length, 2, 'Expected repair options in terminal invocation data');
+			strictEqual(terminalData?.missingSandboxDependencies, undefined, 'Should not classify unusable bubblewrap as missing');
+		});
+
+		test('should recheck bubblewrap after dependency installation and not execute when it remains unavailable', async () => {
+			let forceRefreshCalled = false;
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
+				if (forceRefresh) {
+					forceRefreshCalled = true;
+					return {
+						enabled: true,
+						sandboxConfigPath: '/tmp/sandbox.json',
+						failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+						remediations: [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile],
+					};
+				}
+				return {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+					missingDependencies: ['bubblewrap'],
+				};
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' }, 'install');
+
+			strictEqual(forceRefreshCalled, true, 'Expected dependency installation to force a new prerequisite check');
+			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
+			ok((result.content[0] as { value?: string }).value?.includes('bubblewrap'), 'Expected result to identify the failed bubblewrap verification');
+		});
+
+		test('should not execute when bubblewrap is unusable and no supported remediation is available', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(createTerminalCallCount, 0, 'Expected no terminal execution for unusable bubblewrap');
+			ok((result.content[0] as { value?: string }).value?.includes('Bubblewrap'), 'Expected a bubblewrap capability failure message');
+		});
+
 		test('should include allowed and denied network domains in model description', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 			sandboxEnabled = true;
 			terminalSandboxService.getResolvedNetworkDomains = () => ({
 				allowedDomains: ['github.com', 'npmjs.org'],
@@ -463,7 +602,8 @@ suite('RunInTerminalTool', () => {
 
 			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
-			ok(toolData.modelDescription?.includes('Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox'), 'Expected model description to require concrete evidence before unsandboxing');
+			ok(toolData.modelDescription?.includes('requestAllowNetwork=true'), 'Expected model description to recommend network-enabled sandbox execution first');
+			ok(toolData.modelDescription?.includes('Only set requestAllowNetwork=true when there is evidence of network failures caused by the sandbox'), 'Expected model description to constrain allow-network requests to sandbox network failures');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {
@@ -498,6 +638,110 @@ suite('RunInTerminalTool', () => {
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+		});
+
+		test('should enable sandboxing when chat permission level is default', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+			const sessionResource = LocalChatSessionUri.forSession('sandbox-default-permission-session');
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Default } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
+			const defaultPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const preparedInvocation = await defaultPermissionTool.prepareToolInvocation({
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					mode: 'sync',
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
+			strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
+		});
+
+		test('should disable sandboxing when chat permission level is elevated', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const originalWrapCommand = terminalSandboxService.wrapCommand.bind(terminalSandboxService);
+			for (const permissionLevel of [ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot]) {
+				let wrapCalls = 0;
+				terminalSandboxService.wrapCommand = async (...args) => {
+					wrapCalls++;
+					return originalWrapCommand(...args);
+				};
+
+				const sessionResource = LocalChatSessionUri.forSession(`sandbox-${permissionLevel}-permission-session`);
+				instantiationService.stub(IChatWidgetService, {
+					getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+					lastFocusedWidget: undefined,
+				});
+				const elevatedPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+				const preparedInvocation = await elevatedPermissionTool.prepareToolInvocation({
+					parameters: {
+						command: 'echo hello',
+						explanation: 'Print hello',
+						goal: 'Print hello',
+						mode: 'sync',
+					} as IRunInTerminalInputParams,
+					chatSessionResource: sessionResource,
+				} as IToolInvocationPreparationContext, CancellationToken.None);
+
+				const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+				strictEqual(terminalData.commandLine.isSandboxWrapped, false, `Expected no sandbox wrapping for ${permissionLevel}`);
+				strictEqual(terminalData.requestUnsandboxedExecution, false, `Expected no unsandbox confirmation for ${permissionLevel}`);
+				strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello`');
+				strictEqual(wrapCalls, 0, `Expected sandbox wrapping to be skipped for ${permissionLevel}`);
+				terminalSandboxService.wrapCommand = originalWrapCommand;
+			}
+		});
+
+		test('should use request permission level before current widget permission level', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const sessionResource = LocalChatSessionUri.forSession('sandbox-request-permission-session');
+			const requestId = 'sandbox-request-permission-request';
+			createChatModelWithRequest(sessionResource, createChatModeInfo(ChatPermissionLevel.AutoApprove), requestId);
+			instantiationService.stub(IChatWidgetService, {
+				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.Default } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
+				lastFocusedWidget: undefined,
+			});
+			const requestPermissionTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+
+			const preparedInvocation = await requestPermissionTool.prepareToolInvocation({
+				parameters: {
+					command: 'echo hello',
+					explanation: 'Print hello',
+					goal: 'Print hello',
+					mode: 'sync',
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+				chatRequestId: requestId,
+			} as IToolInvocationPreparationContext, CancellationToken.None);
+
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, false);
+			strictEqual((preparedInvocation!.invocationMessage as IMarkdownString).value, 'Running `echo hello`');
 		});
 
 		test('should not show sandbox wrapper in chat when sandboxed async command is detached', async () => {
@@ -536,6 +780,17 @@ suite('RunInTerminalTool', () => {
 			exitCode: 1,
 			output: '/bin/bash: /workspace/out.txt: Operation not permitted',
 		};
+		const baseAllowNetworkRetryOptions = {
+			retryWithAllowNetworkRequests: true,
+			didSandboxWrapCommand: true,
+			requestUnsandboxedExecution: false,
+			requestAllowNetwork: false,
+			isPersistentSession: false,
+			isBackgroundExecution: false,
+			didTimeout: false,
+			exitCode: 1,
+			output: 'connect: Operation not permitted',
+		};
 
 		test('should retry completed foreground sandbox commands when output indicates sandbox block', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed(baseRetryOptions), true);
@@ -552,6 +807,36 @@ suite('RunInTerminalTool', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed({
 				...baseRetryOptions,
 				requestUnsandboxedExecution: true,
+			}), false);
+		});
+
+		test('should not automatically retry outside the sandbox for apparent network failures', () => {
+			strictEqual(shouldAutomaticallyRetryUnsandboxed({
+				...baseRetryOptions,
+				output: 'connect: Operation not permitted',
+			}), false);
+		});
+
+		test('should retry in the sandbox by allowing network for apparent network failures', () => {
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed(baseAllowNetworkRetryOptions), true);
+		});
+
+		test('should not retry with allow-network when disabled or already requested', () => {
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				retryWithAllowNetworkRequests: false,
+			}), false);
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				requestAllowNetwork: true,
+			}), false);
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				requestUnsandboxedExecution: true,
+			}), false);
+			strictEqual(shouldAutomaticallyRetryAllowNetworkInSandboxed({
+				...baseAllowNetworkRetryOptions,
+				output: 'regular command failure',
 			}), false);
 		});
 
@@ -630,6 +915,29 @@ suite('RunInTerminalTool', () => {
 			const title = getAutomaticUnsandboxRetryTitle(runInTerminalTool, 'bash', ['example.com']);
 
 			strictEqual(title.value, 'Run `bash` command outside the sandbox to access `example.com`?');
+		});
+
+		test('should use allow-network retry confirmation title without sandbox link', () => {
+			const title = getAutomaticAllowNetworkRetryTitle(runInTerminalTool, 'bash', undefined);
+
+			strictEqual(title.value, 'Retry `bash` command in the sandbox by allowing network access?');
+		});
+
+		test('should use allow-network retry confirmation title without sandbox link for blocked domains', () => {
+			const title = getAutomaticAllowNetworkRetryTitle(runInTerminalTool, 'bash', ['example.com']);
+
+			strictEqual(title.value, 'Retry `bash` command in the sandbox by allowing network access to `example.com`?');
+		});
+
+		test('should show allow-network retry elicitation with sandbox-preserving title', async () => {
+			await assertAutomaticAllowNetworkRetryElicitation(
+				runInTerminalTool,
+				LocalChatSessionUri.forSession('auto-retry-allow-network-session'),
+				'curl https://example.com',
+				'bash',
+				undefined,
+				'Retry `bash` command in the sandbox by allowing network access?'
+			);
 		});
 
 		test('should show retry elicitation when sandbox force-approved command would otherwise require confirmation', async () => {
@@ -926,6 +1234,88 @@ suite('RunInTerminalTool', () => {
 				throw new Error('Expected markdown confirmation message');
 			}
 			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+		});
+
+		test('should force confirmation for explicit sandboxed allow-network requests', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+			terminalSandboxService.wrapCommand = async (command: string, _requestUnsandboxedExecution?: boolean, _shell?: string, _cwd?: URI, _details?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean) => ({
+				command: requestAllowNetwork ? `network-sandbox:${command}` : `sandbox:${command}`,
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: requestAllowNetwork ? true : undefined,
+			});
+
+			const result = await executeToolTest({
+				requestAllowNetwork: true,
+				requestAllowNetworkReason: 'Needs registry access while remaining sandboxed',
+			});
+
+			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.requestAllowNetwork, true);
+			strictEqual(terminalData.requestAllowNetworkReason, 'Needs registry access while remaining sandboxed');
+			strictEqual(terminalData.commandLine.toolEdited, 'network-sandbox:echo hello');
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: Needs registry access while remaining sandboxed'));
+		});
+
+		test('should use allow-network confirmation for blocked domains selected before execution', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+			terminalSandboxService.wrapCommand = async (command: string) => ({
+				command: `network-sandbox:${command}`,
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: true,
+				blockedDomains: ['evil.com'],
+				deniedDomains: ['evil.com'],
+			});
+
+			const result = await executeToolTest({ command: 'curl https://evil.com' });
+
+			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.requestAllowNetwork, true);
+			strictEqual(terminalData.requestUnsandboxedExecution, false);
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+		});
+
+		test('should reject explicit allow-network requests when per-command network access is disabled', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+
+			const prepared = await executeToolTest({ requestAllowNetwork: true, requestAllowNetworkReason: 'Needs registry access' });
+			ok(prepared, 'Expected prepared invocation to be defined');
+			ok(!prepared.confirmationMessages, 'Expected no confirmation because the command will not run');
+			ok((prepared.invocationMessage as IMarkdownString).value.includes('unrestricted network access in the sandbox is disabled'));
+
+			const result = await invokeToolTest({ requestAllowNetwork: true, requestAllowNetworkReason: 'Needs registry access' });
+			strictEqual(createTerminalCallCount, 0, 'Expected no terminal to be created');
+			ok(result.toolResultError, 'Expected the rejected request to be returned as a tool error');
+			ok(result.content[0].kind === 'text' && result.content[0].value.includes('chat.agent.sandbox.retryWithAllowNetworkRequests'));
 		});
 
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
@@ -2238,7 +2628,7 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
-	test('should suppress background input-needed notification when the terminal is disposed', () => {
+	test('should suppress input-needed after disposal and omit successful exit code from terminal-exited notice', () => {
 		const termId = 'test-input-needed-disposed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-disposed-session');
 		const output = 'Press ENTER or type command to continue';
@@ -2255,6 +2645,7 @@ suite('RunInTerminalTool', () => {
 			},
 			onDisposed: terminalDisposedEmitter.event,
 			onDidInputData: inputDataEmitter.event,
+			exitCode: 0,
 			get isDisposed() { return isDisposed; },
 		} as unknown as ITerminalInstance;
 
@@ -2282,6 +2673,11 @@ suite('RunInTerminalTool', () => {
 		isDisposed = true;
 		inputNeededEmitter.fire();
 		strictEqual(capturedSteeringRequests.length, 0, 'Closing the terminal should not produce a spurious input-needed chat turn');
+
+		terminalDisposedEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 1, 'Closing the terminal should send one terminal-exited notification');
+		ok(capturedSteeringRequests[0].message.includes('terminal exited.'), 'Successful terminal exit should be reported without qualification');
+		ok(!capturedSteeringRequests[0].message.includes('exit code 0'), 'Successful terminal exit should not print exit code 0 to chat');
 	});
 
 	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', () => {
@@ -2389,6 +2785,9 @@ suite('RunInTerminalTool', () => {
 
 		// After command finishes, the fg association still persists
 		commandFinishedEmitter.fire({ exitCode: 0 });
+		strictEqual(capturedSteeringRequests.length, 2, 'Should send a completion steering request');
+		ok(capturedSteeringRequests[1].message.includes('command completed.'), 'Successful completion should be reported without qualification');
+		ok(!capturedSteeringRequests[1].message.includes('exit code 0'), 'Successful completion should not print exit code 0 to chat');
 		ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Session terminal association should still be preserved after command finishes');
 		strictEqual(runInTerminalTool.sessionTerminalAssociations.get(sessionResource)!.isBackground, false, 'Terminal should still be foreground after command finishes');
 	});
@@ -2804,6 +3203,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
 			getMissingSandboxDependencies: async () => [],
 			installMissingSandboxDependencies: async () => ({ exitCode: 0 }),
+			runSandboxRemediation: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 

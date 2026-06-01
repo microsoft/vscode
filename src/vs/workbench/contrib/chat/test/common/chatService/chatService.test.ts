@@ -40,6 +40,7 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
@@ -408,6 +409,33 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
+	});
+
+	test('sendRequest allows empty message with explicit file attachment', async () => {
+		const testService = createChatService();
+
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const fileEntry: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'README.md', value: URI.file('/test/README.md') };
+		const response = await testService.sendRequest(model.sessionResource, '', { attachedContext: [fileEntry] });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.strictEqual(model.getRequests().length, 1);
+		assert.strictEqual(model.getRequests()[0].message.text, '');
+		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
+	});
+
+	test('sendRequest rejects empty message without explicit file attachment', async () => {
+		const testService = createChatService();
+
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const workspaceEntry: IChatRequestVariableEntry = { kind: 'workspace', id: 'workspace', name: 'workspace', value: 'workspace' };
+
+		assert.deepStrictEqual(await testService.sendRequest(model.sessionResource, ''), { kind: 'rejected', reason: 'Empty message' });
+		assert.deepStrictEqual(await testService.sendRequest(model.sessionResource, '', { attachedContext: [workspaceEntry] }), { kind: 'rejected', reason: 'Empty message' });
+		assert.strictEqual(model.getRequests().length, 0);
 	});
 
 	test('sendRequest fails', async () => {
@@ -1610,7 +1638,7 @@ suite('ChatService', () => {
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
-			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
+			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData; isSystemInitiated?: boolean; systemInitiatedLabel?: string }>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
@@ -1816,6 +1844,69 @@ suite('ChatService', () => {
 
 		// Clean up
 		ref.dispose();
+	});
+
+	test('removeHistoryEntry marks model as deleted and excludes from getLiveSessionItems', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		const testService = createChatService();
+
+		// Create a session and send a message so it has requests
+		const ref = testDisposables.add(startSessionModel(testService));
+		const model = ref.object;
+		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} test request`);
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 1);
+
+		// Verify the session appears in live session items
+		const liveItemsBefore = await testService.getLiveSessionItems();
+		assert.ok(
+			liveItemsBefore.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			'Session should appear in getLiveSessionItems before deletion'
+		);
+
+		// Delete the session
+		await testService.removeHistoryEntry(model.sessionResource);
+
+		// Verify the session no longer appears in live session items
+		const liveItemsAfter = await testService.getLiveSessionItems();
+		assert.ok(
+			!liveItemsAfter.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			'Session should NOT appear in getLiveSessionItems after deletion'
+		);
+
+		// Verify onDidDisposeSession was fired
+		// (model is still alive because ref holds it, but it's marked deleted)
+		assert.strictEqual((model as ChatModel).isDeleted, true);
+	});
+
+	test('removeHistoryEntry prevents re-saving on model disposal', async () => {
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		const testService = createChatService();
+
+		// Create a session with a request
+		const ref = testDisposables.add(startSessionModel(testService));
+		const model = ref.object;
+		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithMarkdownId} test request`);
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// Delete the history entry
+		await testService.removeHistoryEntry(model.sessionResource);
+
+		// Release the model reference — this triggers willDisposeModel
+		ref.dispose();
+		await testService.waitForModelDisposals();
+
+		// Verify the session does NOT reappear in history after disposal
+		const testService2 = createChatService();
+		const historyItems = await testService2.getHistorySessionItems();
+		assert.ok(
+			!historyItems.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			'Deleted session should NOT reappear in history after model disposal'
+		);
 	});
 });
 
