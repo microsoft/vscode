@@ -180,6 +180,7 @@ suite('TerminalSandboxEngine', () => {
 		fileService = new MockFileService();
 
 		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
@@ -241,6 +242,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('requestAllowNetwork does not relax network access when per-command requests are disabled', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
 
 		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash', undefined, undefined, true);

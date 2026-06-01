@@ -111,6 +111,7 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands, false);
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
 		sandboxEnabled = false;
@@ -461,6 +462,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should not recommend allow-network requests in model description when per-command network access is disabled', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 			sandboxEnabled = true;
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
@@ -1297,6 +1299,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should reject explicit allow-network requests when per-command network access is disabled', async () => {
+			setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 			sandboxEnabled = true;
 			sandboxPrereqResult = {
 				enabled: true,

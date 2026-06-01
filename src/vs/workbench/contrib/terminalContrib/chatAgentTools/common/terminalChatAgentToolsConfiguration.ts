@@ -599,7 +599,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
 		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['preview'],
 		restricted: true,
 		policy: {
