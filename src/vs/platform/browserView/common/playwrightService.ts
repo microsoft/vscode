@@ -16,8 +16,7 @@ export interface IInvokeFunctionResult {
 	deferredResultId?: string;
 	/**
 	 * Map of dotted Playwright `page` method name to call count during execution
-	 * (e.g. `click`, `keyboard.press`, `request.get`). Methods outside the known
-	 * API allowlist are counted under the `<other>` key.
+	 * (e.g. `click`, `keyboard.press`, `request.get`).
 	 */
 	pageMethodsCalled?: Readonly<Record<string, number>>;
 }

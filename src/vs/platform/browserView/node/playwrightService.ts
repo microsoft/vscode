@@ -705,68 +705,9 @@ const PAGE_PROXY_IGNORED_PROPS = new Set<string>([
 const PAGE_PROXY_MAX_DEPTH = 3;
 
 /**
- * Bucket name used by {@link createPageApiProxy} for any invoked method whose
- * dotted name is not in {@link PAGE_API_ALLOWLIST}. Keeping unknown names out
- * of telemetry guarantees we never emit user-controlled strings and bounds
- * cardinality, while a non-zero count signals Playwright API drift (new or
- * renamed methods) worth investigating.
- */
-const PAGE_API_OTHER = '<other>';
-
-/**
- * Allowlist of fully-qualified Playwright `page` method names (dotted for
- * namespace methods) that may be reported by name in telemetry. Anything not
- * listed here is counted under {@link PAGE_API_OTHER}. Generated from the
- * `playwright-core` 1.59 `Page` surface (and its namespace accessors); update
- * when intentionally tracking new API after a Playwright upgrade.
- */
-const PAGE_API_ALLOWLIST = new Set<string>([
-	// page.*
-	'$', '$$', '$$eval', '$eval', 'addInitScript', 'addListener', 'addLocatorHandler',
-	'addScriptTag', 'addStyleTag', 'ariaSnapshot', 'bringToFront', 'cancelPickLocator',
-	'check', 'clearConsoleMessages', 'clearPageErrors', 'click', 'close', 'consoleMessages',
-	'content', 'context', 'dblclick', 'dispatchEvent', 'dragAndDrop', 'emulateMedia',
-	'evaluate', 'evaluateHandle', 'exposeBinding', 'exposeFunction', 'fill', 'focus',
-	'frame', 'frameLocator', 'frames', 'getAttribute', 'getByAltText', 'getByLabel',
-	'getByPlaceholder', 'getByRole', 'getByTestId', 'getByText', 'getByTitle', 'goBack',
-	'goForward', 'goto', 'hover', 'innerHTML', 'innerText', 'inputValue', 'isChecked',
-	'isClosed', 'isDisabled', 'isEditable', 'isEnabled', 'isHidden', 'isVisible', 'locator',
-	'mainFrame', 'off', 'on', 'once', 'opener', 'pageErrors', 'pause', 'pdf', 'pickLocator',
-	'prependListener', 'press', 'reload', 'removeAllListeners', 'removeListener',
-	'removeLocatorHandler', 'requestGC', 'requests', 'route', 'routeFromHAR', 'routeWebSocket',
-	'screenshot', 'selectOption', 'setChecked', 'setContent', 'setDefaultNavigationTimeout',
-	'setDefaultTimeout', 'setExtraHTTPHeaders', 'setInputFiles', 'setViewportSize', 'tap',
-	'textContent', 'title', 'type', 'uncheck', 'unroute', 'unrouteAll', 'url', 'video',
-	'viewportSize', 'waitForEvent', 'waitForFunction', 'waitForLoadState', 'waitForNavigation',
-	'waitForRequest', 'waitForResponse', 'waitForSelector', 'waitForTimeout', 'waitForURL',
-	'workers',
-	// page.keyboard.*
-	'keyboard.down', 'keyboard.insertText', 'keyboard.press', 'keyboard.type', 'keyboard.up',
-	// page.mouse.*
-	'mouse.click', 'mouse.dblclick', 'mouse.down', 'mouse.move', 'mouse.up', 'mouse.wheel',
-	// page.touchscreen.*
-	'touchscreen.tap',
-	// page.request.* (APIRequestContext)
-	'request.delete', 'request.dispose', 'request.fetch', 'request.get', 'request.head',
-	'request.patch', 'request.post', 'request.put', 'request.storageState',
-	// page.coverage.* (Chromium only)
-	'coverage.startCSSCoverage', 'coverage.startJSCoverage', 'coverage.stopCSSCoverage',
-	'coverage.stopJSCoverage',
-	// page.clock.*
-	'clock.fastForward', 'clock.install', 'clock.pauseAt', 'clock.resume', 'clock.runFor',
-	'clock.setFixedTime', 'clock.setSystemTime',
-	// page.screencast.*
-	'screencast.hideActions', 'screencast.hideOverlays', 'screencast.showActions',
-	'screencast.showChapter', 'screencast.showOverlay', 'screencast.showOverlays',
-	'screencast.start', 'screencast.stop',
-]);
-
-/**
  * Wrap a Playwright `page` so that every function call routed through the
  * proxy increments a counter in {@link methodCalls}, keyed by the dotted path
  * from `page` (e.g. `click`, `evaluate`, `keyboard.press`, `mouse.move`).
- * Names not in {@link PAGE_API_ALLOWLIST} are counted under
- * {@link PAGE_API_OTHER} so telemetry never carries user-controlled strings.
  *
  * Non-function object properties are themselves proxied recursively so that
  * downstream calls on namespaces such as `keyboard`, `mouse`, `request`,
@@ -796,8 +737,7 @@ function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string
 				return cached;
 			}
 			if (typeof value === 'function') {
-				const fullName = prefix + prop;
-				const name = PAGE_API_ALLOWLIST.has(fullName) ? fullName : PAGE_API_OTHER;
+				const name = prefix + prop;
 				const wrapper = function (this: unknown, ...args: unknown[]) {
 					methodCalls.set(name, (methodCalls.get(name) ?? 0) + 1);
 					return Reflect.apply(value as Function, t, args);
