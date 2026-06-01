@@ -160,13 +160,20 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 		let isEndMatch = false;
 		let m;
 		if (pattern) {
-			if ((m = lineContent.match(pattern))) {
+			pattern.lastIndex = 0;
+			if ((m = pattern.exec(lineContent))) {
 				isStartMatch = !!m[1];
 				isEndMatch = !isStartMatch;
 			}
 		} else {
-			isStartMatch = !!startPattern && startPattern.test(lineContent);
-			isEndMatch = !isStartMatch && !!endPattern && endPattern.test(lineContent);
+			if (startPattern) {
+				startPattern.lastIndex = 0;
+				isStartMatch = startPattern.test(lineContent);
+			}
+			if (!isStartMatch && endPattern) {
+				endPattern.lastIndex = 0;
+				isEndMatch = endPattern.test(lineContent);
+			}
 		}
 		if (isStartMatch || isEndMatch) {
 			// folding pattern match
