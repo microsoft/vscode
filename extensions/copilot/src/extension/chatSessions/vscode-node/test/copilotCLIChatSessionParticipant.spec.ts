@@ -647,6 +647,22 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(promptResolver.resolvePrompt).not.toHaveBeenCalled();
 	});
 
+	it('maps /compact to CLI command input for untitled sessions', async () => {
+		const request = new TestChatRequest('');
+		request.command = 'compact';
+		const context = createChatContext('untitled-compact', true, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		await participant.createHandler()(request, context, stream, token);
+		await waitForScheduledUntitledSwap();
+
+		expect(cliSessions.length).toBe(1);
+		expect(cliSessions[0].requests).toHaveLength(1);
+		expect(cliSessions[0].requests[0].input).toEqual({ command: 'compact', prompt: '' });
+		expect(promptResolver.resolvePrompt).not.toHaveBeenCalled();
+	});
+
 	it('maps /remote with arguments to CLI command input for untitled sessions', async () => {
 		const request = new TestChatRequest('on');
 		request.command = 'remote';
