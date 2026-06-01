@@ -532,12 +532,12 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
-			// The SDK's sandbox auto-detection looks for `mxc-bin/` next to `sdk/index.js`, but the
-			// binary actually ships at `<package-root>/mxc-bin/`. Point `MXC_BIN_DIR` at the right
-			// location so `spawnSandboxFromConfig` can find `mxc-exec-mac` / `lxc-exec` / `wxc-exec.exe`.
-			if (!process.env['MXC_BIN_DIR']) {
-				process.env['MXC_BIN_DIR'] = path.join(this.extensionContext.extensionPath, 'node_modules', '@github', 'copilot', 'mxc-bin');
-			}
+			// The SDK's sandbox auto-detection looks for `mxc-bin/<arch>/wxc-exec.exe` (and the
+			// Linux/macOS equivalents) under `MXC_BIN_DIR`. VS Code core ships the MXC
+			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`, so
+			// point `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
+			// from the product build (see build/.moduleignore).
+			process.env['MXC_BIN_DIR'] = path.join(this.envService.appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin');
 			return await import('@github/copilot/sdk');
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Failed to load @github/copilot/sdk: ${error}`);

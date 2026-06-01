@@ -19,6 +19,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { logChangesToStateModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -193,6 +194,8 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 				return;
 			}
 
+			const chatModel = this.chatService.getSession(session.resource);
+			logChangesToStateModel(chatModel?.inputModel, `[AGPK] _syncVisibleChatInputMode -> widget.input.setChatMode(${modeId}) for ${session.resource.toString()}`, undefined, chatModel?.inputModel.state.get(), this.logService);
 			widget.input.setChatMode(modeId, false);
 		};
 
