@@ -59,6 +59,7 @@ export interface ISendRequestSentEvent {
 	readonly session: ISession;
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
+	readonly isNewChat: boolean;
 	readonly options: ISendRequestOptions;
 }
 
