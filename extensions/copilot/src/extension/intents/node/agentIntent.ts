@@ -180,21 +180,27 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
-	const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
-	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
-	allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
+	// BYOK endpoints that own their `Authorization` have no Copilot token for the
+	// agentic proxy or override models the subagents rely on, so disable them
+	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
+	if (model.ownsAuthorization) {
+		allowTools[ToolName.SearchSubagent] = false;
+		allowTools[ToolName.ExploreSubagent] = false;
+		allowTools[ToolName.ExecutionSubagent] = false;
+	} else {
+		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
+		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
+		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
+		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
 
-	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-	const executionSubagentModel = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, experimentationService);
-	if (executionSubagentModel.toLowerCase().includes('gemini-3-flash')) {
+		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
+		// The execution subagent is powered by gemini-3-flash, so it can only be
+		// offered when that model is actually available to the user. If it isn't
+		// in the user's endpoints, keep the tool disabled regardless of the setting.
 		const allEndpoints = await endpointProvider.getAllChatEndpoints();
 		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
 		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
-	}
-	else {
-		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
