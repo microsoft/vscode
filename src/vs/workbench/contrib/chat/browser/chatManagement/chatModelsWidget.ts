@@ -81,16 +81,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				: localize('models.inputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.inputCost));
 			markdown.appendText(`\n`);
 		}
-		if (model.metadata.outputCost !== undefined) {
-			markdown.appendMarkdown(model.metadata.outputCost === 1
-				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
-				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
-			markdown.appendText(`\n`);
-		}
 		if (model.metadata.cacheCost !== undefined) {
 			markdown.appendMarkdown(model.metadata.cacheCost === 1
 				? localize('models.cacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
 				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.outputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.outputCost === 1
+				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
+				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
 			markdown.appendText(`\n`);
 		}
 
@@ -104,16 +104,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 					: localize('models.longContextInputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.longContextInputCost));
 				markdown.appendText(`\n`);
 			}
-			if (model.metadata.longContextOutputCost !== undefined) {
-				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
-					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
-					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
-				markdown.appendText(`\n`);
-			}
 			if (model.metadata.longContextCacheCost !== undefined) {
 				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
 					? localize('models.longContextCacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
 					: localize('models.longContextCacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextOutputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
+					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
+					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
 				markdown.appendText(`\n`);
 			}
 		}

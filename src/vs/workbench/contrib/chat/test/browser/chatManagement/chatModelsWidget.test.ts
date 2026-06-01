@@ -60,6 +60,25 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('1 credit per 1M tokens'));
 		});
 
+		test('orders cost fields as Input, Cache, Output to match the model picker', () => {
+			const model = createModel({
+				inputCost: 4,
+				outputCost: 14,
+				cacheCost: 1
+			});
+
+			const markdown = getModelHoverContent(model);
+			const value = markdown.value;
+
+			const inputIndex = value.indexOf('Input Cost');
+			const cacheIndex = value.indexOf('Cache Cost');
+			const outputIndex = value.indexOf('Output Cost');
+
+			assert.ok(inputIndex !== -1 && cacheIndex !== -1 && outputIndex !== -1);
+			assert.ok(inputIndex < cacheIndex, 'Input Cost should appear before Cache Cost');
+			assert.ok(cacheIndex < outputIndex, 'Cache Cost should appear before Output Cost');
+		});
+
 		test('includes only present cost fields', () => {
 			const model = createModel({
 				inputCost: 3,
