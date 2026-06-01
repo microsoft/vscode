@@ -1445,7 +1445,6 @@ suite('ChatTipService', () => {
 
 	for (const { tipId, settingKey } of [
 		{ tipId: 'tip.thinkingPhrases', settingKey: 'chat.agent.thinking.phrases' },
-		{ tipId: 'tip.agenticBrowser', settingKey: 'workbench.browser.enableChatTools' },
 	]) {
 		test(`shows ${tipId} with correct setting link when setting is at default`, async () => {
 			const service = createService();
@@ -1468,9 +1467,16 @@ suite('ChatTipService', () => {
 		});
 	}
 
+	test('does not show tip.agenticBrowser when setting is at default', async () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		await new Promise<void>(r => queueMicrotask(r));
+
+		assertTipNeverShown(service, 'tip.agenticBrowser');
+	});
+
 	for (const tipId of [
 		'tip.thinkingPhrases',
-		'tip.agenticBrowser',
 	]) {
 		test(`dismisses ${tipId} after clicking its settings link`, async () => {
 			const service = createService();

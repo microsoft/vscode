@@ -343,7 +343,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
+			ContextKeyExpr.equals('config.workbench.browser.enableChatTools', false),
 		),
 		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
