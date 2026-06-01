@@ -243,14 +243,13 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 			// For Anthropic models with thinking enabled, set the thinking on the first round
 			// so it gets rendered as the first thinking block after summarization.
 			// Only re-attach when the summarized round was produced by the same model as the
-			// destination round / current endpoint — otherwise we'd replay a foreign provider's
-			// signed/encrypted thinking through the endpoint and fail signature validation
+			// destination round — otherwise we'd mutate the live round with a foreign
+			// provider's signed/encrypted thinking, which would replay (and 400) on any
+			// future render whose endpoint matches the destination round's model
 			// (related: https://github.com/microsoft/vscode/issues/316536).
 			if (isAnthropicFamily(this.props.endpoint) && thinkingForFirstRoundAfterSummarization && toolCallRounds.length > 0 && !toolCallRounds[0].thinking) {
 				const firstRoundModelId = toolCallRounds[0].modelId ?? (toolCallRounds[0] as IToolCallRound & { phaseModelId?: string }).phaseModelId;
-				const sourceMatchesDest = modelIdForSummarizedRound && firstRoundModelId && modelIdForSummarizedRound === firstRoundModelId;
-				const sourceMatchesEndpoint = modelIdForSummarizedRound === this.props.endpoint.model;
-				if (sourceMatchesDest || sourceMatchesEndpoint) {
+				if (modelIdForSummarizedRound && firstRoundModelId && modelIdForSummarizedRound === firstRoundModelId) {
 					toolCallRounds[0].thinking = thinkingForFirstRoundAfterSummarization;
 				}
 			}

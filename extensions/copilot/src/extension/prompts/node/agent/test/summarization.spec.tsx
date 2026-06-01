@@ -595,6 +595,91 @@ suite('Agent Summarization', () => {
 			&& successMeta!.outcome !== 'success';
 		expect(shouldSkipAfterSuccess).toBe(false);
 	});
+
+	// Regression coverage for https://github.com/microsoft/vscode/issues/316536:
+	// the post-summary re-attach must not paste a foreign model's signed/encrypted
+	// thinking onto a destination round whose modelId disagrees with the producer,
+	// otherwise a future render whose endpoint matches the destination model will
+	// replay that foreign thinking and 400.
+	suite('post-summary thinking re-attach (#316536)', () => {
+		function makeRounds(summarizedModelId: string | undefined, nextModelId: string | undefined) {
+			const summarized = ToolCallRound.create({
+				response: 'summarized',
+				toolCalls: [createEditFileToolCall(1)],
+				toolInputRetry: 0,
+				id: 'r1',
+				modelId: summarizedModelId,
+				thinking: { id: 'thinking_0', text: 'reasoning' },
+			});
+			summarized.summary = 'summary text';
+			const next = ToolCallRound.create({
+				response: 'next',
+				toolCalls: [createEditFileToolCall(2)],
+				toolInputRetry: 0,
+				id: 'r2',
+				modelId: nextModelId,
+			});
+			return { summarized, next };
+		}
+
+		async function render(endpointFamily: string, rounds: ToolCallRound[]) {
+			const instaService = accessor.get(IInstantiationService);
+			const endpoint = instaService.createInstance(MockEndpoint, endpointFamily);
+			const turn = new Turn('t', { type: 'user', message: 'hi' });
+			const conv = new Conversation('s', [turn]);
+			const promptContext: IBuildPromptContext = {
+				chatVariables: new ChatVariablesCollection([]),
+				history: [],
+				query: 'q',
+				toolCallRounds: rounds,
+				toolCallResults: createEditFileToolResult(1, 2),
+				tools,
+				conversation: conv,
+			};
+			const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, {
+				priority: 1,
+				endpoint,
+				location: ChatLocation.Panel,
+				promptContext,
+				maxToolResultLength: Infinity,
+			});
+			await renderer.render();
+		}
+
+		test('re-attaches thinking when summarized and destination round share modelId', async () => {
+			const { summarized, next } = makeRounds('claude-4.6', 'claude-4.6');
+			await render('claude-4.6', [summarized, next]);
+			expect(next.thinking?.id).toBe('thinking_0');
+		});
+
+		test('drops thinking when summarized modelId differs from destination modelId', async () => {
+			const { summarized, next } = makeRounds('claude-3.5', 'claude-4.6');
+			await render('claude-4.6', [summarized, next]);
+			expect(next.thinking).toBeUndefined();
+		});
+
+		test('drops thinking when summarized modelId is missing', async () => {
+			const { summarized, next } = makeRounds(undefined, 'claude-4.6');
+			await render('claude-4.6', [summarized, next]);
+			expect(next.thinking).toBeUndefined();
+		});
+
+		test('drops thinking when destination modelId is missing', async () => {
+			const { summarized, next } = makeRounds('claude-4.6', undefined);
+			await render('claude-4.6', [summarized, next]);
+			expect(next.thinking).toBeUndefined();
+		});
+
+		test('drops thinking when source matches endpoint but destination round was produced by a different model', async () => {
+			// The dangerous laundering case: producer == endpoint at this render,
+			// destination round was produced by a different model. Mutating the
+			// live destination round would replay foreign thinking on a future
+			// render whose endpoint matches that destination model.
+			const { summarized, next } = makeRounds('claude-4.6', 'claude-3.5');
+			await render('claude-4.6', [summarized, next]);
+			expect(next.thinking).toBeUndefined();
+		});
+	});
 });
 
 suite('extractSummary', () => {
