@@ -27,24 +27,25 @@
 
 /* Editor Layout Actions Toolbar */
 
+/* Size the tabs to their content so the content-specific editor actions sit right next to the tabs */
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element {
+	flex: 0 1 auto;
+}
+
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding-right: 0;
 }
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
-	display: block;
-	align-self: center;
-	width: 1px;
-	height: 16px;
-	margin: 0 4px;
-	background-color: var(--vscode-titleBar-activeForeground);
-	opacity: 0.3;
+	display: none;
 }
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
 	display: block;
 	cursor: default;
 	flex: initial;
+	/* Push the layout actions (split, more, close) to the trailing edge */
+	margin-left: auto;
 	padding: 0 0 0 4px;
 	height: var(--editor-group-tab-height);
 }
