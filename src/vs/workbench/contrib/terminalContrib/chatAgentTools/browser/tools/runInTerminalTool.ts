@@ -79,7 +79,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked, outputLooksSandboxNetworkBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
@@ -869,6 +869,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
 			: undefined;
+		const sandboxRemediations = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && sandboxPrereqs.remediations?.length
+			? [...sandboxPrereqs.remediations]
+			: undefined;
+		const sandboxPrerequisiteFailure = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && !sandboxRemediations
+			? localize('runInTerminal.bubblewrap.unusable', "Bubblewrap is installed but cannot create the required sandbox namespace on this system. The command was not executed.")
+			: undefined;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -958,14 +964,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestAllowNetwork: requiresAllowNetworkConfirmation,
 			requestAllowNetworkReason,
 			missingSandboxDependencies: missingDependencies,
+			sandboxRemediations,
+			sandboxPrerequisiteFailure,
 		};
 
-		let sandboxConfirmationMessageForMissingDeps: IToolConfirmationMessages | undefined = undefined;
+		let sandboxPrerequisiteConfirmation: IToolConfirmationMessages | undefined = undefined;
 		// If sandbox dependencies are missing, show a confirmation asking the user to install them.
 		// This is handled before the tool is invoked so the model never sees the dependency error.
 		if (missingDependencies) {
 			const depsList = missingDependencies.join(', ');
-			sandboxConfirmationMessageForMissingDeps = {
+			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.missingDeps.title', "Missing Sandbox Dependencies"),
 				message: new MarkdownString(localize(
 					'runInTerminal.missingDeps.message',
@@ -976,6 +984,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					{ id: 'install', label: localize('runInTerminal.missingDeps.install', "Install"), kind: ConfirmationOptionKind.Approve },
 					{ id: 'cancel', label: localize('runInTerminal.missingDeps.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
 				],
+			};
+		} else if (sandboxRemediations) {
+			const customOptions = [];
+			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile)) {
+				customOptions.push({ id: TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, label: localize('runInTerminal.bubblewrap.repairAppArmor', "Apply AppArmor Fix"), kind: ConfirmationOptionKind.Approve });
+			}
+			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction)) {
+				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction, label: localize('runInTerminal.bubblewrap.disableRestriction', "Disable Restriction and Retry"), kind: ConfirmationOptionKind.Approve });
+			}
+			customOptions.push({ id: 'cancel', label: localize('runInTerminal.bubblewrap.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny });
+			sandboxPrerequisiteConfirmation = {
+				title: localize('runInTerminal.bubblewrap.title', "Repair Bubblewrap Sandbox"),
+				message: new MarkdownString(sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile)
+					? localize('runInTerminal.bubblewrap.message', "Bubblewrap is installed but cannot create the required sandbox namespace. Apply the recommended AppArmor fix, or disable Ubuntu's unprivileged user namespace restriction and retry. Disabling the restriction reduces system security.")
+					: localize('runInTerminal.bubblewrap.disableOnly.message', "Bubblewrap is installed but cannot create the required sandbox namespace. You may disable Ubuntu's unprivileged user namespace restriction and retry. This reduces system security.")),
+				customOptions,
 			};
 		}
 
@@ -1177,7 +1201,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return {
 			invocationMessage,
 			icon: toolSpecificData.commandLine.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal,
-			confirmationMessages: sandboxConfirmationMessageForMissingDeps ?? confirmationMessages,
+			confirmationMessages: sandboxPrerequisiteConfirmation ?? confirmationMessages,
 			toolSpecificData,
 		};
 	}
@@ -1633,6 +1657,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
+		const sandboxPrerequisiteTerminalOptions = {
+			createTerminal: async () => this._terminalService.createTerminal({}),
+			focusTerminal: async (terminal: { focus(): void }) => {
+				this._terminalService.setActiveInstance(terminal as ITerminalInstance);
+				await this._terminalService.revealTerminal(terminal as ITerminalInstance, true);
+				terminal.focus();
+			},
+		};
+
+		if (toolSpecificData.sandboxPrerequisiteFailure) {
+			return {
+				content: [{ kind: 'text', value: toolSpecificData.sandboxPrerequisiteFailure }],
+			};
+		}
+
 		const isSandboxAllowNetworkEnabled = isSandboxEnabled && await this._terminalSandboxService.isSandboxAllowNetworkEnabled();
 		if (this._shouldRejectAllowNetworkRequest(isSandboxEnabled, isSandboxAllowNetworkEnabled, args)) {
 			const message = this._getAllowNetworkRequestDisabledMessage();
@@ -1656,14 +1695,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (invocation.selectedCustomButton === 'install') {
 				// Install dependencies, focus terminal for sudo password, wait for completion
 				const sessionResource = invocation.context.sessionResource;
-				const { exitCode } = await this._terminalSandboxService.installMissingSandboxDependencies(toolSpecificData.missingSandboxDependencies, sessionResource, token, {
-					createTerminal: async () => this._terminalService.createTerminal({}),
-					focusTerminal: async (terminal) => {
-						this._terminalService.setActiveInstance(terminal as ITerminalInstance);
-						await this._terminalService.revealTerminal(terminal as ITerminalInstance, true);
-						terminal.focus();
-					},
-				});
+				const { exitCode } = await this._terminalSandboxService.installMissingSandboxDependencies(toolSpecificData.missingSandboxDependencies, sessionResource, token, sandboxPrerequisiteTerminalOptions);
 				if (exitCode !== undefined && exitCode !== 0) {
 					return {
 						content: [{
@@ -1687,7 +1719,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}],
 					};
 				}
-				// Installation succeeded — fall through to execute the original command
+				const refreshedPrereqs = await this._terminalSandboxService.checkForSandboxingPrereqs(true, sandboxPrecheckInputs);
+				if (refreshedPrereqs.failedCheck !== undefined) {
+					return {
+						content: [{
+							kind: 'text',
+							value: refreshedPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && refreshedPrereqs.remediations?.length
+								? localize('runInTerminal.missingDeps.bubblewrapFailed', "Sandbox dependencies were installed, but bubblewrap cannot create the required sandbox namespace. Run the command again to choose an available repair option.")
+								: refreshedPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap
+									? localize('runInTerminal.missingDeps.bubblewrapFailedNoRepair', "Sandbox dependencies were installed, but bubblewrap cannot create the required sandbox namespace on this system. The command was not executed.")
+									: localize('runInTerminal.missingDeps.recheckFailed', "Sandbox prerequisites are still not satisfied after installation. The command was not executed."),
+						}],
+					};
+				}
+				// Installation and verification succeeded — fall through to execute the original command.
 				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded, proceeding with command execution');
 			} else {
 				// User chose to cancel — do not run the command
@@ -1702,6 +1747,36 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}],
 				};
 			}
+		}
+
+		if (toolSpecificData.sandboxRemediations?.length) {
+			const selectedRemediation = invocation.selectedCustomButton as TerminalSandboxPreCheckRemediation | undefined;
+			if (!selectedRemediation || !toolSpecificData.sandboxRemediations.includes(selectedRemediation)) {
+				return {
+					content: [{ kind: 'text', value: localize('runInTerminal.bubblewrap.cancelled', "Bubblewrap sandbox repair was cancelled by the user.") }],
+				};
+			}
+			const { exitCode } = await this._terminalSandboxService.runSandboxRemediation(selectedRemediation, invocation.context.sessionResource, token, sandboxPrerequisiteTerminalOptions);
+			if (exitCode !== 0) {
+				return {
+					content: [{
+						kind: 'text', value: exitCode === undefined
+							? localize('runInTerminal.bubblewrap.repairUnknown', "Could not determine whether the bubblewrap repair succeeded. The command was not executed.")
+							: localize('runInTerminal.bubblewrap.repairFailed', "Bubblewrap repair failed (exit code {0}). The command was not executed.", exitCode)
+					}],
+				};
+			}
+			const refreshedPrereqs = await this._terminalSandboxService.checkForSandboxingPrereqs(true, sandboxPrecheckInputs);
+			if (refreshedPrereqs.failedCheck !== undefined) {
+				return {
+					content: [{
+						kind: 'text', value: selectedRemediation === TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile
+							? localize('runInTerminal.bubblewrap.profileDidNotResolve', "The AppArmor repair completed, but bubblewrap still cannot create the required sandbox namespace. Run the command again and choose Disable Restriction and Retry only if you accept the reduced system security.")
+							: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. The command was not executed.")
+					}],
+				};
+			}
+			this._logService.info('RunInTerminalTool: Bubblewrap remediation succeeded, proceeding with command execution');
 		}
 
 		const executionOptions = this._resolveExecutionOptions(args);
@@ -2931,7 +3006,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposeNotification();
 
 			const exitCode = command.exitCode;
-			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
+			// A successful completion is already conveyed by "command completed";
+			// only surface an exit code in chat when it provides failure context.
+			const exitCodeText = exitCode !== undefined && exitCode !== 0 ? ` with exit code ${exitCode}` : '';
 			const currentOutput = execution.getOutput();
 			// Only dispose if the terminal is still hidden from the user. Once the
 			// user reveals it (via the "Show" link), it joins `foregroundInstances`
@@ -3007,7 +3084,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			const currentOutput = executionForDisposal?.getOutput() ?? '';
 			const exitCode = terminalInstance.exitCode;
-			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
+			// Avoid reporting a successful exit code as diagnostic information in chat.
+			const exitCodeText = exitCode !== undefined && exitCode !== 0 ? ` with exit code ${exitCode}` : '';
 			disposeNotification();
 			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
 			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
