@@ -198,8 +198,13 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		// The execution subagent is powered by gemini-3-flash, so it can only be
 		// offered when that model is actually available to the user. If it isn't
 		// in the user's endpoints, keep the tool disabled regardless of the setting.
-		const allEndpoints = await endpointProvider.getAllChatEndpoints();
-		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		// Skip the (potentially expensive) endpoint lookup when the tool would be
+		// disabled anyway based on model family or the experiment setting.
+		let hasGemini3Flash = false;
+		if (isGptOrAnthropic && executionSubagentEnabled) {
+			const allEndpoints = await endpointProvider.getAllChatEndpoints();
+			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		}
 		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
 	}
 
