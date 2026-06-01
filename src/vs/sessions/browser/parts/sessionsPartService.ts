@@ -131,7 +131,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.getSessionView(session?.sessionId)?.focus();
+		this._mainPart.focusSession(session?.sessionId);
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {

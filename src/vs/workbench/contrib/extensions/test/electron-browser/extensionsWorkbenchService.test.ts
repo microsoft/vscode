@@ -481,6 +481,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
 	});
 
+	test('test getAutoUpdateDelayRemaining returns 0 for a trusted publisher', async () => {
+		instantiationService.stub(IProductService, { ...TestProductService, trustedExtensionPublishers: ['pub'] });
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
 	test('test getAutoUpdateValue normalizes legacy insiders values', async () => {
 		const expected = new Map<unknown, AutoUpdateConfigurationValue>([
 			['on', true],
