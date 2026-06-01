@@ -1272,11 +1272,11 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline-offset: 0 !important;
 }
 
-/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. */
-.hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-.hc-light .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item {
+/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
+.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item {
 	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
 	outline-offset: -1px !important;
 }
