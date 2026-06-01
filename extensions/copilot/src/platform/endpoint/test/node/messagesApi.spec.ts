@@ -1479,6 +1479,67 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(details?.anthropic_cache_creation).toBeUndefined();
 	});
 
+	test('surfaces thinking_tokens as completion_tokens_details.reasoning_tokens', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'thought' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 10,
+				output_tokens: 1140,
+				output_tokens_details: { thinking_tokens: 580 },
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens).toBe(1140);
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(580);
+	});
+
+	test('reasoning_tokens defaults to 0 when output_tokens_details is absent', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_no_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no thinking' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 50 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(0);
+	});
+
 	test('rejects on malformed JSON', async () => {
 		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
@@ -1746,5 +1807,44 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		const details = completion!.usage?.prompt_tokens_details;
 		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(5000);
 		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(10000);
+	});
+
+	test('streaming thinking_tokens from message_delta surfaces as reasoning_tokens', () => {
+		// Anthropic typically reports thinking_tokens in the final message_delta
+		// (after the cumulative output_tokens count is known). Matches the
+		// observed payload shape from CAPI/Anthropic 1P/Bedrock/Vertex.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_thinking_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 1,
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 2024,
+				input_tokens: 5,
+				output_tokens_details: { thinking_tokens: 639 },
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion!.usage?.completion_tokens).toBe(2024);
+		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
 	});
 });

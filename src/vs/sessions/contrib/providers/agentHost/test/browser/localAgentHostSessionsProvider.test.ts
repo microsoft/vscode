@@ -86,7 +86,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this._nextSeq++;
 	}
 
+	/**
+	 * Number of upcoming `listSessions()` calls that should reject, used to
+	 * simulate the agent throwing `AHP_AUTH_REQUIRED` (or a transient offline
+	 * error) before its token is effective server-side. Decremented per call.
+	 */
+	public failListSessionsCount = 0;
+	public listSessionsCallCount = 0;
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
+		this.listSessionsCallCount++;
+		if (this.failListSessionsCount > 0) {
+			this.failListSessionsCount--;
+			throw new Error('AHP_AUTH_REQUIRED');
+		}
 		return [...this._sessions.values()];
 	}
 
@@ -603,6 +615,87 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eventCount: 1,
 			added: ['First', 'Second'],
 			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('recovers an empty list when the initial listSessions fails, without needing a new session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Fresh launch: the agent throws on the first listSessions() (e.g.
+		// AHP_AUTH_REQUIRED before its token is effective, or a transient
+		// offline error). The sessions really exist on the host.
+		agentHost.failListSessionsCount = 1;
+		agentHost.addSession(createSession('heal-1', { summary: 'First' }));
+		agentHost.addSession(createSession('heal-2', { summary: 'Second' }));
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		// The eager refresh fires and fails; nothing is cached yet.
+		await timeout(0);
+		assert.strictEqual(changes.length, 0, 'no event should fire after a failed initial refresh');
+		assert.strictEqual(provider.getSessions().length, 0, 'cache stays empty after a failed initial refresh');
+
+		// The backoff retry (min 1s) fires on its own — no SessionTurnComplete
+		// or sessionAdded needed — and the list self-heals.
+		await timeout(1_100);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			added: changes[0]?.added.map(s => s.title.get()).sort(),
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			added: ['First', 'Second'],
+			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('a successful empty listSessions arms no retry', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// No sessions on the host: listSessions() succeeds with []. This is a
+		// valid result, not a failure — the cache should be marked initialized
+		// and no background retry should be scheduled.
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		await timeout(0);
+		const callsAfterEagerLoad = agentHost.listSessionsCallCount;
+		assert.strictEqual(callsAfterEagerLoad, 1, 'exactly one eager listSessions call');
+
+		// Advance well past the max backoff window; no retry should fire.
+		await timeout(60_000);
+
+		assert.strictEqual(agentHost.listSessionsCallCount, callsAfterEagerLoad, 'no retry should be scheduled after a successful empty list');
+		assert.strictEqual(changes.length, 0, 'no change event for an empty list');
+		assert.strictEqual(provider.getSessions().length, 0);
+	}));
+
+	test('retries with backoff until listSessions succeeds', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// First two attempts fail, third succeeds. Verifies the retry keeps
+		// re-arming rather than giving up after a single failed attempt.
+		agentHost.failListSessionsCount = 2;
+		agentHost.addSession(createSession('backoff-1', { summary: 'Only' }));
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		await timeout(0);
+		assert.strictEqual(provider.getSessions().length, 0, 'empty after first failure');
+
+		// First retry (~1s) — still failing.
+		await timeout(1_100);
+		assert.strictEqual(provider.getSessions().length, 0, 'empty after second failure');
+
+		// Second retry (~2s backoff) — now succeeds.
+		await timeout(2_200);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			cachedTitles: ['Only'],
 		});
 	}));
 

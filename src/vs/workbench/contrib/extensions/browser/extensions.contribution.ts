@@ -153,6 +153,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
 				default: 'on',
 				scope: ConfigurationScope.APPLICATION,
+				experiment: {
+					mode: 'auto',
+				},
 				tags: ['usesOnlineServices'],
 				policy: {
 					name: 'ExtensionsAutoUpdate',

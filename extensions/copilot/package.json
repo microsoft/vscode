@@ -3441,6 +3441,24 @@
             ],
             "markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
           },
+          "github.copilot.chat.claudeAgent.useSdkExtension": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "preview",
+              "onExp"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeAgent.useSdkExtension%"
+          },
+          "github.copilot.chat.claudeAgent.sdkExtensionInstallTimeout": {
+            "type": "number",
+            "default": 120000,
+            "minimum": 1000,
+            "tags": [
+              "preview"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeAgent.sdkExtensionInstallTimeout%"
+          },
           "github.copilot.chat.copilotDebugCommand.enabled": {
             "type": "boolean",
             "default": true,
