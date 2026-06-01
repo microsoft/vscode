@@ -654,6 +654,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	closeAllSessions(): void {
+		const ids = this._visibility.visibleSessions.get()
+			.filter((s): s is IActiveSession => !!s)
+			.map(s => s.sessionId);
+		if (ids.length === 0) {
+			return;
+		}
+
+		this._pendingNewSession = undefined;
+
+		// Remove every visible session in a single pass; the visibility model
+		// clears the active session, which drives the grid back to the
+		// new-session view via the part's reconciliation.
+		this._visibility.removeMany(ids);
+	}
+
 	private _restoreInitialChat(session: ISession): IChat {
 		const chats = session.chats.get();
 		let initialChat = chats[0];
