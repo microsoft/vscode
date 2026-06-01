@@ -5,7 +5,7 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -171,7 +171,7 @@ export function mapTurnStarted(
 		{
 			type: ActionType.SessionTurnStarted,
 			turnId: params.turn.id,
-			userMessage: { text: userText },
+			message: { text: userText, origin: { kind: MessageKind.User } },
 		},
 	];
 }

@@ -34,7 +34,7 @@ suite('codexReplayMapper', () => {
 		} as never);
 		assert.strictEqual(turns.length, 1);
 		assert.strictEqual(turns[0].id, 'turn_a');
-		assert.strictEqual(turns[0].userMessage.text, 'hi');
+		assert.strictEqual(turns[0].message.text, 'hi');
 		assert.strictEqual(turns[0].state, TurnState.Complete);
 		assert.strictEqual(turns[0].responseParts.length, 1);
 		const part = turns[0].responseParts[0];

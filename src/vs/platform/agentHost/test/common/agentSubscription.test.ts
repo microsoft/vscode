@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
+import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
 import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
@@ -298,7 +298,7 @@ suite('SessionStateSubscription', () => {
 		sub.applyOptimistic({
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
 		assert.strictEqual((sub.value as SessionState).activeTurn?.id, 'turn-1');

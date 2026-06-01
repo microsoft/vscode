@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ResponsePartKind, type Turn, type ResponsePart } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, type Turn, type ResponsePart } from '../../common/state/sessionState.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadItem } from './protocol/generated/v2/ThreadItem.js';
 import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
@@ -70,7 +70,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 	}
 	return {
 		id: codexTurn.id,
-		userMessage: { text: userText },
+		message: { text: userText, origin: { kind: MessageKind.User } },
 		responseParts: parts,
 		usage: undefined,
 		state: turnStateFromStatus(codexTurn.status),

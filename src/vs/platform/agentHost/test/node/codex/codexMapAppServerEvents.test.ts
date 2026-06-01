@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createCodexSessionMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
 
 suite('codexMapAppServerEvents', () => {
 
@@ -36,7 +36,7 @@ suite('codexMapAppServerEvents', () => {
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn_a',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		}]);
 	});
 
@@ -55,7 +55,7 @@ suite('codexMapAppServerEvents', () => {
 				durationMs: null,
 			},
 		}, 'the prompt');
-		assert.strictEqual((actions[0] as { userMessage: { text: string } }).userMessage.text, 'the prompt');
+		assert.strictEqual((actions[0] as { message: { text: string } }).message.text, 'the prompt');
 	});
 
 	test('item/started for agentMessage seeds a markdown part', () => {

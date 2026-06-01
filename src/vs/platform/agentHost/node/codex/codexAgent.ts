@@ -1118,11 +1118,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (conn.kind !== 'ready') {
 			return;
 		}
-		const text = steeringMessage.userMessage?.text ?? '';
-		if (text.length === 0 && (!steeringMessage.userMessage?.attachments || steeringMessage.userMessage.attachments.length === 0)) {
+		const text = steeringMessage.message.text;
+		if (text.length === 0 && (!steeringMessage.message.attachments || steeringMessage.message.attachments.length === 0)) {
 			return;
 		}
-		const { input } = resolveCodexInput(text, steeringMessage.userMessage?.attachments);
+		const { input } = resolveCodexInput(text, steeringMessage.message.attachments);
 		if (session.threadId === undefined) {
 			return;
 		}
