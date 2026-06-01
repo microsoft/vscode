@@ -57,9 +57,6 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 /** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
-/** Configuration key that controls whether the rubber duck critic subagent is enabled for Copilot SDK sessions. */
-export const AgentHostRubberDuckEnabledSettingId = 'chat.agentHost.rubberDuck.enabled';
-
 /**
  * Configuration key that holds the absolute path to a locally-installed
  * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent

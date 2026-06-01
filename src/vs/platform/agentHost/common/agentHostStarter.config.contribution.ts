@@ -15,7 +15,6 @@ import {
 	AgentHostOTelExporterTypeSettingId,
 	AgentHostOTelOtlpEndpointSettingId,
 	AgentHostOTelOutfileSettingId,
-	AgentHostRubberDuckEnabledSettingId,
 } from './agentService.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
@@ -40,12 +39,6 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
 	type: 'object',
 	properties: {
-		[AgentHostRubberDuckEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.rubberDuck.enabled', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model. Requires `#chat.agentHost.enabled#`."),
-			default: false,
-			included: product.quality !== 'stable',
-		},
 		[AgentHostClaudeAgentSdkPathSettingId]: {
 			type: 'string',
 			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
