@@ -1307,7 +1307,7 @@ class QuickInputDragAndDropController extends Disposable {
 
 class QuickInputResizeController extends Disposable {
 	static readonly MIN_WIDTH = 300;
-	static readonly MAX_WIDTH = 900;
+	static readonly MAX_WIDTH = 1200;
 
 	readonly resizeViewState = observableValue<{ width?: number; done: boolean } | undefined>(this, undefined);
 
