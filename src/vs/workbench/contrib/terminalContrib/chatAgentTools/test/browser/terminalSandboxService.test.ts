@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, TerminalSandboxService, type ISandboxDependencyInstallTerminal } from '../../common/terminalSandboxService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -160,6 +161,7 @@ suite('TerminalSandboxService - network domains', () => {
 		callCount = 0;
 		status: ISandboxDependencyStatus = {
 			bubblewrapInstalled: true,
+			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
 		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
@@ -258,6 +260,7 @@ suite('TerminalSandboxService - network domains', () => {
 		// Setup default configuration
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
@@ -301,6 +304,7 @@ suite('TerminalSandboxService - network domains', () => {
 	test('should report dependency prereq failures', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
 			socatInstalled: true,
 		};
 
@@ -312,6 +316,58 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
+	});
+
+	test('should report repair actions when Ubuntu AppArmor remediation is supported', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: true,
+			bubblewrapUsable: false,
+			bubblewrapError: 'No permissions to create namespace',
+			supportsUbuntuAppArmorRemediation: true,
+			socatInstalled: true,
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const result = await sandboxService.checkForSandboxingPrereqs();
+
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
+		strictEqual(result.detail, 'No permissions to create namespace');
+	});
+
+	test('should run approved Ubuntu bubblewrap remediation commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
+			let sentCommand: string | undefined;
+			const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+			const terminal: ISandboxDependencyInstallTerminal = {
+				sendText: async command => {
+					sentCommand = command;
+					commandFinishedEmitter.fire({ exitCode: 0 });
+				},
+				focus: () => { },
+				capabilities: {
+					get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+					onDidAddCapability: Event.None,
+				},
+				onDidInputData: Event.None,
+				onDisposed: Event.None,
+			};
+			const result = await sandboxService.runSandboxRemediation(remediation, undefined, CancellationToken.None, {
+				createTerminal: async () => terminal,
+				focusTerminal: async () => { },
+			});
+			strictEqual(result.exitCode, 0);
+			return sentCommand;
+		};
+
+		deepStrictEqual([
+			await runAndCapture(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile),
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction),
+		], [
+			'sudo apt update && sudo apt install -y apparmor-profiles apparmor-utils && sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict',
+			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
+		]);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {
@@ -600,7 +656,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should reallow reads from workspace storage', async () => {
+	test('should allow reads and writes from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
@@ -924,6 +980,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should switch to unsandboxed execution when a domain is not allowlisted', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -935,8 +992,36 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
+	test('should request network-enabled sandbox execution for a non-allowlisted domain when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains should require network confirmation');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not request unsandbox confirmation when a safer network request is available');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
+	});
+
+	test('should request network-enabled sandbox execution even when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Network access should not require leaving the sandbox');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Network access should be confirmable independently from unsandboxed execution');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+	});
+
 	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -970,6 +1055,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should give denied domains precedence over allowlisted domains', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -978,6 +1064,21 @@ suite('TerminalSandboxService - network domains', () => {
 		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
+		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
+		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
+	});
+
+	test('should allow confirmed sandboxed network override for explicitly denied domains when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Denied domains should remain filesystem sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Explicitly denied domains should require network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
 		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
 	});
@@ -1053,11 +1154,13 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const testComResult = await sandboxService.wrapCommand('curl test.com', false, 'bash');
-		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
+		strictEqual(testComResult.isSandboxWrapped, true, 'Well-known bare domain suffixes should keep the command sandboxed pending network confirmation');
+		strictEqual(testComResult.requiresAllowNetworkConfirmation, true, 'Well-known bare domain suffixes should trigger allow-network confirmation');
 		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
 
 		const testOrgComResult = await sandboxService.wrapCommand('curl test.org.com', false, 'bash');
-		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
+		strictEqual(testOrgComResult.isSandboxWrapped, true, 'Well-known bare domain suffixes should keep multi-label hosts sandboxed pending network confirmation');
+		strictEqual(testOrgComResult.requiresAllowNetworkConfirmation, true, 'Well-known bare domain suffixes should trigger allow-network confirmation for multi-label hosts');
 		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
 	});
 
@@ -1067,7 +1170,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'URL authorities should stay sandboxed pending network confirmation even when their suffix looks like a file extension');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'URL authorities should still trigger allow-network prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
 	});
 
@@ -1077,7 +1181,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'URL authorities should stay sandboxed pending network confirmation without requiring a well-known bare-host suffix');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'URL authorities should trigger allow-network prompts without requiring a well-known bare-host suffix');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
 	});
 
@@ -1087,7 +1192,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH remotes should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'SSH remotes should stay sandboxed pending network confirmation even when their suffix looks like a file extension');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'SSH remotes should still trigger allow-network prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
 	});
 
@@ -1154,7 +1260,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('git clone git@github.com:microsoft/vscode.git');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH-style remotes should trigger domain checks');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'SSH-style remotes should stay sandboxed pending network confirmation');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'SSH-style remotes should trigger allow-network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['github.com']);
 	});
 
@@ -1199,10 +1306,10 @@ suite('TerminalSandboxService - network domains', () => {
 		const command = 'echo $HOME $(curl eth0.me) `id`';
 		const wrapResult = await sandboxService.wrapCommand(command, false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'Commands with blocked domains inside substitutions should not stay sandboxed');
-		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains inside substitutions should require confirmation');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Commands with blocked domains inside substitutions should stay sandboxed pending network confirmation');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains inside substitutions should require allow-network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['eth0.me']);
-		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo $HOME $(curl eth0.me) \`id\`'`);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
 	});
 
 	test('should escape single-quote breakout payloads in wrapped command argument', async () => {
