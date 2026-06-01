@@ -118,7 +118,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
 | `SessionItemToolbar` | `SessionItemToolbarMenuId` | Inline toolbar on each session row (hover on desktop, always on mobile) | Primary actions like pin, archive. Group `navigation` for icons, other groups for overflow. |
-| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread. Groups: `0_pin`, `0_read`, `1_edit`. |
+| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like open to the side, open in a new window (desktop), rename, and mark read/unread. Groups: `navigation`, `0_pin`, `0_read`, `1_edit`. |
 
 ### Section Header Menu
 

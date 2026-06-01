@@ -292,11 +292,23 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, initialQuery?: string, sessionResource?: URI, preferredSessionType?: { providerId?: string; sessionTypeId: string }): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, initialQuery?: string, sessionResource?: URI, preferredSessionType?: { providerId?: string; sessionTypeId: string }, forceNewWindow?: boolean): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
-		// Open in a new browser window with the agent sessions workspace
-		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+		const agentsOpenConfig = await this.ensureAgentsWindow(openConfig);
+		const agentsWorkspace = this.environmentMainService.agentSessionsWorkspace!;
+		const windows = forceNewWindow
+			? [await this.openInBrowserWindow({
+				workspace: getWorkspaceIdentifier(agentsWorkspace),
+				userEnv: agentsOpenConfig.userEnv,
+				cli: agentsOpenConfig.cli,
+				initialStartup: agentsOpenConfig.initialStartup,
+				forceNewWindow: true,
+				forceNewTabbedWindow: agentsOpenConfig.forceNewTabbedWindow,
+				forceProfile: agentsOpenConfig.forceProfile,
+				forceTempProfile: agentsOpenConfig.forceTempProfile,
+			})]
+			: await this.open(agentsOpenConfig);
 
 		// Single IPC carrying folder selection, optional initial query,
 		// optional existing-session resource, and an optional preferred
