@@ -405,6 +405,17 @@ export class SCMViewService implements ISCMViewService {
 					this.didSelectRepository = true;
 				}
 			}
+		} else if (this.previousState && this.didFinishLoadingRepositories.get()) {
+			// Loading has already finished (the debounce timer fired), but this repository
+			// is being registered late (e.g. a worktree detected after git status completes).
+			// If the repository was previously known and was explicitly deselected, preserve
+			// that visibility state instead of always adding it as visible.
+			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
+			if (index !== -1 && this.previousState.visible.indexOf(index) === -1) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
 		}
 
 		if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
