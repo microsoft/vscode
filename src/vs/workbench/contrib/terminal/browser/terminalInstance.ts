@@ -1138,6 +1138,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
+			// Do not process keys that are part of an IME composition; compositionstart/end events
+			// handle sending the composed text to the terminal. Without this, xterm.js will incorrectly
+			// process the raw key (eg. "." instead of "。") and potentially send it to the shell.
+			// See: https://github.com/microsoft/vscode/issues/275646
+			if (event.isComposing) {
+				return false;
+			}
+
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
 			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
 
