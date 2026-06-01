@@ -11,9 +11,9 @@ use ahp_types::errors::ahp_error_codes;
 use ahp_types::state::ProtectedResourceMetadata;
 use ahp_types::{ROOT_RESOURCE_URI, PROTOCOL_VERSION};
 use futures::{SinkExt, StreamExt};
-use tokio::net::TcpStream;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{connect_async, WebSocketStream};
 
 use crate::auth::{Auth, AuthProvider};
 use crate::constants::AGENT_HOST_PORT;
@@ -61,7 +61,7 @@ async fn connect_ws(address: &str) -> Result<Client, AnyError> {
 		.await
 		.map_err(|e| wrap(e, format!("Failed to connect to agent host at {address}")))?;
 
-	let transport = WsTransport { inner: ws_stream };
+	let transport = WsTransport::new(ws_stream, ());
 
 	Client::connect(transport, ahp::ClientConfig::default())
 		.await
@@ -69,11 +69,27 @@ async fn connect_ws(address: &str) -> Result<Client, AnyError> {
 }
 
 /// A [`Transport`] backed by a `tokio-tungstenite` WebSocket stream.
-struct WsTransport {
-	inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
+///
+/// `_guard` keeps an auxiliary resource alive for the lifetime of the
+/// transport; the tunnel connection uses it to retain the relay handle so
+/// the underlying SSH session isn't dropped. Use `()` when no such
+/// resource is needed.
+struct WsTransport<S, G = ()> {
+	inner: WebSocketStream<S>,
+	_guard: G,
 }
 
-impl Transport for WsTransport {
+impl<S, G> WsTransport<S, G> {
+	fn new(inner: WebSocketStream<S>, guard: G) -> Self {
+		Self { inner, _guard: guard }
+	}
+}
+
+impl<S, G> Transport for WsTransport<S, G>
+where
+	S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+	G: Send + 'static,
+{
 	async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError> {
 		let frame = match msg {
 			TransportMessage::Parsed(m) => {
@@ -122,73 +138,19 @@ async fn connect_via_tunnel(ctx: &CommandContext, name: &str) -> Result<Client, 
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
 
-	let (port_conn, _relay_handle) = dt.connect_to_tunnel_port(name, AGENT_HOST_PORT).await?;
+	let (port_conn, relay_handle) = dt.connect_to_tunnel_port(name, AGENT_HOST_PORT).await?;
 
 	let rw = port_conn.into_rw();
 	let (ws_stream, _) = tokio_tungstenite::client_async("ws://localhost/", rw)
 		.await
 		.map_err(|e| wrap(e, "WebSocket handshake over tunnel failed"))?;
 
-	let transport = TunnelWsTransport {
-		inner: ws_stream,
-		// Keep the relay handle alive so the SSH session isn't dropped.
-		_relay_handle,
-	};
+	// Keep the relay handle alive so the SSH session isn't dropped.
+	let transport = WsTransport::new(ws_stream, relay_handle);
 
 	Client::connect(transport, ahp::ClientConfig::default())
 		.await
 		.map_err(|e| wrap(e, "Failed to establish AHP session over tunnel").into())
-}
-
-/// A [`Transport`] backed by a WebSocket stream running over a tunnel
-/// relay channel (via `PortConnectionRW`).
-struct TunnelWsTransport {
-	inner: tokio_tungstenite::WebSocketStream<tunnels::connections::PortConnectionRW>,
-	/// Prevent the relay handle from being dropped, which would close the
-	/// underlying SSH session.
-	_relay_handle: tunnels::connections::ClientRelayHandle,
-}
-
-impl Transport for TunnelWsTransport {
-	async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError> {
-		let frame = match msg {
-			TransportMessage::Parsed(m) => {
-				let s = serde_json::to_string(&m)
-					.map_err(|e| TransportError::Protocol(e.to_string()))?;
-				Message::Text(s.into())
-			}
-			TransportMessage::Text(s) => Message::Text(s.into()),
-			TransportMessage::Binary(b) => Message::Binary(b.into()),
-		};
-		self.inner
-			.send(frame)
-			.await
-			.map_err(|e| TransportError::Io(e.to_string()))
-	}
-
-	async fn recv(&mut self) -> Result<Option<TransportMessage>, TransportError> {
-		loop {
-			match self.inner.next().await {
-				None => return Ok(None),
-				Some(Err(e)) => return Err(TransportError::Io(e.to_string())),
-				Some(Ok(Message::Text(s))) => {
-					return Ok(Some(TransportMessage::Text(s.to_string())))
-				}
-				Some(Ok(Message::Binary(b))) => {
-					return Ok(Some(TransportMessage::Binary(b.to_vec())))
-				}
-				Some(Ok(Message::Close(_))) => return Ok(None),
-				Some(Ok(_)) => continue,
-			}
-		}
-	}
-
-	async fn close(&mut self) -> Result<(), TransportError> {
-		self.inner
-			.close(None)
-			.await
-			.map_err(|e| TransportError::Io(e.to_string()))
-	}
 }
 
 /// Issues a JSON-RPC request, automatically handling `-32007` auth errors
