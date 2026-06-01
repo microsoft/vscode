@@ -6903,6 +6903,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260429",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",
