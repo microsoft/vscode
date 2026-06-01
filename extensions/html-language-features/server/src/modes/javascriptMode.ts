@@ -454,8 +454,6 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 }
 
 
-
-
 function tagToMarkdown(tag: ts.JSDocTagInfo): string {
 	const text = ts.displayPartsToString(tag.text);
 	switch (tag.name) {
