@@ -474,9 +474,17 @@
 	display: block;
 }
 
+.monaco-action-bar .action-item:has(> .single-terminal-tab) {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
 .monaco-action-bar .action-item .single-terminal-tab {
 	display: flex !important;
 	align-items: center;
+	overflow: hidden;
+	min-width: 0;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
