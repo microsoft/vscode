@@ -776,9 +776,15 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		const group = this._getGroupChats(primary);
 		const target = group.find(chat => isEqual(chat.resource, chatUri));
 
+		// Unknown chat (e.g. a stale or incorrect URI): do nothing rather than
+		// risk wiping the whole session.
+		if (!target) {
+			return;
+		}
+
 		// Deleting the only chat or the primary chat removes the whole session
 		// (and any children).
-		if (group.length <= 1 || !target || isEqual(target.resource, primary.resource)) {
+		if (group.length <= 1 || isEqual(target.resource, primary.resource)) {
 			return this.deleteSession(sessionId);
 		}
 

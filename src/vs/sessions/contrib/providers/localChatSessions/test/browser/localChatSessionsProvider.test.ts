@@ -352,6 +352,21 @@ suite('LocalChatSessionsProvider', () => {
 		assert.strictEqual(provider.getSessions()[0].chats.get().length, 1);
 	});
 
+	test('deleteChat with an unknown chat URI is a no-op', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const session = await commitNewSession(provider);
+		await addChat(provider, session);
+		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
+
+		// A stale/incorrect chat URI must not wipe the whole session.
+		await provider.deleteChat(session.sessionId, URI.parse('vscode-local-chat://chat/does-not-exist'));
+		assert.strictEqual(provider.getSessions().length, 1);
+		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
+	});
+
 	test('deleteSession removes the primary chat and all children', async () => {
 		const store = leaks.add(new DisposableStore());
 		const { instantiationService } = createFixture(store);
