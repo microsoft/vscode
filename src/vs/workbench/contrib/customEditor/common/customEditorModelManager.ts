@@ -63,6 +63,16 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		}
 
 		this._references.set(key, { viewType, model, counter: 0 });
+
+		// If the model promise rejects, clean up the stale entry so that a new
+		// model can be created for the same resource later (e.g. after the file
+		// is recreated following a deletion).
+		model.catch(() => {
+			if (this._references.get(key)?.model === model) {
+				this._references.delete(key);
+			}
+		});
+
 		return this.tryRetain(resource, viewType)!;
 	}
 
