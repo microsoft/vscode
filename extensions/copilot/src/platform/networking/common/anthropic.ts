@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
+import { getModelId, modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
+import type { LanguageModelChat } from 'vscode';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { IChatEndpoint } from './networking';
@@ -102,27 +103,30 @@ export function modelSupportsInterleavedThinking(modelId: string): boolean {
 
 /**
  * Memory is supported by:
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
- * - Claude Opus 4 (claude-opus-4-*)
- * @param modelId The model ID to check
- * @returns true if the model supports memory
+ * - Claude Haiku 4.5
+ * - Claude Sonnet 4 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override lights this up
+ * automatically.
  */
-export function modelSupportsMemory(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-1') ||
-		normalized.startsWith('claude-opus-4');
+export function modelSupportsMemory(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const matches = (s: string) => {
+		const n = s.toLowerCase().replace(/\./g, '-');
+		return n.startsWith('claude-haiku-4-5') ||
+			n.startsWith('claude-sonnet-4-6') ||
+			n.startsWith('claude-sonnet-4-5') ||
+			n.startsWith('claude-sonnet-4') ||
+			n.startsWith('claude-opus-4-6') ||
+			n.startsWith('claude-opus-4-5') ||
+			n.startsWith('claude-opus-4-1') ||
+			n.startsWith('claude-opus-4');
+	};
+	return matches(id) || matches(family);
 }
 
 export function isAnthropicContextEditingEnabled(
@@ -141,24 +145,36 @@ export function isAnthropicContextEditingEnabled(
 }
 
 /**
- * The extended (1 hour) prompt cache TTL is only meaningful for the 1M context
- * Claude variants. Other models keep the default 5 minute TTL even when the
- * experimental setting is enabled.
+ * The extended (1 hour) prompt cache TTL is available on all active Claude
+ * models via `cache_control: { type: 'ephemeral', ttl: '1h' }`
+ * - Claude Opus 4.5 / 4.6 / 4.7 (incl. 1M variants)
+ * - Claude Sonnet 4.5 / 4.6
+ * - Claude Haiku 4.5
  *
- * Currently:
- * - Claude Opus 4.6 1M (`claude-opus-4.6-1m`)
- * - Claude Opus 4.7 1M (`claude-opus-4.7-1m-internal` and similar variants)
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override lights this up
+ * automatically.
  */
-export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-opus-4-6-1m') ||
-		normalized.startsWith('claude-opus-4-7-1m');
+export function modelSupportsExtendedCacheTtl(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const matches = (s: string) => {
+		const n = s.toLowerCase().replace(/\./g, '-');
+		return n.startsWith('claude-opus-4-7') ||
+			n.startsWith('claude-opus-4-6') ||
+			n.startsWith('claude-opus-4-5') ||
+			n.startsWith('claude-sonnet-4-6') ||
+			n.startsWith('claude-sonnet-4-5') ||
+			n.startsWith('claude-haiku-4-5');
+	};
+	return matches(id) || matches(family);
 }
 
 /**
  * Returns true when the Anthropic Messages API request should use the extended
  * (1 hour) prompt cache TTL on its tools and system breakpoints. Gated on the
- * model (only the 1M context variants), the experiment-based setting, the chat
+ * model (see {@link modelSupportsExtendedCacheTtl}), the experiment-based setting, the chat
  * location (must be exactly {@link ChatLocation.Agent}), and the subagent flag.
  *
  * {@link ChatLocation.MessagesProxy} is intentionally out of scope — extended
@@ -179,11 +195,7 @@ export function isExtendedCacheTtlEnabled(
 	location: ChatLocation | undefined,
 	isSubagent: boolean | undefined,
 ): boolean {
-	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsExtendedCacheTtl(modelId)) {
-		return false;
-	}
-	if (!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService)) {
+	if (!modelSupportsExtendedCacheTtl(endpoint)) {
 		return false;
 	}
 	if (location !== ChatLocation.Agent) {
@@ -192,7 +204,40 @@ export function isExtendedCacheTtlEnabled(
 	if (isSubagent) {
 		return false;
 	}
-	return true;
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService);
+}
+
+/**
+ * Sub-toggle of {@link isExtendedCacheTtlEnabled}. When BOTH the parent gate
+ * passes (caller supplies its result as {@link parentEnabled}) and this
+ * `extendedTtlMessages` setting is on, the rolling message-level breakpoints
+ * (the ones {@link addMessagesApiCacheControl} places on the last cacheable
+ * user/tool-result blocks) also use the 1h TTL instead of the default 5m.
+ *
+ * Takes the resolved parent result rather than re-running the parent gate so
+ * callers that need both flags don't pay for the experiment-service lookup
+ * twice. The signature makes the "sub-toggle of" relationship explicit.
+ *
+ * Nested rather than orthogonal because:
+ * - Anthropic requires longer-TTL breakpoints to appear before shorter ones
+ *   in the `tools → system → messages` prefix order, so `messages=1h` while
+ *   `tools/system=5m` would be invalid.
+ * - The interesting experiment is "does extending 1h to messages help *on
+ *   top of* tools+system?", not in isolation.
+ *
+ * Message breakpoints rotate every turn, so a 1h write that gets superseded
+ * within minutes wastes the 2x write premium. Only worthwhile when
+ * conversations span large idle gaps (>5m) between turns.
+ */
+export function isExtendedCacheTtlMessagesEnabled(
+	parentEnabled: boolean,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+): boolean {
+	if (!parentEnabled) {
+		return false;
+	}
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, experimentationService);
 }
 
 export type ContextEditingMode = 'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both';

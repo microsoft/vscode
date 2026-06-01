@@ -9,7 +9,7 @@ import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { toAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -29,11 +29,12 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
-import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
@@ -59,6 +60,10 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 			break;
 	}
 	return hoverContent;
+}
+
+export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
+	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
 }
 
 /**
@@ -181,6 +186,7 @@ function createModelItem(
 	vendorLabel?: string,
 	isUBB?: boolean,
 	ariaDescription?: string,
+	pinAction?: IAction,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
 	return {
@@ -196,8 +202,27 @@ function createModelItem(
 		badge: vendorLabel,
 		hover: hover ? { content: hover.element, disposable: hover.disposable } : undefined,
 		tooltip: action.tooltip,
+		toolbarActions: pinAction ? [pinAction] : undefined,
 		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
+}
+
+/**
+ * Creates a pin/unpin toolbar action for a model item in the picker.
+ */
+function createPinAction(
+	modelIdentifier: string,
+	isPinned: boolean,
+	onTogglePin: (modelIdentifier: string, pinned: boolean) => void,
+): IAction {
+	return toAction({
+		id: `pin.${modelIdentifier}`,
+		label: isPinned
+			? localize('chat.modelPicker.unpin', "Unpin Model")
+			: localize('chat.modelPicker.pin', "Pin Model"),
+		class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
+		run: () => onTogglePin(modelIdentifier, !isPinned),
+	});
 }
 
 /**
@@ -232,11 +257,19 @@ function resolveConfigProperty(
  */
 function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case 'low': return localize('chat.priceCategory.low', "Low cost");
-		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
-		case 'high': return localize('chat.priceCategory.high', "High cost");
-		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
-		default: return undefined;
+		case undefined:
+		case '':
+			return undefined;
+		case 'low':
+			return localize('chat.priceCategory.low', "Low cost");
+		case 'medium':
+			return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high':
+			return localize('chat.priceCategory.high', "High cost");
+		case 'very_high':
+			return localize('chat.priceCategory.veryHigh', "Very high cost");
+		default:
+			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
 	}
 }
 
@@ -316,7 +349,9 @@ function createModelAction(
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+	return chatEntitlementService.clientByokEnabled ||
+		chatEntitlementService.hasByokModels ||
+		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
@@ -361,10 +396,12 @@ export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	selectedModelId: string | undefined,
 	recentModelIds: string[],
+	pinnedModelIds: string[],
 	controlModels: IStringDictionary<IModelControlEntry>,
 	currentVSCodeVersion: string,
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
+	onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined,
 	manageSettingsUrl: string | undefined,
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
@@ -436,7 +473,47 @@ export function buildModelPickerItems(
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
-			// --- 2. Promoted section (selected + recently used + featured) ---
+			// Precompute group labels needed for inline badges
+			const allGroupKeys = new Set(
+				models.map(m => {
+					const info = getProviderGroupForModel(m, modelToGroup, languageModelsService!);
+					return getProviderGroupKey(info.vendor, info.groupName);
+				})
+			);
+			const showGroupLabel = allGroupKeys.size > 1;
+
+			// Helper to create a pin/unpin toolbar action for a model
+			const makePinAction = (model: ILanguageModelChatMetadataAndIdentifier) =>
+				onTogglePin ? createPinAction(model.identifier, pinnedModelIds.includes(model.identifier), onTogglePin) : undefined;
+
+			// --- 2. Pinned models ---
+			const pinnedSet = new Set(pinnedModelIds);
+			const pinnedModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+			for (const id of pinnedModelIds) {
+				if (placed.has(id)) {
+					continue;
+				}
+				const model = resolveModel(id);
+				if (model && !placed.has(model.identifier)) {
+					markPlaced(model.identifier, model.metadata.id);
+					pinnedModels.push(model);
+				}
+			}
+			if (pinnedModels.length > 0) {
+				items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.pinned', "Pinned") });
+				for (const model of pinnedModels) {
+					const groupLabel = showGroupLabel
+						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
+						: undefined;
+					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
+				}
+			}
+
+			// --- 3. Promoted section (selected + recently used + featured) ---
+			// MRU excludes pinned models and is limited to 3 entries
+			const filteredRecentIds = recentModelIds.filter(id => !pinnedSet.has(id)).slice(0, 3);
+
 			type PromotedItem =
 				| { kind: 'available'; model: ILanguageModelChatMetadataAndIdentifier }
 				| { kind: 'unavailable'; id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' };
@@ -475,8 +552,8 @@ export function buildModelPickerItems(
 				tryPlaceModel(selectedModelId);
 			}
 
-			// Recently used models
-			for (const id of recentModelIds) {
+			// Recently used models (filtered to exclude pinned, limited to 3)
+			for (const id of filteredRecentIds) {
 				tryPlaceModel(id);
 			}
 
@@ -510,6 +587,9 @@ export function buildModelPickerItems(
 			// Promoted models show their provider group name inline only when more
 			// than one provider group is configured across all models.
 			if (promotedItems.length > 0) {
+				if (items.length > 0) {
+					items.push({ kind: ActionListItemKind.Separator });
+				}
 				promotedItems.sort((a, b) => {
 					const aAvail = a.kind === 'available' ? 0 : 1;
 					const bAvail = b.kind === 'available' ? 0 : 1;
@@ -521,21 +601,13 @@ export function buildModelPickerItems(
 					return aName.localeCompare(bName);
 				});
 
-				const allGroupKeys = new Set(
-					models.map(m => {
-						const info = getProviderGroupForModel(m, modelToGroup, languageModelsService!);
-						return getProviderGroupKey(info.vendor, info.groupName);
-					})
-				);
-				const showPromotedGroupLabel = allGroupKeys.size > 1;
-
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						const groupLabel = showPromotedGroupLabel
+						const groupLabel = showGroupLabel
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
-						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc));
+						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model)));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -627,7 +699,7 @@ export function buildModelPickerItems(
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
 							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
-							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc));
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model)));
 						}
 					}
 				}
@@ -775,7 +847,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
-	private _hideChevrons: IObservable<boolean> | undefined;
+	private _compact: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -806,6 +878,7 @@ export class ModelPickerWidget extends Disposable {
 		@IChatEntitlementService private readonly _entitlementService: IChatEntitlementService,
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -818,12 +891,12 @@ export class ModelPickerWidget extends Disposable {
 		}));
 	}
 
-	setHideChevrons(hideChevrons: IObservable<boolean>): void {
-		this._hideChevrons = hideChevrons;
+	setCompact(compact: IObservable<boolean>): void {
+		this._compact = compact;
 		this._register(autorun(reader => {
-			const hide = hideChevrons.read(reader);
+			const isCompact = compact.read(reader);
 			if (this._domNode) {
-				this._domNode.classList.toggle('hide-chevrons', hide);
+				this._domNode.classList.toggle('compact', isCompact);
 			}
 			this._renderLabel();
 		}));
@@ -851,8 +924,8 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'group');
 
 		// Apply initial collapsed state now that _domNode exists
-		if (this._hideChevrons?.get()) {
-			this._domNode.classList.toggle('hide-chevrons', true);
+		if (this._compact?.get()) {
+			this._domNode.classList.toggle('compact', true);
 		}
 
 		// Model name button
@@ -939,24 +1012,38 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const isPro = isProUser(this._entitlementService.entitlement);
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
+		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
-		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
+		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
-		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
+		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
+		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
+			if (pinned) {
+				this._languageModelsService.pinModel(modelIdentifier);
+			} else {
+				this._languageModelsService.unpinModel(modelIdentifier);
+			}
+			// Re-show the picker to reflect the updated pin state
+			this._actionWidgetService.hide();
+			this.show(anchorElement);
+		};
+
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds(),
+			this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+			this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModelsForTier,
 			this._productService.version,
 			this._updateService.state.type,
 			onSelect,
+			onTogglePin,
 			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
 			isUBB ? manageModelsAction : undefined,
@@ -967,6 +1054,16 @@ export class ModelPickerWidget extends Disposable {
 			this._openerService,
 			isUBB,
 		);
+
+		// Collect all hover disposables so they are properly cleaned up when the
+		// picker is hidden. The ActionListWidget only tracks the disposable for the
+		// currently-shown hover; all other items' hover disposables would leak.
+		const hoverDisposables = new DisposableStore();
+		for (const item of items) {
+			if (item.hover?.disposable) {
+				hoverDisposables.add(item.hover.disposable);
+			}
+		}
 
 		const listOptions = {
 			// Always show the filter to allow for the secondary heading to show
@@ -998,6 +1095,7 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
+				hoverDisposables.dispose();
 				this._nameButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
@@ -1219,10 +1317,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
@@ -1279,14 +1374,14 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.tokens.costHint', "Larger size may increase cost in longer sessions"),
+				footerText: localize('chat.tokens.costHint', "Larger context may increase cost"),
 			}
 		);
 	}
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
@@ -1315,48 +1410,51 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 
 	// --- Cost info (UBB only) ---
 	if (!isAuto && isUBB) {
-		const costLines: { label: string; value: string }[] = [];
-		if (model.metadata.inputCost !== undefined) {
-			costLines.push({
-				label: localize('models.inputCostLabel', "Input"),
-				value: model.metadata.inputCost === 1
-					? localize('models.costValueSingular', "{0} credit", model.metadata.inputCost)
-					: localize('models.costValuePlural', "{0} credits", model.metadata.inputCost),
-			});
-		}
-		if (model.metadata.cacheCost !== undefined) {
-			costLines.push({
-				label: localize('models.cacheCostLabel', "Cached input"),
-				value: model.metadata.cacheCost === 1
-					? localize('models.costValueSingular', "{0} credit", model.metadata.cacheCost)
-					: localize('models.costValuePlural', "{0} credits", model.metadata.cacheCost),
-			});
-		}
-		if (model.metadata.outputCost !== undefined) {
-			costLines.push({
-				label: localize('models.outputCostLabel', "Output"),
-				value: model.metadata.outputCost === 1
-					? localize('models.costValueSingular', "{0} credit", model.metadata.outputCost)
-					: localize('models.costValuePlural', "{0} credits", model.metadata.outputCost),
-			});
-		}
-
-		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
-		if (costLines.length > 0) {
-			const costSection = dom.$('.chat-model-hover-cost');
-			const titleRow = dom.$('.chat-model-hover-cost-title-row');
-			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
-			if (priceCategoryLabel) {
-				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
+		const formatCostValue = (cost: number): string => {
+			return cost === 1
+				? localize('models.costValueSingular', "{0} credit", cost)
+				: localize('models.costValuePlural', "{0} credits", cost);
+		};
+		const buildCostLines = (input: number | undefined, cache: number | undefined, output: number | undefined): { label: string; value: string }[] => {
+			const lines: { label: string; value: string }[] = [];
+			if (input !== undefined) {
+				lines.push({ label: localize('models.inputCostLabel', "Input"), value: formatCostValue(input) });
 			}
-			costSection.appendChild(titleRow);
-			for (const line of costLines) {
-				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
+			if (cache !== undefined) {
+				lines.push({ label: localize('models.cacheCostLabel', "Cached input"), value: formatCostValue(cache) });
+			}
+			if (output !== undefined) {
+				lines.push({ label: localize('models.outputCostLabel', "Output"), value: formatCostValue(output) });
+			}
+			return lines;
+		};
+		const appendCostSection = (parent: HTMLElement, title: string, lines: { label: string; value: string }[], categoryLabel?: string): void => {
+			const section = dom.$('.chat-model-hover-cost');
+			const titleRow = dom.$('.chat-model-hover-cost-title-row');
+			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, title));
+			if (categoryLabel) {
+				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, categoryLabel));
+			}
+			section.appendChild(titleRow);
+			for (const line of lines) {
+				section.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
 					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
 					dom.$('span', undefined, line.value),
 				));
 			}
-			container.appendChild(costSection);
+			parent.appendChild(section);
+		};
+
+		const costLines = buildCostLines(model.metadata.inputCost, model.metadata.cacheCost, model.metadata.outputCost);
+		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
+		if (costLines.length > 0) {
+			appendCostSection(container, localize('models.priceTitle', "Cost (per 1M tokens)"), costLines, priceCategoryLabel);
+
+			// Long-context pricing — only when it differs from default
+			const longContextCostLines = buildCostLines(model.metadata.longContextInputCost, model.metadata.longContextCacheCost, model.metadata.longContextOutputCost);
+			if (longContextCostLines.length > 0) {
+				appendCostSection(container, localize('models.longContextPriceTitle', "Long context cost (per 1M tokens)"), longContextCostLines);
+			}
 		} else if (priceCategoryLabel) {
 			const costSection = dom.$('.chat-model-hover-cost');
 			const titleRow = dom.$('.chat-model-hover-cost-title-row');
@@ -1407,9 +1505,12 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 
 
 export function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
 	} else if (count >= 1000) {
 		return `${Math.round(count / 1000)}K`;
 	}

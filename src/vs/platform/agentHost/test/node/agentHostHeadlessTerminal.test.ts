@@ -82,6 +82,26 @@ suite('AgentHostHeadlessTerminal', () => {
 		assert.strictEqual(terminal.isBracketedPasteMode(), false);
 	});
 
+	test('resolves alt-buffer promise on alternate buffer entry', async () => {
+		const terminal = createTerminal();
+		const altBufferStore = disposables.add(new DisposableStore());
+		const altBufferPromise = terminal.createAltBufferPromise(altBufferStore);
+		let resolved = false;
+		void altBufferPromise.then(() => resolved = true);
+
+		assert.strictEqual(terminal.isInAltBuffer(), false);
+		await terminal.writePtyData('\x1b[?1049h');
+		assert.strictEqual(terminal.isInAltBuffer(), true);
+		await altBufferPromise;
+		assert.strictEqual(resolved, true);
+
+		await terminal.writePtyData('\x1b[?1049h');
+		assert.strictEqual(terminal.isInAltBuffer(), true);
+
+		await terminal.writePtyData('\x1b[?1049l');
+		assert.strictEqual(terminal.isInAltBuffer(), false);
+	});
+
 	test('ignores writes after dispose', async () => {
 		const terminal = createTerminal();
 		const responses: string[] = [];

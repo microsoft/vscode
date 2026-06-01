@@ -203,7 +203,7 @@
 /* Remove card appearance from ALL parts on phone.
 	Specificity wins over the desktop card rule in style.css without !important;
 	width/height match what the mobile Part.layout() already inlines. */
-.agent-sessions-workbench.phone-layout .part.chatbar,
+.agent-sessions-workbench.phone-layout .part.sessionspart,
 .agent-sessions-workbench.phone-layout .part.sidebar,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar,
 .agent-sessions-workbench.phone-layout .part.panel {
@@ -220,9 +220,9 @@
 	`!important` is required because `Part.layoutContents()` inlines the
 	width on `.part > .content` based on the splitview size (rule #2 in the
 	policy above). Without this, opening the sidebar — which makes the
-	splitview share space between sidebar and chatbar — would shrink the
-	chatbar's content during the drawer slide animation. */
-.agent-sessions-workbench.phone-layout .part.chatbar > .content,
+	splitview share space between sidebar and sessions part — would shrink the
+	sessions part's content during the drawer slide animation. */
+.agent-sessions-workbench.phone-layout .part.sessionspart > .content,
 .agent-sessions-workbench.phone-layout .part.sidebar > .content,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar > .content,
 .agent-sessions-workbench.phone-layout .part.panel > .content {
@@ -230,8 +230,8 @@
 	height: 100% !important;
 }
 
-/* Hide the session composite bar (Copilot CLI / Approvals / Branch) on phone */
-.agent-sessions-workbench.phone-layout .session-composite-bar {
+/* Hide the desktop chat tab strip on phone. */
+.agent-sessions-workbench.phone-layout .chat-composite-bar {
 	display: none;
 }
 
@@ -652,7 +652,7 @@
 }
 
 /* Prevent card transitions from flashing on phone */
-.agent-sessions-workbench.phone-layout .part.chatbar,
+.agent-sessions-workbench.phone-layout .part.sessionspart,
 .agent-sessions-workbench.phone-layout .part.sidebar,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar,
 .agent-sessions-workbench.phone-layout .part.panel {
