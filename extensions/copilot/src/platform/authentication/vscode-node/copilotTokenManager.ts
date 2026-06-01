@@ -14,6 +14,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { CopilotToken, ExtendedTokenInfo, TokenErrorNotificationId, TokenInfoOrError } from '../common/copilotToken';
+import { ErrorNoTelemetry } from '../../../util/vs/base/common/errors';
 import { nowSeconds } from '../common/copilotTokenManager';
 import { BaseCopilotTokenManager } from '../node/copilotTokenManager';
 import { getAnyAuthSession } from './session';
@@ -27,7 +28,11 @@ export class ContactSupportError extends Error { }
 export class EnterpriseManagedError extends Error { }
 export class InvalidTokenError extends Error { }
 export class RateLimitedError extends Error { }
-export class GitHubLoginFailedError extends Error { }
+// Not signing in to GitHub is an expected condition (e.g. BYOK / air-gapped / anonymous
+// flows). Extend ErrorNoTelemetry so it does not pollute the unhandled-error telemetry
+// dashboard when it escapes as an unhandled rejection. The intentional
+// `auth.github_login_failed` GitHub telemetry event is still sent at the failure site.
+export class GitHubLoginFailedError extends ErrorNoTelemetry { }
 
 export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
 	private _taskSingler = new TaskSingler<TokenInfoOrError>();
