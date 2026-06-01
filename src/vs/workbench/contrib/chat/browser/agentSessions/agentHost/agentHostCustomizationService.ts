@@ -30,6 +30,8 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+
+	getWorkingDirectory(sessionResource: URI): string | undefined;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -41,6 +43,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	}
 	getCustomizations(_sessionResource: URI): readonly Customization[] {
 		return [];
+	}
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		return undefined;
 	}
 }
 
@@ -99,6 +104,11 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 	getCustomizations(sessionResource: URI): readonly Customization[] {
 		const sessionState = this._readSessionState(sessionResource);
 		return sessionState?.customizations ?? [];
+	}
+
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		const sessionState = this._readSessionState(sessionResource);
+		return sessionState?.summary.workingDirectory;
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {

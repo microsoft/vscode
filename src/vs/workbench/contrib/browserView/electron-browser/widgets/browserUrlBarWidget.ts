@@ -68,10 +68,8 @@ export class BrowserUrlBarWidget extends Disposable {
 	private readonly _pickerActionProviders: IBrowserUrlPickerActionProvider[] = [];
 	private readonly _picker = this._register(new MutableDisposable<IQuickPick<IUrlPickerItem, { useSeparators: true }>>());
 
-	// One-shot suppression of the display's "focus opens picker" path. Set
-	// when we programmatically move focus to the display (e.g. picker hide
-	// restoring focus) so the picker doesn't immediately re-open.
 	private _suppressFocusOpen = false;
+	private _suppressBlurRevert = false;
 
 	constructor(
 		private readonly _host: IBrowserUrlBarHost,
@@ -222,6 +220,12 @@ export class BrowserUrlBarWidget extends Disposable {
 			if (this._picker.value) {
 				return;
 			}
+			// One-shot bypass after an Enter-commit on the display: keep the
+			// typed value visible until the navigation commits.
+			if (this._suppressBlurRevert) {
+				this._suppressBlurRevert = false;
+				return;
+			}
 			// User left the URL bar without navigating; discard any in-progress
 			// edit and snap back to the canonical URL.
 			if ((this._urlDisplay.textContent ?? '') !== this._canonicalUrl) {
@@ -249,7 +253,12 @@ export class BrowserUrlBarWidget extends Disposable {
 				e.preventDefault();
 				const value = this._urlDisplay.textContent?.trim() ?? '';
 				if (value) {
+					// Suppress the next BLUR-revert: the user committed to
+					// this value, so we don't want it discarded just because
+					// `model.url` won't catch up until navigation commits.
+					this._suppressBlurRevert = true;
 					this._host.input?.navigate(value);
+					this._host.ensureBrowserFocus();
 				}
 				return;
 			}
@@ -437,9 +446,8 @@ export class BrowserUrlBarWidget extends Disposable {
 					item.iconClass = ThemeIcon.asClassName(s.icon);
 				}
 				if (s.actions && s.actions.length > 0) {
-					// Per-item buttons (e.g. delete on a bookmark). We pass
-					// the action objects through directly so onDidTriggerItemButton
-					// hands them back to us as the IBrowserUrlSuggestionAction.
+					// Per-item buttons. We pass the action objects through directly
+					// so onDidTriggerItemButton hands them back to us as the IBrowserUrlSuggestionAction.
 					item.buttons = s.actions;
 				}
 				items.push(item);
@@ -518,8 +526,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		};
 		applyItems(picker.value);
 
-		// Re-run providers if any of them reports a state change while the
-		// picker is open (e.g. a bookmark removed via a per-item action).
+		// Re-run providers if any of them reports a state change while the picker is open.
 		for (const provider of this._suggestionProviders) {
 			if (provider.onDidChange) {
 				disposables.add(provider.onDidChange(() => applyItems(picker.value)));
@@ -547,7 +554,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			this._renderUrl(value);
 		}));
 
-		// Mount provider-contributed picker actions (e.g. bookmark toggle).
+		// Mount provider-contributed picker actions.
 		// Re-build buttons whenever any provider reports a state change so
 		// dynamic actions (toggles, conditional buttons) stay in sync.
 		const refreshButtons = () => {
@@ -583,11 +590,10 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 
-		// Per-item button (e.g. delete on a bookmark suggestion). We attached
-		// the IBrowserUrlSuggestionAction directly as the picker button, so
-		// the event hands it back to us by reference. Unlike onDidTriggerButton
-		// this does NOT count as "the user accepted the suggestion" — the
-		// picker stays open and the action runs in-place.
+		// Per-item button. We attached the IBrowserUrlSuggestionAction directly
+		// as the picker button, so the event hands it back to us by reference.
+		// Unlike onDidTriggerButton this does NOT count as "the user accepted the suggestion"
+		// — the picker stays open and the action runs in-place.
 		disposables.add(picker.onDidTriggerItemButton(({ button }) => {
 			const action = button as IBrowserUrlSuggestionAction;
 			const input = this._host.input;

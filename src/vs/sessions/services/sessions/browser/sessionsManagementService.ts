@@ -15,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
@@ -65,6 +65,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidDeleteChat: Event<ISession> = this._onDidDeleteChat.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
+
+	private readonly _onDidToggleSessionStickiness = this._register(new Emitter<IToggleSessionStickinessEvent>());
+	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent> = this._onDidToggleSessionStickiness.event;
 
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -591,7 +594,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._visibility.setActiveChat(session, chat);
 	}
 
-	setActive(session: IActiveSession) {
+	setActive(session: IActiveSession | undefined) {
 		this.setActiveSession(session);
 	}
 
@@ -611,7 +614,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	toggleSessionStickiness(session: ISession): void {
-		this._visibility.toggleStickiness(session);
+		const sticky = this._visibility.toggleStickiness(session);
+		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
 	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {

@@ -85,11 +85,11 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const hasLongContextSurcharge = !!pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default pricing'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
 		{
 			value: fullMax,
 			description: hasLongContextSurcharge
-				? vscode.l10n.t('Longer sessions (higher cost)')
+				? vscode.l10n.t('Longer sessions')
 				: vscode.l10n.t('Longer sessions without compaction'),
 			isDefault: false,
 		},

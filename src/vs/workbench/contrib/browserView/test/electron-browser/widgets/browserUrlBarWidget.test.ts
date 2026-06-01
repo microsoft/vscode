@@ -427,6 +427,32 @@ suite('BrowserUrlBarWidget', () => {
 		);
 	});
 
+	test('pressing Enter on the display navigates and preserves the typed text through the subsequent blur', () => {
+		const harness = makeHarness();
+		const { widget, display, navigated } = harness;
+		widget.focusUrlInput();
+		display.textContent = 'https://typed-into-display.test/';
+		// `StandardKeyboardEvent` reads the (deprecated) numeric `keyCode`,
+		// so pass it explicitly (Enter == 13) rather than relying on `key`.
+		display.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, key: 'Enter', bubbles: true, cancelable: true } as KeyboardEventInit));
+		display.blur();
+		// `model.url` (canonical) hasn't caught up to the typed URL yet, but
+		// the BLUR-revert should be suppressed for an Enter-commit so the
+		// destination stays visible until the navigation commits.
+		assert.deepStrictEqual(
+			{
+				navigated: [...navigated],
+				display: display.textContent,
+				ensureBrowserFocusCalls: harness.ensureBrowserFocusCalls(),
+			},
+			{
+				navigated: ['https://typed-into-display.test/'],
+				display: 'https://typed-into-display.test/',
+				ensureBrowserFocusCalls: 1,
+			},
+		);
+	});
+
 	test('suggestion provider onDidChange reruns the load', async () => {
 		const { widget, picker } = makeHarness();
 		const refresh = new Emitter<void>();

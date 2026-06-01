@@ -36,6 +36,11 @@
 		color: unset;
 	}
 
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .codicon,
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .monaco-pixel-spinner {
+		color: var(--vscode-list-activeSelectionForeground) !important;
+	}
+
 	.monaco-list:not(:focus) .monaco-list-row.selected .session-details-row {
 		color: var(--vscode-descriptionForeground);
 	}

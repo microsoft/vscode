@@ -7,7 +7,7 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
@@ -385,12 +385,12 @@ export class IssueReporterOverlay {
 				let remaining = this.screenshotDelay;
 				captureBtn.label = `${remaining}...`;
 				const targetWindow = getWindow(this.container);
-				const interval = targetWindow.setInterval(() => {
+				const intervalDisposable = this.disposables.add(disposableWindowInterval(targetWindow, () => {
 					remaining--;
 					if (remaining > 0) {
 						captureBtn.label = `${remaining}...`;
 					} else {
-						targetWindow.clearInterval(interval);
+						this.disposables.delete(intervalDisposable);
 						captureBtn.label = `$(device-camera) ${localize('screenshot', "Screenshot")}`;
 						captureBtn.element.style.minWidth = '';
 						captureBtn.enabled = true;
@@ -399,7 +399,7 @@ export class IssueReporterOverlay {
 						this.updateAttachmentButtons();
 						this._onDidRequestScreenshot.fire();
 					}
-				}, 1000);
+				}, 1000));
 			} else {
 				this._onDidRequestScreenshot.fire();
 			}
