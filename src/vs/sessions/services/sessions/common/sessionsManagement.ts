@@ -53,6 +53,25 @@ export interface ISessionsChangeEvent {
 }
 
 /**
+ * Payload for {@link ISessionsManagementService.onDidSendRequest}.
+ */
+export interface ISendRequestSentEvent {
+	readonly session: ISession;
+	readonly chat: IChat;
+	readonly isNewSession: boolean;
+	readonly options: ISendRequestOptions;
+}
+
+/**
+ * Payload for {@link ISessionsManagementService.onDidToggleSessionStickiness}.
+ */
+export interface IToggleSessionStickinessEvent {
+	readonly session: ISession;
+	/** The session's stickiness state after the toggle. */
+	readonly sticky: boolean;
+}
+
+/**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
@@ -114,6 +133,37 @@ export interface ISessionsManagementService {
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	/**
+	 * Fires when a brand-new session is started by this window via
+	 * {@link sendNewChatRequest}.
+	 */
+	readonly onDidStartSession: Event<ISession>;
+
+	/**
+	 * Fires immediately before a chat request is sent from this window via
+	 * {@link sendNewChatRequest} or {@link sendRequest}. Listeners can use this
+	 * to prewarm caches whose result is consumed by {@link onDidSendRequest}.
+	 */
+	readonly onWillSendRequest: Event<ISession>;
+
+	/**
+	 * Fires after a chat request was successfully sent from this window via
+	 * {@link sendNewChatRequest} or {@link sendRequest}.
+	 */
+	readonly onDidSendRequest: Event<ISendRequestSentEvent>;
+
+	/** Fires after a session was successfully archived via {@link archiveSession}. */
+	readonly onDidArchiveSession: Event<ISession>;
+	/** Fires after a session was successfully unarchived via {@link unarchiveSession}. */
+	readonly onDidUnarchiveSession: Event<ISession>;
+	/** Fires after a session was successfully deleted via {@link deleteSession}. */
+	readonly onDidDeleteSession: Event<ISession>;
+	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
+	readonly onDidDeleteChat: Event<ISession>;
+	/** Fires after a chat was successfully renamed via {@link renameChat}. */
+	readonly onDidRenameChat: Event<ISession>;
+	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
+	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
 
 	// -- Active Session --
 
@@ -156,11 +206,19 @@ export interface ISessionsManagementService {
 	 * Close a session: remove it from the visibility model so it is no longer
 	 * shown in the grid. If the session was the active one, the previous
 	 * visible session becomes active; if no session remains visible, the
-	 * new-session view is opened.
+	 * new-session view is opened. Passing `undefined` closes the empty
+	 * (new-session) slot if it is currently visible.
 	 */
-	closeSession(session: ISession): void;
+	closeSession(session: ISession | undefined): void;
 
-	setActive(session: IActiveSession): void;
+	/**
+	 * Close all sessions currently shown in the grid. Removes every visible
+	 * session in a single pass and lands on the new-session view. No-op when no
+	 * session is currently visible.
+	 */
+	closeAllSessions(): void;
+
+	setActive(session: IActiveSession | undefined): void;
 
 	/**
 	 * Select an existing session as the active session.

@@ -42,7 +42,6 @@ export class TestContext {
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
-	private readonly patchedWslNodePaths = new Set<string>();
 	private nextPort = 3010;
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
@@ -255,38 +254,6 @@ export class TestContext {
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * On WSL1, patches the Node.js binary used by the server to remove ELF note sections
-	 * that cause Node 24 to fail to start. No-op on WSL2.
-	 * @param wslEntryPoint The WSL path to the server entry point script.
-	 */
-	public applyWsl1Node24Workaround(wslEntryPoint: string): void {
-		if (this.getUbuntuWslVersion() !== 1) {
-			return;
-		}
-
-		const wslNodePath = wslEntryPoint.replace(/\/bin\/[^/]+$/, '/node');
-		if (this.patchedWslNodePaths.has(wslNodePath)) {
-			return;
-		}
-
-		this.patchedWslNodePaths.add(wslNodePath);
-		this.warn(`Applying WSL1 Node 24 workaround for ${wslNodePath}`);
-
-		const shellScript = [
-			'set -e',
-			`node_path='${wslNodePath}'`,
-			'backup_path="${node_path}.orig"',
-			'if [ -f "${backup_path}" ]; then exit 0; fi',
-			'if ! command -v objcopy >/dev/null 2>&1; then apt-get update && apt-get install -y binutils; fi',
-			'cp "${node_path}" "${backup_path}"',
-			'objcopy --remove-section .note.ABI-tag --remove-section .note.gnu.build-id --remove-section .note.gnu.property "${backup_path}" "${node_path}"',
-			'chmod +x "${node_path}"',
-		].join('; ');
-
-		this.runNoErrors('wsl', '-d', 'Ubuntu', 'sh', '-lc', shellScript);
 	}
 
 	/**
@@ -884,22 +851,32 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public async installDeb(packagePath: string): Promise<string> {
+		const name = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', name, name);
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${entryPoint}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using DEB package manager`);
 		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
-		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux DEB package.
+	 * Uninstalls VS Code Linux DEB package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallDeb() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/share', name, name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`DEB package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
 		await this.runDpkgNoErrors('-r', name);
@@ -917,22 +894,33 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installRpm(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const installedBinary = path.join('/usr/bin', name);
+		if (fs.existsSync(installedBinary)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${installedBinary}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using RPM package manager`);
 		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
 		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux RPM package.
+	 * Uninstalls VS Code Linux RPM package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallRpm() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`RPM package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
 		this.runSudoNoErrors('rpm', '-e', name);
@@ -950,23 +938,34 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installSnap(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const snapWrapper = path.join('/snap/bin', name);
+		if (fs.existsSync(snapWrapper)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${snapWrapper}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using Snap package manager`);
 		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
-		const name = this.getLinuxBinaryName();
 		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux Snap package.
+	 * Uninstalls VS Code Linux Snap package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallSnap() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/snap/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`Snap package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
 		this.runSudoNoErrors('snap', 'remove', name);
