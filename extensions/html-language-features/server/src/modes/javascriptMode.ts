@@ -474,13 +474,6 @@ function tagToMarkdown(tag: ts.JSDocTagInfo): string {
 			}
 			break;
 		}
-		case 'return':
-		case 'returns': {
-			if (!text) {
-				return `*@${tag.name}*`;
-			}
-			break;
-		}
 	}
 
 	const label = `*@${tag.name}*`;
