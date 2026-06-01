@@ -889,14 +889,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: totalOutputTokens,
 						...(totalCacheReadTokens ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: totalCacheReadTokens } : {}),
 						...(totalCacheCreationTokens ? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: totalCacheCreationTokens } : {}),
-						// Dual-emit reasoning tokens under both the legacy and semconv-aligned keys.
 						// Reasoning tokens are a SUBSET of USAGE_OUTPUT_TOKENS (mirrors OpenAI
-						// completion_tokens_details.reasoning_tokens), so the invoke_agent root
-						// span matches the per-turn chat spans emitted by chatMLFetcher.
-						...(totalReasoningTokens ? {
-							[GenAiAttr.USAGE_REASONING_TOKENS]: totalReasoningTokens,
-							[GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: totalReasoningTokens,
-						} : {}),
+						// completion_tokens_details.reasoning_tokens), so this is a sub-breakdown
+						// of output, not an addition.
+						...(totalReasoningTokens ? { [GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: totalReasoningTokens } : {}),
 						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: normalizeResponseModel(requestModel, lastResolvedModel) ?? lastResolvedModel } : {}),
 					});
 					// Always capture agent output message and tool definitions for the debug panel
