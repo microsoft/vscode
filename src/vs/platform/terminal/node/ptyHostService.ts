@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -88,7 +88,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 
-	private readonly _ptyHostStore = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _ptyHostStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _ptyHostStarter: IPtyHostStarter,
@@ -143,9 +143,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _startPtyHost(): void {
 		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
-		const store = new DisposableStore();
+		const store = this._ptyHostStore;
+		// Transfer ownership of the per-host connection store so it is disposed together with the listeners below on the next restart.
 		store.add(connection.store);
-		this._ptyHostStore.value = store;
 
 		// Log a full stack trace which will tell the exact reason the pty host is starting up
 		if (this._logService.getLevel() === LogLevel.Trace) {
@@ -370,9 +370,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _disposePtyHost(): void {
 		this._clearHeartbeatTimeouts();
 		this._optionalProxy?.shutdownAll();
-		this._ptyHostStore.clear();
 		this.__connection = undefined;
 		this.__proxy = undefined;
+		this._ptyHostStore.clear();
 	}
 
 	private _handleHeartbeat(isConnecting?: boolean) {
