@@ -18,7 +18,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
-		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs();
+		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs(false, options.sandboxPrecheckInputs);
 		if (!sandboxPrereqs.enabled || sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Config) {
 			return undefined;
 		}

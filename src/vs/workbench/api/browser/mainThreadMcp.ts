@@ -14,6 +14,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as nls from '../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
@@ -22,6 +23,7 @@ import { ISecretStorageService } from '../../../platform/secrets/common/secrets.
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { IMcpEnterpriseManagedAuthIdpConfig, mcpEnterpriseManagedAuthIdpSection } from '../../contrib/mcp/common/mcpConfiguration.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -62,6 +64,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchMcpGatewayService private readonly _mcpGatewayService: IWorkbenchMcpGatewayService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
 	) {
 		super();
@@ -237,6 +240,51 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		const authorizationServer = URI.revive(authDetails.authorizationServer);
 		const resourceServer = authDetails.resourceMetadata?.resource ? URI.parse(authDetails.resourceMetadata.resource) : undefined;
 		const resolvedScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? authDetails.authorizationServerMetadata.scopes_supported ?? [];
+
+		// Enterprise-managed servers route through an XAA / ID-JAG provider keyed by the user-configured
+		// SSO issuer instead of doing a per-server DCR against the resource's authorization server.
+		if (authDetails.enterpriseManaged) {
+			const resource = authDetails.resourceMetadata?.resource;
+			if (!resource) {
+				throw new Error(nls.localize('mcp.enterpriseManaged.missingResource', "The enterprise-managed MCP server '{0}' did not advertise a protected-resource metadata document with a 'resource' identifier.", server.label));
+			}
+			// Per ID-JAG (draft-ietf-oauth-identity-assertion-authz-grant), the token exchange
+			// `audience` is the *authorization server* of the resource — i.e. the issuer that will
+			// redeem the ID-JAG assertion. We pick the first server advertised by the resource's
+			// oauth-protected-resource metadata.
+			const resourceAuthServers = authDetails.resourceMetadata?.authorization_servers ?? [];
+			const audience = resourceAuthServers[0];
+			if (!audience) {
+				throw new Error(nls.localize('mcp.enterpriseManaged.missingAS', "The enterprise-managed MCP server '{0}' did not advertise an `authorization_servers` entry in its protected-resource metadata.", server.label));
+			}
+			// For XAA the scopes sent to the IdP token-exchange step are the *resource* scopes
+			// (e.g. "todos.read mcp.access"), NOT the IdP login scopes (openid/offline_access/…).
+			// `resolvedScopes` may have fallen through to `authorizationServerMetadata.scopes_supported`
+			// which is the IdP's metadata — wrong for this step. Use only the scopes derived from the
+			// WWW-Authenticate challenge or the resource's own metadata.
+			const xaaScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? [];
+			const issuer = this._ensureXaaIssuer();
+			const xaaProviderId = await this._authenticationService.createOrGetXaaProvider(issuer);
+			if (!xaaProviderId) {
+				return undefined;
+			}
+			const resourceClientId = clientId ?? authDetails.clientId;
+			// Resolve the resource-AS client secret from secret storage, keyed by the resource indicator
+			// + the configured resource client_id. Set via the "Set Client Secret" code lens above
+			// `oauth.clientId` in mcp.json (the server URL equals the resource indicator per RFC 9470).
+			// Using `resource` (not the server launch URI) ensures the key matches what the prompt
+			// writes in $promptForResourceClientSecret, so prompted secrets survive window reload.
+			let resourceClientSecret: string | undefined;
+			if (resourceClientId) {
+				try {
+					resourceClientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(resource, resourceClientId));
+				} catch {
+					// Best-effort lookup; fall through.
+				}
+			}
+			return this._getSessionForProvider(id, server, xaaProviderId, xaaScopes, issuer, errorOnUserInteraction, resourceClientId, resource, audience, resourceClientSecret);
+		}
+
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
 
 		const resolvedClientId = clientId ?? authDetails.clientId;
@@ -282,7 +330,25 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, clientSecret);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, /* audience */ undefined, clientSecret);
+	}
+
+	private _ensureXaaIssuer(): URI {
+		const config = this._configurationService.getValue<IMcpEnterpriseManagedAuthIdpConfig | undefined>(mcpEnterpriseManagedAuthIdpSection) ?? {};
+		const configuredIssuer = config.issuer?.trim();
+		if (!configuredIssuer) {
+			throw new Error(nls.localize('mcp.enterpriseManaged.issuerMissing', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to be configured. Set it via enterprise policy (Windows Group Policy / macOS managed preferences / Linux `/etc/vscode/policy.json`) or, for local testing, by hand-editing `settings.json`."));
+		}
+		let parsed: URI;
+		try {
+			parsed = URI.parse(configuredIssuer);
+		} catch {
+			throw new Error(nls.localize('mcp.enterpriseManaged.issuerInvalid', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to be a valid URL; got '{0}'.", configuredIssuer));
+		}
+		if (parsed.scheme !== 'https' && parsed.scheme !== 'http') {
+			throw new Error(nls.localize('mcp.enterpriseManaged.issuerNotHttp', "Enterprise-managed MCP authentication requires `mcp.enterpriseManagedAuth.idp.issuer` to use the `https` or `http` scheme; got '{0}'.", configuredIssuer));
+		}
+		return parsed;
 	}
 
 	private async _getSessionForProvider(
@@ -294,9 +360,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		errorOnUserInteraction: boolean = false,
 		clientId?: string,
 		resource?: string,
+		audience?: string,
 		clientSecret?: string,
 	): Promise<string | undefined> {
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource, audience }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -351,7 +418,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 						authorizationServer,
 						clientId,
 						clientSecret,
-						resource
+						resource,
+						audience
 					});
 			} while (
 				accountToCreate

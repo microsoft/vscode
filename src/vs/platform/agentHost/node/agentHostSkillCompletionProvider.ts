@@ -14,16 +14,16 @@ import { toAgentClientUri } from '../common/agentClientUri.js';
 import type { IAgent } from '../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CustomizationStatus, type CustomizationRef, type SessionCustomization } from '../common/state/sessionState.js';
+import { CustomizationLoadStatus, type ClientPluginCustomization, type Customization, type CustomizationLoadState } from '../common/state/sessionState.js';
 import { parsePlugin, type INamedPluginResource } from '../../agentPlugins/common/pluginParsers.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractLeadingSlashToken } from './agentHostSlashCompletion.js';
 
 interface ISkillCustomizationCandidate {
-	readonly customization: CustomizationRef;
-	readonly enabled: boolean;
+	readonly customization: Customization;
+	readonly nonce?: string;
 	readonly clientId?: string;
-	readonly status?: CustomizationStatus;
+	readonly load?: CustomizationLoadState;
 }
 
 interface ISkillCompletionMetadata {
@@ -80,7 +80,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		const skillBySlashName = new Map<string, ISkillCompletionMetadata>();
 		for (const candidate of candidates) {
 			const pluginRoot = this._resolvePluginRoot(candidate);
-			const cacheKey = this._cacheKey(agent.id, pluginRoot, candidate.customization.nonce);
+			const cacheKey = this._cacheKey(agent.id, pluginRoot, candidate.nonce);
 			reachableCacheKeys.add(cacheKey);
 
 			const skills = await this._getCachedSkills(agent.id, cacheKey, pluginRoot);
@@ -116,7 +116,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly ISkillCustomizationCandidate[]> {
-		let sessionCustomizations: readonly SessionCustomization[] = [];
+		let sessionCustomizations: readonly Customization[] = [];
 		if (agent.getSessionCustomizations) {
 			try {
 				sessionCustomizations = await agent.getSessionCustomizations(session);
@@ -128,12 +128,13 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		const seen = new Set<string>();
 		const candidates: ISkillCustomizationCandidate[] = [];
 		for (const item of sessionCustomizations) {
-			seen.add(item.customization.uri);
+			seen.add(item.uri);
+			const nonce = (item as ClientPluginCustomization).nonce;
 			candidates.push({
-				customization: item.customization,
-				enabled: item.enabled,
+				customization: item,
+				...(nonce !== undefined ? { nonce } : {}),
 				...(item.clientId !== undefined ? { clientId: item.clientId } : {}),
-				...(item.status !== undefined ? { status: item.status } : {}),
+				...(item.load !== undefined ? { load: item.load } : {}),
 			});
 		}
 
@@ -142,10 +143,10 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			if (seen.has(customization.uri)) {
 				continue;
 			}
-			candidates.push({ customization, enabled: true });
+			candidates.push({ customization });
 		}
 
-		return candidates.filter(candidate => candidate.enabled && candidate.status !== CustomizationStatus.Loading && candidate.status !== CustomizationStatus.Error);
+		return candidates.filter(candidate => candidate.customization.enabled && candidate.load?.kind !== CustomizationLoadStatus.Loading && candidate.load?.kind !== CustomizationLoadStatus.Error);
 	}
 
 	private _watchAgent(agent: IAgent): void {

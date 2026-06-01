@@ -56,7 +56,7 @@ import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPla
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
@@ -90,7 +90,7 @@ import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
-import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getEffectiveThinkingDisplayMode } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
@@ -356,8 +356,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const originalStoredHeight = template.currentElement.currentRenderedHeight;
 		template.currentElement.currentRenderedHeight = normalizedHeight;
-		if (template.currentElement !== this._elementBeingRendered && typeof originalStoredHeight === 'number') {
+		if (template.currentElement === this._elementBeingRendered) {
+			return;
+		}
+
+		if (typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
+		} else {
+			const element = template.currentElement;
+			const scheduledHeight = normalizedHeight;
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
+				if (template.currentElement !== element || element.currentRenderedHeight !== scheduledHeight) {
+					return;
+				}
+				this._onDidChangeItemHeight.fire({ element, height: scheduledHeight });
+			});
 		}
 	}
 
@@ -1394,7 +1407,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
-			content = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
+			const attachmentSummary = !element.messageText.trim() ? getExplicitFileOrImageAttachmentSummary(element.variables) : undefined;
+			const requestMarkdown = markdown.trim() ? markdown : attachmentSummary;
+			if (requestMarkdown) {
+				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
+			}
 
 			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
 				templateData.value.classList.add('inline-progress');
@@ -2174,7 +2191,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!lastThinking) {
 			return;
 		}
-		const style = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
 			lastThinking.collapseContent();
 		}

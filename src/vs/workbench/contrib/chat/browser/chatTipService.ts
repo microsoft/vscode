@@ -9,6 +9,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -788,26 +789,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return normalizedModelId;
 		};
 
-		const contextKeyModelId = normalize(contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatModelId.key));
-		if (contextKeyModelId) {
-			return contextKeyModelId;
-		}
-
-		const location = contextKeyService.getContextKeyValue<ChatAgentLocation>(ChatContextKeys.location.key) ?? ChatAgentLocation.Chat;
-		const sessionType = contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key) ?? '';
-		const candidateStorageKeys = sessionType
-			? [`chat.currentLanguageModel.${location}.${sessionType}`, `chat.currentLanguageModel.${location}`]
-			: [`chat.currentLanguageModel.${location}`];
-
-		for (const storageKey of candidateStorageKeys) {
-			const persistedModelIdentifier = this._storageService.get(storageKey, StorageScope.APPLICATION);
-			const persistedModelId = normalize(persistedModelIdentifier);
-			if (persistedModelId) {
-				return persistedModelId;
-			}
-		}
-
-		return '';
+		return normalize(getSelectedModelIdentifier(contextKeyService, this._storageService));
 	}
 
 	private _isChatLocation(contextKeyService: IContextKeyService): boolean {

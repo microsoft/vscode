@@ -66,6 +66,7 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
@@ -208,6 +209,8 @@ async function main(): Promise<void> {
 	diServices.set(ISessionDataService, sessionDataService);
 	diServices.set(ITelemetryService, telemetryService);
 	const instantiationService = new InstantiationService(diServices);
+	const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
+	diServices.set(IAgentHostFileMonitorService, fileMonitorService);
 	diServices.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 	diServices.set(ISandboxHelperService, new SandboxHelperService());
 	const gitService = instantiationService.createInstance(AgentHostGitService);
@@ -216,7 +219,7 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostCheckpointService, checkpointService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
 	disposables.add(agentService);
 
 	// Register agents

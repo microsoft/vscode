@@ -260,30 +260,28 @@ export class ChatSlashCommandsContribution extends Disposable {
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
-			if (configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false) {
-				this._store.add(slashCommandService.registerSlashCommand({
-					command: 'autopilot',
-					detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
-					sortText: 'z1_autopilot',
-					executeImmediately: true,
-					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
-				}, async (_prompt, _progress, _history, _location, sessionResource) => {
-					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
-				}));
-				this._store.add(slashCommandService.registerSlashCommand({
-					command: 'exitAutopilot',
-					detail: nls.localize('exitAutopilot', "Set permissions back to default"),
-					sortText: 'z1_exitAutopilot',
-					executeImmediately: true,
-					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
-				}, async (_prompt, _progress, _history, _location, sessionResource) => {
-					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
-				}));
-			}
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'autopilot',
+				detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
+				sortText: 'z1_autopilot',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'exitAutopilot',
+				detail: nls.localize('exitAutopilot', "Set permissions back to default"),
+				sortText: 'z1_exitAutopilot',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
 		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',

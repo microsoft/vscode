@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, TerminalSandboxService, type ISandboxDependencyInstallTerminal } from '../../common/terminalSandboxService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -27,7 +28,7 @@ import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/commo
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
@@ -160,13 +161,23 @@ suite('TerminalSandboxService - network domains', () => {
 		callCount = 0;
 		status: ISandboxDependencyStatus = {
 			bubblewrapInstalled: true,
+			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
 		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
 			readonlyPaths: ['c:\\tools\\node'],
 			readwritePaths: [],
 		};
-		environment = ['PATH=c:\\tools\\node;c:\\windows\\system32', 'PSHOME=c:\\program files\\powershell\\7'];
+		environment = [
+			'SystemRoot=c:\\windows',
+			'PATH=c:\\tools\\node;c:\\windows\\system32',
+			'ComSpec=c:\\windows\\system32\\cmd.exe',
+			'PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1',
+			'PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules',
+			'USERPROFILE=c:\\users\\test',
+			'APPDATA=c:\\users\\test\\appdata\\roaming',
+			'PSHOME=c:\\program files\\powershell\\7'
+		];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
@@ -179,6 +190,51 @@ suite('TerminalSandboxService - network domains', () => {
 
 		getWindowsMxcEnvironment(): Promise<string[]> {
 			return Promise.resolve(this.environment);
+		}
+
+		buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName: string = 'vscode-terminal-sandbox', containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig> {
+			const clearPolicy = policy.filesystem?.clearPolicyOnExit ?? true;
+			return Promise.resolve({
+				version: policy.version,
+				containerId: containerName,
+				containment,
+				lifecycle: {
+					destroyOnExit: true,
+					preservePolicy: !clearPolicy,
+				},
+				process: {
+					commandLine,
+					cwd: workingDirectory,
+					timeout: policy.timeoutMs ?? 0,
+				},
+				processContainer: {
+					name: containerName,
+					leastPrivilege: false,
+					capabilities: policy.network?.allowOutbound ? ['internetClient'] : [],
+					ui: {
+						isolation: 'container',
+						desktopSystemControl: false,
+						systemSettings: 'none',
+						ime: false,
+					},
+				},
+				filesystem: {
+					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
+					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
+					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
+				},
+				network: {
+					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
+					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
+					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
+					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+				},
+				ui: {
+					disable: !(policy.ui?.allowWindows ?? false),
+					clipboard: policy.ui?.clipboard ?? 'none',
+					injection: policy.ui?.allowInputInjection ?? false,
+				},
+			});
 		}
 	}
 
@@ -247,6 +303,7 @@ suite('TerminalSandboxService - network domains', () => {
 	test('should report dependency prereq failures', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
 			socatInstalled: true,
 		};
 
@@ -258,6 +315,58 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
+	});
+
+	test('should report repair actions when Ubuntu AppArmor remediation is supported', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: true,
+			bubblewrapUsable: false,
+			bubblewrapError: 'No permissions to create namespace',
+			supportsUbuntuAppArmorRemediation: true,
+			socatInstalled: true,
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const result = await sandboxService.checkForSandboxingPrereqs();
+
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
+		strictEqual(result.detail, 'No permissions to create namespace');
+	});
+
+	test('should run approved Ubuntu bubblewrap remediation commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
+			let sentCommand: string | undefined;
+			const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+			const terminal: ISandboxDependencyInstallTerminal = {
+				sendText: async command => {
+					sentCommand = command;
+					commandFinishedEmitter.fire({ exitCode: 0 });
+				},
+				focus: () => { },
+				capabilities: {
+					get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+					onDidAddCapability: Event.None,
+				},
+				onDidInputData: Event.None,
+				onDisposed: Event.None,
+			};
+			const result = await sandboxService.runSandboxRemediation(remediation, undefined, CancellationToken.None, {
+				createTerminal: async () => terminal,
+				focusTerminal: async () => { },
+			});
+			strictEqual(result.exitCode, 0);
+			return sentCommand;
+		};
+
+		deepStrictEqual([
+			await runAndCapture(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile),
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction),
+		], [
+			'sudo apt update && sudo apt install -y apparmor-profiles apparmor-utils && sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict',
+			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
+		]);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {
@@ -546,7 +655,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should reallow reads from workspace storage', async () => {
+	test('should allow reads and writes from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
@@ -1263,7 +1372,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
 		const configPath = await sandboxService.getSandboxConfigPath();
-		const wrapped = await sandboxService.wrapCommand('echo test', false, 'pwsh.exe', URI.file('/c:/workspace-one'));
+		const wrapped = await sandboxService.wrapCommand('echo test', false, 'c:\\program files\\powershell\\7\\pwsh.exe', URI.file('/c:/workspace-one'));
 
 		ok(configPath, 'Config path should be defined for remote Windows');
 		const configContent = createdFiles.get(configPath);
@@ -1275,14 +1384,21 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
 		strictEqual(config.containment, 'process');
-		strictEqual(config.process.commandLine, 'echo test');
+		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
+		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
+		ok(config.process.env.includes('ComSpec=c:\\windows\\system32\\cmd.exe'), 'ComSpec should be injected into the MXC process env');
+		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.process.env.includes('PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules'), 'PSModulePath should be injected into the MXC process env');
+		ok(config.process.env.includes('USERPROFILE=c:\\users\\test'), 'USERPROFILE should be injected into the MXC process env');
+		ok(config.process.env.includes('APPDATA=c:\\users\\test\\appdata\\roaming'), 'APPDATA should be injected into the MXC process env');
 		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
 		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
-		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
+		ok(config.filesystem.readonlyPaths.includes('c:\\program files\\powershell\\7'), 'Resolved PowerShell executable directory should be readable in the MXC config');
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 

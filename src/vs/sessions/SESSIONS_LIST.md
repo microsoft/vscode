@@ -59,7 +59,7 @@ Archived sessions always go to the "Done" section regardless of grouping mode. A
 When grouping by workspace, the list shows only **primary** workspace sections by default:
 
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
-- Remaining workspaces collapse behind a "Show N more" toggle
+- Remaining workspaces collapse behind a "+N more workspaces" toggle
 - Within each workspace, sessions beyond 5 also show a "Show more" toggle
 - The find widget bypasses all capping
 
@@ -90,6 +90,7 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
 - A session becomes **unread** when it completes in the background (transitions from InProgress to a terminal status while not active)
+- Pin and read state are cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 

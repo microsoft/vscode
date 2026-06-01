@@ -29,10 +29,16 @@ export enum BrowserViewCommandId {
 	OpenExternal = `${commandPrefix}.openExternal`,
 	OpenSettings = `${commandPrefix}.openSettings`,
 
+	// Favorites
+	AddFavorite = `${commandPrefix}.addFavorite`,
+	RemoveFavorite = `${commandPrefix}.removeFavorite`,
+
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
+	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
+	AddFullPageScreenshotToChat = `${commandPrefix}.addFullPageScreenshotToChat`,
 
 	// Dev Tools
 	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
@@ -67,6 +73,13 @@ export interface IElementData {
 	readonly innerText?: string;
 }
 
+export interface IBrowserViewRect {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface IBrowserViewTheme {
 	readonly focusBorder?: string;
 	readonly buttonBackground?: string;
@@ -92,9 +105,32 @@ export interface IBrowserViewBounds {
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
+	/**
+	 * JPEG quality from 0-100. Only applies when `format` is `'jpeg'`.
+	 */
 	quality?: number;
-	screenRect?: { x: number; y: number; width: number; height: number };
-	pageRect?: { x: number; y: number; width: number; height: number };
+	/**
+	 * Encoding for the captured image. Defaults to `'jpeg'`.
+	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
+	 */
+	format?: 'jpeg' | 'png';
+	screenRect?: IBrowserViewRect;
+	pageRect?: IBrowserViewRect;
+	/**
+	 * When true, capture the full scrollable document, not just the visible viewport.
+	 * Ignored when `screenRect` or `pageRect` is set.
+	 */
+	fullPage?: boolean;
+	/**
+	 * When true, wait for the next compositor frame to be presented before capturing.
+	 * Use this when the caller has just torn down an in-page overlay (e.g. the area
+	 * picker's dashed selection rectangle) that would otherwise still be present in
+	 * the GPU surface that `capturePage` reads.
+	 *
+	 * Adds ~1 frame of latency (bounded by a short timeout fallback), so leave off
+	 * for captures that don't follow a DOM teardown.
+	 */
+	awaitNextPaint?: boolean;
 }
 
 /**
@@ -160,6 +196,7 @@ export interface IBrowserViewState {
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 }
 
@@ -235,7 +272,7 @@ export interface IBrowserViewFindInPageOptions {
 export interface IBrowserViewFindInPageResult {
 	activeMatchOrdinal: number;
 	matches: number;
-	selectionArea?: { x: number; y: number; width: number; height: number };
+	selectionArea?: IBrowserViewRect;
 	finalUpdate: boolean;
 }
 
@@ -297,6 +334,12 @@ export interface IBrowserViewService {
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
 	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	/**
+	 * Fires exactly once per area-selection session, terminating it. Receives the user-drawn
+	 * rectangle on success, or `undefined` if the picker was cancelled.
+	 */
+	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
+	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 
 	/**
@@ -486,6 +529,17 @@ export interface IBrowserViewService {
 	 * @param enabled Whether to enable or disable. Omit to toggle.
 	 */
 	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+
+	/**
+	 * Toggle drag-to-select area picking on the top frame of a browser view.
+	 * The pick result (rectangle, or `undefined` on cancellation) is delivered via
+	 * {@link onDynamicDidPickArea}. UI toggle state is delivered via
+	 * {@link onDynamicDidChangeAreaSelectionActive}.
+	 *
+	 * @param id The browser view identifier
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	toggleAreaSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
 	 * Update the theme used by injected UI across all browser views.

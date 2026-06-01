@@ -22,6 +22,7 @@ import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
+import { fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -728,7 +729,14 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 						type: PromptsType.agent,
 						enabled: true,
 					};
-					result.push(CustomAgent.fromParsedPromptFile(promptFile, extra));
+					const agent = {
+						...CustomAgent.fromParsedPromptFile(promptFile, extra),
+						// In the case of Agent Host Agents, preserve the original provider URI for later resolution,
+						// since the promptFile parsing may resolve to a different URI.
+						// The Agent host must get the original URI, provideCustomAgents will translate this to AgentHost URIs
+						uri: fromAgentHostUri(item.uri),
+					};
+					result.push(agent);
 				}
 				return result;
 			}
