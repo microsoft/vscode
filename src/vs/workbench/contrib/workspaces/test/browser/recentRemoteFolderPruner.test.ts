@@ -1,0 +1,88 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FileOperationError, FileOperationResult, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { pruneRecentRemoteFolderIfMissing } from '../../browser/recentRemoteFolderPruner.js';
+
+class StubFileService extends TestFileService {
+	statError: Error | undefined;
+	providerRegistered = true;
+	statCalls: URI[] = [];
+
+	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		this.statCalls.push(resource);
+		if (this.statError) {
+			throw this.statError;
+		}
+		return super.stat(resource);
+	}
+
+	override hasProvider(resource: URI): boolean {
+		return this.providerRegistered;
+	}
+}
+
+suite('pruneRecentRemoteFolderIfMissing', () => {
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const remoteFolder = URI.parse('vscode-remote://wsl%2BUbuntu/home/user/ghost-test');
+	const localFolder = URI.file('/tmp/local-folder');
+
+	async function run(options: { folder: URI; statError?: Error; providerRegistered?: boolean }) {
+		const removed: URI[][] = [];
+
+		const contextService = new TestContextService(testWorkspace(options.folder));
+		const fileService = ds.add(new StubFileService());
+		fileService.statError = options.statError;
+		fileService.providerRegistered = options.providerRegistered ?? true;
+
+		const workspacesService = {
+			async removeRecentlyOpened(paths: URI[]): Promise<void> { removed.push(paths); },
+		};
+
+		// eslint-disable-next-line local/code-no-any-casts
+		await pruneRecentRemoteFolderIfMissing(contextService, fileService, workspacesService as any);
+
+		return { fileService, removed };
+	}
+
+	test('prunes on FILE_NOT_FOUND; preserves entry on transient errors, when no provider, and for local URIs', async () => {
+		const notFound = await run({
+			folder: remoteFolder,
+			statError: new FileOperationError('gone', FileOperationResult.FILE_NOT_FOUND)
+		});
+		const transient = await run({
+			folder: remoteFolder,
+			statError: new FileOperationError('host unreachable', FileOperationResult.FILE_OTHER_ERROR)
+		});
+		const noProvider = await run({
+			folder: remoteFolder,
+			providerRegistered: false,
+			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
+		});
+		const localUri = await run({
+			folder: localFolder,
+			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
+		});
+
+		assert.deepStrictEqual({
+			notFound: { stats: notFound.fileService.statCalls.map(u => u.toString()), removed: notFound.removed.map(r => r.map(u => u.toString())) },
+			transient: { stats: transient.fileService.statCalls.length, removed: transient.removed.length },
+			noProvider: { stats: noProvider.fileService.statCalls.length, removed: noProvider.removed.length },
+			local: { stats: localUri.fileService.statCalls.length, removed: localUri.removed.length },
+		}, {
+			notFound: { stats: [remoteFolder.toString()], removed: [[remoteFolder.toString()]] },
+			transient: { stats: 1, removed: 0 },
+			noProvider: { stats: 0, removed: 0 },
+			local: { stats: 0, removed: 0 },
+		});
+	});
+});

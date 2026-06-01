@@ -413,6 +413,7 @@ import '../workbench/contrib/workspace/browser/workspace.contribution.js';
 
 // Workspaces
 import '../workbench/contrib/workspaces/browser/workspaces.contribution.js';
+import '../workbench/contrib/workspaces/browser/recentRemoteFolderPruner.js';
 
 // List
 import '../workbench/contrib/list/browser/list.contribution.js';
