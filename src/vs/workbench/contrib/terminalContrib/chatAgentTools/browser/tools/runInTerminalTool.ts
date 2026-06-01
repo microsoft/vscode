@@ -1158,8 +1158,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
 		} else if (requiresAllowNetworkConfirmation) {
-			const allowNetworkCommand = escapeMarkdownSyntaxTokens(buildCommandDisplayText(toolSpecificData.confirmation?.commandLine ?? commandToDisplay));
-			confirmationTitle = localize('runInTerminal.allowNetwork', "Allow the sandbox to run `{0}` with unrestricted network access.", allowNetworkCommand);
+			confirmationTitle = localize('runInTerminal.allowNetwork', "Allow the sandbox to run `{0}` with unrestricted network access.", shellType);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
