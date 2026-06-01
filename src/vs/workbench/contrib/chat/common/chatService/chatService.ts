@@ -586,6 +586,10 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
+	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
+	requestAllowNetwork?: boolean;
+	/** The model-provided reason for requesting unrestricted network access within the sandbox */
+	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
