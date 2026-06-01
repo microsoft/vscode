@@ -431,7 +431,6 @@ import './contrib/workspace/browser/workspace.contribution.js';
 
 // Workspaces
 import './contrib/workspaces/browser/workspaces.contribution.js';
-import './contrib/workspaces/browser/recentRemoteFolderPruner.js';
 
 // List
 import './contrib/list/browser/list.contribution.js';
