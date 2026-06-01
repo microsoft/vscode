@@ -16,8 +16,9 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
@@ -26,6 +27,7 @@ import type {
 	ISSHResolvedConfig,
 	ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
 import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 
@@ -140,12 +142,12 @@ function asChannel(target: object): IChannel {
 
 /** Captures addManagedConnection calls so tests can inspect transportDisposable. */
 class MockRemoteAgentHostService extends Disposable {
-	readonly added: Array<{ address: string; transport?: IDisposable }> = [];
+	readonly added: Array<{ address: string; status?: RemoteAgentHostConnectionStatus; transport?: IDisposable }> = [];
 	private readonly _entries = new Map<string, { transport?: IDisposable; client: { dispose?: () => void } }>();
 
-	async addManagedConnection(entry: { name: string; connection: { address?: string; sshConfigHost?: string } }, client: IAgentConnection, transportDisposable?: IDisposable): Promise<unknown> {
+	async addManagedConnection(entry: { name: string; connection: { address?: string; sshConfigHost?: string } }, client: IAgentConnection, transportDisposable?: IDisposable, status?: RemoteAgentHostConnectionStatus): Promise<unknown> {
 		const address = entry.connection.address ?? `ssh:${entry.connection.sshConfigHost}`;
-		this.added.push({ address, transport: transportDisposable });
+		this.added.push({ address, status, transport: transportDisposable });
 		this._entries.set(address, { client: client as { dispose?: () => void }, transport: transportDisposable });
 		return { address, name: entry.name, clientId: 'mock', defaultDirectory: undefined, status: 0 };
 	}
@@ -268,9 +270,35 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		assert.strictEqual(remoteAgentHostService.added.length, 1);
 		assert.strictEqual(remoteAgentHostService.added[0].address, 'ssh:remote.example');
+		assert.strictEqual(remoteAgentHostService.added[0].status?.kind, 'connected');
 		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+	});
+
+	test('incompatible handshake keeps SSH tunnel registered for server upgrade', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		const client = await waitForClient(0);
+		await client.connectDeferred.error(new ProtocolError(
+			AHP_UNSUPPORTED_PROTOCOL_VERSION,
+			'Unsupported protocol version',
+			{ supportedVersions: ['2026-05-01'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+		));
+
+		await assert.rejects(connectPromise, /Unsupported protocol version/);
+
+		assert.deepStrictEqual({
+			added: remoteAgentHostService.added.map(({ address, status }) => ({ address, status })),
+			connections: service.connections.map(connection => connection.localAddress),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			added: [{
+				address: 'ssh:remote.example',
+				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', [PROTOCOL_VERSION], ['2026-05-01'], '_vscodeUpgrade'),
+			}],
+			connections: ['ssh:remote.example'],
+			disconnectCalls: [],
+		});
 	});
 
 	test('disabled setting prevents SSH tunnel connects and reconnects', async () => {
