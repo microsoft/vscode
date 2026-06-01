@@ -220,8 +220,8 @@ type RunPlaywrightCodeEvent = {
 };
 
 type RunPlaywrightCodeClassification = {
-	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order. Names outside the known Playwright API allowlist are bucketed under `<other>`. Truncated to 100 entries.' };
-	pageMethodsCalledDcount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked. Full count even when `pageMethodsCalled` is truncated.' };
+	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order. Names outside the known Playwright API allowlist are bucketed under `<other>`.' };
+	pageMethodsCalledDcount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked.' };
 	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total method calls including duplicates (sum of all per-method counts).' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the code completed without error, 0 otherwise.' };
 	wasDeferred: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if this was a resumed deferred run, 0 otherwise.' };
@@ -231,9 +231,6 @@ type RunPlaywrightCodeClassification = {
 	owner: 'jruales';
 	comment: 'Tracks how the run_playwright_code chat tool is exercised so we can identify common patterns that should be promoted to dedicated browser tools.';
 };
-
-/** Maximum number of distinct method entries emitted in `pageMethodsCalled`. */
-const PAGE_METHODS_MAX_ENTRIES = 100;
 
 /**
  * Log telemetry about a completed run_playwright_code invocation, recording
@@ -253,7 +250,7 @@ function logRunPlaywrightCode(
 ): void {
 	const entries = Object.entries(data.pageMethodsCalled);
 	const total = entries.reduce((sum, [, count]) => sum + count, 0);
-	const serialized = JSON.stringify(Object.fromEntries(entries.slice(0, PAGE_METHODS_MAX_ENTRIES)));
+	const serialized = JSON.stringify(data.pageMethodsCalled);
 	telemetryService.publicLog2<RunPlaywrightCodeEvent, RunPlaywrightCodeClassification>(
 		'integratedBrowser.tools.runPlaywrightCode.completed',
 		{
