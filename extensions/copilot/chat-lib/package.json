@@ -41,7 +41,7 @@
 		"rimraf": "^6.0.1",
 		"tsx": "^4.20.3",
 		"typescript": "^5.8.3",
-		"vitest": "^3.0.5"
+		"vitest": "^4.1.0"
 	},
 	"keywords": [
 		"chat",
