@@ -1087,7 +1087,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() !== 'off' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
 			return;
 		}
 		this.enabled = true;
@@ -2863,7 +2863,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
 				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
 				// Do not override the higher-priority warning class with the info class.
-				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because extension auto updates are configured to be delayed by 6 hours. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated 2 hours after they are published. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
 			}
 		}
 

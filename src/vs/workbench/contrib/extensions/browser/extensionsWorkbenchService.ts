@@ -52,7 +52,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { IIgnoredExtensionsManagementService } from '../../../../platform/userDataSync/common/ignoredExtensions.js';
 import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { isDefined, isString, isUndefined } from '../../../../base/common/types.js';
+import { isBoolean, isDefined, isString, isUndefined } from '../../../../base/common/types.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService, IExtensionsStatus as IExtensionRuntimeStatus, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { isWeb, language } from '../../../../base/common/platform.js';
@@ -80,7 +80,7 @@ interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
 }
 
-const DELAYED_AUTO_UPDATE_PERIOD = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+const DELAYED_AUTO_UPDATE_PERIOD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 interface InstalledExtensionsEvent {
 	readonly extensionIds: TelemetryTrustedValue<string>;
@@ -1122,11 +1122,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				if (this.getAutoUpdateValue() !== 'delayed') {
-					// No longer delaying — cancel any pending delayed re-check
+				if (!this.isAutoUpdateEnabled()) {
+					// Auto update disabled — cancel any pending delayed re-check
 					this.delayedAutoUpdateCheckTimer.value = undefined;
-				}
-				if (this.isAutoUpdateEnabled()) {
+				} else {
 					this.eventuallyAutoUpdateExtensions();
 				}
 				// The auto update value affects whether an extension is shown as delayed
@@ -1139,7 +1138,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}));
 		this._register(this.extensionEnablementService.onEnablementChanged(platformExtensions => {
-			if (this.isAutoCheckUpdatesEnabled() && this.getAutoUpdateValue() !== 'off' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+			if (this.isAutoCheckUpdatesEnabled() && this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
 				this.checkForUpdates('Extension enablement changed');
 			}
 		}));
@@ -1197,29 +1196,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.meteredConnectionService.isConnectionMetered) {
 			return false;
 		}
-		return this.getAutoUpdateValue() !== 'off';
+		return this.getAutoUpdateValue() !== false;
 	}
 
 	getAutoUpdateValue(): AutoUpdateConfigurationValue {
-		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue | boolean | 'all' | 'none' | 'onlyEnabledExtensions' | 'onlySelectedExtensions'>(AutoUpdateConfigurationKey);
-		// Normalize legacy values
-		if (autoUpdate === true || autoUpdate === 'on' || autoUpdate === 'all' || autoUpdate === 'onlyEnabledExtensions') {
-			return 'on';
+		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
+		// eslint-disable-next-line local/code-no-any-casts
+		if (<any>autoUpdate === 'onlySelectedExtensions' || <any>autoUpdate === 'off') {
+			return false;
 		}
-		if (autoUpdate === false || autoUpdate === 'off' || autoUpdate === 'none' || autoUpdate === 'onlySelectedExtensions') {
-			return 'off';
+		// eslint-disable-next-line local/code-no-any-casts
+		if (<any>autoUpdate === 'on' || <any>autoUpdate === 'delayed') {
+			return true;
 		}
-		if (autoUpdate === 'delayed') {
-			return 'delayed';
-		}
-		return 'on';
+		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
 	}
 
 	isAutoUpdateDelayed(extension: IExtension): boolean {
 		if (!extension.outdated) {
 			return false;
 		}
-		if (this.getAutoUpdateValue() !== 'delayed') {
+		if (!this.shouldAutoUpdateExtension(extension)) {
 			return false;
 		}
 		return this.getAutoUpdateDelayRemaining(extension) > 0;
@@ -1258,7 +1255,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Reset extensions enabled for auto update first to prevent them from being updated
 		this.setEnabledAutoUpdateExtensions([]);
 
-		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled ? 'on' : 'off');
+		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled);
 
 		this.setDisabledAutoUpdateExtensions([]);
 		await this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
@@ -2177,11 +2174,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getUpdatesCheckInterval(): number {
-		if (
-			this.productService.quality === 'insider'
-			&& this.getProductUpdateVersion()
-			&& this.getAutoUpdateValue() !== 'delayed'
-		) {
+		if (this.productService.quality === 'insider' && this.getProductUpdateVersion()) {
 			return 1000 * 60 * 60 * 1; // 1 hour
 		}
 		return ExtensionsWorkbenchService.UpdatesCheckInterval;
@@ -2226,13 +2219,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
 		let soonestDelayRemaining = Number.MAX_SAFE_INTEGER;
-		const isDelayed = this.getAutoUpdateValue() === 'delayed';
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
 				disabledAutoUpdate.push(extension.identifier.id);
 				continue;
 			}
-			if (isDelayed && !extension.local?.forceAutoUpdate) {
+			// New versions are auto updated only after the delay window has passed since they were published.
+			if (!extension.local?.forceAutoUpdate) {
 				const delayRemaining = this.getAutoUpdateDelayRemaining(extension);
 				if (delayRemaining > 0) {
 					this.logService.trace('Auto update delayed for extension', extension.identifier.id);
@@ -2304,7 +2297,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const autoUpdateValue = this.getAutoUpdateValue();
 
-		if (autoUpdateValue === 'off') {
+		if (autoUpdateValue === false) {
 			const extensionsToAutoUpdate = this.getEnabledAutoUpdateExtensions();
 			const extensionId = extension.identifier.id.toLowerCase();
 			if (extensionsToAutoUpdate.includes(extensionId)) {
@@ -2325,7 +2318,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (autoUpdateValue === 'on' || autoUpdateValue === 'delayed') {
+		if (autoUpdateValue === true) {
+			return true;
+		}
+
+		if (autoUpdateValue === 'onlyEnabledExtensions') {
 			return extension.enablementState !== EnablementState.DisabledGlobally && extension.enablementState !== EnablementState.DisabledWorkspace;
 		}
 
