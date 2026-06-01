@@ -26,8 +26,8 @@ export async function pruneRecentRemoteFolderIfMissing(
 	}
 
 	const folderUri = contextService.getWorkspace().folders[0]?.uri;
-	if (!folderUri || folderUri.scheme === Schemas.file || !folderUri.authority) {
-		return;
+	if (!folderUri || folderUri.scheme !== Schemas.vscodeRemote) {
+		return; // only mirror the local remove-on-failed-open for vscode-remote authorities
 	}
 
 	if (!fileService.hasProvider(folderUri)) {

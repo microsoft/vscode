@@ -34,6 +34,7 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const remoteFolder = URI.parse('vscode-remote://wsl%2BUbuntu/home/user/ghost-test');
+	const virtualFolder = URI.parse('vscode-vfs://github/microsoft/vscode');
 	const localFolder = URI.file('/tmp/local-folder');
 
 	async function run(options: { folder: URI; statError?: Error; providerRegistered?: boolean }) {
@@ -54,7 +55,7 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 		return { fileService, removed };
 	}
 
-	test('prunes on FILE_NOT_FOUND; preserves entry on transient errors, when no provider, and for local URIs', async () => {
+	test('prunes vscode-remote on FILE_NOT_FOUND; preserves entry on transient errors, when no provider, for local URIs, and for non-remote authorities (e.g. vscode-vfs)', async () => {
 		const notFound = await run({
 			folder: remoteFolder,
 			statError: new FileOperationError('gone', FileOperationResult.FILE_NOT_FOUND)
@@ -72,17 +73,23 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 			folder: localFolder,
 			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
 		});
+		const virtualUri = await run({
+			folder: virtualFolder,
+			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
+		});
 
 		assert.deepStrictEqual({
 			notFound: { stats: notFound.fileService.statCalls.map(u => u.toString()), removed: notFound.removed.map(r => r.map(u => u.toString())) },
 			transient: { stats: transient.fileService.statCalls.length, removed: transient.removed.length },
 			noProvider: { stats: noProvider.fileService.statCalls.length, removed: noProvider.removed.length },
 			local: { stats: localUri.fileService.statCalls.length, removed: localUri.removed.length },
+			virtual: { stats: virtualUri.fileService.statCalls.length, removed: virtualUri.removed.length },
 		}, {
 			notFound: { stats: [remoteFolder.toString()], removed: [[remoteFolder.toString()]] },
 			transient: { stats: 1, removed: 0 },
 			noProvider: { stats: 0, removed: 0 },
 			local: { stats: 0, removed: 0 },
+			virtual: { stats: 0, removed: 0 },
 		});
 	});
 });
