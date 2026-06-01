@@ -186,8 +186,28 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	private async _setupConnection(result: ISSHConnectResult): Promise<ISSHAgentHostConnection> {
 		const existing = this._connections.get(result.connectionId);
 		if (existing) {
-			this._logService.trace('[SSHRemoteAgentHost] Returning existing connection handle');
-			return existing;
+			// Reuse the existing handle only if the managed entry is still
+			// in a usable state. After a `reconnect` that replaced the
+			// underlying SSH relay (e.g. following a CLI-driven server
+			// upgrade), the previous protocol client is bound to a
+			// torn-down transport and — if its handshake had failed with
+			// `incompatible` — will never re-handshake on its own. Drop
+			// the stale local state and fall through to a fresh
+			// handshake; the subsequent `addManagedConnection` call
+			// disposes the stale protocol client by replacing the entry.
+			if (this._remoteAgentHostService.getConnection(result.address)) {
+				this._logService.trace('[SSHRemoteAgentHost] Returning existing connection handle');
+				return existing;
+			}
+			this._logService.info(`[SSHRemoteAgentHost] Replacing stale connection handle for ${result.address}`);
+			this._connections.delete(result.connectionId);
+			// Mark closed-by-main so disposing the handle does NOT call
+			// disconnect() — the main service kept the SSH client alive
+			// across `replaceRelay`, and we'd kill the brand-new tunnel
+			// otherwise.
+			existing.fireClose();
+			existing.dispose();
+			this._onDidChangeConnections.fire();
 		}
 		let registeredHandle = false;
 		const protocolClient = this._createRelayClient(result);
