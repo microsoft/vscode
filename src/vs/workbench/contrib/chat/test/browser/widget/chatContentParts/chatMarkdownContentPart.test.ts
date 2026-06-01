@@ -42,7 +42,6 @@ suite('ChatMarkdownContentPart', () => {
 	/** Data captured from each CodeBlockPart.render() call */
 	const renderedCodeBlocks: ICodeBlockData[] = [];
 	const renderedCodeBlockOutputs: { identifier: string; text: string }[] = [];
-	const renderedCodeBlockOutputOrigins: string[] = [];
 	let outputStateCache: Map<string, IOutputPartState>;
 
 	function createMockEditorPool(): EditorPool {
@@ -138,7 +137,6 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		renderedCodeBlocks.length = 0;
 		renderedCodeBlockOutputs.length = 0;
-		renderedCodeBlockOutputOrigins.length = 0;
 		outputStateCache = new Map<string, IOutputPartState>();
 
 		// Seed configuration values needed by ChatEditorOptions
@@ -184,9 +182,8 @@ suite('ChatMarkdownContentPart', () => {
 			registerRenderer: () => ({ dispose: () => { } }),
 			hasCodeBlockRenderer: identifier => identifier.toLowerCase() === 'mermaid',
 			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
-			renderCodeBlock: async (identifier, data, _parent, webviewOptions) => {
+			renderCodeBlock: async (identifier, data) => {
 				renderedCodeBlockOutputs.push({ identifier, text: new TextDecoder().decode(data) });
-				renderedCodeBlockOutputOrigins.push(webviewOptions.origin ?? '');
 				return {
 					webview: {
 						focus: () => { },
@@ -262,22 +259,6 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.deepStrictEqual(renderedCodeBlockOutputs, [{ identifier: 'Mermaid', text: 'graph TD' }]);
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
-	});
-
-	test('reuses rendered code block origin across renders', () => {
-		const ctx = createRenderContext();
-		createMarkdownPart('```mermaid\ngraph TD\n```', ctx);
-		createMarkdownPart('```mermaid\ngraph TD\n```', ctx);
-
-		assert.deepStrictEqual({
-			renderCount: renderedCodeBlockOutputOrigins.length,
-			hasOrigin: renderedCodeBlockOutputOrigins[0].length > 0,
-			reusedOrigin: renderedCodeBlockOutputOrigins[0] === renderedCodeBlockOutputOrigins[1],
-		}, {
-			renderCount: 2,
-			hasOrigin: true,
-			reusedOrigin: true,
-		});
 	});
 
 	test('reuses rendered code block webview across incremental rerenders when content is unchanged', async () => {

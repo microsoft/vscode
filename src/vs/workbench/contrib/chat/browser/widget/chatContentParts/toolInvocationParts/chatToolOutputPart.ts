@@ -11,12 +11,11 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
-import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../../../common/chatService/chatService.js';
 import { IToolResultOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
-import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatOutputRendererService } from '../../../chatOutputItemRenderer.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
@@ -37,7 +36,6 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		private readonly context: IChatContentPartRenderContext,
 		private readonly onDidRemount: Event<void>,
 		@IChatOutputRendererService private readonly chatOutputItemRendererService: IChatOutputRendererService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatOutputPartStateCache private readonly stateCache: IChatOutputPartStateCache,
 	) {
@@ -79,16 +77,13 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.style.maxHeight = '80vh';
 
 		// Try to restore cached state, or create new state
-		const partState: IOutputPartState = this.stateCache.get(toolInvocation.toolCallId) ?? { height: 0, webviewOrigin: generateUuid() };
+		const partState: IOutputPartState = this.stateCache.get(toolInvocation.toolCallId) ?? { height: 0 };
 
 		// Always update the cache with the current state reference
 		this.stateCache.set(toolInvocation.toolCallId, partState);
 
 		if (partState.height) {
 			parent.style.height = `${partState.height}px`;
-		}
-		if (partState.webviewOrigin) {
-			partState.webviewOrigin = partState.webviewOrigin;
 		}
 
 		const progressMessage = dom.$('span');
@@ -97,7 +92,10 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI
-		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, { origin: partState.webviewOrigin, webviewState: partState.webviewState }, this._disposeCts.token).then((renderedItem) => {
+		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, {
+			webviewState: partState.webviewState,
+			chatSessionResource: this.context.element.sessionResource,
+		}, this._disposeCts.token).then((renderedItem) => {
 			if (this._disposeCts.token.isCancellationRequested) {
 				return;
 			}
@@ -112,14 +110,6 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 			this._register(renderedItem.onDidChangeHeight(newHeight => {
 				partState.height = newHeight;
-			}));
-
-			this._register(renderedItem.webview.onDidWheel(e => {
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.delegateScrollFromMouseWheelEvent({
-					...e,
-					preventDefault: () => { },
-					stopPropagation: () => { }
-				});
 			}));
 
 			// When the webview is disconnected from the DOM due to being hidden, we need to reload it when it is shown again.

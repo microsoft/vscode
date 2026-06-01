@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { ToolCallConfirmationReason } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
@@ -96,7 +97,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(out.length, 3);
 		const start = out[0];
 		assert.ok(start.kind === 'action' && start.action.type === ActionType.SessionResponsePart);
-		assert.strictEqual(start.action.session, SESSION_STR);
+		assert.strictEqual(start.session.toString(), SESSION_STR);
 		assert.strictEqual(start.action.turnId, TURN_ID);
 		assert.strictEqual(start.action.part.kind, ResponsePartKind.Markdown);
 		const partId = start.action.part.id;
@@ -108,7 +109,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				session: SESSION,
 				action: {
 					type: ActionType.SessionDelta,
-					session: SESSION_STR,
 					turnId: TURN_ID,
 					partId,
 					content: 'Hello, ',
@@ -119,7 +119,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				session: SESSION,
 				action: {
 					type: ActionType.SessionDelta,
-					session: SESSION_STR,
 					turnId: TURN_ID,
 					partId,
 					content: 'world!',
@@ -160,7 +159,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionReasoning,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				partId,
 				content: 'pondering',
@@ -189,7 +187,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallStart,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				toolName: 'Read',
@@ -221,12 +218,42 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallDelta,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				content: '{"file_pa',
 			},
 		}]);
+	});
+
+	test('Test 9.5 — content_block_stop emits SessionToolCallReady so auto-allowed tools leave Streaming', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+
+		// Drive a Bash tool_use through start → input deltas → stop. The
+		// fix: `content_block_stop` must emit `SessionToolCallReady` with
+		// `confirmed: NotNeeded`, the parsed input as `toolInput`, the
+		// rich `invocationMessage`, and `_meta.toolKind` — otherwise an
+		// auto-allowed tool (SDK skips `canUseTool`) stays in Streaming
+		// and the reducer drops the subsequent Complete.
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_b', 'Bash')), SESSION, TURN_ID, state, log, resolver);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"command":"git status"}')), SESSION, TURN_ID, state, log, resolver);
+		const signals = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, resolver);
+
+		assert.deepStrictEqual(signals, [{
+			kind: 'action',
+			session: SESSION,
+			action: {
+				type: ActionType.SessionToolCallReady,
+				turnId: TURN_ID,
+				toolCallId: 'tu_b',
+				invocationMessage: { markdown: 'Running `git status`' },
+				toolInput: 'git status',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: { toolKind: 'terminal' },
+			},
+		}]);
+		assert.deepStrictEqual(log.warns, []);
 	});
 
 	test('Test 10 — synthetic user tool_result emits SessionToolCallComplete with the originating turnId', () => {
@@ -256,12 +283,11 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallComplete,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				result: {
 					success: true,
-					pastTenseMessage: 'Read file finished',
+					pastTenseMessage: 'Read file',
 					content: [{ type: ToolResultContentType.Text, text: 'file contents' }],
 				},
 			},
@@ -485,13 +511,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				session: SESSION,
 				action: {
 					type: ActionType.SessionUsage,
-					session: SESSION_STR,
 					turnId: TURN_ID,
 					usage: {
 						inputTokens: 12,
 						outputTokens: 34,
 						cacheReadTokens: 5,
-						model: 'claude-test',
+						model: 'claude-test'
 					},
 				},
 			},
