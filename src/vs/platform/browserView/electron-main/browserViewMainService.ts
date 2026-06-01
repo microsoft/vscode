@@ -321,6 +321,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	}
 
+	async updateTrustedFileRoots(roots: readonly string[]): Promise<void> {
+		BrowserSession.setTrustedFileRoots(roots);
+	}
+
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
 		this._keybindings = keybindings;
 	}

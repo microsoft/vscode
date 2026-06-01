@@ -558,4 +558,10 @@ export interface IBrowserViewService {
 	 * @param config The configuration to apply
 	 */
 	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
+
+	/**
+	 * Set the allowlist of filesystem roots that browsers may load via `file://`.
+	 * @param roots Normalized filesystem paths.
+	 */
+	updateTrustedFileRoots(roots: readonly string[]): Promise<void>;
 }
