@@ -817,11 +817,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Do not let a delayed restore from a previous session type apply later.
 		this._waitForPersistedLanguageModel.clear();
 
-		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, true);
+		const selectedModelStorageKey = this.getSelectedModelStorageKey();
+		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
+		const persistedSelection = this.storageService.get(selectedModelStorageKey, StorageScope.APPLICATION);
+		const persistedAsDefault = this.storageService.getBoolean(selectedModelIsDefaultStorageKey, StorageScope.APPLICATION, true);
+		logChangesToStateModel(this._inputModel, `[INIT-SELECTED-MODEL] storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, persistedSelection=${persistedSelection}, persistedAsDefault=${persistedAsDefault}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, widgetSession=${this._currentSessionKey}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, this._inputModel?.state.get(), undefined, this.logService);
 
 		if (persistedSelection) {
 			const result = shouldRestorePersistedModel(persistedSelection, persistedAsDefault, this.getModels(), this.location);
+			logChangesToStateModel(this._inputModel, `[INIT-SELECTED-MODEL] restore decision persistedSelection=${persistedSelection}, shouldRestore=${result.shouldRestore}, resultModel=${result.model?.identifier}, storageKey=${selectedModelStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}`, this._inputModel?.state.get(), undefined, this.logService);
 			if (result.shouldRestore && result.model) {
 				this.setCurrentLanguageModel(result.model);
 				this.checkModelSupported();
@@ -1313,7 +1317,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		const modelDetails = this.getModels().map(m => `${m.identifier} (${m.metadata.id})`).join(', ');
-		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, modelDetials = ${modelDetails}`, undefined, undefined, this.logService);
+		const selectedModelStorageKey = this.getSelectedModelStorageKey();
+		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
+		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, modelDetials = ${modelDetails}`, undefined, undefined, this.logService);
 		this._currentLanguageModel.set(model, undefined);
 
 		if (this.cachedWidth) {
