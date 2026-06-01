@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
 import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
-import { IClaudeAgentSdkLoaderService } from '../claude/common/claudeAgentSdkLoaderService';
+import { CLAUDE_SDK_EXTENSION_ID, IClaudeAgentSdkLoaderService } from '../claude/common/claudeAgentSdkLoaderService';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -134,11 +134,11 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 					stream.button({
 						command: 'workbench.extensions.installExtension',
 						title: vscode.l10n.t("Install Claude Agent SDK"),
-						arguments: ['ms-vscode.vscode-claude-sdk'],
+						arguments: [CLAUDE_SDK_EXTENSION_ID],
 					});
 					return {
 						errorDetails: {
-							message: vscode.l10n.t("Failed to install ms-vscode.vscode-claude-sdk")
+							message: vscode.l10n.t("Failed to install {0}", CLAUDE_SDK_EXTENSION_ID)
 						}
 					};
 				}
