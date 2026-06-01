@@ -36,6 +36,29 @@ function isMoveValidationFailure(
 }
 
 export class JavaScriptMethodExtractEngine extends TextMoveEngine {
+	private chooseReceiverParameterName(method: ts.MethodDeclaration): string {
+		const usedNames = new Set<string>();
+
+		for (const parameter of method.parameters) {
+			if (ts.isIdentifier(parameter.name)) {
+				usedNames.add(parameter.name.text);
+			}
+		}
+
+		for (const candidate of ['obj', 'receiver', 'thisArg', 'self']) {
+			if (!usedNames.has(candidate)) {
+				return candidate;
+			}
+		}
+
+		let index = 1;
+		while (usedNames.has(`receiver${index}`)) {
+			index++;
+		}
+
+		return `receiver${index}`;
+	}
+
 	public analyzeMove(request: MoveSymbolRequest): JavaScriptMethodMoveAnalysis | MoveValidationResult {
 		if (request.document.languageId !== 'javascript') {
 			return {
@@ -175,7 +198,7 @@ export class JavaScriptMethodExtractEngine extends TextMoveEngine {
 
 		const analysis: JavaScriptMethodMoveAnalysis = {
 			methodName,
-			receiverParameterName: 'obj',
+			receiverParameterName: this.chooseReceiverParameterName(method),
 			method,
 			enclosingClass,
 			callSites,

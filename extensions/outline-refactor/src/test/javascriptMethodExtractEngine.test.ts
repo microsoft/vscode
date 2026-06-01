@@ -87,6 +87,10 @@ moduleLoader._load = function patchedLoad(request: string, parent: NodeModule | 
 	return originalLoad.call(this, request, parent, isMain);
 };
 
+after(() => {
+	moduleLoader._load = originalLoad;
+});
+
 const { JavaScriptMethodExtractEngine } = require(path.join(extensionRoot, 'out', 'refactor', 'javascriptMethodExtractEngine.js')) as typeof import('../refactor/javascriptMethodExtractEngine');
 
 class FakeTextDocument {
@@ -249,7 +253,8 @@ function applyEdit(edit: unknown): string {
 const supportedCases = [
 	{ name: 'simple-no-this', methodName: 'helper' },
 	{ name: 'uses-this', methodName: 'helper' },
-	{ name: 'multiple-args', methodName: 'format' }
+	{ name: 'multiple-args', methodName: 'format' },
+	{ name: 'obj-parameter-collision', methodName: 'helper' },
 ];
 
 const unsupportedCases = [

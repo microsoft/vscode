@@ -459,6 +459,23 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		};
 	}
 
+	private _getDropFeedbackIndex(
+		targetElement: unknown,
+		targetIndex: number,
+		dropPosition: 'before' | 'after'
+	): number {
+		if (dropPosition !== 'after') {
+			return targetIndex;
+		}
+
+		const targetSymbol = this._getDocumentSymbol(targetElement);
+		if (targetSymbol?.kind !== SymbolKind.Class || !targetSymbol.children?.length) {
+			return targetIndex;
+		}
+
+		return this._getLastVisibleDescendantIndex(targetElement, targetIndex);
+	}
+
 	private _getLastVisibleDescendantIndex(element: unknown, targetIndex: number): number {
 		const node = this._tree?.getNode(element);
 		if (!node) {
@@ -534,9 +551,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 				if (typeof targetIndex === 'number') {
 					reaction.feedback = [
-						dropTarget.position === 'after'
-							? this._getLastVisibleDescendantIndex(dropTarget.feedbackElement, targetIndex)
-							: targetIndex
+						this._getDropFeedbackIndex(dropTarget.feedbackElement, targetIndex, dropTarget.position)
 					];
 				}
 
