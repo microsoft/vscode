@@ -121,7 +121,7 @@ A `MutableDisposable` on `LocalSession` ensures repeated `trackModel` calls don'
 - **`renameChat`** — calls `chatService.setSessionTitle()`, updates session title, persists.
 - **`setModel`** — only meaningful for the current new session before send; updates pre-send model id.
 - **`createNewChat`** — for the current new session, returns the already-prepared `IChat` and updates `mainChat`. For an existing committed session, creates a subsequent (child) chat linked to the primary via `parentResource`.
-- **`deleteChat`** — removes a single child chat from a multi-chat session; deleting the primary (or the last remaining chat) removes the whole session.
+- **`deleteChat`** — removes a single child chat from a multi-chat session after a confirmation dialog; deleting the primary (or the last remaining chat) removes the whole session. An unknown/stale chat URI is a no-op.
 
 ## Multi-Chat Support
 

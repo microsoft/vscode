@@ -25,6 +25,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -425,6 +426,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -786,6 +788,16 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// (and any children).
 		if (group.length <= 1 || isEqual(target.resource, primary.resource)) {
 			return this.deleteSession(sessionId);
+		}
+
+		// Confirm before deleting a sub chat from a multi-chat session.
+		const confirmed = await this.dialogService.confirm({
+			message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+			detail: localize('deleteChat.detail', "This action cannot be undone."),
+			primaryButton: localize('deleteChat.delete', "Delete")
+		});
+		if (!confirmed.confirmed) {
+			return;
 		}
 
 		await this.chatService.removeHistoryEntry(target.resource);
