@@ -13,7 +13,6 @@ import { pruneRecentRemoteFolderIfMissing } from '../../browser/recentRemoteFold
 
 class StubFileService extends TestFileService {
 	statError: Error | undefined;
-	providerRegistered = true;
 	statCalls: URI[] = [];
 
 	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
@@ -22,10 +21,6 @@ class StubFileService extends TestFileService {
 			throw this.statError;
 		}
 		return super.stat(resource);
-	}
-
-	override hasProvider(resource: URI): boolean {
-		return this.providerRegistered;
 	}
 }
 
@@ -37,13 +32,12 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 	const virtualFolder = URI.parse('vscode-vfs://github/microsoft/vscode');
 	const localFolder = URI.file('/tmp/local-folder');
 
-	async function run(options: { folder: URI; statError?: Error; providerRegistered?: boolean }) {
+	async function run(options: { folder: URI; statError?: Error }) {
 		const removed: URI[][] = [];
 
 		const contextService = new TestContextService(testWorkspace(options.folder));
 		const fileService = ds.add(new StubFileService());
 		fileService.statError = options.statError;
-		fileService.providerRegistered = options.providerRegistered ?? true;
 
 		const workspacesService = {
 			async removeRecentlyOpened(paths: URI[]): Promise<void> { removed.push(paths); },
@@ -55,7 +49,7 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 		return { fileService, removed };
 	}
 
-	test('prunes vscode-remote on FILE_NOT_FOUND; preserves entry on transient errors, when no provider, for local URIs, and for non-remote authorities (e.g. vscode-vfs)', async () => {
+	test('prunes vscode-remote on FILE_NOT_FOUND; preserves entry on transient errors, generic errors, for local URIs, and for non-remote authorities (e.g. vscode-vfs)', async () => {
 		const notFound = await run({
 			folder: remoteFolder,
 			statError: new FileOperationError('gone', FileOperationResult.FILE_NOT_FOUND)
@@ -64,10 +58,9 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 			folder: remoteFolder,
 			statError: new FileOperationError('host unreachable', FileOperationResult.FILE_OTHER_ERROR)
 		});
-		const noProvider = await run({
+		const genericError = await run({
 			folder: remoteFolder,
-			providerRegistered: false,
-			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
+			statError: new Error('No file system provider found for resource')
 		});
 		const localUri = await run({
 			folder: localFolder,
@@ -81,13 +74,13 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 		assert.deepStrictEqual({
 			notFound: { stats: notFound.fileService.statCalls.map(u => u.toString()), removed: notFound.removed.map(r => r.map(u => u.toString())) },
 			transient: { stats: transient.fileService.statCalls.length, removed: transient.removed.length },
-			noProvider: { stats: noProvider.fileService.statCalls.length, removed: noProvider.removed.length },
+			genericError: { stats: genericError.fileService.statCalls.length, removed: genericError.removed.length },
 			local: { stats: localUri.fileService.statCalls.length, removed: localUri.removed.length },
 			virtual: { stats: virtualUri.fileService.statCalls.length, removed: virtualUri.removed.length },
 		}, {
 			notFound: { stats: [remoteFolder.toString()], removed: [[remoteFolder.toString()]] },
 			transient: { stats: 1, removed: 0 },
-			noProvider: { stats: 0, removed: 0 },
+			genericError: { stats: 1, removed: 0 },
 			local: { stats: 0, removed: 0 },
 			virtual: { stats: 0, removed: 0 },
 		});

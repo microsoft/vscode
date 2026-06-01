@@ -30,13 +30,12 @@ export async function pruneRecentRemoteFolderIfMissing(
 		return; // only mirror the local remove-on-failed-open for vscode-remote authorities
 	}
 
-	if (!fileService.hasProvider(folderUri)) {
-		return;
-	}
-
 	try {
 		await fileService.stat(folderUri);
 	} catch (error) {
+		// Only prune on an authoritative not-found answer. Any other error
+		// (provider not registered / activating, host unreachable, WSL distro down,
+		// container not built, etc.) maps to `FILE_OTHER_ERROR` and leaves the entry intact.
 		if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 			await workspacesService.removeRecentlyOpened([folderUri]);
 		}
