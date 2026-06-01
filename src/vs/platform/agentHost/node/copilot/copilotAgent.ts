@@ -1560,6 +1560,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// it, `rpc.plan.read()` returns `path: null` and the SDK
 				// never emits `exit_plan_mode.requested`.
 				infiniteSessions: { enabled: true },
+				// Per-session remote export: the client-level `--remote` flag
+				// (enableRemoteSessions) enables the CLI *capability*, but each
+				// session must opt in via `remoteSession` to actually export
+				// events. Without this, sessions default to "off".
+				remoteSession: this._isSessionSyncEnabled() ? 'export' : undefined,
 			};
 		};
 	}
