@@ -1266,6 +1266,21 @@ ${formatRule(Codicon.menuSubmenu)}
 	background: none;
 }
 
+/* Show the menu item selection border only for keyboard navigation. A mouse-focused item is always under the pointer (:hover), so the border is suppressed there and the selection background indicates focus instead. A keyboard-focused item is not under the pointer, so the inline selection border remains visible. */
+.monaco-menu .monaco-action-bar.vertical .action-item.focused:hover .action-menu-item {
+	outline: none !important;
+	outline-offset: 0 !important;
+}
+
+/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. */
+.hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+.hc-light .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item {
+	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: -1px !important;
+}
+
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
