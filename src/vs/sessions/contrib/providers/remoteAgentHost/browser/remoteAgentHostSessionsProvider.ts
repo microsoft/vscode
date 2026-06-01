@@ -398,8 +398,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
 
-		// Always refresh sessions when a connection is (re)established
-		this._cacheInitialized = true;
+		// Always refresh sessions when a connection is (re)established.
+		// `_refreshSessions` owns `_cacheInitialized` (set on a successful
+		// list) and arms a backoff retry if the first attempt fails.
 		this._refreshSessions(wasUnpublished);
 	}
 
@@ -438,6 +439,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		// triggers a full list refresh (which will reconcile against the
 		// persisted entries we keep on disk).
 		this._cacheInitialized = false;
+		this._cancelSessionRefreshRetry();
 	}
 
 	/**

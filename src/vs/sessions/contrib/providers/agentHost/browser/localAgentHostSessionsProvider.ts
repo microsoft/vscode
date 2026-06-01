@@ -99,7 +99,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			if (this._agentHostService.authenticationPending.read(reader)) {
 				return;
 			}
-			this._cacheInitialized = true;
 			this._refreshSessions();
 		}));
 	}
