@@ -375,8 +375,8 @@ class OpenInExternalBrowserAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
-				order: 10
+				group: BrowserActionGroup.Tools,
+				order: 3
 			}
 		});
 	}

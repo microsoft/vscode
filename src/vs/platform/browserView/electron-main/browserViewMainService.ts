@@ -287,6 +287,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).untrustCertificate(host, fingerprint);
 	}
 
+	async deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void> {
+		this._getBrowserView(id).session.history.delete(entryIds);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal();
 		browserSession.connectStorage(this.applicationStorageMainService);
@@ -327,6 +331,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async updateConfiguration(config: IBrowserViewConfiguration): Promise<void> {
 		this._configuration = config;
+		if (typeof config.maxHistoryEntries === 'number') {
+			for (const [, view] of this.browserViews) {
+				view.session.history.setMaxEntries(config.maxHistoryEntries);
+			}
+		}
 	}
 
 	/**
@@ -338,6 +347,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		browserSession.connectStorage(this.applicationStorageMainService);
+		if (typeof this._configuration.maxHistoryEntries === 'number') {
+			browserSession.history.setMaxEntries(this._configuration.maxHistoryEntries);
+		}
 
 		const view = this.instantiationService.createInstance(
 			BrowserView,
