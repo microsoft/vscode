@@ -39,6 +39,7 @@
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
     "minimist": "^1.2.8",
+    "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.13",
     "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
