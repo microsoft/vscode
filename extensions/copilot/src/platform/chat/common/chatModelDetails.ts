@@ -15,3 +15,21 @@ export function formatModelDetailsWithCredits(modelName: string, creditsUsed: nu
 		? l10n.t('{0} \u2022 {1} credit', modelName, formatted)
 		: l10n.t('{0} \u2022 {1} credits', modelName, formatted);
 }
+
+/**
+ * Formats model details for auto mode when the model name should be hidden.
+ * Shows "Auto • N credits" or just "Auto • Nx" instead of the actual model name.
+ */
+export function formatAutoModeDetails(creditsUsed: number | undefined, multiplier: number | undefined): string {
+	const autoLabel = l10n.t('Auto');
+	if (creditsUsed !== undefined) {
+		const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+		return creditsUsed === 1
+			? l10n.t('{0} \u2022 {1} credit', autoLabel, formatted)
+			: l10n.t('{0} \u2022 {1} credits', autoLabel, formatted);
+	}
+	if (multiplier !== undefined) {
+		return `${autoLabel} \u2022 ${multiplier}x`;
+	}
+	return autoLabel;
+}
