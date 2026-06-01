@@ -11,7 +11,7 @@ import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hov
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -1126,7 +1126,7 @@ export class ModelPickerWidget extends Disposable {
 	private _updateBadge(): void {
 		if (this._badgeIcon) {
 			if (this._badge) {
-				const icon = this._badge === 'info' ? Codicon.info : Codicon.warning;
+				const icon = this._badge === 'info' ? Codicon.info : Codicon.warningCompact;
 				dom.reset(this._badgeIcon, renderIcon(icon));
 				this._badgeIcon.style.display = '';
 				this._badgeIcon.classList.toggle('info', this._badge === 'info');
@@ -1147,7 +1147,7 @@ export class ModelPickerWidget extends Disposable {
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		if (statusIcon) {
-			nameChildren.push(renderIcon(statusIcon));
+			nameChildren.push(renderIcon(getCompactCodicon(statusIcon)));
 		}
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
 		// In PRU mode, append the config description (e.g. thinking effort) to the button label

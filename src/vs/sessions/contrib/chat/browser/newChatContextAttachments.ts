@@ -159,7 +159,7 @@ export class NewChatContextAttachments extends Disposable {
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
 			removeButton.title = localize('removeAttachment', "Remove");
 			removeButton.tabIndex = -1;
-			dom.append(removeButton, renderIcon(Codicon.close));
+			dom.append(removeButton, renderIcon(Codicon.closeCompact));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
 				this._removeAttachment(entry.id);
@@ -181,7 +181,7 @@ export class NewChatContextAttachments extends Disposable {
 			overlay.classList.add('visible');
 			if (!overlayText) {
 				const label = localize('attachAsContext', "Attach as Context");
-				const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${label}`);
+				const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attachCompact.id}) ${label}`);
 				const htmlElements = iconAndTextElements.map(element => {
 					if (typeof element === 'string') {
 						return dom.$('span.overlay-text', undefined, element);

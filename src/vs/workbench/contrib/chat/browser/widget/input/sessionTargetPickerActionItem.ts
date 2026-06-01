@@ -6,7 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -72,7 +72,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						id: sessionTypeItem.commandId,
 						label: sessionTypeItem.label,
 						checked: currentType === sessionTypeItem.type,
-						icon: this._getSessionIcon(sessionTypeItem),
+						icon: getCompactCodicon(this._getSessionIcon(sessionTypeItem)),
 						enabled: this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
 						description: this._getSessionDescription(sessionTypeItem),
@@ -237,7 +237,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const icon = this._getSessionIcon({ type: currentType, label, hoverDescription: '', commandId: '' });
 
 		const labelElements = [];
-		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 
 		dom.reset(element, ...labelElements);

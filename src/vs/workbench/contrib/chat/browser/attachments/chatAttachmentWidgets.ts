@@ -167,7 +167,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
 		clearButton.element.tabIndex = -1;
-		clearButton.icon = Codicon.close;
+		clearButton.icon = Codicon.closeCompact;
 		this._register(clearButton);
 		this._register(event.Event.once(clearButton.onDidClick)((e) => {
 			this._onDidDelete.fire(e);

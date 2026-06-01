@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
@@ -111,10 +111,10 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 		if (currentWorkspace) {
 			// Show the workspace label or folder name
 			const label = currentWorkspace.label || basename(currentWorkspace.uri);
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
+			labelElements.push(...renderLabelWithIcons(`$(${Codicon.folderCompact.id})`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		} else {
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
+			labelElements.push(...renderLabelWithIcons(`$(${Codicon.folderCompact.id})`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, localize('selectWorkspace', "Workspace")));
 		}
 

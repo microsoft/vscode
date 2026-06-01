@@ -734,7 +734,7 @@ class StartParameterizedPromptAction extends Action2 {
 				after: {
 					content: ' ',
 					inlineClassNameAffectsLetterSpacing: true,
-					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin')) + ' chat-prompt-spinner',
+					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loadingCompact, 'spin')) + ' chat-prompt-spinner',
 				}
 			});
 			store.add(toDisposable(() => {

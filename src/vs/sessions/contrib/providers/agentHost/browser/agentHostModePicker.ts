@@ -31,9 +31,9 @@ export interface IAgentHostSessionEnumPickerItem {
 
 function getModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
-		case 'plan': return Codicon.checklist;
-		case 'autopilot': return Codicon.rocket;
-		case 'interactive': return Codicon.comment;
+		case 'plan': return Codicon.checklistCompact;
+		case 'autopilot': return Codicon.rocketCompact;
+		case 'interactive': return Codicon.commentCompact;
 		default: return undefined;
 	}
 }
