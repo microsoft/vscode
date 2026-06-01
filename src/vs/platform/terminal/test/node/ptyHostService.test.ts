@@ -49,7 +49,8 @@ suite('PtyHostService', () => {
 			store.add(new NullLoggerService())
 		));
 
-		// Force initial pty host start, then capture the listener baseline.
+		// _startPtyHost runs lazily on first use, so trigger one restart to spin up the
+		// initial host and capture the listener counts after a single startup as the baseline.
 		service.restartPtyHost();
 		const baseline = new Map(listenerCounts);
 
