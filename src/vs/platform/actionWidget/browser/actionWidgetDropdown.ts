@@ -32,6 +32,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 */
 	toolbarActions?: IAction[];
 	/**
+	 * Optional CSS class name applied to the action list row container.
+	 */
+	className?: string;
+	/**
 	 * Optional keybinding to display next to the action. When provided, this overrides the
 	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
 	 * Useful when the active keybinding depends on a scoped context (e.g. focus state) that the
@@ -145,6 +149,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					detail: action.detail,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
+					className: action.className,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },

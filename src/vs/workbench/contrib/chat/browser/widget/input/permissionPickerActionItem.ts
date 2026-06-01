@@ -26,6 +26,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -64,13 +65,17 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
+		const isSandboxingEnabled = () => {
+			const value = configurationService.getValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled);
+			return value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		};
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead
@@ -99,6 +104,17 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 				const currentLevel = delegate.currentPermissionLevel.get();
 				const policyRestricted = isAutoApprovePolicyRestricted();
+				const sandboxOn = isSandboxingEnabled();
+				const setDefaultWithSandbox = async (enableSandbox: boolean) => {
+					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+					if (isSandboxingEnabled() !== enableSandbox) {
+						await configurationService.updateValue(AgentSandboxSettingId.AgentSandboxEnabled, target);
+					}
+					delegate.setPermissionLevel(ChatPermissionLevel.Default);
+					if (this.element) {
+						this.renderLabel(this.element);
+					}
+				};
 				const actions: IActionWidgetDropdownAction[] = [
 					{
 						...action,
@@ -106,17 +122,25 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						label: localize('permissions.default', "Default Approvals"),
 						detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
-						checked: currentLevel === ChatPermissionLevel.Default,
+						checked: currentLevel === ChatPermissionLevel.Default && !sandboxOn,
 						tooltip: '',
 						hover: {
 							content: localize('permissions.default.description', "Use configured approval settings"),
 						},
-						run: async () => {
-							delegate.setPermissionLevel(ChatPermissionLevel.Default);
-							if (this.element) {
-								this.renderLabel(this.element);
-							}
+						run: async () => { await setDefaultWithSandbox(false); },
+					} satisfies IActionWidgetDropdownAction,
+					{
+						...action,
+						id: 'chat.permissions.default.sandbox',
+						label: localize('permissions.default.sandbox', "Default Approvals with Sandboxing"),
+						detail: localize('permissions.default.sandbox.subtext', "Terminal commands run in a sandbox"),
+						icon: ThemeIcon.fromId(Codicon.shield.id),
+						checked: currentLevel === ChatPermissionLevel.Default && sandboxOn,
+						tooltip: '',
+						hover: {
+							content: localize('permissions.default.sandbox.description', "Use configured approval settings and run terminal commands inside a sandbox that restricts file system and network access"),
 						},
+						run: async () => { await setDefaultWithSandbox(true); },
 					} satisfies IActionWidgetDropdownAction,
 					{
 						...action,
@@ -192,6 +216,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
 			listOptions: { minWidth: 255, detailItemHeight: 44 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) && this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -200,7 +230,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const ext = this.delegate.getExtensionPermissions?.();
 		let icon: ThemeIcon;
 		let label: string;
+		let trailingIcon: ThemeIcon | undefined;
 		const level = this.delegate.currentPermissionLevel.get();
+		const sandboxValue = this.configurationService.getValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled);
+		const sandboxOn = sandboxValue === AgentSandboxEnabledValue.On || sandboxValue === AgentSandboxEnabledValue.AllowNetwork;
 		if (ext && ext.items.length > 0) {
 			const selected = ext.items.find(i => i.id === ext.selectedId)
 				?? ext.items.find(i => i.default)
@@ -220,6 +253,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				default:
 					icon = Codicon.shield;
 					label = localize('permissions.default.label', "Default Approvals");
+					if (sandboxOn) {
+						trailingIcon = Codicon.lock;
+					}
 					break;
 			}
 		}
@@ -227,6 +263,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		if (trailingIcon) {
+			labelElements.push(...renderLabelWithIcons(`$(${trailingIcon.id})`));
+		}
 
 		dom.reset(element, ...labelElements);
 		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);

@@ -18,6 +18,7 @@ import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, Modif
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
@@ -27,11 +28,12 @@ interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly todos?: IChatTodo[];
+	readonly sandboxingEnabled?: boolean;
 }
 
 async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], sandboxingEnabled = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
@@ -45,6 +47,11 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 	if (artifacts.length > 0) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
+	}
+
+	if (sandboxingEnabled) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 	}
 
 	container.style.width = '500px';
@@ -147,6 +154,7 @@ const sampleTodos: IChatTodo[] = [
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
+	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	WithFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })
