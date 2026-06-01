@@ -39,11 +39,15 @@ import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
 import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
+import type { CommandExecutionRequestApprovalParams } from './protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
+import type { CommandExecutionRequestApprovalResponse } from './protocol/generated/v2/CommandExecutionRequestApprovalResponse.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
 import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
+import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
+import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 import type { TurnStartParams } from './protocol/generated/v2/TurnStartParams.js';
 
 const CLIENT_INFO = {
@@ -599,16 +603,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 
 		// Wire global notification → SessionAction dispatch.
-		this._register(client.onNotification('thread/started', () => { /* no-op: createSession awaits the request response */ }));
 		this._registerIgnoredNotifications(client);
-		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => {
-			// The workbench already dispatched the canonical SessionTurnStarted
-			// action before calling sendMessage. Codex's app-server turn id is
-			// only needed to correlate subsequent app-server item/turn events
-			// back to the workbench turn id.
-			mapTurnStarted(s.mapState, this._withHostTurn(s, params), s.lastPromptText);
-			return [];
-		})));
+		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
 		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => mapItemStarted(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
@@ -620,16 +616,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, s => mapTokenUsageUpdated(this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/completed', params => this._dispatchByThread(params.threadId, s => mapItemCompleted(s.mapState, this._withHostTurnId(s, params)))));
-		this._register(client.onNotification('turn/completed', params => this._dispatchByThread(params.threadId, s => {
-			const appTurnId = params.turn.id;
-			const out = mapTurnCompleted(s.mapState, this._withHostTurn(s, params));
-			if (s.currentAppTurnId === appTurnId || s.currentTurnId === this._hostTurnId(s, appTurnId)) {
-				s.currentTurnId = undefined;
-				s.currentAppTurnId = undefined;
-			}
-			s.hostTurnIdByAppTurnId.delete(appTurnId);
-			return out;
-		})));
+		this._register(client.onNotification('turn/completed', params => this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params))));
 
 		// Phase 4: command-execution approval requests. Park on a
 		// per-session deferred, emit `SessionToolCallReady` in the
@@ -637,11 +624,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// (or accept-for-session memoization) decides.
 		this._register(client.onRequest<'item/commandExecution/requestApproval'>(
 			'item/commandExecution/requestApproval',
-			async params => {
-				const decision = await this._handleCommandApprovalRequest(params);
-				const result: { decision: CommandExecutionApprovalDecision } = { decision };
-				return { result };
-			},
+			params => this._handleCommandApprovalRequestRpc(params),
 		));
 
 		return { client, proxyHandle, child };
@@ -664,16 +647,37 @@ export class CodexAgent extends Disposable implements IAgent {
 		return hostTurnId === appTurnId ? params : { ...params, turn: { ...params.turn, id: hostTurnId } };
 	}
 
+	private _handleTurnStartedNotification(session: ICodexSession, params: TurnStartedNotification): SessionAction[] {
+		// The workbench already dispatched the canonical turn start before sendMessage.
+		// Codex's event only establishes app-server turn id correlation for later items.
+		mapTurnStarted(session.mapState, this._withHostTurn(session, params), session.lastPromptText);
+		return [];
+	}
+
+	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): SessionAction[] {
+		const appTurnId = params.turn.id;
+		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params));
+		// Codex reports app-server turn ids, while the workbench owns host turn ids.
+		// Clear the correlation after completion so later turns cannot reuse stale ids.
+		if (session.currentAppTurnId === appTurnId || session.currentTurnId === this._hostTurnId(session, appTurnId)) {
+			session.currentTurnId = undefined;
+			session.currentAppTurnId = undefined;
+		}
+		session.hostTurnIdByAppTurnId.delete(appTurnId);
+		return out;
+	}
+
 	private _registerIgnoredNotifications(client: ICodexAppServerClient): void {
 		const ignored = [
-			'thread/status/changed',
-			'thread/settings/updated',
-			'thread/goal/updated',
-			'thread/goal/cleared',
-			'account/updated',
-			'account/rateLimits/updated',
-			'remoteControl/status/changed',
-			'serverRequest/resolved',
+			'thread/started', // thread/start response is authoritative for session materialization.
+			'thread/status/changed', // Codex thread status is not surfaced in Agent Host state yet.
+			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
+			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
+			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
+			'account/updated', // Account state is read on connect; live account updates are not surfaced yet.
+			'account/rateLimits/updated', // Rate-limit UI/state is not implemented yet.
+			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
+			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
 		] as const;
 		for (const method of ignored) {
 			this._register(client.onNotification(method, () => { /* intentionally ignored */ }));
@@ -695,9 +699,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = this._sessionIdByThreadId.get(threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
-			// Notification for a session we don't track — most likely a
-			// prewarmed thread (Phase 6) that hasn't been claimed yet.
-			// Drop silently.
+			// Usually an unclaimed prewarm; ignore.
+			this._logService.trace(`[Codex] Ignoring notification for untracked threadId=${threadId}; likely unclaimed prewarm`);
 			return;
 		}
 		const actions = mapFn(session);
@@ -714,6 +717,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * accept-for-session memo) decides. Unknown sessions / items
 	 * decline silently so codex stops blocking.
 	 */
+	private async _handleCommandApprovalRequestRpc(params: CommandExecutionRequestApprovalParams): Promise<{ readonly result: CommandExecutionRequestApprovalResponse }> {
+		// The request handler must return Codex's JSON-RPC result wrapper; keep
+		// the approval method below focused on the host-side permission decision.
+		const decision = await this._handleCommandApprovalRequest(params);
+		return { result: { decision } };
+	}
+
 	private async _handleCommandApprovalRequest(params: {
 		readonly threadId: string;
 		readonly turnId: string;
@@ -796,8 +806,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		// Release resources. The proxy handle is refcounted and drops
 		// the underlying server once everyone releases.
-		try { conn.client.dispose(); } catch { /* ignore */ }
-		try { conn.proxyHandle.dispose(); } catch { /* ignore */ }
+		try {
+			conn.client.dispose();
+		} catch (err) {
+			this._logService.error(`[Codex] Failed to dispose app-server client after connection lost: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		try {
+			conn.proxyHandle.dispose();
+		} catch (err) {
+			this._logService.error(`[Codex] Failed to dispose proxy handle after connection lost: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	// #endregion

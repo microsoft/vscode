@@ -285,6 +285,9 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	}
 
 	private _promotePendingTurnStartIfTerminal(action: StateAction): void {
+		// A backend-originated terminal turn action may arrive without the clientSeq
+		// that would normally confirm our optimistic turn start. Promote that start
+		// first so the terminal action can close it instead of leaving it pending.
 		if (!isSessionAction(action)) {
 			return;
 		}
@@ -419,10 +422,12 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ManagedSubscriptionEntry = { sub: BaseAgentSubscription<any>; refCount: number };
+type ManagedSubscription = SessionStateSubscription | TerminalStateSubscription | ChangesetStateSubscription;
+
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; refCount: number };
 
 // --- Subscription Manager ----------------------------------------------------
+
 
 /**
  * Manages the lifecycle of resource subscriptions for an agent connection.
@@ -491,12 +496,14 @@ export class AgentSubscriptionManager extends Disposable {
 		const existing = this._subscriptions.get(resource);
 		if (existing) {
 			if (existing.sub.value instanceof Error) {
+				// Failed subscriptions should not poison the resource forever. Evict
+				// the errored entry so this acquire performs a fresh subscribe.
 				this._subscriptions.delete(resource);
 				this._disposeSubscriptionEntry(resource, existing);
 			} else {
 				existing.refCount++;
 				return {
-					object: existing.sub,
+					object: existing.sub as unknown as IAgentSubscription<T>,
 					dispose: () => this._releaseSubscription(resource, existing),
 				};
 			}
@@ -522,17 +529,26 @@ export class AgentSubscriptionManager extends Disposable {
 		});
 
 		return {
-			object: sub,
+			object: sub as unknown as IAgentSubscription<T>,
 			dispose: () => this._releaseSubscription(resource, entry),
 		};
 	}
 
 	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
-		try { this._unsubscribe(resource); } catch { /* best-effort */ }
+		this._tryUnsubscribe(resource);
 		if (entry.sub instanceof SessionStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
+	}
+
+	private _tryUnsubscribe(resource: URI): void {
+		try {
+			this._unsubscribe(resource);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this._log(`Failed to unsubscribe ${resource.toString()}: ${message}`);
+		}
 	}
 
 	/**
@@ -648,8 +664,7 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createSubscription(kind: StateComponents, key: string): BaseAgentSubscription<any> {
+	private _createSubscription(kind: StateComponents, key: string): ManagedSubscription {
 		switch (kind) {
 			case StateComponents.Session:
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
@@ -666,6 +681,8 @@ export class AgentSubscriptionManager extends Disposable {
 
 	private _releaseSubscription(resource: URI, expected?: ManagedSubscriptionEntry): void {
 		const entry = this._subscriptions.get(resource);
+		// A failed subscription can be evicted and replaced while old references
+		// still exist; stale disposals must not release the replacement entry.
 		if (!entry || (expected && entry !== expected)) {
 			return;
 		}
@@ -678,7 +695,7 @@ export class AgentSubscriptionManager extends Disposable {
 
 	override dispose(): void {
 		for (const [resource, entry] of this._subscriptions) {
-			try { this._unsubscribe(resource); } catch { /* best-effort */ }
+			this._tryUnsubscribe(resource);
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();
