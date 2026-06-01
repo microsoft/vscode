@@ -13,12 +13,12 @@ import { ISession } from '../../../services/sessions/common/session.js';
 const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
-/** Storage key for the cumulative number of user requests sent from the Agents window across all workspaces and providers. */
-const TOTAL_REQUESTS_KEY = 'agentSessions.telemetry.totalRequests';
-/** Storage key for the cumulative number of user requests sent in each workspace (JSON encoded map of workspace URI -> count). */
-const WORKSPACE_REQUESTS_KEY = 'agentSessions.telemetry.workspaceRequests';
-/** Storage key for the cumulative number of user requests sent for each sessions provider (JSON encoded map of providerId -> count). */
-const PROVIDER_REQUESTS_KEY = 'agentSessions.telemetry.providerRequests';
+/** Storage key for the cumulative number of sessions started from the Agents window across all workspaces and providers. */
+const TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
+/** Storage key for the cumulative number of sessions started in each workspace (JSON encoded map of workspace URI -> count). */
+const WORKSPACE_SESSIONS_KEY = 'agentSessions.telemetry.workspaceSessions';
+/** Storage key for the cumulative number of sessions started for each sessions provider (JSON encoded map of providerId -> count). */
+const PROVIDER_SESSIONS_KEY = 'agentSessions.telemetry.providerSessions';
 /** Hard cap on the number of tracked sessions to prevent unbounded storage growth. Exported for tests. */
 export const MAX_TRACKED_SESSIONS = 2000;
 
@@ -32,9 +32,9 @@ export type SessionDoneReason = 'archived' | 'deleted' | 'archivedRemotely' | 'd
  * unchanged via {@link SessionsLifecycleTracker.getUserRequestCounters}.
  */
 export interface IUserRequestCounters {
-	readonly userRequestsTotal: number;
-	readonly userRequestsInWorkspace: number;
-	readonly userRequestsForProvider: number;
+	readonly userSessionsTotal: number;
+	readonly userSessionsInWorkspace: number;
+	readonly userSessionsForProvider: number;
 }
 
 /** Keys of {@link IStoredSessionStats} that hold simple incrementable counters. */
@@ -148,9 +148,9 @@ export interface ISessionLifecycleSummary {
 	filesChanged: number;
 	linesAdded: number;
 	linesDeleted: number;
-	userRequestsTotal: number;
-	userRequestsInWorkspace: number;
-	userRequestsForProvider: number;
+	userSessionsTotal: number;
+	userSessionsInWorkspace: number;
+	userSessionsForProvider: number;
 }
 
 /**
@@ -247,23 +247,23 @@ export class SessionsLifecycleTracker extends Disposable {
 		const providerId = session.providerId;
 		const workspaceUri = session.workspace.get()?.uri.toString();
 
-		const userRequestsTotal = this._storageService.getNumber(TOTAL_REQUESTS_KEY, StorageScope.APPLICATION, 0) + 1;
-		this._storageService.store(TOTAL_REQUESTS_KEY, userRequestsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) + 1;
+		this._storageService.store(TOTAL_SESSIONS_KEY, userSessionsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const providerCounts = this._readCounterMap(PROVIDER_REQUESTS_KEY);
-		const userRequestsForProvider = (providerCounts[providerId] ?? 0) + 1;
-		providerCounts[providerId] = userRequestsForProvider;
-		this._storageService.store(PROVIDER_REQUESTS_KEY, JSON.stringify(providerCounts), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providerCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
+		const userSessionsForProvider = (providerCounts[providerId] ?? 0) + 1;
+		providerCounts[providerId] = userSessionsForProvider;
+		this._storageService.store(PROVIDER_SESSIONS_KEY, JSON.stringify(providerCounts), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		let userRequestsInWorkspace = 0;
+		let userSessionsInWorkspace = 0;
 		if (workspaceUri) {
-			const workspaceCounts = this._readCounterMap(WORKSPACE_REQUESTS_KEY);
-			userRequestsInWorkspace = (workspaceCounts[workspaceUri] ?? 0) + 1;
-			workspaceCounts[workspaceUri] = userRequestsInWorkspace;
-			this._storageService.store(WORKSPACE_REQUESTS_KEY, JSON.stringify(workspaceCounts), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			const workspaceCounts = this._readCounterMap(WORKSPACE_SESSIONS_KEY);
+			userSessionsInWorkspace = (workspaceCounts[workspaceUri] ?? 0) + 1;
+			workspaceCounts[workspaceUri] = userSessionsInWorkspace;
+			this._storageService.store(WORKSPACE_SESSIONS_KEY, JSON.stringify(workspaceCounts), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
-		return { userRequestsTotal, userRequestsInWorkspace, userRequestsForProvider };
+		return { userSessionsTotal, userSessionsInWorkspace, userSessionsForProvider };
 	}
 
 	/** Reads the persisted user-request counters without incrementing them. */
@@ -315,15 +315,15 @@ export class SessionsLifecycleTracker extends Disposable {
 	}
 
 	private _readUserRequestCounters(providerId: string, workspaceUri: string | undefined): IUserRequestCounters {
-		const userRequestsTotal = this._storageService.getNumber(TOTAL_REQUESTS_KEY, StorageScope.APPLICATION, 0);
-		const providerCounts = this._readCounterMap(PROVIDER_REQUESTS_KEY);
-		const userRequestsForProvider = providerCounts[providerId] ?? 0;
-		let userRequestsInWorkspace = 0;
+		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		const providerCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
+		const userSessionsForProvider = providerCounts[providerId] ?? 0;
+		let userSessionsInWorkspace = 0;
 		if (workspaceUri) {
-			const workspaceCounts = this._readCounterMap(WORKSPACE_REQUESTS_KEY);
-			userRequestsInWorkspace = workspaceCounts[workspaceUri] ?? 0;
+			const workspaceCounts = this._readCounterMap(WORKSPACE_SESSIONS_KEY);
+			userSessionsInWorkspace = workspaceCounts[workspaceUri] ?? 0;
 		}
-		return { userRequestsTotal, userRequestsInWorkspace, userRequestsForProvider };
+		return { userSessionsTotal, userSessionsInWorkspace, userSessionsForProvider };
 	}
 
 	private _readCounterMap(key: string): Record<string, number> {
@@ -509,8 +509,8 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		filesChanged: entry.filesChanged,
 		linesAdded: entry.linesAdded,
 		linesDeleted: entry.linesDeleted,
-		userRequestsTotal: requestCounters.userRequestsTotal,
-		userRequestsInWorkspace: requestCounters.userRequestsInWorkspace,
-		userRequestsForProvider: requestCounters.userRequestsForProvider,
+		userSessionsTotal: requestCounters.userSessionsTotal,
+		userSessionsInWorkspace: requestCounters.userSessionsInWorkspace,
+		userSessionsForProvider: requestCounters.userSessionsForProvider,
 	};
 }

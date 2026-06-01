@@ -812,9 +812,9 @@ type SessionRequestSentEvent = {
 	allWorkspacesUnread: number;
 	allWorkspacesWaitingForInput: number;
 	allWorkspacesNotDone: number;
-	userRequestsTotal: number;
-	userRequestsInWorkspace: number;
-	userRequestsForProvider: number;
+	userSessionsTotal: number;
+	userSessionsInWorkspace: number;
+	userSessionsForProvider: number;
 };
 
 // --- Events: session-level lifecycle actions (archive / unarchive / delete /
@@ -871,9 +871,9 @@ type SessionRequestSentClassification = {
 	allWorkspacesUnread: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Unread sessions across all workspaces.' };
 	allWorkspacesWaitingForInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Sessions waiting for user input across all workspaces.' };
 	allWorkspacesNotDone: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Sessions not marked as done across all workspaces.' };
-	userRequestsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started from the Agents window across all workspaces and providers. Incremented only when `isNewSession` is true.' };
-	userRequestsInWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started in the current workspace. Incremented only when `isNewSession` is true.' };
-	userRequestsForProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started for this sessions provider across all workspaces. Incremented only when `isNewSession` is true.' };
+	userSessionsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started from the Agents window across all workspaces and providers. Incremented only when `isNewSession` is true.' };
+	userSessionsInWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started in the current workspace. Incremented only when `isNewSession` is true.' };
+	userSessionsForProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started for this sessions provider across all workspaces. Incremented only when `isNewSession` is true.' };
 };
 
 type SessionArchivedClassification = {
@@ -1398,7 +1398,7 @@ type SessionSummaryClassification = {
 	filesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of changed files in the session at the moment the summary was emitted.' };
 	linesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines added across all changed files in the session at the moment the summary was emitted.' };
 	linesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines deleted across all changed files in the session at the moment the summary was emitted.' };
-	userRequestsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started from the Agents window across all workspaces and providers at the moment the summary was emitted.' };
-	userRequestsInWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started in the current workspace at the moment the summary was emitted.' };
-	userRequestsForProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started for this sessions provider across all workspaces at the moment the summary was emitted.' };
+	userSessionsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started from the Agents window across all workspaces and providers at the moment the summary was emitted.' };
+	userSessionsInWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started in the current workspace at the moment the summary was emitted.' };
+	userSessionsForProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started for this sessions provider across all workspaces at the moment the summary was emitted.' };
 };

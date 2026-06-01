@@ -392,10 +392,10 @@ suite('SessionsLifecycleTracker', () => {
 		const b = createSession('b', { providerId: 'p2', workspace: workspaceB });
 		const noWorkspace = createSession('n', { providerId: 'p1' });
 
-		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(a1), { userRequestsTotal: 1, userRequestsInWorkspace: 1, userRequestsForProvider: 1 });
-		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(a2), { userRequestsTotal: 2, userRequestsInWorkspace: 2, userRequestsForProvider: 2 });
-		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(b), { userRequestsTotal: 3, userRequestsInWorkspace: 1, userRequestsForProvider: 1 });
-		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(noWorkspace), { userRequestsTotal: 4, userRequestsInWorkspace: 0, userRequestsForProvider: 3 });
+		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(a1), { userSessionsTotal: 1, userSessionsInWorkspace: 1, userSessionsForProvider: 1 });
+		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(a2), { userSessionsTotal: 2, userSessionsInWorkspace: 2, userSessionsForProvider: 2 });
+		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(b), { userSessionsTotal: 3, userSessionsInWorkspace: 1, userSessionsForProvider: 1 });
+		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(noWorkspace), { userSessionsTotal: 4, userSessionsInWorkspace: 0, userSessionsForProvider: 3 });
 	});
 
 	test('summary includes the request counters as observed at finalize time', () => {
@@ -413,13 +413,13 @@ suite('SessionsLifecycleTracker', () => {
 		const summary = tracker.finalize(sessionToFinalize.sessionId, 'archived', sessionToFinalize);
 		assert.ok(summary);
 		assert.deepStrictEqual({
-			userRequestsTotal: summary!.userRequestsTotal,
-			userRequestsInWorkspace: summary!.userRequestsInWorkspace,
-			userRequestsForProvider: summary!.userRequestsForProvider,
+			userSessionsTotal: summary!.userSessionsTotal,
+			userSessionsInWorkspace: summary!.userSessionsInWorkspace,
+			userSessionsForProvider: summary!.userSessionsForProvider,
 		}, {
-			userRequestsTotal: 3,
-			userRequestsInWorkspace: 2,
-			userRequestsForProvider: 2,
+			userSessionsTotal: 3,
+			userSessionsInWorkspace: 2,
+			userSessionsForProvider: 2,
 		});
 	});
 
@@ -430,21 +430,21 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.incrementAndGetUserRequestCounters(session);
 
 		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
-		assert.deepStrictEqual(secondTracker.incrementAndGetUserRequestCounters(session), { userRequestsTotal: 3, userRequestsInWorkspace: 3, userRequestsForProvider: 3 });
+		assert.deepStrictEqual(secondTracker.incrementAndGetUserRequestCounters(session), { userSessionsTotal: 3, userSessionsInWorkspace: 3, userSessionsForProvider: 3 });
 	});
 
 	test('getUserRequestCounters returns current values without incrementing', () => {
 		const workspace = createWorkspace(URI.parse('file:///ws/a'), [createFolder(URI.parse('file:///ws/a'))]);
 		const session = createSession('a1', { providerId: 'p1', workspace });
 
-		assert.deepStrictEqual(tracker.getUserRequestCounters(session), { userRequestsTotal: 0, userRequestsInWorkspace: 0, userRequestsForProvider: 0 });
+		assert.deepStrictEqual(tracker.getUserRequestCounters(session), { userSessionsTotal: 0, userSessionsInWorkspace: 0, userSessionsForProvider: 0 });
 
 		tracker.incrementAndGetUserRequestCounters(session);
 		tracker.incrementAndGetUserRequestCounters(session);
 
-		assert.deepStrictEqual(tracker.getUserRequestCounters(session), { userRequestsTotal: 2, userRequestsInWorkspace: 2, userRequestsForProvider: 2 });
+		assert.deepStrictEqual(tracker.getUserRequestCounters(session), { userSessionsTotal: 2, userSessionsInWorkspace: 2, userSessionsForProvider: 2 });
 		// Repeated reads do not mutate state.
-		assert.deepStrictEqual(tracker.getUserRequestCounters(session), { userRequestsTotal: 2, userRequestsInWorkspace: 2, userRequestsForProvider: 2 });
+		assert.deepStrictEqual(tracker.getUserRequestCounters(session), { userSessionsTotal: 2, userSessionsInWorkspace: 2, userSessionsForProvider: 2 });
 	});
 
 	test('summary reports zero request counters for an untouched provider/workspace', () => {
@@ -454,13 +454,13 @@ suite('SessionsLifecycleTracker', () => {
 		const summary = tracker.finalize(session.sessionId, 'archived', session);
 		assert.ok(summary);
 		assert.deepStrictEqual({
-			userRequestsTotal: summary!.userRequestsTotal,
-			userRequestsInWorkspace: summary!.userRequestsInWorkspace,
-			userRequestsForProvider: summary!.userRequestsForProvider,
+			userSessionsTotal: summary!.userSessionsTotal,
+			userSessionsInWorkspace: summary!.userSessionsInWorkspace,
+			userSessionsForProvider: summary!.userSessionsForProvider,
 		}, {
-			userRequestsTotal: 0,
-			userRequestsInWorkspace: 0,
-			userRequestsForProvider: 0,
+			userSessionsTotal: 0,
+			userSessionsInWorkspace: 0,
+			userSessionsForProvider: 0,
 		});
 	});
 
