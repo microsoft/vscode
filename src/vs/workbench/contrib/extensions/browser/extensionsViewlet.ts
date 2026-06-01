@@ -1011,7 +1011,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 
 		if (!badge) {
 			const actionRequired = this.configurationService.getValue(AutoRestartConfigurationKey) === true ? [] : this.extensionsWorkbenchService.installed.filter(e => e.runtimeState !== undefined);
-			const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) ? 1 : 0), 0);
+			const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) && !this.extensionsWorkbenchService.isAutoUpdateDelayed(e) ? 1 : 0), 0);
 			const newBadgeNumber = outdated + actionRequired.length;
 			if (newBadgeNumber > 0) {
 				let msg = '';

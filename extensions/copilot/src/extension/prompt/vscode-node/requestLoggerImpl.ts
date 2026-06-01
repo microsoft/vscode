@@ -205,6 +205,8 @@ class LoggedRequestInfo implements ILoggedRequestInfo {
 			serverRequestId: this.entry.type === LoggedRequestKind.ChatMLSuccess || this.entry.type === LoggedRequestKind.ChatMLFailure ? this.entry.result.serverRequestId : undefined,
 			timeToFirstToken: this.entry.type === LoggedRequestKind.ChatMLSuccess ? this.entry.timeToFirstToken : undefined,
 			usage: this.entry.type === LoggedRequestKind.ChatMLSuccess ? this.entry.usage : undefined,
+			copilotUsageAic: this.entry.type === LoggedRequestKind.ChatMLSuccess && typeof this.entry.usage?.copilot_usage?.total_nano_aiu === 'number'
+				? this.entry.usage.copilot_usage.total_nano_aiu / 1_000_000_000 : undefined,
 			tools: this.entry.chatParams.body?.tools,
 		};
 
@@ -603,7 +605,7 @@ export class RequestLogger extends AbstractRequestLogger {
 		// Just some other options to track
 		// TODO Probably we should just extract every item on the body and format it as below, instead of doing this one-by-one
 		const otherOptions: Record<string, string | number | boolean> = {};
-		for (const opt of ['temperature', 'stream', 'store'] satisfies (keyof IEndpointBody)[]) {
+		for (const opt of ['temperature', 'stream', 'store', 'reasoning_effort'] satisfies (keyof IEndpointBody)[]) {
 			if (entry.chatParams.body?.[opt] !== undefined) {
 				otherOptions[opt] = entry.chatParams.body[opt];
 			}
@@ -662,6 +664,10 @@ export class RequestLogger extends AbstractRequestLogger {
 			result.push(`timeToFirstToken : ${entry.timeToFirstToken}ms`);
 			result.push(`resolved model   : ${entry.result.resolvedModel}`);
 			result.push(`usage            : ${JSON.stringify(entry.usage)}`);
+			if (typeof entry.usage?.copilot_usage?.total_nano_aiu === 'number') {
+				const aic = entry.usage.copilot_usage.total_nano_aiu / 1_000_000_000;
+				result.push(`copilotUsage    : ${aic.toFixed(2)} AIC (${entry.usage.copilot_usage.total_nano_aiu} nano-AIU)`);
+			}
 		} else if (entry.type === LoggedRequestKind.ChatMLFailure) {
 			result.push(`requestId        : ${entry.result.requestId}`);
 			result.push(`serverRequestId  : ${entry.result.serverRequestId}`);

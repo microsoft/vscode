@@ -13,6 +13,7 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { SymbolKind } from '../../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -155,6 +156,26 @@ suite('ChatModel', () => {
 		model2.acceptResponseProgress(request1, { content: new MarkdownString('Hello'), kind: 'markdownContent' });
 
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
+	});
+
+	test('acceptResponseProgress applies usage to response metadata', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 3 });
+
+		assert.deepStrictEqual({
+			usage: request.response?.usage,
+			completionTokenCount: request.response?.completionTokenCount,
+			responseContent: request.response?.response.toString(),
+		}, {
+			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
+			completionTokenCount: 5,
+			responseContent: '',
+		});
 	});
 
 	test('addCompleteRequest', async function () {
@@ -354,6 +375,112 @@ suite('Response', () => {
 
 		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
 
+	});
+
+	test('resolve inline reference updates existing response content', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		});
+
+		let changes = 0;
+		store.add(response.onDidChangeValue(() => changes++));
+
+		const didResolve = response.resolveInlineReference('resolve1', {
+			kind: 'inlineReference',
+			inlineReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+		});
+		const resolved = response.value[0];
+		const resolvedReference = resolved.kind === 'inlineReference' ? resolved.inlineReference : undefined;
+
+		assert.deepStrictEqual({
+			didResolve,
+			changes,
+			responseText: response.toString(),
+			resolvedReference,
+		}, {
+			didResolve: true,
+			changes: 1,
+			responseText: '`Foo`',
+			resolvedReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+		});
+	});
+
+	test('resolve inline reference updates display name when provided', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		});
+
+		const didResolve = response.resolveInlineReference('resolve1', {
+			kind: 'inlineReference',
+			inlineReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+			name: 'Resolved Foo',
+		});
+		const resolved = response.value[0];
+
+		assert.deepStrictEqual({
+			didResolve,
+			displayName: resolved.kind === 'inlineReference' ? resolved.name : undefined,
+			responseText: response.toString(),
+		}, {
+			didResolve: true,
+			displayName: 'Resolved Foo',
+			responseText: '`Foo`',
+		});
+	});
+
+	test('resolve inline reference returns false for an unknown resolve id', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		});
+
+		let changes = 0;
+		store.add(response.onDidChangeValue(() => changes++));
+
+		const didResolve = response.resolveInlineReference('missing', {
+			kind: 'inlineReference',
+			inlineReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+		});
+
+		assert.deepStrictEqual({
+			didResolve,
+			changes,
+			responseText: response.toString(),
+		}, {
+			didResolve: false,
+			changes: 0,
+			responseText: 'foo.ts',
+		});
 	});
 
 	test('consolidated edit summary', () => {

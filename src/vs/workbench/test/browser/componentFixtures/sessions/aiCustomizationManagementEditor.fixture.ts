@@ -5,15 +5,19 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -30,23 +34,27 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSources } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
@@ -94,6 +102,23 @@ function createMockEditorGroup(): IEditorGroup {
 	}();
 }
 
+function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
+	const itemSource = new class extends mock<IAICustomizationItemSource>() {
+		override readonly sessionResource = LocalChatSessionUri.getNewSessionUri();
+		override readonly onDidAICustomizationItemsChange = Event.None;
+		override async fetchProviderItems() { return []; }
+		override async fetchAICustomizationItems(_promptType: PromptsType) { return []; }
+	}();
+
+	return new class extends mock<IAICustomizationItemsModel>() {
+		override getItems(_section: ItemsModelSection): IObservable<readonly IAICustomizationListItem[]> { return constObservable([]); }
+		override getActiveItemSource() { return itemSource; }
+		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
+		override getPluginCount(): IObservable<number> { return constObservable(0); }
+		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
+	}();
+}
+
 function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier; displayName?: string } | undefined {
 	if (!file.extensionId) {
 		return undefined;
@@ -105,10 +130,60 @@ function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier;
 	};
 }
 
-function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[]): IPromptsService {
-	const applyToMap = new ResourceMap<string | undefined>();
-	const descriptionMap = new ResourceMap<string | undefined>();
-	for (const f of files) { applyToMap.set(f.uri, f.applyTo); descriptionMap.set(f.uri, f.description); }
+function createFixtureFileContent(file: IFixtureFile): string {
+	if (file.type === PromptsType.hook) {
+		return JSON.stringify({
+			name: file.name,
+			description: file.description,
+			command: 'npm test',
+		}, null, 2);
+	}
+
+	const headerLines = [
+		'---',
+		`description: ${JSON.stringify(file.description ?? `${file.name ?? 'Customization'} description`)}`,
+	];
+
+	if (file.type === PromptsType.instructions && file.applyTo) {
+		headerLines.push(`applyTo: ${JSON.stringify(file.applyTo)}`);
+	}
+
+	if (file.type === PromptsType.agent) {
+		headerLines.push('tools:');
+		headerLines.push('  - read_file');
+		headerLines.push('  - grep_search');
+	}
+
+	if (file.type === PromptsType.skill) {
+		headerLines.push(`input: ${JSON.stringify('Code review findings')}`);
+	}
+
+	if (file.type === PromptsType.prompt) {
+		headerLines.push(`argument-hint: ${JSON.stringify('Paste the failing stack trace')}`);
+	}
+
+	headerLines.push('---', '');
+
+	return `${headerLines.join('\n')}## Overview\n\nUse **${file.name ?? 'this customization'}** when you need consistent AI guidance.\n\n- Review the active change\n- Preserve existing conventions\n- Explain the reasoning clearly\n\n\`\`\`ts\nconst ready = true;\n\`\`\`\n`;
+}
+
+function createInstructionFileContent(file: IAgentInstructionFile): string {
+	return `---\ndescription: ${JSON.stringify('Repository-level instructions')}\napplyTo: ${JSON.stringify('**/*')}\n---\n\n## Overview\n\nThese instructions apply across the workspace.\n`;
+}
+
+function createFixtureContentMap(files: IFixtureFile[], instructions: IAgentInstructionFile[]): ResourceMap<string> {
+	const contents = new ResourceMap<string>();
+	for (const file of files) {
+		contents.set(file.uri, createFixtureFileContent(file));
+	}
+	for (const file of instructions) {
+		contents.set(file.uri, createInstructionFileContent(file));
+	}
+	return contents;
+}
+
+function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[], contents: ResourceMap<string>): IPromptsService {
+	const parser = new PromptFileParser();
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
@@ -135,14 +210,14 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: a.storage,
 					extensionId: a.extensionId ? new ExtensionIdentifier(a.extensionId) : undefined,
 				},
+				visibility: { userInvocable: true, agentInvocable: true },
 			})) as never[];
 		}
 		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
-			const header = {
-				get applyTo() { return applyToMap.get(uri); },
-				get description() { return descriptionMap.get(uri); },
-			};
-			return new ParsedPromptFile(uri, header as never);
+			return parser.parse(uri, contents.get(uri) ?? '');
+		}
+		override getParsedPromptFile(model: { uri: URI; getValue(): string }) {
+			return parser.parse(model.uri, model.getValue());
 		}
 		override async getSourceFolders() { return [] as never[]; }
 		override async getInstructionFiles() {
@@ -185,22 +260,26 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 	}();
 }
 
-function createMockHarnessService(activeHarnessId: string, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue<string>('activeHarness', activeHarnessId);
+function createMockHarnessService(sessionResource: URI, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
+	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
+	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = active;
+		override readonly activeSessionResource = activeSessionResource;
+		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
-		override getStorageSourceFilter(type: PromptsType) {
-			const d = descriptors.find(h => h.id === active.get()) ?? descriptors[0];
-			return d.getStorageSourceFilter(type);
-		}
-		override getActiveDescriptor() {
-			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
-		}
 		override findHarnessById(id: string) {
 			return descriptors.find(h => h.id === id);
 		}
-		override setActiveHarness(id: string) { active.set(id, undefined); }
+		override getStorageSourceFilter(type: PromptsType) {
+			const d = descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
+			return d.getStorageSourceFilter(type);
+		}
+		override getActiveDescriptor() {
+			return descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
+		}
+		override setActiveSession(sessionResource: URI) {
+			activeSessionResource.set(sessionResource, undefined);
+		}
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
@@ -224,6 +303,10 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidAddFeedback = Event.None;
+		override readonly onDidConvertFeedback = Event.None;
+		override readonly onDidAddReply = Event.None;
+		override readonly onDidSubmitFeedback = Event.None;
 		override getFeedback() { return []; }
 		override getMostRecentSessionForResource() { return undefined; }
 		override async revealFeedback(): Promise<void> { }
@@ -363,7 +446,7 @@ const mcpRuntimeServers = [
 ];
 
 interface IRenderEditorOptions {
-	readonly harnessId: string;
+	readonly sessionResource: URI;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -374,63 +457,57 @@ interface IRenderEditorOptions {
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
+	readonly openItemLabel?: string;
+	readonly editorDisplayMode?: 'preview' | 'raw';
 }
 
-async function waitForAnimationFrames(count: number): Promise<void> {
-	for (let i = 0; i < count; i++) {
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-	}
-}
+function renderFixtureMarkdown(markdown: string): HTMLElement {
+	const container = DOM.$('div.fixture-rendered-markdown');
+	const lines = markdown.split(/\r?\n/);
+	let index = 0;
 
-function getVisibleEditorSignature(container: HTMLElement): string {
-	const sectionCounts = [...container.querySelectorAll('.section-list-item')].map(item => item.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|');
-	const visibleContent = [...container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
-		.find(node => node instanceof HTMLElement && node.style.display !== 'none');
-	const visibleRows = visibleContent
-		? [...visibleContent.querySelectorAll('.monaco-list-row')].map(row => row.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|')
-		: '';
+	while (index < lines.length) {
+		const line = lines[index].trimEnd();
+		if (!line.trim()) {
+			index++;
+			continue;
+		}
 
-	return `${sectionCounts}@@${visibleRows}`;
-}
+		if (line.startsWith('## ')) {
+			const heading = DOM.append(container, DOM.$('h2'));
+			heading.textContent = line.slice(3);
+			index++;
+			continue;
+		}
 
-async function waitForEditorToSettle(container: HTMLElement): Promise<void> {
-	let previousSignature = '';
-	let stableIterations = 0;
-
-	await new Promise(resolve => setTimeout(resolve, 150));
-
-	for (let i = 0; i < 20; i++) {
-		await waitForAnimationFrames(2);
-		await new Promise(resolve => setTimeout(resolve, 25));
-
-		const signature = getVisibleEditorSignature(container);
-		if (signature && signature === previousSignature) {
-			stableIterations++;
-			if (stableIterations >= 2) {
-				return;
+		if (line.startsWith('- ')) {
+			const list = DOM.append(container, DOM.$('ul'));
+			while (index < lines.length && lines[index].trimStart().startsWith('- ')) {
+				DOM.append(list, DOM.$('li')).textContent = lines[index].trimStart().slice(2);
+				index++;
 			}
-		} else {
-			stableIterations = 0;
-			previousSignature = signature;
-		}
-	}
-}
-
-async function waitForVisibleScrollbarsToFade(container: HTMLElement): Promise<void> {
-	const deadline = Date.now() + 4000;
-
-	while (Date.now() < deadline) {
-		const hasVisibleScrollbar = [...container.querySelectorAll<HTMLElement>('.scrollbar.vertical')].some(scrollbar => {
-			const style = mainWindow.getComputedStyle(scrollbar);
-			return scrollbar.classList.contains('visible') && style.opacity !== '0';
-		});
-
-		if (!hasVisibleScrollbar) {
-			return;
+			continue;
 		}
 
-		await new Promise(resolve => setTimeout(resolve, 100));
+		if (line.startsWith('```')) {
+			index++;
+			const codeLines: string[] = [];
+			while (index < lines.length && !lines[index].startsWith('```')) {
+				codeLines.push(lines[index]);
+				index++;
+			}
+			const pre = DOM.append(container, DOM.$('pre'));
+			DOM.append(pre, DOM.$('code')).textContent = codeLines.join('\n');
+			index++;
+			continue;
+		}
+
+		const paragraph = DOM.append(container, DOM.$('p'));
+		paragraph.textContent = line.replace(/\*\*/g, '');
+		index++;
 	}
+
+	return container;
 }
 
 // ============================================================================
@@ -460,15 +537,58 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const fileContents = createFixtureContentMap(allFiles, agentInstructions);
+
+	// Holds a lazy reference to the model service so the ITextModelService mock
+	// (registered below) can create real ITextModel instances on demand. The
+	// management editor calls `createModelReference` when the user opens an
+	// item — fixtureUtils' default mock returns `{ textEditorModel: null }`,
+	// which crashes the editor. We populate this after the instantiation
+	// service is created.
+	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
+	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			const harnessService = createMockHarnessService(options.harnessId, availableHarnesses);
+			const harnessService = createMockHarnessService(options.sessionResource, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
+			// Enable the structured customization preview setting so the
+			// editor exercises the preview-first behavior in fixtures.
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			}));
 			reg.define(IListService, ListService);
+			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
+				declare readonly _serviceBrand: undefined;
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					const modelService = modelServiceRef.value!;
+					const languageService = languageServiceRef.value!;
+					let model = modelService.getModel(resource);
+					if (!model) {
+						const languageId = languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? 'plaintext';
+						const languageSelection = languageService.createById(languageId);
+						model = modelService.createModel('', languageSelection, resource);
+					}
+					const onWillDispose = new Emitter<void>();
+					const textEditorModel: IResolvedTextEditorModel = {
+						textEditorModel: model,
+						onWillDispose: onWillDispose.event,
+						isReadonly: () => false,
+						isResolved: () => true,
+						isDisposed: () => false,
+						getLanguageId: () => model.getLanguageId(),
+						createSnapshot: () => model.createSnapshot(),
+						resolve: async () => { },
+						dispose: () => onWillDispose.dispose(),
+					};
+					return { object: textEditorModel, dispose: () => { } };
+				}
+				override canHandleResource() { return true; }
+				override registerTextModelContentProvider() { return { dispose: () => { } }; }
+			}());
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
 			reg.defineInstance(ICodeReviewService, codeReviewService);
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -480,7 +600,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}();
 				override getSession() { return undefined; }
 			}());
-			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions));
+			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions, fileContents));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -497,6 +617,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			// AICustomizationItemsModel is the single source of truth for items
+			// in the editor. Register the real implementation — it will resolve
+			// items via the mock prompts service / harness service above.
+			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override async getCustomizations() { return undefined; }
@@ -517,9 +641,38 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override userHome(): Promise<URI>;
 				override userHome(): URI | Promise<URI> { return userHome; }
 			}());
-			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() { }());
+			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
+				declare readonly _serviceBrand: undefined;
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					const modelService = modelServiceRef.value!;
+					const languageService = languageServiceRef.value!;
+					let model = modelService.getModel(resource);
+					if (!model) {
+						const languageId = languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? 'plaintext';
+						const languageSelection = languageService.createById(languageId);
+						model = modelService.createModel(fileContents.get(resource) ?? '', languageSelection, resource);
+					}
+					const onWillDispose = new Emitter<void>();
+					const textEditorModel: IResolvedTextEditorModel = {
+						textEditorModel: model,
+						onWillDispose: onWillDispose.event,
+						isReadonly: () => false,
+						isResolved: () => true,
+						isDisposed: () => false,
+						getLanguageId: () => model.getLanguageId(),
+						createSnapshot: () => model.createSnapshot(),
+						resolve: async () => { },
+						dispose: () => onWillDispose.dispose(),
+					};
+					return { object: textEditorModel, dispose: () => { } };
+				}
+				override canHandleResource() { return true; }
+				override registerTextModelContentProvider() { return { dispose: () => { } }; }
+			}());
 			reg.defineInstance(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
 				override readonly onDidChangeDirty = Event.None;
+				override readonly onDidSave = Event.None;
+				override isDirty(_resource: URI) { return false; }
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
@@ -532,9 +685,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-				override render() {
+				override render(markdown: IMarkdownString | string) {
 					const rendered: IRenderedMarkdown = {
-						element: DOM.$('span'),
+						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
 						dispose() { },
 					};
 					return rendered;
@@ -573,39 +726,49 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		},
 	});
 
+	modelServiceRef.value = instantiationService.get(IModelService);
+	languageServiceRef.value = instantiationService.get(ILanguageService);
+	for (const [uri, content] of fileContents) {
+		if (!modelServiceRef.value.getModel(uri)) {
+			const model = modelServiceRef.value.createModel(content, null, uri, false);
+			ctx.disposableStore.add({ dispose: () => model.dispose() });
+		}
+	}
+
 	const editor = ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())
 	);
 	editor.create(ctx.container);
 	editor.layout(new Dimension(width, height));
 
-	await editor.setInput(AICustomizationManagementEditorInput.getOrCreate(), undefined, {}, CancellationToken.None);
+	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
+	await editor.setInput(editorInput, undefined, {}, CancellationToken.None);
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
 	}
 
-	await waitForEditorToSettle(ctx.container);
-
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		await waitForAnimationFrames(2);
-		await new Promise(resolve => setTimeout(resolve, 2400));
-		await waitForVisibleScrollbarsToFade(ctx.container);
 	}
 
 	if (options.openFirstItem) {
 		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
 			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
-		const firstRow = visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
-		if (firstRow) {
-			firstRow.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			firstRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			firstRow.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			firstRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-			// Allow any async setInput to settle.
-			await waitForAnimationFrames(2);
-			await new Promise(resolve => setTimeout(resolve, 250));
+		const openItemLabel = options.openItemLabel;
+		const rowToOpen = openItemLabel
+			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
+		if (rowToOpen) {
+			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+			if (options.editorDisplayMode === 'raw') {
+				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
+				modeButton?.click();
+			}
 		}
 	}
 }
@@ -688,11 +851,12 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+					return { sources: AICustomizationSources.all };
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -800,7 +964,8 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -819,6 +984,7 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 					return repo ? (pluginInstallUris.get(repo) ?? URI.file('/dev/null')) : URI.file('/dev/null');
 				}
 			}());
+			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
 
@@ -904,11 +1070,12 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+					return { sources: AICustomizationSources.all };
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -933,7 +1100,8 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(ChatConfiguration.PluginsEnabled, false, byPolicy));
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -947,6 +1115,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override async fetchMarketplacePlugins() { return []; }
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
 
@@ -1049,26 +1218,31 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 // Fixtures
 // ============================================================================
 
+const localSessionResource = LocalChatSessionUri.getNewSessionUri();
+const cliSessionResource = URI.parse(`${SessionType.CopilotCLI}:///session1`);
+
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
+
+
 
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Full editor with Copilot CLI harness — no prompts section, CLI-specific
 	// root files and instruction filtering under .github/.copilot paths.
 	CliHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.CopilotCLI, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { sessionResource: cliSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Sessions-window variant of the full editor with workspace override UX
@@ -1076,7 +1250,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	Sessions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.CopilotCLI,
+			sessionResource: cliSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Agents,
 			availableHarnesses: [
@@ -1098,7 +1272,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.CopilotCLI,
+			sessionResource: cliSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Skills,
 			availableHarnesses: [
@@ -1124,7 +1298,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 		}),
 	}),
@@ -1133,7 +1307,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 		}),
 	}),
@@ -1142,7 +1316,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 		}),
 	}),
@@ -1151,7 +1325,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	InstructionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Instructions,
 		}),
 	}),
@@ -1160,7 +1334,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	HooksTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Hooks,
 		}),
 	}),
@@ -1169,7 +1343,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
 		}),
 	}),
@@ -1178,7 +1352,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 		}),
 	}),
@@ -1224,7 +1398,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
 			scrollToBottom: true,
 		}),
@@ -1233,7 +1407,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			scrollToBottom: true,
 		}),
@@ -1242,7 +1416,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			scrollToBottom: true,
 		}),
@@ -1252,7 +1426,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			width: 550,
 			height: 400,
@@ -1262,21 +1436,56 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			width: 550,
 			height: 400,
 		}),
 	}),
 
-	// Item-editor view (after clicking an agent) — verifies the editor header back
-	// button aligns with the section back arrow at exactly the same x/y position.
-	AgentsItemEditor: defineComponentFixture({
+	// Item-preview view (after clicking an agent) — verifies the structured front
+	// matter preview and rendered markdown body.
+	AgentsItemPreview: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
+		}),
+	}),
+
+	// Raw markdown editor view reached from the structured preview's Edit action.
+	AgentsItemRaw: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Agents,
+			openFirstItem: true,
+			editorDisplayMode: 'raw',
+		}),
+	}),
+
+	// Built-in skill preview view — verifies that built-in skills open in the
+	// structured preview while still offering an editable raw override path.
+	BuiltinSkillItemPreview: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Skills,
+			openFirstItem: true,
+			openItemLabel: 'act-on-feedback',
+		}),
+	}),
+
+	// Built-in skill raw view reached from the structured preview's Edit action.
+	BuiltinSkillItemRaw: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Skills,
+			openFirstItem: true,
+			openItemLabel: 'act-on-feedback',
+			editorDisplayMode: 'raw',
 		}),
 	}),
 
@@ -1284,7 +1493,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 		}),
@@ -1295,7 +1504,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 			width: 550,
@@ -1307,7 +1516,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 		}),
@@ -1316,7 +1525,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 			width: 550,

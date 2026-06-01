@@ -227,7 +227,7 @@ export class PromptValidator {
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const agent = this.validateAgent(attributes, report);
+				const agent = await this.validateAgent(attributes, report);
 				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, target, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
@@ -441,7 +441,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
+	private async validateAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
 		const agentAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agent);
 		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
@@ -465,11 +465,11 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.attributeMustBeNonEmpty', "The '{0}' attribute must be a non-empty string.", attribute.key), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
-		return this.validateAgentValue(attribute.value, report);
+		return await this.validateAgentValue(attribute.value, report);
 	}
 
-	private validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): IChatMode | undefined {
-		const agents = this.chatModeService.getModes();
+	private async validateAgentValue(value: IScalarValue, report: (markers: IMarkerData) => void): Promise<IChatMode | undefined> {
+		const agents = await this.chatModeService.getLocalModes();
 		const availableAgents = [];
 
 		// Check if agent exists in builtin or custom agents
@@ -852,7 +852,7 @@ export class PromptValidator {
 		}
 
 		// Collect available agent names
-		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const agents = (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(a => a.enabled);
 		const availableAgentNames = new Set<string>(agents.map(agent => agent.name));
 		availableAgentNames.add(ChatMode.Agent.name.get()); // include default agent
 

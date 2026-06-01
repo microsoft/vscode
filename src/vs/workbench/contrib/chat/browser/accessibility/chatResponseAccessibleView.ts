@@ -18,7 +18,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -60,7 +60,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';

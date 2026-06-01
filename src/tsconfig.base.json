@@ -17,6 +17,7 @@
 		"useDefineForClassFields": false,
 		"lib": [
 			"ES2024",
+			"ESNext.Disposable",
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"

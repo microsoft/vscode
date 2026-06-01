@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 
@@ -103,4 +105,105 @@ export async function resolveTokenForResource(
 		}
 	}
 	return undefined;
+}
+
+export interface IAgentHostAuthenticateRequest {
+	readonly resource: string;
+	readonly token: string;
+}
+
+export interface IAgentHostAuthenticationOptions {
+	readonly authTokenCache?: AgentHostAuthTokenCache;
+	readonly authenticationService: IAuthenticationService;
+	readonly logPrefix: string;
+	readonly logService: ILogService;
+	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
+}
+
+/**
+ * Resolves and forwards bearer tokens for the protected resources declared by
+ * the agents currently published from an agent host.
+ */
+export async function authenticateProtectedResources(
+	agents: readonly AgentInfo[],
+	options: IAgentHostAuthenticationOptions,
+): Promise<void> {
+	for (const agent of agents) {
+		for (const resource of agent.protectedResources ?? []) {
+			const resourceUri = URI.parse(resource.resource);
+			const token = await resolveTokenForResource(
+				resourceUri,
+				resource.authorization_servers ?? [],
+				resource.scopes_supported ?? [],
+				options.authenticationService,
+				options.logService,
+				options.logPrefix,
+			);
+			if (!token) {
+				options.logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
+				continue;
+			}
+
+			if (options.authTokenCache && !options.authTokenCache.updateAndIsChanged(resource.resource, token)) {
+				options.logService.trace(`${options.logPrefix} Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
+				continue;
+			}
+
+			options.logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+			try {
+				await options.authenticate({ resource: resource.resource, token });
+			} catch (err) {
+				options.authTokenCache?.clear(resource.resource);
+				throw err;
+			}
+		}
+	}
+}
+
+/**
+ * Prompts the user to authenticate one of the provided protected resources and
+ * forwards the resulting token to the agent host connection.
+ */
+export async function resolveAuthenticationInteractively(
+	protectedResources: readonly ProtectedResourceMetadata[],
+	options: IAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	for (const resource of protectedResources) {
+		const resourceUri = URI.parse(resource.resource);
+		const token = await resolveTokenForResource(
+			resourceUri,
+			resource.authorization_servers ?? [],
+			resource.scopes_supported ?? [],
+			options.authenticationService,
+			options.logService,
+			options.logPrefix,
+		);
+		if (token) {
+			await options.authenticate({ resource: resource.resource, token });
+			options.authTokenCache?.updateAndIsChanged(resource.resource, token);
+			options.logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
+			return true;
+		}
+
+		for (const server of resource.authorization_servers ?? []) {
+			const serverUri = URI.parse(server);
+			const providerId = await options.authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
+			if (!providerId) {
+				continue;
+			}
+
+			const scopes = [...(resource.scopes_supported ?? [])];
+			const session = await options.authenticationService.createSession(providerId, scopes, {
+				activateImmediate: true,
+				authorizationServer: serverUri,
+			});
+
+			await options.authenticate({ resource: resource.resource, token: session.accessToken });
+			options.authTokenCache?.updateAndIsChanged(resource.resource, session.accessToken);
+			options.logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
+			return true;
+		}
+	}
+
+	return false;
 }

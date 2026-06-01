@@ -83,26 +83,33 @@ export interface ISessionsProvider {
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/**
+	 * Whether this provider can resolve and run sessions against local file-system workspaces.
+	 * When `true`, the workspace picker includes a "Local" tab with a built-in
+	 * folder browse action that resolves through this provider.
+	 */
+	readonly supportsLocalWorkspaces?: boolean;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
-	 * @param repositoryUri The URI of the repository to resolve the workspace for.
+	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
 	/**
-	 * Create a new session for the given repository URI.
+	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
-	 * @param repositoryUri The URI of the repository to create the session for.
+	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createNewSession(repositoryUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
 
 	/**
-	 * Get the session types supported for a given repository URI.
-	 * @param repositoryUri The URI of the repository to get session types for.
+	 * Get the session types supported for a given workspace URI.
+	 * @param workspaceUri The URI of the workspace to get session types for.
 	 */
-	getSessionTypes(repositoryUri: URI): ISessionType[];
+	getSessionTypes(workspaceUri: URI): ISessionType[];
 
 	/**
 	 * Rename a chat within a session.
@@ -145,23 +152,16 @@ export interface ISessionsProvider {
 	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
 
 	/**
-	 * Send a request to a session and create a new chat with the response.
-	 * @param sessionId The ID of the session to send the request to.
-	 * @param options Options for the request, including the query and any attached context entries.
+	 * Create a new chat in the given session and return it.
+	 *
+	 * @param sessionId The ID of the session to create the new chat in.
+	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
-	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
+	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
 
 	/**
-	 * Add a new empty chat to an existing session without sending a request.
-	 * The new chat is registered in the group model and can be used to compose
-	 * a message before sending.
-	 * @param sessionId The ID of the session to add a chat to.
-	 * @returns The newly created chat.
-	 */
-	addChat(sessionId: string): IChat;
-
-	/**
-	 * Send a request for an existing chat within a session.
+	 * Send a request for a chat within a session.
+	 *
 	 * @param sessionId The ID of the session containing the chat.
 	 * @param chatResource The resource URI of the chat to send the request for.
 	 * @param options Options for the request, including the query and any attached context entries.

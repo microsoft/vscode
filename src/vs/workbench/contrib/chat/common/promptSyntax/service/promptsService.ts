@@ -202,6 +202,18 @@ export type IAgentSource = {
 	readonly pluginUri: URI;
 };
 
+export namespace IAgentSource {
+	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
+		if (promptPath.storage === PromptsStorage.extension) {
+			return { storage: PromptsStorage.extension, extensionId: promptPath.extension.identifier };
+		} else if (promptPath.storage === PromptsStorage.plugin) {
+			return { storage: PromptsStorage.plugin, pluginUri: promptPath.pluginUri! };
+		} else {
+			return { storage: promptPath.storage };
+		}
+	}
+}
+
 /**
  * The visibility/availability of an agent.
  * - 'all': available as custom agent in picker AND can be used as subagent
@@ -293,6 +305,12 @@ export interface ICustomAgent {
 	 * Optional session types that describe when this agent should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
+
+	/**
+	 * Whether this agent is enabled. Disabled agents are included in the list
+	 * but should not be offered to users or used in automated flows.
+	 */
+	readonly enabled: boolean;
 }
 
 export interface IAgentInstructions {
@@ -572,6 +590,15 @@ export interface IPromptsService extends IDisposable {
 	 * Validates if the provided command name is a valid prompt slash command.
 	 */
 	isValidSlashCommandName(name: string): boolean;
+
+	/**
+	 * Synchronously checks whether `name` matches a discovered prompt slash command.
+	 * Backed by a cache that is populated lazily on the first call and refreshed on
+	 * subsequent {@link onDidChangeSlashCommands} firings, so the very first call after
+	 * service creation may return `false` for known commands until the first discovery
+	 * completes.
+	 */
+	hasPromptSlashCommand(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.

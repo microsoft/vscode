@@ -54,7 +54,8 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
-.chat-input-picker-item .action-label.disabled {
+.chat-input-picker-item .action-label.disabled,
+.chat-input-picker-item.disabled .action-label {
 	opacity: 0.5;
 	cursor: default;
 	pointer-events: none;
@@ -124,7 +125,7 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
 	border-radius: 4px;
@@ -185,53 +186,6 @@
 	gap: 4px;
 }
 
-/* Delightful gradient styling for the chat send (submit) button. The button
-	is filled at rest with a slowly rotating multi-color conic gradient using
-	the same palette as the working-state border, and emits a quick colorful
-	pulse on click. */
-@property --chat-send-button-anim-angle {
-	syntax: '<angle>';
-	inherits: false;
-	initial-value: 135deg;
-}
-
-@keyframes chat-send-button-spin {
-	from {
-		--chat-send-button-anim-angle: 135deg;
-	}
-
-	to {
-		--chat-send-button-anim-angle: 495deg;
-	}
-}
-
-@keyframes chat-send-button-color-cycle {
-	0%,
-	100% {
-		background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background));
-	}
-
-	33% {
-		background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background));
-	}
-
-	66% {
-		background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background));
-	}
-}
-
-@keyframes chat-send-button-pulse {
-	0% {
-		opacity: 0.7;
-		transform: scale(1);
-	}
-
-	100% {
-		opacity: 0;
-		transform: scale(1.3);
-	}
-}
-
 /* Send button - wraps a Button widget */
 .sessions-chat-send-button {
 	display: flex;
@@ -241,7 +195,7 @@
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 4px;
+	border-radius: 50%;
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -252,7 +206,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 4px;
+	border-radius: 50%;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -299,160 +253,35 @@
 	text-decoration: none !important;
 }
 
-/* Idle: fill the entire button with a slowly rotating conic gradient (no
-	border ring).
-
-	Colors are darkened (60% mixed with input background) so the gradient
-	reads as a calm fill rather than a saturated accent, and the conic stops
-	are asymmetric so the fill has a clear head and tail rather than
-	mirroring around the mid-point. */
+/* Idle: solid primary button background. */
 .sessions-chat-send-button .monaco-button:not(.disabled) {
-	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
-	color: var(--vscode-button-foreground);
-	animation: chat-send-button-spin 8s linear infinite;
-	transition: box-shadow 120ms ease;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground) !important;
+	transition: background-color 120ms ease;
 }
 
-/* Hover/focus: subtle dark overlay to match standard toolbar button hover
-	feedback. Uses an inset box-shadow so the rotating gradient background is
-	preserved underneath. */
 .sessions-chat-send-button:has(.monaco-button:not(.disabled):hover) .monaco-button,
 .sessions-chat-send-button:has(.monaco-button:not(.disabled):focus-visible) .monaco-button {
-	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
-}
-
-/* Click: outward color pulse on the wrapper. */
-.sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
-	content: '';
-	position: absolute;
-	inset: -2px;
-	border-radius: 6px;
-	background: conic-gradient(from 135deg,
-			var(--vscode-chat-inputWorkingBorderColor1),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor3),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor1));
-	pointer-events: none;
-	animation: chat-send-button-pulse 400ms ease-out forwards;
-	z-index: 0;
-}
-
-/* ----------------------------------------------------------------------------
-	Gradient styling for the standard chat-input send button (the one rendered
-	inside session views by the shared ChatInputPart). Mirrors the wrapper
-	rules above but targets the toolbar action-item that hosts the arrow-up
-	codicon. Scoped to the sessions workbench root so only Sessions/Agents UI
-	is affected.
-	---------------------------------------------------------------------------- */
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
-	position: relative;
-	border-radius: 5px;
-}
-
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
-	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
-	transition: background-color 250ms ease, color 250ms ease;
-}
-
-/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
-	display: inline-block;
-}
-
-/* Focus indicator drawn on the action-item wrapper so it sits cleanly around
-	the button surface with a small offset, matching the new-session button. */
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-	border-radius: 5px;
-}
-
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus-visible {
-	outline: none;
-}
-
-/* Idle: fill the entire action-label with a slowly rotating conic gradient.
-	Colors darkened (60% mixed with input background) for a calm fill, with
-	asymmetric conic stops. */
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
-	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
-	color: var(--vscode-button-foreground) !important;
-	border-radius: 5px;
-	animation: chat-send-button-spin 8s linear infinite;
-	transition: box-shadow 120ms ease;
-	/* Lift the label above the click pulse `::after` on the action-item parent
-		so the pulse appears to expand from behind the button, not on top of it. */
-	position: relative;
-	z-index: 1;
-}
-
-/* Hover/focus: subtle dark overlay to match standard toolbar button hover
-	feedback. Uses an inset box-shadow so the rotating gradient background is
-	preserved underneath. */
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
-	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
-}
-
-.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
-	content: '';
-	position: absolute;
-	inset: -2px;
-	border-radius: 7px;
-	background: conic-gradient(from 135deg,
-			var(--vscode-chat-inputWorkingBorderColor1),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor3),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor1));
-	pointer-events: none;
-	animation: chat-send-button-pulse 400ms ease-out forwards;
-	z-index: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.sessions-chat-send-button .monaco-button:not(.disabled),
-	.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up,
-	.sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after,
-	.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
-		animation: none;
-	}
+	background: var(--vscode-button-hoverBackground);
 }
 
 /* Loading spinner in toolbar */
 .sessions-chat-loading-spinner {
 	display: none;
-	width: 12px;
-	height: 12px;
+	align-items: center;
+	justify-content: center;
 	margin-right: 4px;
-	border: 1.5px solid var(--vscode-icon-foreground);
-	border-top-color: transparent;
-	border-radius: 50%;
-	animation: sessions-chat-spin 0.8s linear infinite;
 	opacity: 0.6;
 	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-loading-spinner.visible {
-	display: block;
+	display: flex;
 }
 
-@keyframes sessions-chat-spin {
-	to {
-		transform: rotate(360deg);
-	}
+.sessions-chat-loading-spinner .codicon {
+	font-size: 14px;
 }
 
 /* Attach row (pills only, above editor, inside input area) */
@@ -616,4 +445,47 @@
 	height: 12px;
 	font-size: 12px;
 	margin-right: 3px;
+}
+
+/* --- Chat input notification in the new-session homepage --- */
+
+/* Hide the container when no notification is active */
+.new-chat-input-container > .chat-input-notification-container:not(.has-notification) {
+	display: none;
+}
+
+.new-chat-input-container > .chat-input-notification-container .chat-input-notification {
+	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
+	padding: 10px 16px 16px 16px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-bottom: none;
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+/* Severity variants */
+.new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-info {
+	border-color: var(--vscode-focusBorder);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+}
+
+.new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-warning {
+	border-color: var(--vscode-editorWarning-foreground);
+	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 6%, var(--vscode-editorWidget-background));
+}
+
+.new-chat-input-container > .chat-input-notification-container .chat-input-notification.severity-error {
+	border-color: var(--vscode-editorError-foreground);
+	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 6%, var(--vscode-editorWidget-background));
+}
+
+/* Remove the top border-radius from the input area when a notification is visible */
+.new-chat-input-container > .chat-input-notification-container.has-notification + .new-chat-input-area {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+	border-top: none;
 }

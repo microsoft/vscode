@@ -159,14 +159,6 @@ vsda/**
 @vscode/policy-watcher/index.d.ts
 !@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
 
-@vscode/macos-keychain/build/**
-@vscode/macos-keychain/src/**
-@vscode/macos-keychain/test/**
-@vscode/macos-keychain/binding.gyp
-@vscode/macos-keychain/README.md
-@vscode/macos-keychain/index.d.ts
-!@vscode/macos-keychain/build/Release/keychainNative.node
-
 @vscode/windows-ca-certs/**/*
 !@vscode/windows-ca-certs/package.json
 !@vscode/windows-ca-certs/**/*.node
@@ -227,6 +219,10 @@ zone.js/dist/**
 @github/copilot/prebuilds/**
 @github/copilot/clipboard/**
 @github/copilot/ripgrep/**
+@github/copilot/pvrecorder/**
+@github/copilot/foundry-local-sdk/**
+@github/copilot/mxc-bin/**
+@github/copilot/sharp/**
 @github/copilot/**/keytar.node
 
 # @github/copilot platform binaries - not needed
@@ -246,3 +242,8 @@ zone.js/dist/**
 @github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
 @github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
 @github/copilot-sdk/node_modules/@github/copilot-win32-x64/**
+
+# es5-ext is quarantined protestware (sonatype-2022-2248). It is only consumed
+# in websocket's browser.js inside a try/catch with a globalThis fallback,
+# so it is unnecessary in the browsers/runtimes VS Code supports.
+es5-ext/**

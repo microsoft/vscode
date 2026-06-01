@@ -8,10 +8,12 @@ import type { OpenAI } from 'openai';
 import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
-import { openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
@@ -95,6 +97,16 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 		}
 	}]
 });
+
+type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
+	type: 'function_call';
+	name: string;
+	namespace?: string;
+};
+
+function isFunctionCallInputItem(item: OpenAI.Responses.ResponseInputItem, name: string): item is ResponseFunctionCallInputItem {
+	return item.type === 'function_call' && 'name' in item && item.name === name;
+}
 
 describe('responseApiInputToRawMessagesForLogging', () => {
 
@@ -353,6 +365,68 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
+	it('converts PDF document content parts to Responses input_file', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'gpt-5.4', supportsVision: true };
+		const base64Data = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9n';
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{
+				type: Raw.ChatCompletionContentPartKind.Document,
+				documentData: { data: base64Data, mediaType: 'application/pdf' },
+			}],
+		}];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{
+				type: 'input_file',
+				filename: 'document.pdf',
+				file_data: `data:application/pdf;base64,${base64Data}`,
+			}],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('preserves PDF document tool results as Responses input_file follow-up content', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const base64Data = 'JVBERi0xLjQK';
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_pdf', type: 'function', function: { name: 'read_file', arguments: '{"path":"doc.pdf"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_pdf',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Document, documentData: { data: base64Data, mediaType: 'application/pdf' } }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.[1]).toMatchObject({ type: 'function_call_output', call_id: 'call_pdf', output: '' });
+		expect(body.input?.[2]).toMatchObject({
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'PDF associated with the above tool call:' },
+				{ type: 'input_file', filename: 'document.pdf', file_data: `data:application/pdf;base64,${base64Data}` },
+			],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('still slices websocket requests by stateful marker index when compaction is disabled', () => {
 		const services = createPlatformServices();
 		const wsManager = new NullChatWebSocketManager();
@@ -460,6 +534,159 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
+	it('does not reuse a websocket stateful marker when modeChanged is true', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }],
+			},
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, true), conversationId: 'conv-1', modeChanged: true }, testEndpoint.model, testEndpoint));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'before marker' }],
+		});
+		expect(body.input?.[1]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'after marker' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('reuses the newly established websocket marker on follow-up requests after switching into plan mode', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-plan-1';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const websocketEndpoint = { ...testEndpoint, family: 'gpt-5.5', model: 'gpt-5.5' as const };
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'implementation context before switching modes' }],
+			},
+			createStatefulMarkerMessage(websocketEndpoint.model, 'resp-agent-1'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'switch to plan mode' }],
+			},
+			createStatefulMarkerMessage(websocketEndpoint.model, 'resp-plan-1'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'plan follow up' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-plan-1' },
+			websocketEndpoint.model,
+			websocketEndpoint,
+		));
+
+		expect(body.previous_response_id).toBe('resp-plan-1');
+		expect(body.input).toHaveLength(1);
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'plan follow up' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('treats websocket requests from agent to plan and back to implementation as separate mode changes', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const websocketEndpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' as const };
+
+		wsManager.getStatefulMarker = () => 'resp-agent-1';
+		const planMessages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'agent context before switching to plan' }],
+			},
+			createStatefulMarkerMessage(websocketEndpoint.model, 'resp-agent-1'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'plan this change' }],
+			},
+		];
+
+		const planBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(planMessages, true), conversationId: 'conv-mode-change', modeChanged: true },
+			websocketEndpoint.model,
+			websocketEndpoint,
+		));
+
+		expect(planBody.previous_response_id).toBeUndefined();
+		expect(planBody.input).toHaveLength(2);
+		expect(planBody.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'agent context before switching to plan' }],
+		});
+		expect(planBody.input?.[1]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'plan this change' }],
+		});
+
+		wsManager.getStatefulMarker = () => 'resp-plan-1';
+		const implementationMessages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'plan context before switching back to implementation' }],
+			},
+			createStatefulMarkerMessage(websocketEndpoint.model, 'resp-plan-1'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'start implementation' }],
+			},
+		];
+
+		const implementationBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(implementationMessages, true), conversationId: 'conv-mode-change', modeChanged: true },
+			websocketEndpoint.model,
+			websocketEndpoint,
+		));
+
+		expect(implementationBody.previous_response_id).toBeUndefined();
+		expect(implementationBody.input).toHaveLength(2);
+		expect(implementationBody.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'plan context before switching back to implementation' }],
+		});
+		expect(implementationBody.input?.[1]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'start implementation' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('includes the newest compaction item in non-websocket requests when it predates the stateful marker', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
@@ -487,6 +714,39 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_http',
 		});
 		expect(body.input).toContainEqual({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'after marker' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('does not reuse an HTTP stateful marker when modeChanged is true', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }],
+			},
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), modeChanged: true }, testEndpoint.model, testEndpoint));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'before marker' }],
+		});
+		expect(body.input?.[1]).toMatchObject({
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -570,11 +830,13 @@ describe('createResponsesRequestBody', () => {
 
 	it('adds namespace field only to function_call for tools loaded via tool_search_output', () => {
 		const services = createPlatformServices();
+		services.define(IToolDeferralService, { _serviceBrand: undefined, isNonDeferredTool: (name: string) => name === 'read_file' || name === 'tool_search' });
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4', supportsToolSearch: true };
 		const tools = [
 			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
-			{ type: 'function' as const, function: { name: 'grep_search', description: 'Grep files', parameters: {} } },
+			{ type: 'function' as const, function: { name: 'some_mcp_tool', description: 'MCP tool', parameters: {} } },
 			{ type: 'function' as const, function: { name: 'read_file', description: 'Read a file', parameters: {} } },
 		];
 		const messages: Raw.ChatMessage[] = [
@@ -588,32 +850,34 @@ describe('createResponsesRequestBody', () => {
 				content: [],
 				toolCalls: [{ id: 'ts_1', type: 'function', function: { name: 'tool_search', arguments: '{"query":"search"}' } }],
 			},
-			// tool_search returns grep_search
+			// tool_search returns some_mcp_tool
 			{
 				role: Raw.ChatRole.Tool,
-				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["grep_search"]' }],
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["some_mcp_tool"]' }],
 				toolCallId: 'ts_1',
 			},
-			// Assistant calls grep_search (loaded via tool_search) and read_file (not loaded via tool_search)
+			// Assistant calls some_mcp_tool (loaded via tool_search) and read_file (not loaded via tool_search)
 			{
 				role: Raw.ChatRole.Assistant,
 				content: [],
 				toolCalls: [
-					{ id: 'call_grep', type: 'function', function: { name: 'grep_search', arguments: '{"q":"hello"}' } },
+					{ id: 'call_mcp', type: 'function', function: { name: 'some_mcp_tool', arguments: '{"q":"hello"}' } },
 					{ id: 'call_read', type: 'function', function: { name: 'read_file', arguments: '{"path":"foo.ts"}' } },
 				],
 			},
 		];
 
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), requestOptions: { tools } }, testEndpoint.model, testEndpoint));
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), location: ChatLocation.Agent, requestOptions: { tools } }, endpoint.model, endpoint));
 
-		// grep_search was loaded via tool_search_output — should have namespace
-		const grepCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'grep_search') as any;
-		expect(grepCall).toBeDefined();
-		expect(grepCall.namespace).toBe('grep_search');
+		const input = body.input as OpenAI.Responses.ResponseInputItem[];
+
+		// some_mcp_tool was loaded via tool_search_output — should have namespace
+		const mcpCall = input.find(item => isFunctionCallInputItem(item, 'some_mcp_tool'));
+		expect(mcpCall).toBeDefined();
+		expect(mcpCall?.namespace).toBe('some_mcp_tool');
 
 		// read_file was NOT loaded via tool_search — should NOT have namespace
-		const readCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'read_file') as any;
+		const readCall = input.find(item => isFunctionCallInputItem(item, 'read_file'));
 		expect(readCall).toBeDefined();
 		expect(readCall).not.toHaveProperty('namespace');
 
@@ -1286,5 +1550,109 @@ describe('phase commentary followed by phase final_answer', () => {
 
 		accessor.dispose();
 		services.dispose();
+	});
+});
+
+describe('processResponseFromChatEndpoint terminal events', () => {
+	async function runStream(sseBody: string) {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-terminal' }, {});
+		const response = createFakeStreamResponse(sseBody);
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async () => undefined,
+			telemetryData
+		);
+		const completions: ChatCompletion[] = [];
+		for await (const completion of stream) {
+			completions.push(completion);
+		}
+		accessor.dispose();
+		services.dispose();
+		return completions;
+	}
+
+	it('maps response.incomplete with reason=content_filter to ContentFilter + Copyright', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_blocked',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				incomplete_details: { reason: 'content_filter' },
+				content_filters: [
+					{ source_type: 'prompt', blocked: false },
+					{
+						source_type: 'completion',
+						blocked: true,
+						content_filter_raw: [
+							{ action: 'ANNOTATE', label: 'MultiSeverity_Sexual', result: { '0': 1 } },
+							{ action: 'BLOCK', label: 'TextCopyright', result: true },
+						],
+					},
+				],
+				output: [
+					{ type: 'message', content: [{ type: 'output_text', text: 'Got it — I\'ll do that now.' }] },
+				],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ContentFilter);
+		expect(completion.filterReason).toBe(FilterReason.Copyright);
+	});
+
+	it('maps response.incomplete with reason=max_output_tokens to Length', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_length',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				incomplete_details: { reason: 'max_output_tokens' },
+				output: [
+					{ type: 'message', content: [{ type: 'output_text', text: 'partial output' }] },
+				],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.Length);
+		expect(completion.filterReason).toBeUndefined();
+	});
+
+	it('maps response.failed to ServerError', async () => {
+		const failedEvent = {
+			type: 'response.failed',
+			response: {
+				id: 'resp_failed',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				error: { code: 'internal_error', message: 'something broke' },
+				output: [],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(failedEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'something broke',
+			metadata: { code: 'internal_error' },
+		});
 	});
 });

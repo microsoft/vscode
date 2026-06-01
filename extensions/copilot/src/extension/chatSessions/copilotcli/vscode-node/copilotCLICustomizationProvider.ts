@@ -55,7 +55,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		this._register(this.copilotCLIAgents.onDidChangeAgents(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const [agents, instructions, skills, hooks, plugins] = await Promise.all([
 			this.getAgentItems(token),
 			this.getInstructionItems(token),
@@ -88,11 +88,14 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 */
 	private async getAgentItems(_token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const agentInfos = await this.copilotCLIAgents.getAgents();
-		return agentInfos.map(({ agent, sourceUri }) => ({
+		return agentInfos.map(({ agent, sourceUri, pluginUri, extensionId, source }) => ({
 			uri: sourceUri,
 			type: vscode.ChatSessionCustomizationType.Agent,
 			name: agent.displayName || agent.name,
 			description: agent.description,
+			extensionId,
+			pluginUri,
+			source
 		}));
 	}
 
@@ -133,7 +136,11 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 				uri,
 				type: vscode.ChatSessionCustomizationType.Instructions,
 				name: basename(uri),
+				description: undefined,
 				groupKey: 'agent-instructions',
+				source: 'local', // these are surfaced by the extension, even if they come from the workspace
+				extensionId: undefined,
+				pluginUri: undefined
 			});
 		}
 
@@ -166,6 +173,9 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 					groupKey: 'context-instructions',
 					badge,
 					badgeTooltip,
+					extensionId: instruction.extensionId,
+					pluginUri: instruction.pluginUri,
+					source: instruction.source
 				});
 			} else {
 				items.push({
@@ -174,6 +184,9 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 					name,
 					description,
 					groupKey: 'on-demand-instructions',
+					extensionId: instruction.extensionId,
+					pluginUri: instruction.pluginUri,
+					source: instruction.source
 				});
 			}
 		}
@@ -189,8 +202,10 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: s.uri,
 			type: vscode.ChatSessionCustomizationType.Skill,
 			name: s.name,
+			description: s.description,
 			extensionId: s.extensionId,
 			pluginUri: s.pluginUri,
+			source: s.source
 		}));
 	}
 
@@ -203,6 +218,10 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: h.uri,
 			type: vscode.ChatSessionCustomizationType.Hook,
 			name: basename(h.uri).replace(/\.json$/i, ''),
+			description: undefined,
+			extensionId: h.extensionId,
+			pluginUri: h.pluginUri,
+			source: h.source
 		}));
 	}
 
@@ -214,6 +233,10 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: p.uri,
 			type: vscode.ChatSessionCustomizationType.Plugins,
 			name: basename(p.uri),
+			description: undefined,
+			extensionId: undefined,
+			pluginUri: undefined,
+			source: 'plugin'
 		}));
 	}
 }

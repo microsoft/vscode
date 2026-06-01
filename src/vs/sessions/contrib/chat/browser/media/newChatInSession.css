@@ -61,26 +61,26 @@
 }
 
 .new-chat-in-session .new-chat-controls-container {
-	gap: 6px;
+	gap: 10px;
 }
 
-/* Input toolbar: match VS Code chat-input-toolbars gap */
+/* Input toolbar spacing */
 .new-chat-in-session .sessions-chat-toolbar {
 	margin-top: 4px;
 	padding: 0px;
-	gap: 6px;
+	gap: 10px;
 }
 
 /* Config toolbar items spacing */
 .new-chat-in-session .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
-	gap: 6px;
+	gap: 10px;
 }
 
 /* Picker labels: match VS Code chat-secondary-toolbar sizing for all pickers */
 .new-chat-in-session .new-chat-bottom-container .action-label,
 .new-chat-in-session .sessions-chat-toolbar .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 6px;
 	font-size: 11px;
 	color: var(--vscode-icon-foreground);
 }
@@ -88,13 +88,6 @@
 .new-chat-in-session .new-chat-bottom-container .action-label .codicon,
 .new-chat-in-session .sessions-chat-toolbar .action-label .codicon {
 	font-size: 12px;
-}
-
-.new-chat-in-session .new-chat-bottom-container .action-label .codicon-chevron-down,
-.new-chat-in-session .sessions-chat-toolbar .action-label .codicon-chevron-down {
-	font-size: 10px;
-	margin-left: 4px;
-	opacity: 0.75;
 }
 
 .new-chat-in-session .sessions-chat-dropdown-label {
@@ -129,7 +122,7 @@
 
 .new-chat-in-session .sub-session-tip-widget {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 6px;
 	width: 100%;
 	max-width: 100%;
@@ -147,6 +140,7 @@
 .new-chat-in-session .sub-session-tip-icon {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
+	transform: translateY(2px);
 }
 
 .new-chat-in-session .sub-session-tip-text {

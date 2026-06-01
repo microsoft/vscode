@@ -283,6 +283,18 @@ export interface IEditorOptions {
 	source?: EditorOpenSource;
 
 	/**
+	 * Indicates whether the editor is being opened due to an explicit user
+	 * action (`true`) or automatically (`false`) as a side effect of another
+	 * action (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should be treated as explicit. Layout logic may
+	 * use this to decide whether to react to the visibility change (for
+	 * example, by leaving the auxiliary side bar maximized when the change
+	 * was not initiated by the user).
+	 */
+	isExplicit?: boolean;
+
+	/**
 	 * An optional property to signal that certain view state should be
 	 * applied when opening the editor.
 	 */
@@ -362,6 +374,35 @@ export interface IModalEditorPartOptions {
 	 * after the modal editor is opened.
 	 */
 	readonly sidebar?: IModalEditorSidebar;
+}
+
+/**
+ * Per-editor modal options provided by an editor input that wants to influence
+ * how it is rendered inside the modal editor part. Unlike
+ * {@link IModalEditorPartOptions}, these options are scoped to a single editor
+ * and resolved from the active editor (not from the part-level options API).
+ */
+export interface IModalEditorOptions {
+
+	/**
+	 * When true, the modal editor renders a simplified header:
+	 * uses the editor background, hides the title icon, removes the
+	 * bottom border and uses a slightly taller fixed height. Useful
+	 * for editors that provide their own header chrome.
+	 */
+	readonly compactHeader?: boolean;
+}
+
+/**
+ * Marker interface for editor inputs that want to customize how they are
+ * rendered when opened in the modal editor part (see {@link IModalEditorOptions}).
+ */
+export interface IModalEditorOptionsProvider {
+	getModalEditorOptions(): IModalEditorOptions | undefined;
+}
+
+export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
+	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
 }
 
 /**

@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,17 +15,21 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { changeMatchesResource, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
+import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionFileChange, SessionStatus } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
+
+/**
+ * The origin of an agent feedback item. Used to classify how the feedback
+ * entered the session so that telemetry can distinguish user-authored
+ * feedback from feedback converted out of an existing review comment.
+ */
+export type AgentFeedbackKind = 'user' | 'codeReview' | 'prReview';
 
 export interface IAgentFeedback {
 	readonly id: string;
@@ -35,8 +40,16 @@ export interface IAgentFeedback {
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
+	/** Origin of this feedback item (user-authored, converted from code/PR review). */
+	readonly kind: AgentFeedbackKind;
 	/** When this feedback was converted from a PR review comment, the original thread ID. */
 	readonly sourcePRReviewCommentId?: string;
+	/**
+	 * Additional comment messages that belong to the same thread as this feedback,
+	 * talking about the same code region. The first {@link text} is the initial
+	 * comment; replies are subsequent messages added to it.
+	 */
+	readonly replies?: readonly string[];
 }
 
 export interface INavigableSessionComment {
@@ -53,6 +66,38 @@ export interface IAgentFeedbackNavigationBearing {
 	readonly totalCount: number;
 }
 
+/** Fired when a brand-new agent feedback item is added by the user. */
+export interface IAgentFeedbackAddedEvent {
+	readonly sessionResource: URI;
+	readonly feedback: IAgentFeedback;
+	readonly hasExistingFeedbackForFile: boolean;
+}
+
+/** Fired when an existing PR/code-review comment is converted into agent feedback. */
+export interface IAgentFeedbackConvertedEvent {
+	readonly sessionResource: URI;
+	readonly feedback: IAgentFeedback;
+	readonly kind: 'codeReview' | 'prReview';
+	readonly hasExistingFeedbackForFile: boolean;
+}
+
+/** Fired when a reply is appended to an existing feedback thread. */
+export interface IAgentFeedbackReplyAddedEvent {
+	readonly sessionResource: URI;
+	readonly feedback: IAgentFeedback;
+	readonly replyCount: number;
+}
+
+/** Fired when feedback items are submitted to the agent for action. */
+export interface IAgentFeedbackSubmittedEvent {
+	readonly sessionResource: URI;
+	readonly totalCount: number;
+	readonly userCount: number;
+	readonly codeReviewCount: number;
+	readonly prReviewCount: number;
+	readonly replyCount: number;
+}
+
 // --- Service Interface --------------------------------------------------------
 
 export const IAgentFeedbackService = createDecorator<IAgentFeedbackService>('agentFeedbackService');
@@ -63,10 +108,21 @@ export interface IAgentFeedbackService {
 	readonly onDidChangeFeedback: Event<IAgentFeedbackChangeEvent>;
 	readonly onDidChangeNavigation: Event<URI>;
 
+	/** Fired when a new user-authored feedback item is added. */
+	readonly onDidAddFeedback: Event<IAgentFeedbackAddedEvent>;
+	/** Fired when an external review comment is converted into agent feedback. */
+	readonly onDidConvertFeedback: Event<IAgentFeedbackConvertedEvent>;
+	/** Fired when a reply is appended to an existing feedback thread. */
+	readonly onDidAddReply: Event<IAgentFeedbackReplyAddedEvent>;
+	/** Fired when feedback items are submitted to the agent. */
+	readonly onDidSubmitFeedback: Event<IAgentFeedbackSubmittedEvent>;
+
 	/**
-	 * Add a feedback item for the given session.
+	 * Add a feedback item for the given session. {@link kind} (defaults to
+	 * `'user'`) classifies the origin of the feedback and selects which
+	 * lifecycle event is fired.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): IAgentFeedback;
 
 	/**
 	 * Remove a single feedback item.
@@ -79,9 +135,22 @@ export interface IAgentFeedbackService {
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
 
 	/**
+	 * Append a reply to an existing feedback item, making it part of the same
+	 * comment thread.
+	 */
+	addReply(sessionResource: URI, feedbackId: string, replyText: string): void;
+
+	/**
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
+
+	/**
+	 * Resolve the session that owns the given file resource. Returns the
+	 * session that was active when the file's editor was first opened; if the
+	 * file has never been tracked, falls back to the currently active session.
+	 */
+	getSessionForFile(resourceUri: URI): ISession | undefined;
 
 	/**
 	 * Resolve the most recently updated session that has feedback for a given resource.
@@ -117,10 +186,17 @@ export interface IAgentFeedbackService {
 	clearFeedback(sessionResource: URI): void;
 
 	/**
+	 * Submit the currently accumulated feedback for the session to the agent.
+	 * Captures the per-kind counts before submission and fires
+	 * {@link onDidSubmitFeedback}.
+	 */
+	submitFeedback(sessionResource: URI): Promise<void>;
+
+	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
-	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void>;
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -133,6 +209,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	readonly onDidChangeFeedback = this._onDidChangeFeedback.event;
 	private readonly _onDidChangeNavigation = this._store.add(new Emitter<URI>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
+	private readonly _onDidAddFeedback = this._store.add(new Emitter<IAgentFeedbackAddedEvent>());
+	readonly onDidAddFeedback = this._onDidAddFeedback.event;
+	private readonly _onDidConvertFeedback = this._store.add(new Emitter<IAgentFeedbackConvertedEvent>());
+	readonly onDidConvertFeedback = this._onDidConvertFeedback.event;
+	private readonly _onDidAddReply = this._store.add(new Emitter<IAgentFeedbackReplyAddedEvent>());
+	readonly onDidAddReply = this._onDidAddReply.event;
+	private readonly _onDidSubmitFeedback = this._store.add(new Emitter<IAgentFeedbackSubmittedEvent>());
+	readonly onDidSubmitFeedback = this._onDidSubmitFeedback.event;
 
 	/** sessionResource → feedback items */
 	private readonly _feedbackBySession = new Map<string, IAgentFeedback[]>();
@@ -140,25 +224,57 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private _sessionUpdatedSequence = 0;
 	private readonly _navigationAnchorBySession = new Map<string, string>();
 
+	/** fileResource → sessionResource active when the editor for that file was first seen */
+	private readonly _fileToSession = new ResourceMap<URI>();
+
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this._register(this._editorService.onDidVisibleEditorsChange(() => this._trackVisibleEditorResources()));
+		this._trackVisibleEditorResources();
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): IAgentFeedback {
+	private _trackVisibleEditorResources(): void {
+		const activeSession = this._sessionsManagementService.activeSession.get();
+		if (!activeSession) {
+			return;
+		}
+
+		for (const pane of this._editorService.visibleEditorPanes) {
+			for (const candidate of getActiveResourceCandidates(pane.input)) {
+				this._fileToSession.set(candidate, activeSession.resource);
+			}
+		}
+	}
+
+	getSessionForFile(resourceUri: URI): ISession | undefined {
+		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsManagementService.activeSession.get()?.resource;
+		if (!sessionResource) {
+			return undefined;
+		}
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		if (!session || session.status.get() === SessionStatus.Untitled) {
+			return undefined;
+		}
+		return session;
+	}
+
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = 'user'): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
 			feedbackItems = [];
 			this._feedbackBySession.set(key, feedbackItems);
 		}
+
+		// A sourcePRReviewCommentId implies the feedback originated from a PR review.
+		const effectiveKind: AgentFeedbackKind = sourcePRReviewCommentId ? 'prReview' : kind;
 
 		const feedback: IAgentFeedback = {
 			id: generateUuid(),
@@ -169,6 +285,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			suggestion,
 			codeSelection: context?.codeSelection,
 			diffHunks: context?.diffHunks,
+			kind: effectiveKind,
 			sourcePRReviewCommentId,
 		};
 
@@ -205,11 +322,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 
-		logChangesViewReviewCommentAdded(this._telemetryService, {
-			hasExistingFeedback: hasExistingForFile,
-			hasSuggestion: !!suggestion,
-			isFromPRReview: !!sourcePRReviewCommentId,
-		});
+		if (effectiveKind === 'user') {
+			this._onDidAddFeedback.fire({ sessionResource, feedback, hasExistingFeedbackForFile: hasExistingForFile });
+		} else {
+			this._onDidConvertFeedback.fire({ sessionResource, feedback, kind: effectiveKind, hasExistingFeedbackForFile: hasExistingForFile });
+		}
 
 		return feedback;
 	}
@@ -255,6 +372,30 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		}
+	}
+
+	addReply(sessionResource: URI, feedbackId: string, replyText: string): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx < 0) {
+			return;
+		}
+
+		const existing = feedbackItems[idx];
+		const newReplies = [...(existing.replies ?? []), replyText];
+		const updated: IAgentFeedback = {
+			...existing,
+			replies: newReplies,
+		};
+		feedbackItems[idx] = updated;
+		this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
+		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		this._onDidAddReply.fire({ sessionResource, feedback: updated, replyCount: newReplies.length });
 	}
 
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
@@ -369,7 +510,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return undefined;
 		}
 
-		const matchingChange = changes.find(change => this._changeContainsResource(change, resourceUri));
+		const matchingChange = changes.find(change => changeMatchesResource(change, resourceUri));
 		if (!matchingChange) {
 			return undefined;
 		}
@@ -387,17 +528,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			modifiedUri: matchingChange.modifiedUri,
 			isDeletion: false,
 		};
-	}
-
-	private _changeContainsResource(change: ISessionFileChange, resourceUri: URI): boolean {
-		if (isIChatSessionFileChange2(change)) {
-			return change.uri.fsPath === resourceUri.fsPath
-				|| change.originalUri?.fsPath === resourceUri.fsPath
-				|| change.modifiedUri?.fsPath === resourceUri.fsPath;
-		}
-
-		return change.modifiedUri.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
@@ -453,8 +583,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
 	}
 
-	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string): Promise<void> {
-		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId);
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId, kind);
 
 		// Wait for the attachment contribution to update the chat widget's attachment model
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
@@ -472,10 +602,43 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 
+		await this.submitFeedback(sessionResource);
+	}
+
+	async submitFeedback(sessionResource: URI): Promise<void> {
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (!widget) {
+			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
+			return;
+		}
+
+		const feedbackItems = this._feedbackBySession.get(sessionResource.toString()) ?? [];
+		let userCount = 0;
+		let codeReviewCount = 0;
+		let prReviewCount = 0;
+		let replyCount = 0;
+		for (const item of feedbackItems) {
+			switch (item.kind) {
+				case 'user': userCount++; break;
+				case 'codeReview': codeReviewCount++; break;
+				case 'prReview': prReviewCount++; break;
+			}
+			replyCount += item.replies?.length ?? 0;
+		}
+
+		this._onDidSubmitFeedback.fire({
+			sessionResource,
+			totalCount: feedbackItems.length,
+			userCount,
+			codeReviewCount,
+			prReviewCount,
+			replyCount,
+		});
+
 		try {
-			await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
+			await widget.acceptInput('/act-on-feedback');
 		} catch (err) {
-			this._logService.error('[AgentFeedback] Failed to execute submit feedback command', err);
+			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
 		}
 	}
 }

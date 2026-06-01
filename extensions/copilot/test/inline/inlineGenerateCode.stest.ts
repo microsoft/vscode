@@ -30,12 +30,11 @@ function executeEditTestStrategy(
 	}
 }
 
-function forInlineAndInlineChatIntent(callback: (strategy: EditTestStrategy, variant: '-InlineChatIntent' | '', nonExtensionConfigurations?: NonExtensionConfiguration[]) => void): void {
-	callback(EditTestStrategy.Inline, '', undefined);
-	callback(EditTestStrategy.InlineChatIntent, '-InlineChatIntent', [['inlineChat.enableV2', true], ['chat.agent.autoFix', false]]);
+function forInlineChatIntent(callback: (strategy: EditTestStrategy, variant: '-InlineChatIntent', nonExtensionConfigurations?: NonExtensionConfiguration[]) => void): void {
+	callback(EditTestStrategy.InlineChatIntent, '-InlineChatIntent', [['chat.agent.autoFix', false]]);
 }
 
-forInlineAndInlineChatIntent((strategy, variant, nonExtensionConfigurations) => {
+forInlineChatIntent((strategy, variant, nonExtensionConfigurations) => {
 
 	ssuite({ title: `generate${variant}`, location: 'inline' }, () => {
 		stest({ description: 'gen-ts-ltrim', language: 'typescript', nonExtensionConfigurations }, (testingServiceCollection) => {

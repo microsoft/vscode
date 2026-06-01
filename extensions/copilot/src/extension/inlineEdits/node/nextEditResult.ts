@@ -9,6 +9,7 @@ import { StringReplacement } from '../../../util/vs/editor/common/core/edits/str
 import { Position } from '../../../util/vs/editor/common/core/position';
 import { Range } from '../../../util/vs/editor/common/core/range';
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
+import type { CachedEdit } from './nextEditCache';
 import { NextEditFetchRequest } from './nextEditProvider';
 
 export interface INextEditDisplayLocation {
@@ -39,6 +40,13 @@ export class NextEditResult implements INextEditResult {
 			isFromCursorJump: boolean;
 			jumpToPosition?: Position;
 			isSubsequentEdit: boolean;
+			/**
+			 * Reference to the underlying cache entry, when this result was either
+			 * served from the cache or freshly produced and immediately cached.
+			 * Consumers can use this to read/write per-entry flags such as
+			 * {@link CachedEdit.wasRenderedAsInlineSuggestion}.
+			 */
+			cacheEntry?: CachedEdit;
 		} | undefined,
 	) { }
 }

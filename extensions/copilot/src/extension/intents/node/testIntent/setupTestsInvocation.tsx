@@ -131,16 +131,15 @@ export class SetupTestsInvocation implements IIntentInvocation {
 		const prompt = await invocation.buildPrompt(this.buildPromptContext, undefined, token);
 		const inputStream = new FetchStreamSource();
 		const responseProcessing = invocation.processResponse(context, inputStream.stream, outputStream, token);
-		await this.endpoint.makeChatRequest(
-			'testSetupAutomaticFrameworkID',
-			prompt.messages,
-			(text, _, delta) => {
+		await this.endpoint.makeChatRequest2({
+			debugName: 'testSetupAutomaticFrameworkID',
+			messages: prompt.messages,
+			finishedCb: (text, _, delta) => {
 				inputStream.update(text, delta);
 				return Promise.resolve(undefined);
 			},
-			token,
-			this.location,
-		);
+			location: this.location,
+		}, token);
 
 		inputStream.resolve();
 		await responseProcessing;
@@ -208,13 +207,12 @@ export class SetupTestsInvocation implements IIntentInvocation {
 		const deriveResponsePrompt = await PromptRenderer.create(this.instantiationService, this.endpoint, TestFrameworkFromResponsePrompt, {
 			query: outputText,
 		}).render();
-		const fetchResult = await this.endpoint.makeChatRequest(
-			'setupTestDeriveName',
-			deriveResponsePrompt.messages,
-			undefined,
-			token,
-			ChatLocation.Panel
-		);
+		const fetchResult = await this.endpoint.makeChatRequest2({
+			debugName: 'setupTestDeriveName',
+			messages: deriveResponsePrompt.messages,
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+		}, token);
 
 
 		if (fetchResult.type !== ChatFetchResponseType.Success) {

@@ -84,6 +84,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'info':
 				case 'treeData':
 				case 'workspaceEdit':
+				case 'externalEdit':
 				case 'disabledClaudeHooks':
 					return a.kind === b.kind;
 
@@ -191,6 +192,7 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	hasPendingEdits: Adapt.v(m => m.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 	repoData: Adapt.v(m => m.repoData, objectsEqual),
 	pendingRequests: Adapt.t(m => m.getPendingRequests(), Adapt.array(pendingRequestSchema)),
+	workingDirectory: Adapt.v(m => m.workingDirectory?.toString()),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

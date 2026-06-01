@@ -33,7 +33,14 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>): AgentHostG
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new AgentHostGitService(fileService, env as INativeEnvironmentService);
+	return new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
+}
+
+function rmDirWithRetry(path: string | undefined): void {
+	if (!path) {
+		return;
+	}
+	try { rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
 }
 
 suite('AgentHostGitService - getSessionGitState (real git)', () => {
@@ -53,9 +60,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(opts?: { remote?: string; baseBranch?: string }): string {
@@ -135,7 +140,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.outgoingChanges, 2);
 			assert.strictEqual(result.uncommittedChanges, 0);
 		} finally {
-			rmSync(remoteDir, { recursive: true, force: true });
+			rmDirWithRetry(remoteDir);
 		}
 	});
 });
@@ -156,9 +161,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): { dir: string; run: (...args: string[]) => Buffer } {
@@ -233,6 +236,39 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(paths.some(p => p?.endsWith('b.txt')), `expected b.txt in diff; got ${paths.join(', ')}`);
 	});
 
+	(hasGit ? test : test.skip)('prefers origin base branch when local base branch is stale', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'shared.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		run('checkout', '-q', '-b', 'feature');
+		run('checkout', '-q', '-b', 'upstream', 'main');
+		await fs.writeFile(join(dir, 'upstream.txt'), 'upstream\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'upstream');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		run('checkout', '-q', 'feature');
+		run('merge', '-q', '--no-ff', 'origin/main', '-m', 'merge origin/main');
+		await fs.writeFile(join(dir, 'feature.txt'), 'feature\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch: 'main' });
+		assert.ok(result, 'expected diffs');
+		const paths = result.map(d => d.after?.uri ?? d.before?.uri);
+		assert.deepStrictEqual({
+			feature: paths.some(p => p?.endsWith('feature.txt')),
+			upstream: paths.some(p => p?.endsWith('upstream.txt')),
+		}, {
+			feature: true,
+			upstream: false,
+		});
+	});
+
 	(hasGit ? test : test.skip)('returns no diffs for a clean repo', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
@@ -267,5 +303,89 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		const blob = await svc!.showBlob(URI.file(dir), sha, 'a.txt');
 		assert.ok(blob);
 		assert.strictEqual(blob.toString(), 'original\n');
+	});
+});
+
+suite('AgentHostGitService - worktree helpers (real git)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hasGit = (() => {
+		try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+	})();
+
+	let tmpRoot: string | undefined;
+	let svc: AgentHostGitService | undefined;
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+
+	setup(() => {
+		tmpRoot = undefined;
+		svc = createGitService(disposables);
+	});
+
+	teardown(() => {
+		rmDirWithRetry(tmpRoot);
+	});
+
+	function initRepo(): string {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-wt-'));
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
+		run('init', '-q', '-b', 'main');
+		run('commit', '-q', '--allow-empty', '-m', 'initial');
+		return tmpRoot!;
+	}
+
+	(hasGit ? test : test.skip)('branchExists reports true for HEAD branch and false for missing branches', async () => {
+		const dir = initRepo();
+		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'main'), true);
+		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
+	});
+
+	(hasGit ? test : test.skip)('hasUncommittedChanges flips with untracked and committed work', async () => {
+		const dir = initRepo();
+		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'a.txt'), 'hello');
+		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), true);
+		cp.execFileSync('git', ['add', 'a.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add a'], { cwd: dir, env, stdio: 'pipe' });
+		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
+	});
+
+	(hasGit ? test : test.skip)('addExistingWorktree attaches a worktree for an existing branch (no -b)', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'feature');
+			const fs = await import('fs/promises');
+			const stat = await fs.stat(wtPath);
+			assert.ok(stat.isDirectory(), 'worktree directory should exist');
+		} finally {
+			rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'upstream', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'upstream.txt'), 'upstream');
+		cp.execFileSync('git', ['add', '.'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'upstream'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'HEAD'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/test-origin-start-point', 'main');
+			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
+			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
+			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
 	});
 });

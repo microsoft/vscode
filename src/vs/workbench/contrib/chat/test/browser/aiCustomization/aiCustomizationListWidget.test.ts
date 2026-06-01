@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -15,9 +16,10 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -129,6 +131,28 @@ suite('aiCustomizationListWidget', () => {
 				undefined
 			);
 		});
+
+		test('extracts extension ID from User/globalStorage path (Copilot Chat ask agent)', () => {
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/.vscode-oss-dev/User/globalStorage/github.copilot-chat/ask-agent/Ask.agent.md'),
+				'github.copilot-chat'
+			);
+		});
+
+		test('extracts extension ID from User/globalStorage path on Insiders', () => {
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/Library/Application Support/Code - Insiders/User/globalStorage/github.copilot-chat/ask-agent/Ask.agent.md'),
+				'github.copilot-chat'
+			);
+		});
+
+		test('returns undefined for non-extension entries in globalStorage', () => {
+			// e.g. `state.vscdb` or other workspace storage that lacks a publisher.name pattern
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/.vscode-oss-dev/User/globalStorage/state.vscdb'),
+				undefined
+			);
+		});
 	});
 
 	suite('disposed widget', () => {
@@ -143,7 +167,7 @@ suite('aiCustomizationListWidget', () => {
 			getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve(undefined),
+				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(undefined),
 			},
 		};
 
@@ -171,7 +195,7 @@ suite('aiCustomizationListWidget', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -181,11 +205,15 @@ suite('aiCustomizationListWidget', () => {
 				clearOverrideProjectRoot: () => { },
 			});
 
+			const activeSessionResource = observableValue('test', URI.parse('test:///session'));
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
+
 			instaService.stub(ICustomizationHarnessService, {
-				activeHarness: observableValue('test', 'test'),
+				activeSessionResource,
+				activeHarness,
 				availableHarnesses: observableValue('test', [descriptor]),
-				setActiveHarness: () => { },
-				getStorageSourceFilter: () => ({ sources: [] }),
+				setActiveSession: () => { },
+				getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 				getActiveDescriptor: () => descriptor,
 				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -212,8 +240,8 @@ suite('aiCustomizationListWidget', () => {
 			instaService.stub(IAICustomizationItemsModel, {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidChange: Event.None, fetchItems: async () => [] }),
-				getPromptsServiceItemProvider: () => ({ onDidChange: Event.None, provideChatSessionCustomizations: async () => undefined }),
+				getPluginCount: () => observableValue('test', 0),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
 

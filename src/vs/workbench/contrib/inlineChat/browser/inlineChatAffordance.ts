@@ -7,16 +7,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, debouncedObservable, derived, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
-
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InlineChatConfigKeys, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE } from '../common/inlineChat.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { InlineChatEditorAffordance } from './inlineChatEditorAffordance.js';
-
+import { InlineChatAffordanceWidget } from './inlineChatAffordanceWidget.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-
 import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
@@ -128,7 +125,7 @@ export class InlineChatAffordance extends Disposable {
 		}));
 
 		const editorAffordance = this.#instantiationService.createInstance(
-			InlineChatEditorAffordance,
+			InlineChatAffordanceWidget,
 			this.#editor,
 			derived(r => affordance.read(r) === 'editor' ? selectionData.read(r) : undefined)
 		);

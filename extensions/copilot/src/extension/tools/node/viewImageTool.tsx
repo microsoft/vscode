@@ -64,7 +64,7 @@ export class ViewImageTool implements ICopilotTool<IViewImageParams> {
 		this.assertImageFile(uri);
 
 		const isExternal = await this.instantiationService.invokeFunction(
-			accessor => isFileExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true })
+			accessor => isFileExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 		);
 
 		if (isExternal) {
@@ -87,7 +87,7 @@ export class ViewImageTool implements ICopilotTool<IViewImageParams> {
 			};
 		}
 
-		await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri, this._promptContext, { readOnly: true }));
+		await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 		return {
 			invocationMessage: new MarkdownString(l10n.t`Viewing image ${formatUriForFileWidget(uri)}`),

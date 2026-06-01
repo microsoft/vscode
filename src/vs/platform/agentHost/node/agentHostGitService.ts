@@ -10,6 +10,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
 
@@ -24,7 +25,27 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
+	/**
+	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
+	 * a worktree whose branch was preserved (e.g. unarchiving a session
+	 * whose worktree was previously cleaned up on archive).
+	 */
+	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
 	removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void>;
+	/**
+	 * Returns true when the named branch exists in the repository
+	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to
+	 * confirm the branch is preserved before deleting the worktree, and by
+	 * the unarchive path to confirm the branch is still around before
+	 * recreating the worktree.
+	 */
+	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
+	/**
+	 * Returns true when the working tree has any tracked, staged, or
+	 * untracked changes. Used by archive cleanup to skip removing a
+	 * worktree that still contains uncommitted work.
+	 */
+	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a
@@ -57,12 +78,61 @@ export interface IAgentHostGitService {
 	 * not exist or the directory is not a git work tree.
 	 */
 	showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+
+	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
+
+	/**
+	 * Captures the current working tree (including untracked files) as a
+	 * tree object, returning the tree OID. Uses a throwaway `GIT_INDEX_FILE`
+	 * so the user's real index is untouched. Returns `undefined` when the
+	 * directory is not a git work tree.
+	 */
+	captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined>;
+
+	/**
+	 * Creates a commit object from a tree (optionally chained to a parent)
+	 * and returns its OID. Does NOT update any ref.
+	 */
+	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined>;
+
+	/**
+	 * Updates a ref to point at `newOid`. Creates the ref if missing.
+	 */
+	updateRef(repositoryRoot: URI, ref: string, newOid: string): Promise<void>;
+
+	/**
+	 * Batch-deletes the given refs via `git update-ref --stdin -z`.
+	 * Missing refs are tolerated.
+	 */
+	deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void>;
+
+	/**
+	 * Resolves a ref/object expression to its OID, e.g. `revParse(repo, 'refs/agents/abc/...')`
+	 * or `revParse(repo, '<commit>^{tree}')`. Returns `undefined` when the
+	 * ref does not exist.
+	 */
+	revParse(repositoryRoot: URI, expression: string): Promise<string | undefined>;
+
+	/**
+	 * Computes per-file diffs between two refs (typically two consecutive
+	 * checkpoint refs) by shelling out to
+	 * `git diff --raw --numstat --diff-filter=ADMR -z <fromRef> <toRef>`.
+	 * Returns the same {@link ISessionFileDiff} shape as
+	 * {@link computeSessionFileDiffs}: `before.content` is a `git-blob:`
+	 * URI anchored on `fromRef`, `after.content` is a `git-blob:` URI
+	 * anchored on `toRef`. Returns `undefined` on git failure.
+	 *
+	 * Used by the changeset service to materialise per-turn diffs from
+	 * checkpoint refs when they are available — that path captures
+	 * terminal-tool edits the FileEditTracker pipeline misses.
+	 */
+	computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined>;
 }
 
 /**
  * Provider-agnostic session-database metadata key under which agents
  * persist the branch they want git-driven diffs anchored to. Read by
- * {@link AgentSideEffects} when computing per-session file diffs; absent
+ * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
  * value means the diff falls back to anchoring at HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
@@ -110,6 +180,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async isInsideWorkTree(workingDirectory: URI): Promise<boolean> {
@@ -131,10 +202,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
-			// Check whether a local branch exists; if not, use the remote-tracking ref
-			// so that 'git worktree add ... <startPoint>' resolves correctly.
+			// Prefer the remote-tracking ref ('origin/<branch>') over the local
+			// branch when both exist, so worktrees are based on the most
+			// up-to-date commit rather than a possibly stale local branch.
+			// This mirrors the extension-host CLI which resolves a branch's
+			// upstream and uses that as the worktree start point. Falls back
+			// to the local branch when the remote-tracking ref is missing
+			// (e.g. fresh clone with no remote-tracking refs yet).
+			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
+			if (hasRemoteRef) {
+				return `origin/${branch}`;
+			}
 			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
-			return hasLocalBranch ? branch : `origin/${branch}`;
+			return hasLocalBranch ? branch : undefined;
 		}
 		return undefined;
 	}
@@ -167,11 +247,32 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		// Pass --no-track so the new agent branch never picks up upstream
+		// tracking from the start point (e.g. when starting from
+		// 'origin/main', without --no-track git would set the new branch's
+		// upstream to origin/main, which would mis-attribute pushes/pulls).
+		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 60_000, throwOnError: true });
+	}
+
+	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 60_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 30_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 60_000, throwOnError: true });
+	}
+
+	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
+		// `show-ref --verify --quiet` exits 0 when the ref exists and 1 otherwise.
+		// `_runGit` returns undefined on non-zero exit, so `!== undefined` is the existence signal.
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/heads/${branchName}`]);
+		return output !== undefined;
+	}
+
+	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
+		return !!output && output.trim().length > 0;
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -191,15 +292,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 		const repositoryRoot = URI.file(repositoryRootPath);
 
-		// Resolve the merge-base commit. With a base branch, this is
-		// `merge-base HEAD <base>` so the diff stays anchored even when the
-		// base branch advances. Without one, fall back to HEAD itself, which
-		// surfaces uncommitted work but no committed-on-branch work — the
-		// best we can do without context. For empty repos with no HEAD, fall
-		// back to the well-known empty-tree object.
+		// Resolve the merge-base commit. With a base branch, prefer the
+		// corresponding origin/<base> remote-tracking ref when it exists so
+		// branch changes match a PR-style comparison even if the local base
+		// branch is stale. Without a usable base, fall back to HEAD itself,
+		// which surfaces uncommitted work but no committed-on-branch work -
+		// the best we can do without context. For empty repos with no HEAD,
+		// fall back to the well-known empty-tree object.
 		let mergeBaseCommit: string | undefined;
 		if (options.baseBranch) {
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', options.baseBranch]))?.trim();
+			const baseBranch = await this._resolveRemoteTrackingBranch(repositoryRoot, options.baseBranch) ?? options.baseBranch;
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', baseBranch]))?.trim();
 		}
 		if (!mergeBaseCommit) {
 			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
@@ -261,6 +364,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
+		const remoteBranch = `origin/${branch}`;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
+		return output !== undefined ? remoteBranch : undefined;
+	}
+
 	async showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
 		// Validate sha before passing it to git. `git show <sha>:<path>` parses
 		// its argument as a revision, so an attacker-controlled sha that starts
@@ -291,6 +400,91 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return this._computeSessionGitState(workingDirectory);
 	}
 
+	async captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined> {
+		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
+		if (inside?.trim() !== 'true') {
+			return undefined;
+		}
+		const repoRoot = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+		if (!repoRoot) {
+			return undefined;
+		}
+		const repositoryRoot = URI.file(repoRoot);
+		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
+		await this._fileService.createFolder(tempDir);
+		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
+		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
+		try {
+			// Seed the temp index from HEAD; for empty repos seed from the empty tree.
+			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
+			if (seeded === undefined) {
+				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
+			}
+			// Stage the entire working tree (including untracked, excluding ignored).
+			await this._runGit(repositoryRoot, ['add', '-A', '--', ':/'], { env });
+			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
+			return tree || undefined;
+		} finally {
+			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
+		}
+	}
+
+	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined> {
+		const args = ['commit-tree', treeOid];
+		if (parentOid) {
+			args.push('-p', parentOid);
+		}
+		args.push('-m', message);
+		const out = await this._runGit(repositoryRoot, args, { throwOnError: true });
+		return out?.trim() || undefined;
+	}
+
+	async updateRef(repositoryRoot: URI, ref: string, newOid: string): Promise<void> {
+		await this._runGit(repositoryRoot, ['update-ref', ref, newOid], { throwOnError: true });
+	}
+
+	async deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void> {
+		if (refs.length === 0) {
+			return;
+		}
+		// Use `update-ref --stdin -z` so all deletions go through a single git
+		// invocation. Each command is `delete SP <ref> NUL [<expected_oid>] NUL`;
+		// we omit the expected oid so already-missing refs don't fail the batch.
+		const stdin = refs.map(ref => `delete ${ref}\x00\x00`).join('');
+		await new Promise<void>((resolve) => {
+			const proc = cp.execFile('git', ['update-ref', '--stdin', '-z'], { cwd: repositoryRoot.fsPath, timeout: 10_000 }, () => {
+				// Tolerate non-zero exits — missing refs are not fatal for cleanup.
+				resolve();
+			});
+			proc.stdin?.end(stdin);
+		});
+	}
+
+	async revParse(repositoryRoot: URI, expression: string): Promise<string | undefined> {
+		const out = await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', expression]);
+		return out?.trim() || undefined;
+	}
+
+	async computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined> {
+		const repoRoot = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+		if (!repoRoot) {
+			return undefined;
+		}
+		const repositoryRoot = URI.file(repoRoot);
+		// Validate both refs resolve before invoking `git diff` so a missing
+		// ref returns undefined rather than producing a confusing error.
+		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
+		const toOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.toRef]))?.trim();
+		if (!fromOid || !toOid) {
+			return undefined;
+		}
+		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
+		if (raw === undefined) {
+			return undefined;
+		}
+		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
+	}
+
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
 		// Bail fast if not inside a git work tree.
 		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
@@ -313,6 +507,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
+		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -338,6 +533,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
+			githubOwner: githubRepo?.owner,
+			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
@@ -347,13 +544,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
+			const timeoutMs = options?.timeout ?? 5000;
+			// Use our own timer rather than execFile's `timeout` option so
+			// we can definitively flag the timeout case in the error
+			// message — execFile only surfaces signal/killed, which can
+			// also mean the process was killed for other reasons.
+			let didTimeOut = false;
 			// Default maxBuffer is 32MB — Node's default is ~1MB, which is
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
-			cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, timeout: options?.timeout ?? 5000, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					// stderr is summarized in the thrown error message to keep
+					// it readable; log the full unmodified output here so the
+					// raw progress/diagnostic text is still available.
+					if (stderr) {
+						this._logService.warn(`[agentHostGitService] git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+					}
 					if (options?.throwOnError) {
-						reject(new Error(stderr || error.message));
+						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
 						return;
 					}
 					resolve(undefined);
@@ -361,8 +570,60 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			const timer = setTimeout(() => {
+				didTimeOut = true;
+				child.kill();
+			}, timeoutMs);
+			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+/**
+ * Builds a diagnostic error message for a failed `git` invocation that
+ * preserves the reason (timeout / signal / exit code) instead of just
+ * surfacing whatever happened to be on stderr. When `git` is killed by
+ * the timeout, stderr often contains only progress output (e.g.
+ * `Updating files:   0% (149/14834)`), so without the timeout indicator
+ * the bubbled-up error is misleading.
+ *
+ * Exported for tests.
+ */
+export function formatGitError(args: readonly string[], timeoutMs: number, didTimeOut: boolean, error: cp.ExecFileException, stderr: string): string {
+	const subcommand = args[0] ?? '(unknown)';
+	let reason: string;
+	if (didTimeOut) {
+		reason = `git ${subcommand} timed out after ${timeoutMs}ms`;
+	} else if (error.killed && error.signal) {
+		reason = `git ${subcommand} killed by ${error.signal}`;
+	} else if (typeof error.code === 'number') {
+		reason = `git ${subcommand} exited with code ${error.code}`;
+	} else {
+		reason = error.message;
+	}
+	const detail = summarizeStderrForError(stderr);
+	return detail ? `${reason}: ${detail}` : reason;
+}
+
+/**
+ * Squashes multi-line / carriage-return-heavy stderr (e.g. git progress
+ * meters that emit `Updating files:   0% (149/14834)\r...` repeatedly)
+ * into a single short line suitable for a one-liner error message.
+ * Keeps the most recent non-empty line and caps total length.
+ *
+ * Exported for tests.
+ */
+export function summarizeStderrForError(stderr: string): string {
+	if (!stderr) {
+		return '';
+	}
+	const lines = stderr.split(/[\r\n]+/g).map(line => line.trim()).filter(line => line.length > 0);
+	if (lines.length === 0) {
+		return '';
+	}
+	const last = lines[lines.length - 1];
+	const MAX = 200;
+	return last.length > MAX ? `${last.slice(0, MAX - 1)}…` : last;
 }
 
 /**
@@ -412,9 +673,23 @@ export function parseUntrackedPaths(output: string | undefined): string[] {
  * is followed by two extra path segments (old, new); the numstat segment
  * has an empty path field followed by old/new path segments.
  *
+ * `beforeRef` is the commit the `before` side is anchored on (typically a
+ * merge-base or the lower bound of a ref-to-ref diff).
+ *
+ * `afterRef` controls how the `after` side is built:
+ * - When `undefined` (the merge-base → working-tree case) the `after`
+ *   content URI points at the on-disk working-tree file. The diff editor
+ *   reads the file from disk as the user currently sees it.
+ * - When set (the ref → ref case, e.g. checkpoint diffs) both `after.uri`
+ *   and `after.content.uri` are built as `git-blob:` URIs anchored on that
+ *   commit, so the after pane reflects the state at that commit
+ *   regardless of what is currently on disk. This also makes the diff
+ *   correct when the file does not (or no longer) exists in the working
+ *   tree.
+ *
  * Exported for tests.
  */
-export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sessionUri: string, mergeBaseCommit: string): ISessionFileDiff[] {
+export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sessionUri: string, beforeRef: string, afterRef?: string): ISessionFileDiff[] {
 	const segments = output.split('\x00');
 	const changes: { kind: FileEditKind; oldPath?: string; newPath?: string }[] = [];
 	const numStats = new Map<string, { added: number; removed: number }>();
@@ -479,14 +754,19 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 			...(hasBefore && change.oldPath ? {
 				before: {
 					uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
-					content: { uri: buildGitBlobUri(sessionUri, mergeBaseCommit, change.oldPath) },
+					content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
 				},
 			} : {}),
 			...(hasAfter && change.newPath ? {
-				after: {
-					uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
-					content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
-				},
+				after: afterRef !== undefined
+					? {
+						uri: buildGitBlobUri(sessionUri, afterRef, change.newPath),
+						content: { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) },
+					}
+					: {
+						uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
+						content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
+					},
 			} : {}),
 			diff: { added: stats?.added ?? 0, removed: stats?.removed ?? 0 },
 		};
@@ -551,6 +831,64 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 		return false;
 	}
 	return /github\.com[:\/]/i.test(remotesOutput);
+}
+
+/**
+ * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
+ * remote; falls back to the first GitHub remote so worktrees that renamed
+ * the remote still surface PR state. Returns `undefined` if no GitHub
+ * remote is present or the URL doesn't match a GitHub repo shape.
+ *
+ * Exported for tests.
+ */
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remotesOutput) {
+		return undefined;
+	}
+	// Each line: `<name>\t<url> (<fetch|push>)`. Take fetch URLs only so we
+	// don't double-count the same remote.
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) { continue; }
+		const m = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line);
+		if (!m) { continue; }
+		candidates.push({ name: m[1], url: m[2] });
+	}
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	// Prefer `origin`, otherwise first matching remote.
+	const ordered = [
+		...candidates.filter(c => c.name === 'origin'),
+		...candidates.filter(c => c.name !== 'origin'),
+	];
+	for (const { url } of ordered) {
+		const parsed = parseGitHubOwnerRepoFromUrl(url);
+		if (parsed) {
+			return parsed;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Extract `{owner, repo}` from a GitHub remote URL. Handles the common
+ * forms: `git@github.com:owner/repo(.git)?`, `https://github.com/owner/repo(.git)?`,
+ * `ssh://git@github.com/owner/repo(.git)?`, `git://github.com/owner/repo(.git)?`.
+ */
+function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | undefined {
+	// SCP-like: git@github.com:owner/repo(.git)?
+	let m = /^[^@\s]+@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	// URL-form: <scheme>://[user@]github.com[:port]/owner/repo(.git)?
+	m = /^[a-z+]+:\/\/(?:[^@\/\s]+@)?github\.com(?::\d+)?\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	return undefined;
 }
 
 /** Exported for tests. */

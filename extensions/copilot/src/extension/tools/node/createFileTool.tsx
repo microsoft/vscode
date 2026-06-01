@@ -179,7 +179,9 @@ export class CreateFileTool implements ICopilotTool<ICreateFileParams> {
 				'', // Empty initial content
 				content
 			),
-			options.forceConfirmationReason
+			options.forceConfirmationReason,
+			undefined,
+			options.workingDirectory,
 		);
 
 		return {

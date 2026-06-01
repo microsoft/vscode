@@ -125,7 +125,6 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
 <instructions>
@@ -152,13 +151,6 @@ I am working in a workspace with the following folders:
 
 ### User
 ~~~md
-<context>
-(Date removed from snapshot)
-</context>
-<reminderInstructions>
-Do NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.
-
-</reminderInstructions>
 <userRequest>
 previous turn
 </userRequest>
@@ -271,8 +263,6 @@ success
 ~~~md
 🛠️ tooluse_5
 success
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
