@@ -8,21 +8,23 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsChangesPanelCollapsedContext } from '../common/contextkeys.js';
 import { mainWindow } from '../../base/browser/window.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
 const sidebarToggleClosedIcon = registerIcon('agent-sidebar-toggle-closed', Codicon.layoutSidebarLeftOff, localize('agentSidebarToggleClosedIcon', "Icon for the sessions sidebar when closed."));
 const sidebarToggleOpenIcon = registerIcon('agent-sidebar-toggle-open', Codicon.layoutSidebarLeft, localize('agentSidebarToggleOpenIcon', "Icon for the sessions sidebar when open."));
+const auxiliaryBarToggleClosedIcon = registerIcon('agent-auxiliarybar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentAuxiliaryBarToggleClosedIcon', "Icon for the changes panel when closed."));
+const auxiliaryBarToggleOpenIcon = registerIcon('agent-auxiliarybar-toggle-open', Codicon.layoutSidebarRight, localize('agentAuxiliaryBarToggleOpenIcon', "Icon for the changes panel when open."));
 
 class ToggleSidebarVisibilityAction extends Action2 {
 
@@ -149,9 +151,107 @@ class TogglePanelVisibilityAction extends Action2 {
 	}
 }
 
+/**
+ * Independent toggle for the auxiliary bar (Changes + Files) from the editor area's
+ * title-bar layout actions — placed next to the Close Editor Area button so the
+ * user can collapse the changes/files panel without closing the editor (e.g. when
+ * the integrated browser is open). Does NOT hide the editor part.
+ *
+ * This is intentionally distinct from {@link ToggleSecondarySidebarVisibilityAction}:
+ * collapsing here records intent in {@link IsChangesPanelCollapsedContext} so the
+ * secondary side bar toggle's icon does not flip to its "closed" state — the
+ * secondary side bar is conceptually still open, just collapsed.
+ *
+ * Implemented as two separate actions whose visibility is gated by the collapsed
+ * intent so the icon swaps with state without the toolbar applying the "checked"
+ * highlight that `toggled` would.
+ */
+function collapseChangesPanelFromEditor(accessor: ServicesAccessor): void {
+	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const contextKeyService = accessor.get(IContextKeyService);
+	IsChangesPanelCollapsedContext.bindTo(contextKeyService).set(true);
+	layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+	alert(localize('changesPanelHidden', "Changes panel hidden"));
+}
+
+function expandChangesPanelFromEditor(accessor: ServicesAccessor): void {
+	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const contextKeyService = accessor.get(IContextKeyService);
+	IsChangesPanelCollapsedContext.bindTo(contextKeyService).set(false);
+	layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+	alert(localize('changesPanelVisible', "Changes panel shown"));
+}
+
+class CollapseChangesPanelFromEditorAction extends Action2 {
+
+	static readonly ID = 'workbench.action.agentCollapseChangesPanelFromEditor';
+
+	constructor() {
+		super({
+			id: CollapseChangesPanelFromEditorAction.ID,
+			title: localize2('collapseChangesPanelFromEditor', 'Collapse Changes Panel'),
+			icon: auxiliaryBarToggleOpenIcon,
+			category: Categories.View,
+			f1: false,
+			menu: [
+				{
+					id: MenuId.EditorTitleLayout,
+					group: 'navigation',
+					order: 98,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						IsAuxiliaryWindowContext.toNegated(),
+						IsTopRightEditorGroupContext,
+						AuxiliaryBarVisibleContext
+					)
+				}
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		collapseChangesPanelFromEditor(accessor);
+	}
+}
+
+class ExpandChangesPanelFromEditorAction extends Action2 {
+
+	static readonly ID = 'workbench.action.agentExpandChangesPanelFromEditor';
+
+	constructor() {
+		super({
+			id: ExpandChangesPanelFromEditorAction.ID,
+			title: localize2('expandChangesPanelFromEditor', 'Show Changes Panel'),
+			icon: auxiliaryBarToggleClosedIcon,
+			category: Categories.View,
+			f1: false,
+			menu: [
+				{
+					id: MenuId.EditorTitleLayout,
+					group: 'navigation',
+					order: 98,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						IsAuxiliaryWindowContext.toNegated(),
+						IsTopRightEditorGroupContext,
+						AuxiliaryBarVisibleContext.toNegated(),
+						IsChangesPanelCollapsedContext
+					)
+				}
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		expandChangesPanelFromEditor(accessor);
+	}
+}
+
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSecondarySidebarVisibilityAction);
 registerAction2(TogglePanelVisibilityAction);
+registerAction2(CollapseChangesPanelFromEditorAction);
+registerAction2(ExpandChangesPanelFromEditorAction);
 
 // Floating window controls: always-on-top
 MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
