@@ -502,7 +502,37 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	suite('Find state disassociation', () => {
+	test('issue #107090: AddSelectionToNextFindMatchAction respects regex mode', () => {
+		const text = [
+			'a.b',
+			'acb',
+			'a-b',
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+			// Enable regex mode in the find widget
+			findController.getState().change({ isRegex: true }, false);
+
+			// Select 'a.b' (which as a regex also matches 'acb' and 'a-b')
+			editor.setSelections([
+				new Selection(1, 1, 1, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
+
 
 		const text = [
 			'app',
