@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
@@ -51,7 +51,11 @@ class RecentRemoteFolderPrunerContribution implements IWorkbenchContribution {
 		@IFileService fileService: IFileService,
 		@IWorkspacesService workspacesService: IWorkspacesService
 	) {
-		pruneRecentRemoteFolderIfMissing(contextService, fileService, workspacesService).catch(onUnexpectedError);
+		pruneRecentRemoteFolderIfMissing(contextService, fileService, workspacesService).catch(error => {
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+		});
 	}
 }
 
