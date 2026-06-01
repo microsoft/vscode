@@ -1255,7 +1255,7 @@ suite('RunInTerminalTool', () => {
 				requestAllowNetworkReason: 'Needs registry access while remaining sandboxed',
 			});
 
-			assertConfirmationRequired(result, 'Run `bash` command in the [sandbox](https://aka.ms/vscode-sandboxing) with unrestricted network access?');
+			assertConfirmationRequired(result, 'Allow the sandbox to run `echo hello` with unrestricted network access.');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestAllowNetworkReason, 'Needs registry access while remaining sandboxed');
@@ -1286,7 +1286,7 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'curl https://evil.com' });
 
-			assertConfirmationRequired(result, 'Run `bash` command in the [sandbox](https://aka.ms/vscode-sandboxing) with unrestricted network access to access `evil.com`?');
+			assertConfirmationRequired(result, 'Allow the sandbox to run `curl https://evil.com` with unrestricted network access.');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestUnsandboxedExecution, false);
