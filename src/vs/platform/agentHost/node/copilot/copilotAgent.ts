@@ -56,6 +56,37 @@ interface ICreatedWorktree {
 	readonly worktree: URI;
 }
 
+function getCopilotSdkErrorCode(err: unknown): number | undefined {
+	if (typeof err !== 'object' || err === null) {
+		return undefined;
+	}
+	const code = Object.getOwnPropertyDescriptor(err, 'code')?.value;
+	return typeof code === 'number' ? code : undefined;
+}
+
+function getErrorMessage(err: unknown): string {
+	if (err instanceof Error) {
+		return err.message;
+	}
+	if (typeof err === 'object' && err !== null) {
+		const message = Object.getOwnPropertyDescriptor(err, 'message')?.value;
+		if (typeof message === 'string') {
+			return message;
+		}
+	}
+	return String(err);
+}
+
+function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
+	if (getCopilotSdkErrorCode(err) !== -32603) {
+		return false;
+	}
+
+	const message = getErrorMessage(err);
+	return /\b(no messages|empty session|session is empty|session has no messages)\b/i.test(message)
+		&& !/\b(corrupt|corrupted|invalid|validation|must be|parse)\b/i.test(message);
+}
+
 /**
  * A session that has been requested by a client but has not yet been
  * materialized into a real Copilot SDK session, worktree, or persisted
@@ -1617,13 +1648,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot:${sessionId}] SDK resumeSession succeeded`);
 				return new CopilotSessionWrapper(raw);
 			} catch (err) {
-				const errCode = (err as { code?: number })?.code;
-				const errMsg = err instanceof Error ? err.message : String(err);
+				const errCode = getCopilotSdkErrorCode(err);
+				const errMsg = getErrorMessage(err);
 				this._logService.warn(`[Copilot:${sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
 				// The SDK fails to resume sessions that have no messages.
 				// Fall back to creating a new session with the same ID,
 				// seeding model & working directory from stored metadata.
-				if (!err || errCode !== -32603) {
+				if (!shouldCreateEmptySessionAfterResumeError(err)) {
 					throw err;
 				}
 

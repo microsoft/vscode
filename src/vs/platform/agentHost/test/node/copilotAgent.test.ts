@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type Customization, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
@@ -237,6 +237,12 @@ class MockCopilotSession {
 	async disconnect(): Promise<void> { }
 }
 
+class TestSdkError extends Error {
+	constructor(message: string, readonly code: number) {
+		super(message);
+	}
+}
+
 class MockAgentHostOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 
@@ -248,6 +254,27 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	}
 	async flush() {
 		//
+	}
+}
+
+class ResumePathCopilotAgent extends CopilotAgent {
+	constructor(
+		private readonly _copilotClient: ITestCopilotClient,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService fileService: IFileService,
+		@ISessionDataService sessionDataService: ISessionDataService,
+		@IAgentHostGitService gitService: IAgentHostGitService,
+		@IAgentHostTerminalManager terminalManager: IAgentHostTerminalManager,
+		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostCompletions completions: IAgentHostCompletions,
+	) {
+		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
+	}
+
+	protected override _createCopilotClient(): CopilotClient {
+		return this._copilotClient as CopilotClient;
 	}
 }
 
@@ -316,7 +343,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	}
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService } {
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -347,12 +374,12 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	services.set(IInstantiationService, instantiationService);
 	const agent = options?.copilotClient
-		? instantiationService.createInstance(TestableCopilotAgent, options.copilotClient)
+		? instantiationService.createInstance(options.useRealResumePath ? ResumePathCopilotAgent : TestableCopilotAgent, options.copilotClient)
 		: instantiationService.createInstance(CopilotAgent);
 	return { agent, instantiationService, configurationService: configService, fileService };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -1156,6 +1183,51 @@ suite('CopilotAgent', () => {
 				// Clear the fake shutdown promise so disposeAgent doesn't
 				// short-circuit and leave real state behind.
 				internals._shutdownPromise = undefined;
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('_resumeSession fallback', () => {
+		type AgentInternals = {
+			_resumeSession: (id: string) => Promise<CopilotAgentSession>;
+		};
+
+		function createResumeFailingClient(message: string, code = -32603): { readonly client: TestCopilotClient; readonly getCreateSessionCalls: () => number } {
+			let createSessionCalls = 0;
+			const client = new TestCopilotClient([sdkSession('s1', '/workspace')]);
+			client.resumeSession = async () => {
+				throw new TestSdkError(message, code);
+			};
+			client.createSession = async () => {
+				createSessionCalls++;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			return { client, getCreateSessionCalls: () => createSessionCalls };
+		}
+
+		test('falls back to createSession for the SDK empty-session resume error', async () => {
+			const { client, getCreateSessionCalls } = createResumeFailingClient('Request session.resume failed with message: session has no messages');
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
+			const internals = agent as unknown as AgentInternals;
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await internals._resumeSession('s1');
+				assert.strictEqual(getCreateSessionCalls(), 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not replace a corrupted session file with an empty session', async () => {
+			const { client, getCreateSessionCalls } = createResumeFailingClient('Request session.resume failed with message: Session file is corrupted (line 19567: data.compactionTokensUsed.copilotUsage.tokenDetails.0.batchSize: Number must be greater than 0)');
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
+			const internals = agent as unknown as AgentInternals;
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await assert.rejects(() => internals._resumeSession('s1'), /Session file is corrupted/);
+				assert.strictEqual(getCreateSessionCalls(), 0);
+			} finally {
 				await disposeAgent(agent);
 			}
 		});
