@@ -9,9 +9,11 @@ use ahp::{Client, Transport, TransportError, TransportMessage};
 use ahp_types::commands::{AuthenticateParams, AuthenticateResult};
 use ahp_types::errors::ahp_error_codes;
 use ahp_types::state::ProtectedResourceMetadata;
-use ahp_types::PROTOCOL_VERSION;
+use ahp_types::{ROOT_RESOURCE_URI, PROTOCOL_VERSION};
 use futures::{SinkExt, StreamExt};
+use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
 use crate::auth::{Auth, AuthProvider};
 use crate::constants::AGENT_HOST_PORT;
@@ -46,7 +48,7 @@ pub async fn connect(
 	};
 
 	client
-		.initialize("code-cli".into(), PROTOCOL_VERSION as i64, vec![])
+		.initialize("code-cli".into(), vec![PROTOCOL_VERSION.to_string()], vec![])
 		.await
 		.map_err(|e| wrap(e, "AHP initialize failed"))?;
 
@@ -55,13 +57,62 @@ pub async fn connect(
 
 /// Opens a WebSocket connection and creates an AHP client.
 async fn connect_ws(address: &str) -> Result<Client, AnyError> {
-	let transport = ahp_ws::WebSocketTransport::connect(address)
+	let (ws_stream, _) = connect_async(address)
 		.await
 		.map_err(|e| wrap(e, format!("Failed to connect to agent host at {address}")))?;
+
+	let transport = WsTransport { inner: ws_stream };
 
 	Client::connect(transport, ahp::ClientConfig::default())
 		.await
 		.map_err(|e| wrap(e, "Failed to establish AHP session").into())
+}
+
+/// A [`Transport`] backed by a `tokio-tungstenite` WebSocket stream.
+struct WsTransport {
+	inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
+}
+
+impl Transport for WsTransport {
+	async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError> {
+		let frame = match msg {
+			TransportMessage::Parsed(m) => {
+				let s = serde_json::to_string(&m)
+					.map_err(|e| TransportError::Protocol(e.to_string()))?;
+				Message::Text(s.into())
+			}
+			TransportMessage::Text(s) => Message::Text(s.into()),
+			TransportMessage::Binary(b) => Message::Binary(b.into()),
+		};
+		self.inner
+			.send(frame)
+			.await
+			.map_err(|e| TransportError::Io(e.to_string()))
+	}
+
+	async fn recv(&mut self) -> Result<Option<TransportMessage>, TransportError> {
+		loop {
+			match self.inner.next().await {
+				None => return Ok(None),
+				Some(Err(e)) => return Err(TransportError::Io(e.to_string())),
+				Some(Ok(Message::Text(s))) => {
+					return Ok(Some(TransportMessage::Text(s.to_string())))
+				}
+				Some(Ok(Message::Binary(b))) => {
+					return Ok(Some(TransportMessage::Binary(b.to_vec())))
+				}
+				Some(Ok(Message::Close(_))) => return Ok(None),
+				Some(Ok(_)) => continue,
+			}
+		}
+	}
+
+	async fn close(&mut self) -> Result<(), TransportError> {
+		self.inner
+			.close(None)
+			.await
+			.map_err(|e| TransportError::Io(e.to_string()))
+	}
 }
 
 /// Connects to an agent host over a dev tunnel relay. Looks up the tunnel
@@ -236,6 +287,7 @@ async fn authenticate_from_error(
 			.request(
 				"authenticate",
 				AuthenticateParams {
+					channel: ROOT_RESOURCE_URI.to_string(),
 					resource: resource.resource.clone(),
 					token: credential.access_token().to_string(),
 				},
