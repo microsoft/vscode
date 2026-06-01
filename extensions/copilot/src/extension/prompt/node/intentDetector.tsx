@@ -283,7 +283,8 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 				{}
 			);
 		} catch (e) {
-			this.logService.warn(`[IntentDetector] Skipping participant detection context telemetry: ${e}`);
+			const message = e instanceof Error ? e.message : String(e);
+			this.logService.warn(`[IntentDetector] Skipping participant detection context telemetry: ${message}`);
 		}
 	}
 
