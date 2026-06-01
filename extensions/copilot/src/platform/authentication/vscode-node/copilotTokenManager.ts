@@ -28,10 +28,6 @@ export class ContactSupportError extends Error { }
 export class EnterpriseManagedError extends Error { }
 export class InvalidTokenError extends Error { }
 export class RateLimitedError extends Error { }
-// Not signing in to GitHub is an expected condition (e.g. BYOK / air-gapped / anonymous
-// flows). Extend ErrorNoTelemetry so it does not pollute the unhandled-error telemetry
-// dashboard when it escapes as an unhandled rejection. The intentional
-// `auth.github_login_failed` GitHub telemetry event is still sent at the failure site.
 export class GitHubLoginFailedError extends ErrorNoTelemetry { }
 
 export class VSCodeCopilotTokenManager extends BaseCopilotTokenManager {
