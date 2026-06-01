@@ -53,7 +53,8 @@ import {
 	SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID,
 	TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_FIRST_SIDE_EDITOR, FOCUS_SECOND_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT, LOCK_GROUP_COMMAND_ID,
 	SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
-	NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP
+	NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP,
+	ADD_TO_NEW_TAB_GROUP_COMMAND_ID, REMOVE_FROM_TAB_GROUP_COMMAND_ID, DISSOLVE_TAB_GROUP_COMMAND_ID, RENAME_TAB_GROUP_COMMAND_ID, RECOLOR_TAB_GROUP_COMMAND_ID, MOVE_TO_TAB_GROUP_COMMAND_ID
 } from './editorCommands.js';
 import { GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE, DIFF_SWAP_SIDES } from './diffEditorCommands.js';
 import { inQuickPickContext, getQuickNavigateHandler } from '../../quickaccess.js';
@@ -406,6 +407,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { submenu: MenuId.EditorS
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, title: localize('moveToNewWindow', "Move into New Window") }, group: '7_new_window', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, title: localize('copyToNewWindow', "Copy into New Window") }, group: '7_new_window', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { submenu: MenuId.EditorTitleContextShare, title: localize('share', "Share"), group: '11_share', order: -1, when: MultipleEditorsSelectedInGroupContext.negate() });
+
+// Editor Title Context Menu: Tab Groups
+const tabGroupsEnabledWhen = ContextKeyExpr.and(ActiveEditorStickyContext.toNegated(), ContextKeyExpr.equals('config.workbench.editor.tabGroups.enabled', true));
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: ADD_TO_NEW_TAB_GROUP_COMMAND_ID, title: localize('addToNewTabGroup', "Add to New Tab Group...") }, group: '4_tabgroup', order: 10, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: REMOVE_FROM_TAB_GROUP_COMMAND_ID, title: localize('removeFromTabGroup', "Remove from Tab Group") }, group: '4_tabgroup', order: 20, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: DISSOLVE_TAB_GROUP_COMMAND_ID, title: localize('dissolveTabGroup', "Ungroup All in Tab Group") }, group: '4_tabgroup', order: 30, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: RENAME_TAB_GROUP_COMMAND_ID, title: localize('renameTabGroup', "Rename Tab Group...") }, group: '4_tabgroup', order: 40, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: RECOLOR_TAB_GROUP_COMMAND_ID, title: localize('recolorTabGroup', "Change Tab Group Color...") }, group: '4_tabgroup', order: 50, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: MOVE_TO_TAB_GROUP_COMMAND_ID, title: localize('moveToTabGroup', "Move to Tab Group...") }, group: '4_tabgroup', order: 15, when: tabGroupsEnabledWhen });
 
 // Editor Title Context Menu: Split & Move Editor Submenu
 MenuRegistry.appendMenuItem(MenuId.EditorSplitMoveSubmenu, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '1_split', order: 10 });

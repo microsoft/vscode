@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorPartTabGroupsOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -74,7 +74,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	// to ensure no consumer modifies the default values
 	get limit(): IEditorPartLimitOptions { return { enabled: false, value: 10, perEditorGroup: false, excludeDirty: false }; },
 	get decorations(): IEditorPartDecorationOptions { return { badges: true, colors: true }; },
-	get autoLockGroups(): Set<string> { return new Set<string>(); }
+	get autoLockGroups(): Set<string> { return new Set<string>(); },
+	get tabGroups(): IEditorPartTabGroupsOptions { return { enabled: true }; }
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -177,6 +178,9 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'decorations': new ObjectVerifier<IEditorPartDecorationOptions>(DEFAULT_EDITOR_PART_OPTIONS['decorations'], {
 			'badges': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['badges']),
 			'colors': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['colors'])
+		}),
+		'tabGroups': new ObjectVerifier<IEditorPartTabGroupsOptions>(DEFAULT_EDITOR_PART_OPTIONS['tabGroups'], {
+			'enabled': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabGroups']['enabled'])
 		}),
 	}, options);
 }

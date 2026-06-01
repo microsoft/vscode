@@ -2603,5 +2603,250 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.transient[2].editor, input2);
 	});
 
+	suite('Tab Groups', () => {
+
+		test('createTabGroup - basic', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+			const input3 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+			group.openEditor(input3, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2])!;
+
+			assert.strictEqual(tabGroup.count, 2);
+			assert.strictEqual(tabGroup.startIndex, 0);
+			assert.strictEqual(group.tabGroups.length, 1);
+			assert.strictEqual(group.getTabGroupForEditor(input1)?.id, tabGroup.id);
+			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup.id);
+			assert.strictEqual(group.getTabGroupForEditor(input3), undefined);
+		});
+
+		test('createTabGroup - removes from existing group', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+			const input3 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+			group.openEditor(input3, { pinned: true });
+
+			const tabGroup1 = group.createTabGroup([input1, input2, input3])!;
+			assert.strictEqual(tabGroup1.count, 3);
+
+			const tabGroup2 = group.createTabGroup([input2])!;
+			assert.strictEqual(tabGroup2.count, 1);
+			assert.strictEqual(tabGroup1.count, 2);
+			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup2.id);
+		});
+
+		test('createTabGroup - excludes sticky editors', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+
+			group.openEditor(input1, { pinned: true, sticky: true });
+			group.openEditor(input2, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2])!;
+			assert.strictEqual(tabGroup.count, 1);
+			assert.strictEqual(group.getTabGroupForEditor(input1), undefined);
+			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup.id);
+		});
+
+		test('addToTabGroup / removeFromTabGroup', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+			const input3 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+			group.openEditor(input3, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1])!;
+			assert.strictEqual(tabGroup.count, 1);
+
+			group.addToTabGroup(tabGroup.id, input2);
+			assert.strictEqual(tabGroup.count, 2);
+			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup.id);
+
+			group.removeFromTabGroup(tabGroup.id, input1);
+			assert.strictEqual(tabGroup.count, 1);
+			assert.strictEqual(group.getTabGroupForEditor(input1), undefined);
+		});
+
+		test('includeInTabGroup', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1])!;
+			group.includeInTabGroup(tabGroup.id, input2);
+			assert.strictEqual(tabGroup.count, 2);
+			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup.id);
+		});
+
+		test('moveTabGroup', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+			const input3 = input();
+			const input4 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+			group.openEditor(input3, { pinned: true });
+			group.openEditor(input4, { pinned: true });
+
+			const tabGroup1 = group.createTabGroup([input1, input2])!;
+			const tabGroup2 = group.createTabGroup([input3, input4])!;
+
+			assert.strictEqual(tabGroup1.startIndex, 0);
+			assert.strictEqual(tabGroup2.startIndex, 2);
+
+			group.moveTabGroup(tabGroup1.id, 4);
+
+			assert.strictEqual(tabGroup2.startIndex, 0);
+			assert.strictEqual(tabGroup1.startIndex, 2);
+		});
+
+		test('collapseTabGroup / expandTabGroup', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+
+			group.openEditor(input1, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1])!;
+			assert.strictEqual(tabGroup.collapsed, false);
+
+			group.collapseTabGroup(tabGroup.id);
+			assert.strictEqual(tabGroup.collapsed, true);
+
+			group.expandTabGroup(tabGroup.id);
+			assert.strictEqual(tabGroup.collapsed, false);
+		});
+
+		test('adjustTabGroupsForInsert - does not expand at boundary', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2])!;
+			assert.strictEqual(tabGroup.count, 2);
+			assert.strictEqual(tabGroup.startIndex, 0);
+
+			const input3 = input();
+			group.openEditor(input3, { pinned: true, index: 2 });
+
+			assert.strictEqual(tabGroup.count, 2);
+			assert.strictEqual(group.getTabGroupForEditor(input3), undefined);
+		});
+
+		test('adjustTabGroupsForInsert - expands inside group', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2])!;
+			assert.strictEqual(tabGroup.count, 2);
+
+			const input3 = input();
+			group.openEditor(input3, { pinned: true, index: 1 });
+
+			assert.strictEqual(tabGroup.count, 3);
+			assert.strictEqual(group.getTabGroupForEditor(input3)?.id, tabGroup.id);
+		});
+
+		test('adjustTabGroupsForRemove - shrinks group', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+			const input3 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+			group.openEditor(input3, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2, input3])!;
+			assert.strictEqual(tabGroup.count, 3);
+
+			group.closeEditor(input2);
+			assert.strictEqual(tabGroup.count, 2);
+		});
+
+		test('dissolveTabGroup', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2])!;
+			assert.strictEqual(group.tabGroups.length, 1);
+
+			group.dissolveTabGroup(tabGroup.id);
+			assert.strictEqual(group.tabGroups.length, 0);
+			assert.strictEqual(group.getTabGroupForEditor(input1), undefined);
+			assert.strictEqual(group.getTabGroupForEditor(input2), undefined);
+		});
+
+		test('renameTabGroup / recolorTabGroup', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+
+			group.openEditor(input1, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1], 'Initial', 'red')!;
+			assert.strictEqual(tabGroup.name, 'Initial');
+			assert.strictEqual(tabGroup.color, 'red');
+
+			group.renameTabGroup(tabGroup.id, 'Renamed');
+			assert.strictEqual(tabGroup.name, 'Renamed');
+
+			group.recolorTabGroup(tabGroup.id, '#ff0000');
+			assert.strictEqual(tabGroup.color, '#ff0000');
+		});
+
+		test('serialization round-trip', () => {
+			const group = createEditorGroupModel();
+			const input1 = input();
+			const input2 = input();
+			const input3 = input();
+
+			group.openEditor(input1, { pinned: true });
+			group.openEditor(input2, { pinned: true });
+			group.openEditor(input3, { pinned: true });
+
+			const tabGroup = group.createTabGroup([input1, input2], 'Test Group', 'blue')!;
+			group.collapseTabGroup(tabGroup.id);
+
+			const serialized = group.serialize();
+			const deserialized = createEditorGroupModel(serialized);
+
+			assert.strictEqual(deserialized.tabGroups.length, 1);
+			const restoredGroup = deserialized.tabGroups[0];
+			assert.strictEqual(restoredGroup.name, 'Test Group');
+			assert.strictEqual(restoredGroup.color, 'blue');
+			assert.strictEqual(restoredGroup.collapsed, true);
+			assert.strictEqual(restoredGroup.count, 2);
+			assert.strictEqual(restoredGroup.startIndex, 0);
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

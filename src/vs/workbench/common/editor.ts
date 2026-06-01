@@ -1219,7 +1219,14 @@ export const enum GroupModelChangeKind {
 	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
-	EDITOR_WILL_DISPOSE
+	EDITOR_WILL_DISPOSE,
+
+	/* Tab Group Changes */
+	TAB_GROUP_CREATED,
+	TAB_GROUP_REMOVED,
+	TAB_GROUP_CHANGED,
+	TAB_GROUP_EDITOR_ADDED,
+	TAB_GROUP_EDITOR_REMOVED
 }
 
 export interface IWorkbenchEditorConfiguration {
@@ -1244,6 +1251,12 @@ interface IEditorPartDecorationsConfiguration {
 }
 
 export interface IEditorPartDecorationOptions extends Required<IEditorPartDecorationsConfiguration> { }
+
+interface IEditorPartTabGroupsConfiguration {
+	enabled?: boolean;
+}
+
+export interface IEditorPartTabGroupsOptions extends Required<IEditorPartTabGroupsConfiguration> { }
 
 interface IEditorPartConfiguration {
 	showTabs?: 'multiple' | 'single' | 'none';
@@ -1289,6 +1302,7 @@ interface IEditorPartConfiguration {
 	editorActionsLocation?: 'default' | 'titleBar' | 'hidden';
 	limit?: IEditorPartLimitConfiguration;
 	decorations?: IEditorPartDecorationsConfiguration;
+	tabGroups?: IEditorPartTabGroupsConfiguration;
 }
 
 export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {

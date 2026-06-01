@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Tab Group Header - standalone element in the tab bar (Chrome-style) */
+.tab-group-header {
+	display: inline-block;
+	vertical-align: top;
+	height: 100%;
+	padding: 0 10px;
+	cursor: pointer;
+	flex-shrink: 0;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 35px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 150px;
+	min-width: 24px;
+	user-select: none;
+	border-radius: 4px 4px 0 0;
+	position: relative;
+	box-sizing: border-box;
+}
+
+.tab-group-header:hover {
+	opacity: 0.85;
+}
+
+.tab-group-header.drag-over {
+	outline: 1px dashed currentColor;
+	outline-offset: -2px;
+}
+
+.tab-group-header.dragging {
+	opacity: 0.5;
+}
+
+.tab-group-header.collapsed::after {
+	content: '';
+}
+
+/* Tab Group Header Colors */
+.tab-group-header.color-red { background-color: rgba(229, 57, 53, 0.2); color: #e53935; }
+.tab-group-header.color-blue { background-color: rgba(30, 136, 229, 0.2); color: #1e88e5; }
+.tab-group-header.color-green { background-color: rgba(67, 160, 71, 0.2); color: #43a047; }
+.tab-group-header.color-yellow { background-color: rgba(253, 216, 53, 0.2); color: #f9a825; }
+.tab-group-header.color-purple { background-color: rgba(142, 36, 170, 0.2); color: #8e24aa; }
+.tab-group-header.color-orange { background-color: rgba(251, 140, 0, 0.2); color: #fb8c00; }
+.tab-group-header.color-pink { background-color: rgba(216, 27, 96, 0.2); color: #d81b60; }
+.tab-group-header.color-gray { background-color: rgba(117, 117, 117, 0.2); color: #757575; }
+
+/* Tab Group Border - applied to tabs belonging to a group */
+.tab.in-tab-group {
+	border-bottom: 2px solid var(--tab-group-color);
+}
+
+/* Collapsed group tabs are hidden */
+.tab.tab-group-collapsed {
+	display: none !important;
+}
