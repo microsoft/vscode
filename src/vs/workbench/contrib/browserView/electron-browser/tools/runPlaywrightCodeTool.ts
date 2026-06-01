@@ -9,12 +9,13 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, invokeFunctionResultToToolResult } from './browserToolHelpers.js';
+import { errorResult, getSessionId, invokeFunctionResultToToolResult } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const RunPlaywrightCodeToolData: IToolData = {
 	id: 'run_playwright_code',
-	toolReferenceName: 'runPlaywrightCode',
+	toolReferenceName: BrowserChatToolReferenceName.RunPlaywrightCode,
 	displayName: localize('runPlaywrightCodeTool.displayName', 'Run Playwright Code'),
 	userDescription: localize('runPlaywrightCodeTool.userDescription', 'Run a Playwright code snippet against a browser page'),
 	modelDescription: `Run a Playwright code snippet to control a browser page. Only use this if other browser tools are insufficient.`,
@@ -82,6 +83,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IRunPlaywrightCodeToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
@@ -90,7 +92,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		// Resume waiting for a deferred execution
 		if (params.deferredResultId) {
 			try {
-				const result = await this.playwrightService.waitForDeferredResult(params.deferredResultId, params.timeoutMs ?? 5_000);
+				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId, params.timeoutMs ?? 5_000);
 				return invokeFunctionResultToToolResult(result);
 			} catch (e) {
 				return errorResult(e instanceof Error ? e.message : String(e));
@@ -103,7 +105,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 
 		let result;
 		try {
-			result = await this.playwrightService.invokeFunction(params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
+			result = await this.playwrightService.invokeFunction(sessionId, params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
 		} catch (e) {
 			const message = e instanceof Error ? e.message : String(e);
 			return errorResult(`Code execution failed: ${message}`);

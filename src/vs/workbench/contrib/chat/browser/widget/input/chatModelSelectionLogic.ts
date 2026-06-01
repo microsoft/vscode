@@ -12,7 +12,6 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } f
 interface IModelSelectionContext {
 	readonly location: ChatAgentLocation;
 	readonly currentModeKind: ChatModeKind;
-	readonly isInlineChatV2Enabled: boolean;
 	readonly sessionType: string | undefined;
 }
 
@@ -20,26 +19,28 @@ interface IModelSelectionContext {
  * Filter models based on session type.
  * When a session has a specific type (and it's not 'local'), only models targeting that
  * session type are returned. Otherwise, general-purpose models are returned.
+ *
+ * `isUserSelectable` defaults to `true` when omitted: only an explicit `false` hides
+ * the model from the picker and this model-selection flow.
  */
 export function filterModelsForSession(
 	models: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
 		return models.filter(entry =>
 			entry.metadata?.targetChatSessionType === sessionType &&
-			entry.metadata?.isUserSelectable
+			entry.metadata?.isUserSelectable !== false
 		);
 	}
 
 	return models.filter(entry =>
 		!entry.metadata?.targetChatSessionType &&
-		entry.metadata?.isUserSelectable &&
+		entry.metadata?.isUserSelectable !== false &&
 		isModelSupportedForMode(entry, currentModeKind) &&
-		isModelSupportedForInlineChat(entry, location, isInlineChatV2Enabled)
+		isModelSupportedForInlineChat(entry, location)
 	);
 }
 
@@ -62,9 +63,8 @@ export function isModelSupportedForMode(
 export function isModelSupportedForInlineChat(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
 ): boolean {
-	if (location !== ChatAgentLocation.EditorInline || !isInlineChatV2Enabled) {
+	if (location !== ChatAgentLocation.EditorInline) {
 		return true;
 	}
 	return !!model.metadata.capabilities?.toolCalling;
@@ -167,7 +167,7 @@ export function shouldResetModelToDefault(
 	}
 
 	// Model not supported for inline chat
-	if (!isModelSupportedForInlineChat(currentModel, context.location, context.isInlineChatV2Enabled)) {
+	if (!isModelSupportedForInlineChat(currentModel, context.location)) {
 		return true;
 	}
 
@@ -216,7 +216,7 @@ export function resolveModelFromSyncState(
 		if (!isModelSupportedForMode(stateModel, context.currentModeKind)) {
 			return { action: 'default' };
 		}
-		if (!isModelSupportedForInlineChat(stateModel, context.location, context.isInlineChatV2Enabled)) {
+		if (!isModelSupportedForInlineChat(stateModel, context.location)) {
 			return { action: 'default' };
 		}
 	}
@@ -225,24 +225,32 @@ export function resolveModelFromSyncState(
 }
 
 /**
- * Merges live models with cached models per-vendor.
- * For vendors whose models have resolved, uses live data.
- * For vendors that are contributed but haven't resolved yet (startup race), keeps cached models.
- * Vendors no longer contributed are evicted from cache.
+ * Merges live models with cached models per-vendor, evicting cache for vendors
+ * no longer contributed.
+ *
+ * - `resolvedVendors`: vendors whose providers have produced at least one
+ *   result. An empty live list for these is authoritative (e.g. BYOK key
+ *   removed) and their cache entries are dropped.
+ * - When no contributor info is available yet and there are no live models
+ *   (startup / extension reload), the full cache is returned to avoid
+ *   flickering the picker to empty.
  */
 export function mergeModelsWithCache(
 	liveModels: ILanguageModelChatMetadataAndIdentifier[],
 	cachedModels: ILanguageModelChatMetadataAndIdentifier[],
 	contributedVendors: Set<string>,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	if (liveModels.length > 0) {
-		const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
-		return [
-			...liveModels,
-			...cachedModels.filter(m => !liveVendors.has(m.metadata.vendor) && contributedVendors.has(m.metadata.vendor)),
-		];
+	if (contributedVendors.size === 0 && liveModels.length === 0) {
+		return cachedModels;
 	}
-	return cachedModels;
+	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+	const usableCached = cachedModels.filter(m =>
+		contributedVendors.has(m.metadata.vendor) &&
+		!liveVendors.has(m.metadata.vendor) &&
+		!resolvedVendors?.has(m.metadata.vendor)
+	);
+	return [...liveModels, ...usableCached];
 }
 
 /**
@@ -267,7 +275,9 @@ export function shouldResetOnModelListChange(
  * This handles the startup race where the model wasn't available during
  * `initSelectedModel` but arrives later via `onDidChangeLanguageModels`.
  *
- * The model must pass both the persisted-default check and the `isUserSelectable` check.
+ * The model must pass both the persisted-default check and the user-selectable
+ * check. `isUserSelectable` defaults to `true`; only an explicit `false` blocks
+ * restoration.
  */
 export function shouldRestoreLateArrivingModel(
 	persistedModelId: string,
@@ -275,7 +285,7 @@ export function shouldRestoreLateArrivingModel(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	location: ChatAgentLocation,
 ): boolean {
-	if (!model.metadata.isUserSelectable) {
+	if (model.metadata.isUserSelectable === false) {
 		return false;
 	}
 	const result = shouldRestorePersistedModel(

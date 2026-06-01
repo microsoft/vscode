@@ -60,10 +60,8 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 
 		// Standard path: use the CLIMCPServerEnabled setting
 		const enabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIMCPServerEnabled);
-		this.logService.info(`[CopilotCLIMCPHandler] loadMcpConfig called. CLIMCPServerEnabled=${enabled}`);
 
 		if (enabled) {
-			this.logService.info('[CopilotCLIMCPHandler] MCP server forwarding is enabled, using gateway configuration');
 			return this.loadMcpConfigWithGateway(sessionUri);
 		}
 
@@ -94,8 +92,6 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 						displayName: server.label,
 					};
 				}
-				const serverIds = Object.keys(mcpConfig);
-				this.logService.trace(`[CopilotCLIMCPHandler]   gateway started, server(s): [${serverIds.join(', ')}]`);
 			} else {
 				this.logService.warn('[CopilotCLIMCPHandler]   gateway failed to start');
 				disposable.dispose();

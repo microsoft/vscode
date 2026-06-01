@@ -13,6 +13,7 @@ import { IEndpointProvider } from '../../../platform/endpoint/common/endpointPro
 import { ISearchService } from '../../../platform/search/common/searchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
 import { raceTimeoutAndCancellationError } from '../../../util/common/racePromise';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
@@ -54,7 +55,8 @@ export class FindFilesTool implements ICopilotTool<IFindFilesToolParams> {
 		const modelFamily = endpoint?.family;
 
 		// The input _should_ be a pattern matching inside a workspace, folder, but sometimes we get absolute paths, so try to resolve them
-		const globResult = inputGlobToPattern(options.input.query, this.workspaceService, modelFamily);
+		const workingDir = new WorkingDirectory(options.workingDirectory, this.workspaceService);
+		const globResult = inputGlobToPattern(options.input.query, workingDir, modelFamily);
 
 		void this.sendSearchToolTelemetry(options, globResult.folderName);
 
@@ -113,7 +115,7 @@ export class FindFilesTool implements ICopilotTool<IFindFilesToolParams> {
 	}
 
 	prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<IFindFilesToolParams>, token: vscode.CancellationToken): vscode.ProviderResult<vscode.PreparedToolInvocation> {
-		const globResult = inputGlobToPattern(options.input.query, this.workspaceService, undefined);
+		const globResult = inputGlobToPattern(options.input.query, new WorkingDirectory(undefined, this.workspaceService), undefined);
 		const query = this.formatQueryLabel(globResult, options.input.query);
 		return {
 			invocationMessage: new MarkdownString(l10n.t`Searching for files matching ${query}`)

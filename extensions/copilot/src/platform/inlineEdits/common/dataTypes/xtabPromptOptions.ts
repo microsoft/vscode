@@ -13,8 +13,6 @@ export enum IncludeLineNumbersOption {
 }
 
 export enum RecentFileClippingStrategy {
-	/** Current behavior: clip from top of file (greedy, most-recent-first). */
-	TopToBottom = 'topToBottom',
 	/** Center clipping around the edit location in each file (greedy budget). */
 	AroundEditRange = 'aroundEditRange',
 	/** Proportionally allocate budget across files, centered on edit locations. */
@@ -22,7 +20,7 @@ export enum RecentFileClippingStrategy {
 }
 
 export namespace RecentFileClippingStrategy {
-	export const VALIDATOR = vEnum(RecentFileClippingStrategy.TopToBottom, RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional);
+	export const VALIDATOR = vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional);
 }
 
 export type RecentlyViewedDocumentsOptions = {
@@ -39,7 +37,7 @@ export namespace RecentlyViewedDocumentsOptions {
 		'maxTokens': vNumber(),
 		'includeViewedFiles': vBoolean(),
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
-		'clippingStrategy': vEnum(RecentFileClippingStrategy.TopToBottom, RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
+		'clippingStrategy': vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
 	});
 }
 
@@ -51,12 +49,81 @@ export type LanguageContextOptions = {
 	readonly traitPosition: 'before' | 'after';
 };
 
+/**
+ * Options for including Completions-style neighbor file snippets (Jaccard-ranked)
+ * into the recently_viewed_code_snippets section of the prompt.
+ */
+export type NeighborFilesOptions = {
+	readonly enabled: boolean;
+	readonly maxTokens: number;
+};
+
+export namespace NeighborFilesOptions {
+	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
+		'enabled': vBoolean(),
+		'maxTokens': vNumber(),
+	});
+}
+
 export type DiffHistoryOptions = {
 	readonly nEntries: number;
 	readonly maxTokens: number;
 	readonly onlyForDocsInPrompt: boolean;
 	readonly useRelativePaths: boolean;
 };
+
+/**
+ * Parts that participate in the global-budget cascade. `currentFile` and lint
+ * output are intentionally excluded and continue to use their own per-part caps.
+ */
+export type GlobalBudgetPart =
+	| 'recentlyViewedDocuments'
+	| 'languageContext'
+	| 'neighborFiles'
+	| 'diffHistory';
+
+/**
+ * Opt-in global-budget allocation modelled after the cascade in
+ * `CascadingPromptFactory` (completions-core): every participating part gets a
+ * percentage share of a single `totalTokens` pool, parts are rendered in
+ * `order`, and any unused tokens in one part cascade as surplus to the next.
+ *
+ * When `undefined` (the default), each part uses its own `maxTokens` cap as
+ * before and no cross-part budget reuse happens.
+ */
+export type GlobalBudgetOptions = {
+	readonly totalTokens: number;
+	/** Cascade order. Earlier parts get budget first; their surplus flows to later parts. */
+	readonly order: readonly GlobalBudgetPart[];
+	/** Share of `totalTokens` allocated to each part. Must sum to 1 across `order`. */
+	readonly shares: Readonly<Record<GlobalBudgetPart, number>>;
+};
+
+export namespace GlobalBudgetOptions {
+	/**
+	 * Default cascade: language context donates first (often disabled), then
+	 * recently-viewed documents (always-on, accepts most of the surplus), then
+	 * neighbor files (must run after recently-viewed because it consults
+	 * `docsInPrompt` to avoid duplicating recently-viewed documents), then
+	 * diff history.
+	 */
+	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
+		'languageContext',
+		'recentlyViewedDocuments',
+		'neighborFiles',
+		'diffHistory',
+	];
+
+	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). */
+	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetPart, number>> = {
+		recentlyViewedDocuments: 2 / 6,
+		languageContext: 2 / 6,
+		neighborFiles: 1 / 6,
+		diffHistory: 1 / 6,
+	};
+
+	export const DEFAULT_TOTAL_TOKENS = 6000;
+}
 
 export type PagedClipping = { pageSize: number };
 
@@ -238,9 +305,16 @@ export type PromptOptions = {
 	readonly pagedClipping: PagedClipping;
 	readonly recentlyViewedDocuments: RecentlyViewedDocumentsOptions;
 	readonly languageContext: LanguageContextOptions;
+	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	/**
+	 * When set, parts share a single pool of `totalTokens` and unused budget from
+	 * earlier parts in `order` cascades to later parts. When `undefined`, each
+	 * part uses its own per-part `maxTokens` cap (legacy behavior).
+	 */
+	readonly globalBudget?: GlobalBudgetOptions;
 };
 
 /**
@@ -261,9 +335,18 @@ export enum PromptingStrategy {
 	 * Xtab275 prompt + aggressiveness level tag.
 	 */
 	Xtab275Aggressiveness = 'xtab275Aggressiveness',
+	/**
+	 * Xtab275 prompt + aggressiveness level tag only for high/low.
+	 * Medium uses the plain xtab275 prompt (no tag).
+	 */
+	Xtab275AggressivenessHighLow = 'xtab275AggressivenessHighLow',
 	PatchBased = 'patchBased',
 	PatchBased01 = 'patchBased01',
 	PatchBased02 = 'patchBased02',
+	/** PatchBased02 variant: line numbers on recent docs. */
+	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
+	/** PatchBased02 variant: no line numbers on recent docs. */
+	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
 	 * Xtab275-based strategy with edit intent tag parsing.
 	 * Response format: <|edit_intent|>low|medium|high|no_edit<|/edit_intent|>
@@ -285,6 +368,7 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
 	return strategy === PromptingStrategy.XtabAggressiveness
 		|| strategy === PromptingStrategy.Xtab275Aggressiveness
+		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
 		|| strategy === PromptingStrategy.Xtab275EditIntent
 		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
 }
@@ -308,10 +392,13 @@ export namespace ResponseFormat {
 			case PromptingStrategy.Xtab275:
 			case PromptingStrategy.XtabAggressiveness:
 			case PromptingStrategy.Xtab275Aggressiveness:
+			case PromptingStrategy.Xtab275AggressivenessHighLow:
 				return ResponseFormat.EditWindowOnly;
 			case PromptingStrategy.PatchBased:
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
+			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
 				return ResponseFormat.EditWindowWithEditIntent;
@@ -351,6 +438,10 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		maxTokens: 2000,
 		traitPosition: 'after',
 	},
+	neighborFiles: {
+		enabled: false,
+		maxTokens: 1000,
+	},
 	diffHistory: {
 		nEntries: 25,
 		maxTokens: 1000,
@@ -386,6 +477,50 @@ export interface ModelConfiguration {
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
+}
+
+/**
+ * Per-strategy configuration baked into the strategy itself. When a strategy
+ * declares values here, those values override anything provided by the upstream
+ * model configuration. A strategy without an entry contributes no overrides.
+ */
+const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
+	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
+	[PromptingStrategy.CopilotNesXtab]: {
+		includeTagsInCurrentFile: true,
+	},
+	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: {
+		includeTagsInCurrentFile: false,
+		includePostScript: true,
+		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		supportsNextCursorLinePrediction: false,
+	},
+	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
+		includeTagsInCurrentFile: false,
+		includePostScript: true,
+		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
+		supportsNextCursorLinePrediction: false,
+	},
+};
+
+/** Apply per-strategy baked-in config; strategy values override `config`. */
+export function applyStrategyConfig(config: ModelConfiguration): ModelConfiguration {
+	const overrides = config.promptingStrategy === undefined ? undefined : STRATEGY_CONFIG[config.promptingStrategy];
+	if (!overrides) {
+		return config;
+	}
+	const hasCurrentFile = config.currentFile !== undefined || overrides.currentFile !== undefined;
+	const hasRecentlyViewed = config.recentlyViewedDocuments !== undefined || overrides.recentlyViewedDocuments !== undefined;
+	const hasLintOptions = config.lintOptions !== undefined || overrides.lintOptions !== undefined;
+	return {
+		...config,
+		...overrides,
+		currentFile: hasCurrentFile ? { ...config.currentFile, ...overrides.currentFile } : undefined,
+		recentlyViewedDocuments: hasRecentlyViewed ? { ...config.recentlyViewedDocuments, ...overrides.recentlyViewedDocuments } : undefined,
+		lintOptions: hasLintOptions ? { ...config.lintOptions, ...overrides.lintOptions } : undefined,
+	};
 }
 
 export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
@@ -561,6 +696,45 @@ export enum SpeculativeRequestsEnablement {
 
 export namespace SpeculativeRequestsEnablement {
 	export const VALIDATOR = vEnum(SpeculativeRequestsEnablement.On, SpeculativeRequestsEnablement.Off);
+}
+
+/**
+ * What `XtabCustomDiffPatchResponseHandler` should do when the dedup
+ * heuristic detects that a patch's additions duplicate the file content
+ * immediately following the deleted range.
+ *
+ * - `Off`: do not run the detector at all.
+ * - `Log`: run the detector and report each detection (tracer + telemetry
+ *   callback) but yield the patch unchanged. Lets us measure the
+ *   heuristic's firing rate before flipping user-visible behavior.
+ * - `DropPatch`: drop just the offending patch and continue processing
+ *   the rest of the stream. Use when we want to suppress individual bad
+ *   patches but trust the rest of the model's output.
+ * - `DropAllRemaining`: drop the offending patch AND every subsequent
+ *   patch from the same response. Use when a duplicate inside the stream
+ *   is treated as a signal that the response has gone off the rails.
+ *   Patches already yielded before the detection are kept.
+ * - `TrimDuplicate`: trim just the duplicated lines from the patch's
+ *   additions and yield the (possibly shorter) patch. If the trim leaves
+ *   the patch with no additions and no removals, the patch is dropped.
+ *   This is the most aggressive about salvaging the model's intent.
+ */
+export enum DuplicateAdditionsMode {
+	Off = 'off',
+	Log = 'log',
+	DropPatch = 'dropPatch',
+	DropAllRemaining = 'dropAllRemaining',
+	TrimDuplicate = 'trimDuplicate',
+}
+
+export namespace DuplicateAdditionsMode {
+	export const VALIDATOR = vEnum(
+		DuplicateAdditionsMode.Off,
+		DuplicateAdditionsMode.Log,
+		DuplicateAdditionsMode.DropPatch,
+		DuplicateAdditionsMode.DropAllRemaining,
+		DuplicateAdditionsMode.TrimDuplicate,
+	);
 }
 
 export enum SpeculativeRequestsCursorPlacement {

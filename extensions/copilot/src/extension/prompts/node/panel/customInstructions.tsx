@@ -20,6 +20,21 @@ import { Tag } from '../base/tag';
 export interface CustomInstructionsProps extends BasePromptElementProps {
 	readonly chatVariables: ChatVariablesCollection | undefined;
 
+	/**
+	 * When provided, this value is used in place of the live customizations-index
+	 * variable's value (the bundled `<instructions>`/`<skills>`/`<agents>` text).
+	 * The agent prompt sets this to freeze the index at the first turn of a
+	 * conversation so per-turn churn doesn't invalidate the system prompt
+	 * cache.
+	 *
+	 * Must be paired with {@link customizationsIndexToolReferencesOverride}
+	 * because tool references carry byte offsets into this text — using the
+	 * current turn's offsets against the frozen text would mis-slice.
+	 */
+	readonly customizationsIndexOverride?: string;
+	/** Tool references paired with {@link customizationsIndexOverride}. */
+	readonly customizationsIndexToolReferencesOverride?: readonly ChatLanguageModelToolReference[];
+
 	readonly languageId: string | undefined;
 	/**
 	 * @default true
@@ -71,14 +86,27 @@ export class CustomInstructions extends PromptElement<CustomInstructionsProps> {
 		if (includeCodeGenerationInstructions !== false) {
 			const hasSeen = new ResourceSet();
 			const hasSeenContent = new Set();
+
+			const liveIndexVariable = this.props.chatVariables?.find(isCustomizationsIndex);
+			const overrideActive = this.props.customizationsIndexOverride !== undefined;
+			const indexValue = overrideActive
+				? this.props.customizationsIndexOverride!
+				: (liveIndexVariable && typeof liveIndexVariable.value === 'string' ? liveIndexVariable.value : undefined);
+			const indexToolReferences = overrideActive
+				? this.props.customizationsIndexToolReferencesOverride
+				: liveIndexVariable?.reference.toolReferences;
+			if (indexValue !== undefined) {
+				let value = indexValue;
+				if (indexToolReferences?.length) {
+					value = await this.promptVariablesService.resolveToolReferencesInPrompt(value, indexToolReferences);
+				}
+				chunks.push(<TextChunk>{value}</TextChunk>);
+			}
+
 			if (this.props.chatVariables) {
 				for (const variable of this.props.chatVariables) {
 					if (isCustomizationsIndex(variable)) {
-						let value = variable.value;
-						if (variable.reference.toolReferences?.length) {
-							value = await this.promptVariablesService.resolveToolReferencesInPrompt(value, variable.reference.toolReferences);
-						}
-						chunks.push(<TextChunk>{value}</TextChunk>);
+						continue;
 					} else if (isInstructionFile(variable)) {
 						const value = variable.value;
 						if (!hasSeen.has(value)) {

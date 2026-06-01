@@ -1397,6 +1397,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 				}
 				contextItemResult.updateResponse(body, token);
 				this.telemetrySender.sendRequestTelemetry(document, position, context, contextItemResult, timeTaken, { before: cacheState, after: this.runnableResultManager.getCacheState() }, undefined);
+				// eslint-disable-next-line local/code-no-unused-expressions
 				isDebugging && forDebugging?.length;
 				this._onCachePopulated.fire({ document, position, source: context.source, items: resolved, summary: contextItemResult });
 			} else if (protocol.ComputeContextResponse.isError(response)) {
@@ -1524,6 +1525,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 				document, position, context, contextItemResult, Date.now() - startTime,
 				{ before: cacheState, after: cacheState }, cacheRequest
 			);
+			// eslint-disable-next-line local/code-no-unused-expressions
 			isDebugging && forDebugging?.length;
 			this._onContextComputed.fire({
 				document, position, source: context.source, items: itemsToYield, summary: contextItemResult

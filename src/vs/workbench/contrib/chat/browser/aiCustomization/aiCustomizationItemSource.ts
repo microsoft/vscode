@@ -6,11 +6,12 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMatch } from '../../../../../base/common/filters.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -18,19 +19,16 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationSyncProvider, ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { storageToIcon } from './aiCustomizationIcons.js';
-import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
-import { extractExtensionIdFromPath } from './aiCustomizationListWidgetUtils.js';
+import { sourceToIcon } from './aiCustomizationIcons.js';
+import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
 
@@ -43,11 +41,11 @@ export interface IAICustomizationListItem {
 	readonly name: string;
 	readonly filename: string;
 	readonly description?: string;
-	/** Storage origin. Set by core when items come from promptsService; omitted for external provider items. */
-	readonly storage?: PromptsStorage;
+	/** Storage or provider origin. All items, including those from external providers, must provide a source. */
+	readonly source: AICustomizationSource;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
-	/** When set, overrides `storage` for display grouping purposes. */
+	/** When set, overrides `source` for display grouping purposes. */
 	readonly groupKey?: string;
 	/** URI of the parent plugin, when this item comes from an installed plugin. */
 	readonly pluginUri?: URI;
@@ -62,7 +60,7 @@ export interface IAICustomizationListItem {
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
-	readonly extensionLabel?: string;
+	readonly extensionId?: string;
 	/** Server-reported loading/sync status for remote customizations. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
@@ -81,9 +79,11 @@ export interface IAICustomizationListItem {
  * Item sources fetch provider-shaped customization rows, normalize them into
  * the browser-only list item shape, and add view-only overlays such as sync state.
  */
-export interface IAICustomizationItemSource {
-	readonly onDidChange: Event<void>;
-	fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
+export interface IAICustomizationItemSource extends IDisposable {
+	readonly sessionResource: URI;
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
 }
 
 // #endregion
@@ -155,9 +155,10 @@ export async function expandHookFileItems(
 							description: truncatedCmd || localize('hookUnset', "(unset)"),
 							enabled: item.enabled,
 							groupKey: item.groupKey,
-							storage: item.storage,
+							source: item.source,
 							extensionId: item.extensionId,
-							pluginUri: item.pluginUri
+							pluginUri: item.pluginUri,
+							userInvocable: item.userInvocable,
 						});
 					}
 				}
@@ -183,10 +184,7 @@ export async function expandHookFileItems(
  */
 export class AICustomizationItemNormalizer {
 	constructor(
-		private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly labelService: ILabelService,
-		private readonly agentPluginService: IAgentPluginService,
 		private readonly productService: IProductService,
 	) { }
 
@@ -199,11 +197,11 @@ export class AICustomizationItemNormalizer {
 	}
 
 	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
-		const { storage, groupKey, isBuiltin, extensionLabel } = this.resolveSource(item);
+		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
-		const isWorkspaceItem = storage === PromptsStorage.local;
+		const isWorkspaceItem = source === AICustomizationSources.local;
 
 		return {
 			id: `${item.uri.toString()}${duplicateSuffix}`,
@@ -213,155 +211,98 @@ export class AICustomizationItemNormalizer {
 				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,
-			storage,
+			source,
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
-			pluginUri: storage === PromptsStorage.plugin ? this.findPluginUri(item.uri) : undefined,
+			pluginUri,
 			displayName: item.name,
 			badge: item.badge,
 			badgeTooltip: item.badgeTooltip,
-			typeIcon: promptType === PromptsType.instructions && storage ? storageToIcon(storage) : undefined,
+			typeIcon: promptType === PromptsType.instructions && source ? sourceToIcon(source) : undefined,
 			isBuiltin,
-			extensionLabel,
+			extensionId,
 			status: item.status,
 			statusMessage: item.statusMessage,
 		};
 	}
 
-	private resolveSource(item: ICustomizationItem): { storage?: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionLabel?: string } {
-		const inferred = this.inferStorageAndGroup(item.uri);
+	private inferStorageAndGroup(item: ICustomizationItem): { source: AICustomizationSource; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
+		const groupKey = item.groupKey;
+		const hasBuiltinStorage = item.source === AICustomizationSources.builtin;
+		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
-		// Use provider-supplied values when available; otherwise fall back to URI inference.
-		const storage = item.storage ?? inferred.storage;
-		const extensionLabel = item.extensionLabel ?? inferred.extensionLabel;
-
-		if (!item.groupKey) {
-			return { ...inferred, storage, extensionLabel };
+		if (hasBuiltinStorage) {
+			return { source: AICustomizationSources.builtin, groupKey: groupKey ?? BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
 		}
-
-		switch (item.groupKey) {
-			case BUILTIN_STORAGE: {
-				// Preserve a provider-supplied BUILTIN_STORAGE so the management
-				// editor's "edit built-in and save as user/workspace copy" flow
-				// activates. Otherwise fall back to extension storage (the
-				// historical source of built-in items).
-				const builtinStorage = (item.storage as PromptsStorage | typeof BUILTIN_STORAGE | undefined) === BUILTIN_STORAGE
-					? (BUILTIN_STORAGE as unknown as PromptsStorage)
-					: PromptsStorage.extension;
-				return { storage: builtinStorage, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionLabel };
+		if (item.source === AICustomizationSources.plugin) {
+			return { source: AICustomizationSources.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		}
+		if (item.source === AICustomizationSources.extension) {
+			if (item.extensionId) {
+				const extensionIdentifier = new ExtensionIdentifier(item.extensionId);
+				if (isChatExtensionItem(extensionIdentifier, this.productService)) {
+					return { source: AICustomizationSources.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
+				}
 			}
-			default:
-				return { storage, groupKey: item.groupKey, extensionLabel };
+			return { source: AICustomizationSources.extension, extensionId: item.extensionId, groupKey, isBuiltin };
 		}
-	}
-
-	private inferStorageAndGroup(uri: URI): { storage?: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionLabel?: string } {
-		if (uri.scheme !== Schemas.file) {
-			return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true };
-		}
-
-		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
-		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
-			return { storage: PromptsStorage.local };
-		}
-
-		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			if (isEqualOrParent(uri, folder.uri)) {
-				return { storage: PromptsStorage.local };
-			}
-		}
-
-		for (const plugin of this.agentPluginService.plugins.get()) {
-			if (isEqualOrParent(uri, plugin.uri)) {
-				return { storage: PromptsStorage.plugin };
-			}
-		}
-
-		const extensionId = extractExtensionIdFromPath(uri.path);
-		if (extensionId) {
-			const extensionIdentifier = new ExtensionIdentifier(extensionId);
-			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
-				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true };
-			}
-			return { storage: PromptsStorage.extension, extensionLabel: extensionIdentifier.value };
-		}
-
-		return { storage: PromptsStorage.user };
-	}
-
-	private findPluginUri(itemUri: URI): URI | undefined {
-		for (const plugin of this.agentPluginService.plugins.get()) {
-			if (isEqualOrParent(itemUri, plugin.uri)) {
-				return plugin.uri;
-			}
-		}
-		return undefined;
+		return { source: item.source, groupKey, isBuiltin, pluginUri: item.pluginUri, extensionId: item.extensionId };
 	}
 }
 
 // #endregion
 
-// #region Item Source
-
 /**
- * Unified item source that fetches items from a provider (extension-contributed
- * or the promptsService adapter), normalizes them into list items, and optionally
- * blends in local syncable items when a sync provider is present.
+ * Item source backed by a session-scoped customization item provider.
  */
-export class ProviderCustomizationItemSource implements IAICustomizationItemSource {
+export class ItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
-	readonly onDidChange: Event<void>;
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
 
 	constructor(
-		private readonly itemProvider: ICustomizationItemProvider | undefined,
-		private readonly syncProvider: ICustomizationSyncProvider | undefined,
+		readonly sessionResource: URI,
+		private readonly itemProvider: ICustomizationItemProvider,
 		private readonly promptsService: IPromptsService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly fileService: IFileService,
 		private readonly pathService: IPathService,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
-		const onDidChangeSyncableCustomizations = this.syncProvider
-			? Event.any(
-				this.promptsService.onDidChangeCustomAgents,
-				this.promptsService.onDidChangeSlashCommands,
-				this.promptsService.onDidChangeSkills,
-				this.promptsService.onDidChangeHooks,
-				this.promptsService.onDidChangeInstructions,
-			)
-			: Event.None;
-
-		this.onDidChange = Event.any(
-			this.itemProvider?.onDidChange ?? Event.None,
-			this.syncProvider?.onDidChange ?? Event.None,
-			onDidChangeSyncableCustomizations,
+		super();
+		this.onDidAICustomizationItemsChange = Event.any(
+			this.itemProvider.onDidChange,
+			this.promptsService.onDidChangeSkills
 		);
+
+		// Invalidate cache when provider or skills change
+		this._register(this.onDidAICustomizationItemsChange(() => {
+			this.cachedPromise = undefined;
+		}));
 	}
 
-	async fetchItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const remoteItems = this.itemProvider
-			? await this.fetchItemsFromProvider(this.itemProvider, promptType)
-			: [];
-		if (!this.syncProvider) {
-			return remoteItems;
+	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		if (!this.cachedPromise) {
+			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
 		}
-		const localItems = await this.fetchLocalSyncableItems(promptType, this.syncProvider);
-		return [...remoteItems, ...localItems];
-	}
-
-	private async fetchItemsFromProvider(provider: ICustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
-		if (!allItems) {
+		const cached = this.cachedPromise;
+		const allItems = await cached;
+		if (cached !== this.cachedPromise || !allItems) {
 			return [];
 		}
+		return allItems;
+	}
+
+	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await this.fetchProviderItems();
 
 		let providerItems: readonly ICustomizationItem[];
 		if (promptType === PromptsType.hook) {
 			const hookItems = allItems.filter(item => item.type === PromptsType.hook);
 			// Plugin hooks are pre-expanded by plugin manifests — skip re-expansion.
-			const toExpand = hookItems.filter(item => item.storage !== PromptsStorage.plugin);
-			const preExpanded = hookItems.filter(item => item.storage === PromptsStorage.plugin);
+			const toExpand = hookItems.filter(item => item.source !== AICustomizationSources.plugin);
+			const preExpanded = hookItems.filter(item => item.source === AICustomizationSources.plugin);
 			const expanded = await expandHookFileItems(
 				toExpand, this.workspaceService, this.fileService, this.pathService,
 			);
@@ -419,7 +360,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		// copy once the user has added an override at either level.
 		const overriddenNames = new Set<string>();
 		for (const item of deduped) {
-			if (item.storage === PromptsStorage.local || item.storage === PromptsStorage.user) {
+			if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
 				if (item.name) {
 					overriddenNames.add(item.name);
 				}
@@ -446,13 +387,14 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 				type: PromptsType.skill,
 				name,
 				description: p.description,
-				storage: BUILTIN_STORAGE as unknown as PromptsStorage,
+				source: AICustomizationSources.builtin,
 				groupKey: BUILTIN_STORAGE,
 				enabled: !disabledPromptFiles.has(p.uri),
 				badge: uiTooltip ? uiIntegrationBadge : undefined,
 				badgeTooltip: uiTooltip,
 				extensionId: undefined,
-				pluginUri: undefined
+				pluginUri: undefined,
+				userInvocable: true,
 			};
 			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
 		}
@@ -469,37 +411,61 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			}
 		}
 
-		return items.map(item => item.description
-			? item
-			: { ...item, description: descriptionsByUri.get(item.uri.toString()) });
-	}
-
-	private async fetchLocalSyncableItems(promptType: PromptsType, syncProvider: ICustomizationSyncProvider): Promise<IAICustomizationListItem[]> {
-		const files = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-		if (!files.length) {
-			return [];
-		}
-
-		const providerItems: ICustomizationItem[] = files
-			.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user)
-			.map(file => ({
-				uri: file.uri,
-				type: promptType,
-				name: getFriendlyName(basename(file.uri)),
-				groupKey: 'sync-local',
-				enabled: true,
-				extensionId: undefined,
-				pluginUri: undefined
-			}));
-
-		return this.itemNormalizer.normalizeItems(providerItems, promptType)
-			.map(item => ({
-				...item,
-				id: `sync-${item.id}`,
-				syncable: true,
-				synced: syncProvider.isSelected(item.uri),
-			}));
+		return items.map(item => item.description ? item : { ...item, description: descriptionsByUri.get(item.uri.toString()) });
 	}
 }
+
+export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidAICustomizationItemsChange: Event<void>;
+	// Caches the raw, unfiltered items returned by the provider so each
+	// `fetchAICustomizationItems` call can apply its own `promptType` filter.
+	// Previously the cache stored items already filtered/normalized for the
+	// first requested `promptType`, which caused every subsequent section
+	// (Instructions, Skills, …) to see an empty list whenever the Agents tab
+	// was loaded first.
+	private cachedPromise: Promise<readonly ICustomizationItem[] | undefined> | undefined;
+
+	constructor(
+		readonly sessionResource: URI,
+		private readonly itemProvider: ICustomizationItemProvider,
+		private readonly itemNormalizer: AICustomizationItemNormalizer,
+	) {
+		super();
+		this.onDidAICustomizationItemsChange = this.itemProvider.onDidChange;
+
+		// Invalidate cache when the provider changes
+		this._register(this.itemProvider.onDidChange(() => {
+			this.cachedPromise = undefined;
+		}));
+	}
+
+	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		if (!this.cachedPromise) {
+			const promise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
+			this.cachedPromise = promise;
+			promise.catch(() => {
+				if (this.cachedPromise === promise) {
+					this.cachedPromise = undefined;
+				}
+			});
+		}
+		const cached = this.cachedPromise;
+		const allItems = await cached;
+		if (cached !== this.cachedPromise || !allItems) {
+			return [];
+		}
+		return allItems;
+	}
+
+	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await this.fetchProviderItems();
+		return this.itemNormalizer.normalizeItems(allItems, promptType);
+	}
+
+
+}
+
+
 
 // #endregion

@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
+import { BrowserViewSharingState, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -21,7 +21,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
@@ -68,12 +68,16 @@ export class BrowserEditorInput extends EditorInput {
 	private readonly _onBeforeDispose = this._register(new Emitter<IBeforeDisposeBrowserEditorEvent>());
 	readonly onBeforeDispose: Event<IBeforeDisposeBrowserEditorEvent> = this._onBeforeDispose.event;
 
+	private readonly _onDidResolveModel = this._register(new Emitter<IBrowserViewModel>());
+	readonly onDidResolveModel: Event<IBrowserViewModel> = this._onDidResolveModel.event;
+
 	constructor(
 		options: IBrowserEditorInputData,
 		private _resolveModel: () => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 		this._id = options.id;
@@ -110,6 +114,16 @@ export class BrowserEditorInput extends EditorInput {
 		this._modelStore.add(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
 
 		this._onDidChangeLabel.fire();
+		this._onDidResolveModel.fire(model);
+	}
+
+	onceModelResolves(cb: (model: IBrowserViewModel) => void): IDisposable {
+		if (this._model) {
+			cb(this._model);
+			return Disposable.None;
+		} else {
+			return Event.once(this.onDidResolveModel)(cb);
+		}
 	}
 
 	get id() {
@@ -137,6 +151,10 @@ export class BrowserEditorInput extends EditorInput {
 	 */
 	get isDefaultLinkOpen(): boolean {
 		return !!this._initialData.isDefaultLinkOpen;
+	}
+
+	get isSharingAvailable(): boolean {
+		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
 	navigate(url: string): void {

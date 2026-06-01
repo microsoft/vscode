@@ -17,7 +17,7 @@ import { IToolCall, IToolCallRound } from './intents';
 export class ToolCallRound implements IToolCallRound {
 	public summary: string | undefined;
 	public phase?: string;
-	public phaseModelId?: string;
+	public modelId?: string;
 
 	/**
 	 * Creates a ToolCallRound from an existing IToolCallRound object.
@@ -36,7 +36,7 @@ export class ToolCallRound implements IToolCallRound {
 		);
 		round.summary = params.summary;
 		round.phase = params.phase;
-		round.phaseModelId = params.phaseModelId;
+		round.modelId = params.modelId;
 		return round;
 	}
 

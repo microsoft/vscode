@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue } from '../../common/agentHostSchema.js';
+import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -296,6 +296,18 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, ok), true);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }), true);
+		});
+
+		test('validates the agent modes', () => {
+			const modes: SessionMode[] = ['interactive', 'plan'];
+			for (const mode of modes) {
+				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, mode), true, mode);
+			}
+			// `autopilot` is intentionally NOT in the AHP mode enum \u2014 it's
+			// modeled on the orthogonal `autoApprove` axis instead.
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'autopilot'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
 		});
 	});
 });

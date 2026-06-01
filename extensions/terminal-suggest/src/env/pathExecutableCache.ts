@@ -5,12 +5,11 @@
 
 import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
+import { SettingsIds, TerminalShellType } from '../constants';
 import { isExecutable, WindowsExecutableExtensionsCache } from '../helpers/executable';
 import { osIsWindows } from '../helpers/os';
-import type { ICompletionResource } from '../types';
 import { getFriendlyResourcePath } from '../helpers/uri';
-import { SettingsIds } from '../constants';
-import { TerminalShellType } from '../terminalSuggestMain';
+import type { ICompletionResource } from '../types';
 
 const isWindows = osIsWindows();
 

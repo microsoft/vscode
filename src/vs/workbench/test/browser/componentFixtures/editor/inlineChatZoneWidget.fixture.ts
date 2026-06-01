@@ -25,6 +25,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -48,6 +49,9 @@ import { IPromptsService } from '../../../../contrib/chat/common/promptSyntax/se
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -63,12 +67,21 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { InlineChatZoneWidget } from '../../../../contrib/inlineChat/browser/inlineChatZoneWidget.js';
+import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { ICustomizationHarnessService } from '../../../../contrib/chat/common/customizationHarnessService.js';
+
+// Side-effect import: registers InputEditorDecorations into ChatWidget.CONTRIBS
+// so the placeholder decoration is rendered.
+import '../../../../contrib/chat/browser/widget/input/editor/chatInputEditorContrib.js';
 
 // CSS imports
 import '../../../../contrib/inlineChat/browser/media/inlineChat.css';
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../../editor/contrib/zoneWidget/browser/zoneWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 
 const SAMPLE_CODE = `import { useState, useEffect } from 'react';
 
@@ -203,29 +216,47 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
 				readonly onDidReceiveTip = Event.None;
+				override resetSession() { }
 			}());
 			reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
 				override readonly onDidAddEvent = Event.None;
+				override getEvents() { return []; }
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly quotas = {};
+				override readonly onDidChangeQuotaRemaining = Event.None;
+				override readonly onDidChangeUsageBasedBilling = Event.None;
 			}());
-			reg.defineInstance(IChatModeService, new class extends mock<IChatModeService>() {
-				override readonly onDidChangeChatModes = Event.None;
-				override getModes() { return { builtin: [], custom: [] }; }
-				override findModeById() { return undefined; }
-			}());
+			reg.defineInstance(IChatModeService, new MockChatModeService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override getAllChatSessionContributions() { return []; }
 				override readonly onDidChangeSessionOptions = Event.None;
 				override readonly onDidChangeOptionGroups = Event.None;
 				override readonly onDidChangeAvailability = Event.None;
+				override readonly onDidChangeCustomizations = Event.None;
+				override readonly onDidChangeContentProviderSchemes = Event.None;
+				override readonly onDidChangeItemsProviders = Event.None;
+				override readonly onDidChangeSessionItems = Event.None;
+				override readonly onDidCommitSession = Event.None;
+				override readonly onDidChangeInProgress = Event.None;
+				override sessionSupportsFork() { return false; }
+				override supportsDelegationForSessionType() { return false; }
+				override getOptionGroupsForSessionType() { return undefined; }
+				override getCustomAgentTargetForSessionType() { return Target.Undefined; }
+				override requiresCustomModelsForSessionType() { return false; }
+				override getChatSessionContribution() { return undefined; }
+				override getCapabilitiesForSessionType() { return undefined; }
+				override getSessionOptions() { return undefined; }
+				override hasCustomizationsProvider() { return false; }
 			}());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 				override readonly onDidChangeLanguageModels = Event.None;
+				override readonly onDidChangeModelVisibility = Event.None;
 				override getLanguageModelIds() { return []; }
+				override getVendors() { return []; }
 			}());
 			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
 				override readonly onDidChangeTools = Event.None;
@@ -237,6 +268,14 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override readonly onDidChangeSessions = Event.None;
 				}();
+			}());
+			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+				override resolve() { return undefined; }
 			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
@@ -262,6 +301,17 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
 				override getHistory() { return []; }
 				override readonly onDidChangeHistory = Event.None;
+			}());
+			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
+				override editingSessionsObs = observableValue('editingSessionsObs', []);
+			}());
+			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
+				override readonly onDidChange = Event.None;
+				override getActiveNotification() { return undefined; }
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly onDidChangeSlashCommands = Event.None;
+				override readonly onDidChangeCustomAgents = Event.None;
 			}());
 			reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override readonly onDidChangeDecorations = Event.None; }());
@@ -361,6 +411,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	zoneWidget.domNode.classList.add('inline-chat-2');
 
 	zoneWidget.show(new Position(10, 1));
+
+	const dummyModel = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false }));
+	zoneWidget.widget.chatWidget.setModel(dummyModel);
+	zoneWidget.widget.chatWidget.setInputPlaceholder('Ask Copilot...');
 
 	// Force a relayout after the initial show so that the chat widget's
 	// contentHeight (which includes the toolbar row rendered below the input)

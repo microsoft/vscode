@@ -12,7 +12,7 @@ import { intersection } from '../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
-import { DisposableStore, toDisposable, IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { createActionViewItem, getActionBarActions } from './menuEntryActionViewItem.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
@@ -285,38 +285,6 @@ export class WorkbenchToolBar extends ToolBar {
 
 // ---- MenuWorkbenchToolBar -------------------------------------------------
 
-const sharedIntersectionObservers = new WeakMap<Window, IntersectionObserver>();
-const intersectionObserverCallbacks = new WeakMap<Element, (isVisible: boolean) => void>();
-
-function observeVisibility(element: Element, callback: (isVisible: boolean) => void): IDisposable {
-	const targetWindow = getWindow(element);
-	if (typeof targetWindow.IntersectionObserver !== 'function') {
-		// fallback: assume always visible
-		callback(true);
-		return Disposable.None;
-	}
-
-	let observer = sharedIntersectionObservers.get(targetWindow);
-	if (!observer) {
-		observer = new targetWindow.IntersectionObserver((entries) => {
-			for (const entry of entries) {
-				const cb = intersectionObserverCallbacks.get(entry.target);
-				if (cb) {
-					cb(entry.isIntersecting);
-				}
-			}
-		});
-		sharedIntersectionObservers.set(targetWindow, observer);
-	}
-
-	intersectionObserverCallbacks.set(element, callback);
-	observer.observe(element);
-
-	return toDisposable(() => {
-		intersectionObserverCallbacks.delete(element);
-		observer.unobserve(element);
-	});
-}
 
 export interface IToolBarRenderOptions {
 	/**
@@ -369,7 +337,6 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly _menuOptions: IMenuActionOptions | undefined;
 	private readonly _toolbarOptions: IToolBarRenderOptions | undefined;
 	private readonly _container: HTMLElement;
-	private readonly _viewDisposables = this._store.add(new DisposableStore());
 
 	constructor(
 		container: HTMLElement,
@@ -407,18 +374,13 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		// update logic
 		this._menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
 
-		this._store.add(observeVisibility(this._container, isVisible => {
-			this._viewDisposables.clear();
-			if (isVisible) {
-				this._viewDisposables.add(this._menu.onDidChange(() => {
-					this._updateToolbar();
-					this._onDidChangeMenuItems.fire(this);
-				}));
-				this._viewDisposables.add(actionViewService.onDidChange(e => {
-					if (e === menuId) {
-						this._updateToolbar();
-					}
-				}));
+		this._store.add(this._menu.onDidChange(() => {
+			this._updateToolbar();
+			this._onDidChangeMenuItems.fire(this);
+		}));
+
+		this._store.add(actionViewService.onDidChange(e => {
+			if (e === menuId) {
 				this._updateToolbar();
 			}
 		}));

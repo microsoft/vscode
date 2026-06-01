@@ -10,14 +10,22 @@ import { BrowserViewUri } from '../../../../../platform/browserView/common/brows
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
 
 export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
+
+/**
+ * Extracts the session ID from a tool invocation context.
+ * Falls back to a default string when no session context is available.
+ */
+export function getSessionId(invocation: IToolInvocation): string {
+	return invocation.context?.sessionResource?.toString() ?? '<default>';
+}
 
 export interface FormatBrowserEditorLinesOptions {
 	indent?: string;
@@ -51,7 +59,7 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 
 		const title = blocked ? localize('browser.blockedByPolicy', "Blocked by network domain policy") : (editor.title || 'Untitled');
 		const displayUrl = blocked ? '' : ` (${url})`;
-		const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : '';
+		const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : ' (not visible)';
 		const id = options?.excludeIds ? '' : `[${editor.id}] `;
 
 		// By default, use numbers only if we're excluding IDs, so models don't get confused about which ID to use.
@@ -75,11 +83,12 @@ export function createBrowserPageLink(pageId: string | URI): string {
  */
 export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
+	sessionId: string,
 	pageId: string,
 	fn: (page: Page, ...args: TArgs) => Promise<TReturn>,
 	...args: TArgs
 ): Promise<TReturn> {
-	return playwrightService.invokeFunctionRaw(pageId, fn.toString(), ...args);
+	return playwrightService.invokeFunctionRaw(sessionId, pageId, fn.toString(), ...args);
 }
 
 /**
@@ -91,12 +100,13 @@ export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
  */
 export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
+	sessionId: string,
 	pageId: string,
 	fn: (page: Page, ...args: TArgs) => Promise<TReturn>,
 	...args: TArgs
 ): Promise<IToolResult> {
 	try {
-		const result = await playwrightService.invokeFunction(pageId, fn.toString(), args);
+		const result = await playwrightService.invokeFunction(sessionId, pageId, fn.toString(), args);
 		return invokeFunctionResultToToolResult(result);
 	} catch (e) {
 		return errorResult(e instanceof Error ? e.message : String(e));
@@ -142,49 +152,40 @@ export function errorResult(message: string): IToolResult {
 }
 
 /**
- * Checks whether a browser editor with the same host (hostname + port) already
- * exists. When {@link playwrightService} is provided, only pages tracked by Playwright
- * (i.e. shared with the agent) are considered.
+ * Checks whether a browser editor with the same host (hostname + port) already exists.
  *
  * @returns All matching {@link BrowserEditorInput}s.
  */
-async function findExistingPagesByHost(
+export function findExistingPagesByHost(
 	browserViewService: IBrowserViewWorkbenchService,
-	playwrightService: IPlaywrightService | undefined,
 	url: string,
-): Promise<BrowserEditorInput[]> {
+	options?: {
+		includeBlank?: boolean;
+		sharingState?: BrowserViewSharingState;
+	}
+): BrowserEditorInput[] {
 	const parsed = URL.parse(url);
 	if (!parsed || (parsed.protocol !== 'file:' && !parsed.host)) {
 		return [];
 	}
-
-	const trackedIds = playwrightService
-		? new Set(await playwrightService.getTrackedPages())
-		: undefined;
 
 	const results: BrowserEditorInput[] = [];
 	for (const editor of browserViewService.getKnownBrowserViews().values()) {
 		if (!(editor instanceof BrowserEditorInput)) {
 			continue;
 		}
-		if (trackedIds && !trackedIds.has(editor.id)) {
+		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
 			continue;
 		}
 		const editorUrl = URL.parse(editor.url || '');
 		if (
-			!editor.url ||
+			options?.includeBlank && (!editor.url || editor.url === 'about:blank') ||
 			editorUrl?.host === parsed.host ||
-			(parsed.protocol === 'file:' && editorUrl?.protocol === 'file:')
-		) {
-			results.push(editor);
-		}
-		// Check for subdomain matches
-		if (
-			editorUrl?.host && parsed.host &&
-			(
+			(parsed.protocol === 'file:' && editorUrl?.protocol === 'file:') ||
+			(editorUrl?.host && parsed.host && (
 				editorUrl.host.endsWith('.' + parsed.host) ||
 				parsed.host.endsWith('.' + editorUrl.host)
-			)
+			))
 		) {
 			results.push(editor);
 		}
@@ -198,12 +199,9 @@ async function findExistingPagesByHost(
  */
 export async function getExistingPagesResult(
 	editorService: IEditorService,
-	browserViewService: IBrowserViewWorkbenchService,
-	playwrightService: IPlaywrightService | undefined,
-	url: string,
+	existing: BrowserEditorInput[],
 	formatOptions?: FormatBrowserEditorLinesOptions
 ): Promise<IToolResult | undefined> {
-	const existing = await findExistingPagesByHost(browserViewService, playwrightService, url);
 	if (existing.length === 0) {
 		return undefined;
 	}

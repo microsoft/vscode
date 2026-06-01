@@ -86,7 +86,7 @@ export function findBestSymbolByPath(
  *
  * We want just the names without any of the extra punctuation because `symbols` does not include these
  */
-function extractSymbolNamesInCode(inlineCode: string): string[] {
+export function extractSymbolNamesInCode(inlineCode: string): string[] {
 	// TODO: this assumes the language is JS like.
 	// It won't handle symbol parts that include spaces or special characters
 	return Array.from(inlineCode.matchAll(/[#\w$][\w\d$]*/g), x => x[0]);

@@ -8,7 +8,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
@@ -203,6 +202,18 @@ export type IAgentSource = {
 	readonly pluginUri: URI;
 };
 
+export namespace IAgentSource {
+	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
+		if (promptPath.storage === PromptsStorage.extension) {
+			return { storage: PromptsStorage.extension, extensionId: promptPath.extension.identifier };
+		} else if (promptPath.storage === PromptsStorage.plugin) {
+			return { storage: PromptsStorage.plugin, pluginUri: promptPath.pluginUri! };
+		} else {
+			return { storage: promptPath.storage };
+		}
+	}
+}
+
 /**
  * The visibility/availability of an agent.
  * - 'all': available as custom agent in picker AND can be used as subagent
@@ -291,15 +302,15 @@ export interface ICustomAgent {
 	readonly source: IAgentSource;
 
 	/**
-	 * Optional context key expression. When set, the agent is only available
-	 * when this expression evaluates to true against a scoped context.
-	 */
-	readonly when?: ContextKeyExpression;
-
-	/**
 	 * Optional session types that describe when this agent should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
+
+	/**
+	 * Whether this agent is enabled. Disabled agents are included in the list
+	 * but should not be offered to users or used in automated flows.
+	 */
+	readonly enabled: boolean;
 }
 
 export interface IAgentInstructions {
@@ -319,7 +330,6 @@ export interface IChatPromptSlashCommand {
 	readonly userInvocable: boolean;
 	readonly extension?: IExtensionDescription;
 	readonly pluginUri?: URI;
-	readonly when: ContextKeyExpression | undefined;
 	/**
 	 * Optional session types that describe when this slash command should be offered.
 	 */
@@ -372,11 +382,6 @@ export interface IInstructionFile {
 	readonly source?: PromptFileSource;
 
 	/**
-	 * Optional context key expression. When set, the instruction file is only available
-	 * when this expression evaluates to true against a scoped context.
-	 */
-	readonly when?: ContextKeyExpression;
-	/**
 	 * Optional session types that describe when this instruction should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
@@ -400,11 +405,6 @@ export interface IAgentSkill {
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
 	readonly userInvocable: boolean;
-	/**
-	 * Optional context key expression. When set, the skill is only available
-	 * when this expression evaluates to true against a scoped context.
-	 */
-	readonly when?: ContextKeyExpression;
 	/**
 	 * Optional plugin URI describing where this skill originated.
 	 */
@@ -590,6 +590,15 @@ export interface IPromptsService extends IDisposable {
 	 * Validates if the provided command name is a valid prompt slash command.
 	 */
 	isValidSlashCommandName(name: string): boolean;
+
+	/**
+	 * Synchronously checks whether `name` matches a discovered prompt slash command.
+	 * Backed by a cache that is populated lazily on the first call and refreshed on
+	 * subsequent {@link onDidChangeSlashCommands} firings, so the very first call after
+	 * service creation may return `false` for known commands until the first discovery
+	 * completes.
+	 */
+	hasPromptSlashCommand(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.

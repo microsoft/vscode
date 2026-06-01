@@ -197,43 +197,43 @@ describe('handleExitPlanMode', () => {
 		});
 
 		it('returns approved with selected action mapped from label', async () => {
-			toolService.setResult({ rejected: false, action: 'Autopilot' });
+			toolService.setResult({ rejected: false, action: 'Implement with Autopilot' });
 			const event = makeEvent();
 			const result = await handleExitPlanMode(event, session as unknown as Session, 'interactive', FAKE_TOKEN, workspaceService, logService, toolService, CANCEL_TOKEN);
 			expect(result).toEqual<ExitPlanModeResponse>({ approved: true, selectedAction: 'autopilot', autoApproveEdits: undefined });
 		});
 
-		it('maps "Approve and exit" label to exit_only', async () => {
-			toolService.setResult({ rejected: false, action: 'Approve' });
+		it('maps "Approve Plan Only" label to exit_only', async () => {
+			toolService.setResult({ rejected: false, action: 'Approve Plan Only' });
 			const event = makeEvent();
 			const result = await handleExitPlanMode(event, session as unknown as Session, 'interactive', FAKE_TOKEN, workspaceService, logService, toolService, CANCEL_TOKEN);
 			expect(result.selectedAction).toBe('exit_only');
 		});
 
 		it('sets autoApproveEdits when permissionLevel is autoApprove', async () => {
-			toolService.setResult({ rejected: false, action: 'Interactive' });
+			toolService.setResult({ rejected: false, action: 'Implement Plan' });
 			const event = makeEvent();
 			const result = await handleExitPlanMode(event, session as unknown as Session, 'autoApprove', FAKE_TOKEN, workspaceService, logService, toolService, CANCEL_TOKEN);
 			expect(result.autoApproveEdits).toBe(true);
 		});
 
 		it('does not set autoApproveEdits when permissionLevel is interactive', async () => {
-			toolService.setResult({ rejected: false, action: 'Interactive' });
+			toolService.setResult({ rejected: false, action: 'Implement Plan' });
 			const event = makeEvent();
 			const result = await handleExitPlanMode(event, session as unknown as Session, 'interactive', FAKE_TOKEN, workspaceService, logService, toolService, CANCEL_TOKEN);
 			expect(result.autoApproveEdits).toBeUndefined();
 		});
 
 		it('passes actions with labels and recommended flag to tool', async () => {
-			toolService.setResult({ rejected: false, action: 'Interactive' });
+			toolService.setResult({ rejected: false, action: 'Implement Plan' });
 			const event = makeEvent({ actions: ['autopilot', 'exit_only'], recommendedAction: 'exit_only' });
 			await handleExitPlanMode(event, session as unknown as Session, 'interactive', FAKE_TOKEN, workspaceService, logService, toolService, CANCEL_TOKEN);
 			const call = toolService.invokeToolCalls[0];
 			expect(call.name).toBe('vscode_reviewPlan');
 			const input = call.input as any;
 			expect(input.actions).toHaveLength(2);
-			expect(input.actions[0]).toEqual(expect.objectContaining({ label: 'Autopilot', default: false }));
-			expect(input.actions[1]).toEqual(expect.objectContaining({ label: 'Approve', default: true }));
+			expect(input.actions[0]).toEqual(expect.objectContaining({ label: 'Implement with Autopilot', default: false }));
+			expect(input.actions[1]).toEqual(expect.objectContaining({ label: 'Approve Plan Only', default: true }));
 		});
 
 		it('includes plan path in tool input when plan path exists', async () => {

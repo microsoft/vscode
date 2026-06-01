@@ -436,14 +436,17 @@ export class ChatToolReferences extends PromptElement<ChatToolCallProps, void> {
 				continue;
 			}
 
-			const toolArgsEndpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+			const toolArgsEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 			const internalToolArgs = toolReference.input ?? {};
 			const toolArgs = await this.fetchToolArgs(tool, toolArgsEndpoint);
 
 			const name = toolReference.range ? this.props.promptContext.query.slice(toolReference.range[0], toolReference.range[1]) : undefined;
 			try {
 				const result = await this.toolsService.invokeToolWithEndpoint(tool.name, { input: { ...toolArgs, ...internalToolArgs }, toolInvocationToken: tools.toolInvocationToken }, this.promptEndpoint, token || CancellationToken.None);
-				sendInvokedToolTelemetry(this.promptEndpoint.acquireTokenizer(), this.telemetryService, tool.name, result);
+				sendInvokedToolTelemetry(this.instantiationService, this.promptEndpoint, this.telemetryService, tool.name, result, {
+					conversationId: this.props.promptContext.conversation?.sessionId,
+					requestId: this.props.promptContext.requestId,
+				});
 				results.push({ name, value: result });
 			} catch (err) {
 				const errResult = toolCallErrorToResult(err);

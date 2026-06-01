@@ -36,5 +36,6 @@ export interface IQuestion {
 
 export interface IUserQuestionHandler {
 	_serviceBrand: undefined;
-	askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined>;
+	askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined>;
+	notifyQuestionCarouselAnswer?(toolCallId: string, question: IQuestion, response: UserInputResponse): Promise<void>;
 }

@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ISSHRemoteAgentHostService = createDecorator<ISSHRemoteAgentHostService>('sshRemoteAgentHostService');
@@ -34,6 +35,8 @@ export interface ISSHAgentHostConfig {
 	readonly authMethod: SSHAuthMethod;
 	/** Path to the private key file (when {@link authMethod} is KeyFile). */
 	readonly privateKeyPath?: string;
+	/** Raw IdentityAgent value from resolved SSH config; may be a socket path, `none`, `SSH_AUTH_SOCK`, or an environment reference. */
+	readonly identityAgent?: string;
 	/** Password string (when {@link authMethod} is Password). */
 	readonly password?: string;
 	/** Display name for this connection. */
@@ -107,6 +110,20 @@ export interface ISSHRemoteAgentHostService {
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
+	/**
+	 * Ensure `~/.ssh/config` exists (creating it with the right permissions if
+	 * missing) and return its URI. The parent `~/.ssh` directory is created
+	 * with mode 0700 and the config file with mode 0600 on POSIX systems.
+	 */
+	ensureUserSSHConfig(): Promise<URI>;
+
+	/**
+	 * List the known SSH configuration file URIs in priority order — typically the
+	 * per-user `~/.ssh/config` (always returned, even if it does not yet exist) and
+	 * the system-wide `/etc/ssh/ssh_config` (only when present on disk).
+	 */
+	listSSHConfigFiles(): Promise<URI[]>;
+
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
@@ -140,12 +157,42 @@ export interface ISSHResolvedConfig {
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
+	readonly identityAgent: string | undefined;
 	readonly forwardAgent: boolean;
 }
 
 export interface ISSHConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * A single prompt within a keyboard-interactive authentication request.
+ * Mirrors the shape ssh2 hands us — `echo: false` means the user input
+ * should be hidden (typically a password).
+ */
+export interface ISSHKeyboardInteractivePrompt {
+	readonly prompt: string;
+	readonly echo: boolean;
+}
+
+/**
+ * Request from the main process for the renderer to gather responses to
+ * a keyboard-interactive auth challenge from the SSH server. The renderer
+ * is expected to respond with {@link ISSHRemoteAgentHostMainService.respondKeyboardInteractive}
+ * within a reasonable time, or the underlying SSH connect attempt will time out.
+ */
+export interface ISSHKeyboardInteractiveRequest {
+	readonly requestId: string;
+	readonly connectionKey: string;
+	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
+	readonly displayHost: string;
+	readonly username: string;
+	/** Optional name field from the server (often empty). */
+	readonly name: string;
+	/** Optional instructions field from the server (often empty). */
+	readonly instructions: string;
+	readonly prompts: readonly ISSHKeyboardInteractivePrompt[];
 }
 
 /**
@@ -184,6 +231,28 @@ export interface ISSHRemoteAgentHostMainService {
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 
 	/**
+	 * Fires when the SSH server requests keyboard-interactive auth (typically
+	 * a password prompt). The renderer must answer via {@link respondKeyboardInteractive}
+	 * with the same `requestId`, otherwise the auth attempt will hang until the
+	 * SSH `readyTimeout` elapses.
+	 */
+	readonly onDidRequestKeyboardInteractive: Event<ISSHKeyboardInteractiveRequest>;
+
+	/**
+	 * Fires when a previously requested keyboard-interactive prompt is no
+	 * longer needed (e.g. the underlying SSH connect attempt failed or was
+	 * aborted). The renderer should dismiss any UI it opened for `requestId`.
+	 */
+	readonly onDidCancelKeyboardInteractive: Event<string /* requestId */>;
+
+	/**
+	 * Provide responses for a previously fired keyboard-interactive request.
+	 * Pass `undefined` when the user cancels the prompt; this aborts the
+	 * owning SSH connection attempt.
+	 */
+	respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void>;
+
+	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
 	 */
@@ -201,6 +270,15 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
+
+	/**
+	 * Ensure `~/.ssh/config` exists (creating it with the right permissions if
+	 * missing) and return its URI.
+	 */
+	ensureUserSSHConfig(): Promise<URI>;
+
+	/** List the known SSH configuration file URIs (user config always included). */
+	listSSHConfigFiles(): Promise<URI[]>;
 
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;

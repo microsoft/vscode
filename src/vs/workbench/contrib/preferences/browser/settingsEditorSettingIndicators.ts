@@ -369,6 +369,16 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					}
 				}],
 			}), { setupKeyboardEvents: true }));
+		} else if (element.isAgentsWindowReadOnly) {
+			this.scopeOverridesIndicator.element.style.display = 'inline';
+			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
+
+			this.scopeOverridesIndicator.label.text = '$(lock) ' + localize('agentsWindowReadOnlyLabelText', "Cannot be changed in Agents window");
+			const content = localize('agentsWindowReadOnlyDescription', "This setting cannot be changed in the Agents window.");
+			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
+				...this.defaultHoverOptions,
+				content,
+			}, { setupKeyboardEvents: true }));
 		} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
@@ -564,6 +574,8 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
+	} else if (element.isAgentsWindowReadOnly) {
+		ariaLabelSections.push(localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
 	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {
