@@ -61,7 +61,6 @@ export function setup(context: TestContext) {
 		}
 
 		const wslEntryPoint = context.toWslPath(entryPoint);
-		context.applyWsl1Node24Workaround(wslEntryPoint);
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[
@@ -102,7 +101,6 @@ export function setup(context: TestContext) {
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
 
 		const wslEntryPoint = context.toWslPath(entryPoint);
-		context.applyWsl1Node24Workaround(wslEntryPoint);
 
 		await context.runCliApp('WSL Server', 'wsl',
 			[

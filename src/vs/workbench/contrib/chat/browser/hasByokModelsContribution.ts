@@ -20,16 +20,16 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
  * Owns the `github.copilot.hasByokModels` context key. The key is true iff:
  *  - `github.copilot.clientByokEnabled` is true (set by `ChatEntitlementService` + Copilot extension),
  *  - `chat.aiDisabled` is off, and
- *  - the language-models configuration has at least one non-Copilot vendor group (post extension scan),
- *    or — pre-scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
+ *  - the language-models configuration has at least one non-Copilot vendor group (at any time),
+ *    or — pre extension scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
  *
  * Strategy (avoids activating BYOK extensions just to gate UI):
- *  1. Restore the last persisted answer so UI surfaces are correct on warm reload.
- *  2. Before extensions register, treat the signal as optimistic — flip true when it does.
- *  3. After extensions register, configured non-Copilot vendor groups are the source of truth.
- *     The signal is ignored here because the model cache can lag behind group removal (e.g. the
- *     Copilot extension's BYOK secret storage still has the API key, so re-resolving returns
- *     stale models), which would otherwise keep the sign-in UI hidden after removal.
+ *  1. Restore the last persisted answer for correct warm-reload UI.
+ *  2. Configured non-Copilot vendor groups are a positive signal at any time.
+ *  3. Pre-registration only, also trust the `chatNonCopilotModelsAreUserSelectable` signal
+ *     (post-registration it can be stale — model cache lags behind group removal).
+ *  4. Only persist `false` after both extension scan and first config load complete, so startup
+ *     latency doesn't clobber a previously-true answer.
  *
  * Eager so the key is bound before any sign-in UI renders.
  */
@@ -46,6 +46,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 	private readonly _hasByokModels: IContextKey<boolean>;
 	private _extensionsRegistered = false;
+	private _configurationLoaded = false;
 
 	constructor(
 		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
@@ -64,6 +65,13 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (!this._store.isDisposed) {
 				this._extensionsRegistered = true;
+				this._update();
+			}
+		});
+
+		this._languageModelsConfigurationService.whenReady.then(() => {
+			if (!this._store.isDisposed) {
+				this._configurationLoaded = true;
 				this._update();
 			}
 		});
@@ -99,17 +107,22 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		if (!this._extensionsRegistered) {
-			// Optimistic flip on the signal; otherwise leave the restored value alone.
-			if (this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {
-				this._setResult(true);
-			}
+		const hasByokVendor = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
+		if (hasByokVendor) {
+			this._setResult(true);
 			return;
 		}
 
-		// Post-registration: configured non-Copilot vendor groups are authoritative; the signal
-		// can be stale (model cache may lag behind group removal).
-		const hasByokVendor = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
-		this._setResult(hasByokVendor);
+		// Pre-registration only: trust the user-selectable signal as an optimistic positive.
+		// Post-registration it can be stale (model cache lags behind group removal), so ignore.
+		if (!this._extensionsRegistered && this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {
+			this._setResult(true);
+			return;
+		}
+
+		// Defer negative result until startup signals have settled.
+		if (this._extensionsRegistered && this._configurationLoaded) {
+			this._setResult(false);
+		}
 	}
 }
