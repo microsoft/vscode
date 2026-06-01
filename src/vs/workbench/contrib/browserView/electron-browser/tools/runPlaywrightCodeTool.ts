@@ -67,7 +67,7 @@ interface ILogContext extends ICodeMetrics {
 	startedAt: number;
 }
 
-/** Measure the size of a (possibly absent) code snippet. */
+/** Measure the size of a code snippet. */
 function measureCode(code: string | undefined): ICodeMetrics {
 	return {
 		codeLength: code?.length ?? 0,
@@ -83,7 +83,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 	 * don't carry the original `code`, so we stash its size here when the
 	 * execution first defers and recover it on settle.
 	 */
-	private readonly _deferredCodeMetrics = new Map<string, { codeLength: number; codeLineCount: number }>();
+	private readonly _deferredCodeMetrics = new Map<string, ICodeMetrics>();
 
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
@@ -134,11 +134,11 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			try {
 				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId!, params.timeoutMs ?? 5_000);
 				this._trackDeferral(result, codeMetrics, params.deferredResultId);
-				this._logTelemetry(result, ctx);
+				this._logTelemetry(ctx, result);
 				return invokeFunctionResultToToolResult(result);
 			} catch (e) {
 				this._deferredCodeMetrics.delete(params.deferredResultId!);
-				this._logInvocationFailureTelemetry(ctx);
+				this._logTelemetry(ctx);
 				return errorResult(e instanceof Error ? e.message : String(e));
 			}
 		}
@@ -151,12 +151,12 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		try {
 			result = await this.playwrightService.invokeFunction(sessionId, params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
 		} catch (e) {
-			this._logInvocationFailureTelemetry(ctx);
+			this._logTelemetry(ctx);
 			return errorResult(`Code execution failed: ${e instanceof Error ? e.message : String(e)}`);
 		}
 
 		this._trackDeferral(result, codeMetrics);
-		this._logTelemetry(result, ctx);
+		this._logTelemetry(ctx, result);
 		return invokeFunctionResultToToolResult(result, params.code.trim());
 	}
 
@@ -175,36 +175,36 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		}
 	}
 
-	private _logTelemetry(
-		result: { error?: string; deferredResultId?: string; pageMethodsCalled?: Readonly<Record<string, number>> },
-		ctx: ILogContext
-	): void {
+	/**
+	 * Log telemetry about a completed run_playwright_code invocation, recording
+	 * which parts of the Playwright `page` API were used (with per-method call
+	 * counts) along with success and timing signals.
+	 *
+	 * Omit `result` for infrastructure failures (IPC threw, no result available);
+	 * the API-usage data lives in the shared process and is lost in that case.
+	 */
+	private _logTelemetry(ctx: ILogContext, result?: { error?: string; deferredResultId?: string; pageMethodsCalled?: Readonly<Record<string, number>> }): void {
 		// Skip in-progress deferred runs so each user-visible invocation produces
 		// at most one event (we'll log when the resumed call eventually settles).
-		if (result.deferredResultId) {
+		if (result?.deferredResultId) {
 			return;
 		}
-		logRunPlaywrightCode(this.telemetryService, {
-			pageMethodsCalled: result.pageMethodsCalled ?? {},
-			success: !result.error,
-			wasDeferred: ctx.wasDeferred,
-			durationMs: Date.now() - ctx.startedAt,
-			codeLength: ctx.codeLength,
-			codeLineCount: ctx.codeLineCount,
-		});
-	}
-
-	private _logInvocationFailureTelemetry(ctx: ILogContext): void {
-		// Infrastructure failure (IPC threw, no result available). API-usage
-		// data lives in the shared process and is lost in this case.
-		logRunPlaywrightCode(this.telemetryService, {
-			pageMethodsCalled: {},
-			success: false,
-			wasDeferred: ctx.wasDeferred,
-			durationMs: Date.now() - ctx.startedAt,
-			codeLength: ctx.codeLength,
-			codeLineCount: ctx.codeLineCount,
-		});
+		const pageMethodsCalled = result?.pageMethodsCalled ?? {};
+		const entries = Object.entries(pageMethodsCalled);
+		const total = entries.reduce((sum, [, count]) => sum + count, 0);
+		this.telemetryService.publicLog2<RunPlaywrightCodeEvent, RunPlaywrightCodeClassification>(
+			'integratedBrowser.tools.runPlaywrightCode.completed',
+			{
+				pageMethodsCalled: JSON.stringify(pageMethodsCalled),
+				pageMethodsCalledDcount: entries.length,
+				pageMethodsCalledCount: total,
+				success: result && !result.error ? 1 : 0,
+				wasDeferred: ctx.wasDeferred ? 1 : 0,
+				durationMs: Math.round(Date.now() - ctx.startedAt),
+				codeLength: ctx.codeLength,
+				codeLineCount: ctx.codeLineCount,
+			}
+		);
 	}
 }
 
@@ -231,37 +231,3 @@ type RunPlaywrightCodeClassification = {
 	owner: 'jruales';
 	comment: 'Tracks how the run_playwright_code chat tool is exercised so we can identify common patterns that should be promoted to dedicated browser tools.';
 };
-
-/**
- * Log telemetry about a completed run_playwright_code invocation, recording
- * which parts of the Playwright `page` API were used (with per-method call
- * counts) along with success and timing signals.
- */
-function logRunPlaywrightCode(
-	telemetryService: ITelemetryService,
-	data: {
-		pageMethodsCalled: Readonly<Record<string, number>>;
-		success: boolean;
-		wasDeferred: boolean;
-		durationMs: number;
-		codeLength: number;
-		codeLineCount: number;
-	}
-): void {
-	const entries = Object.entries(data.pageMethodsCalled);
-	const total = entries.reduce((sum, [, count]) => sum + count, 0);
-	const serialized = JSON.stringify(data.pageMethodsCalled);
-	telemetryService.publicLog2<RunPlaywrightCodeEvent, RunPlaywrightCodeClassification>(
-		'integratedBrowser.tools.runPlaywrightCode.completed',
-		{
-			pageMethodsCalled: serialized,
-			pageMethodsCalledDcount: entries.length,
-			pageMethodsCalledCount: total,
-			success: data.success ? 1 : 0,
-			wasDeferred: data.wasDeferred ? 1 : 0,
-			durationMs: Math.round(data.durationMs),
-			codeLength: data.codeLength,
-			codeLineCount: data.codeLineCount,
-		}
-	);
-}

@@ -710,9 +710,8 @@ const PAGE_PROXY_MAX_DEPTH = 3;
  * from `page` (e.g. `click`, `evaluate`, `keyboard.press`, `mouse.move`).
  *
  * Non-function object properties are themselves proxied recursively so that
- * downstream calls on namespaces such as `keyboard`, `mouse`, `request`,
- * `coverage`, and `accessibility` are visible. Recursion is capped at
- * {@link PAGE_PROXY_MAX_DEPTH} levels.
+ * downstream calls on namespaces such as `keyboard`, `mouse`, and `request`
+ * are visible. Recursion is capped at {@link PAGE_PROXY_MAX_DEPTH} levels.
  *
  * Method wrappers and nested proxies are cached per property so repeated reads
  * return the same value, preserving Playwright's object identity (e.g.
