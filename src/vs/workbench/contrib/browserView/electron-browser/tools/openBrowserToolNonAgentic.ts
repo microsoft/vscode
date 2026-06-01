@@ -74,7 +74,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Page opened successfully. Note that you do not have access to the page contents while the \`workbench.browser.enableChatTools\` setting is disabled.`,
+				value: `Page opened successfully. Note that you do not have access to the page contents unless the user enables agentic tools via the \`workbench.browser.enableChatTools\` setting.`,
 			}],
 			toolResultMessage: new MarkdownString(localize('browser.open.nonAgentic.result', "Opened {0}", createBrowserPageLink(browserUri)))
 		};
