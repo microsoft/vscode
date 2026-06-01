@@ -303,9 +303,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		})));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
-		// startup changes (only if idle). Both session sync (a client option) and the
-		// rubber duck flag (a subprocess env var) are applied in `_ensureClient`, so
-		// they only take effect on the next client start.
+		// startup changes, disposing any active sessions. Both session sync (a client
+		// option) and the rubber duck flag (a subprocess env var) are applied in
+		// `_ensureClient`, so they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to restart client after config change', err)
@@ -329,7 +329,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * startup ({@link _isSessionSyncEnabled} client option, {@link _isRubberDuckEnabled}
 	 * subprocess env var) has changed. Any active sessions are disposed before
 	 * the client is stopped; the latest values are picked up the next time
-	 * {@link _ensureClient} runs.
+	 * {@link _ensureClient} runs. If the client is still starting up, the
+	 * in-flight start detects the change against {@link _lastSessionSyncEnabled} /
+	 * {@link _lastRubberDuckEnabled} and aborts so it never comes up stale.
 	 */
 	private async _restartClientIfStartupConfigChanged(): Promise<void> {
 		const sessionSync = this._isSessionSyncEnabled();
@@ -496,6 +498,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._clientStarting) {
 			return this._clientStarting;
 		}
+		// Snapshot the startup config so we can detect a change that lands while the
+		// client is still starting and abort the stale start (the values are baked
+		// into the client options / subprocess env below).
+		const sessionSyncAtStartup = this._isSessionSyncEnabled();
+		const rubberDuckAtStartup = this._isRubberDuckEnabled();
 		const clientStarting = (async () => {
 			this._logService.info('[Copilot] Starting CopilotClient... (with token)');
 
@@ -556,6 +563,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._githubToken !== tokenAtStartup) {
 				await client.stop();
 				throw new Error('Copilot authentication changed while the client was starting');
+			}
+			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup) {
+				await client.stop();
+				throw new Error('Copilot startup config changed while the client was starting');
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._enablePlanModeOnClient(client);
