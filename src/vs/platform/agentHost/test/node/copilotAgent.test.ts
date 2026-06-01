@@ -1206,8 +1206,28 @@ suite('CopilotAgent', () => {
 			return { client, getCreateSessionCalls: () => createSessionCalls };
 		}
 
-		test('falls back to createSession for the SDK empty-session resume error', async () => {
-			const { client, getCreateSessionCalls } = createResumeFailingClient('Request session.resume failed with message: session has no messages');
+		test('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
+			// Simulates the post-`truncateSession`/"Start Over" case: the on-disk
+			// session has zero events, so the SDK's resumeSession refuses to
+			// resume it. The exact wording varies across SDK versions, so we
+			// assert on the general -32603 + "no events" shape.
+			const { client, getCreateSessionCalls } = createResumeFailingClient(`Request session.resume failed with message: LocalRpcSession: 'session.getMessages' returned no events for session s1`);
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
+			const internals = agent as unknown as AgentInternals;
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await internals._resumeSession('s1');
+				assert.strictEqual(getCreateSessionCalls(), 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('falls back to createSession for an unknown -32603 from resumeSession', async () => {
+			// Defensive: if the SDK starts emitting some other generic
+			// "cannot resume this session" message, we should still recover
+			// rather than leaving the user with an unopenable session.
+			const { client, getCreateSessionCalls } = createResumeFailingClient('Request session.resume failed: something went wrong');
 			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
 			const internals = agent as unknown as AgentInternals;
 			try {
