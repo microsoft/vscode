@@ -1193,6 +1193,11 @@ export class AgentService extends Disposable implements IAgentService {
 				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
 			}
 			if (attachment.type === MessageAttachmentKind.Resource && this._isRewritableAttachment(attachment, attachmentsRootStr)) {
+				// If the attachment references a URI that is possibly on the agent host side, don't rewrite (#319314)
+				if (await this._fileService.exists(URI.parse(attachment.uri))) {
+					return attachment;
+				}
+
 				const originalUri = URI.parse(attachment.uri);
 				const bytes = await this._readClientResource(originalUri, clientId);
 				const basename = this._attachmentBasename(attachment.label, getMediaMime(originalUri.path));
