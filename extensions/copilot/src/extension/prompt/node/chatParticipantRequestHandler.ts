@@ -256,14 +256,32 @@ export class ChatParticipantRequestHandler {
 					);
 				}
 
-				result = await chatResult;
-				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
-				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				if (this._authService.copilotToken?.isNoAuthUser) {
-					result.details = endpoint.name;
-				} else {
-					result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
-				}
+				// Race chatResult against cancellation so that accumulated credits
+				// are reported promptly when the user presses stop, even if the
+				// handler is slow to clean up internally (e.g. awaiting response
+				// handlers in a finally block).
+				result = await Promise.race([
+					chatResult,
+					new Promise<ChatResult>(resolve => {
+						if (this.token.isCancellationRequested) {
+							resolve({ errorDetails: CanceledMessage });
+						} else {
+							const d = this.token.onCancellationRequested(() => {
+								d.dispose();
+								resolve({ errorDetails: CanceledMessage });
+							});
+							chatResult.finally(() => d.dispose());
+						}
+					})
+				]);
+			}
+
+			const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
+			const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
+			if (this._authService.copilotToken?.isNoAuthUser) {
+				result.details = endpoint.name;
+			} else {
+				result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 			}
 
 			this._conversationStore.addConversation(this.turn.id, this.conversation);
