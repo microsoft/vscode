@@ -30,6 +30,7 @@ import { INaiveChunkingService, NaiveChunkingService } from '../../chunking/node
 import { MockRunCommandExecutionService } from '../../commands/common/mockRunCommandExecutionService';
 import { IRunCommandExecutionService } from '../../commands/common/runCommandExecutionService';
 import { IConfigurationService } from '../../configuration/common/configurationService';
+import { EnterpriseManagedPolicyService, IEnterpriseManagedPolicyService } from '../../configuration/common/enterpriseManagedPolicyService';
 import { DefaultsOnlyConfigurationService } from '../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../configuration/test/common/inMemoryConfigurationService';
 import { CustomInstructionsService, ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
@@ -236,6 +237,7 @@ export function _createBaselineServices(): TestingServiceCollection {
 export function createPlatformServices(disposables: Pick<DisposableStore, 'add'> = new DisposableStore()): TestingServiceCollection {
 	const testingServiceCollection = _createBaselineServices();
 	testingServiceCollection.define(IConfigurationService, new SyncDescriptor(InMemoryConfigurationService, [disposables.add(new DefaultsOnlyConfigurationService())]));
+	testingServiceCollection.define(IEnterpriseManagedPolicyService, new SyncDescriptor(EnterpriseManagedPolicyService));
 	testingServiceCollection.define(IEnvService, new SyncDescriptor(NullEnvService));
 	testingServiceCollection.define(INativeEnvService, new SyncDescriptor(NullNativeEnvService));
 	testingServiceCollection.define(ITelemetryService, new SyncDescriptor(NullTelemetryService));

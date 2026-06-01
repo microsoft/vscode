@@ -568,6 +568,7 @@ export type CodeGenerationTextInstruction = { language?: string; text: string };
 export type CodeGenerationInstruction = CodeGenerationImportInstruction | CodeGenerationTextInstruction;
 
 export type CommitMessageGenerationInstruction = { file: string } | { text: string };
+export type EnterprisePolicyConfigValue = string | object | null;
 
 export const XTabProviderId = 'XtabProvider';
 
@@ -940,6 +941,7 @@ export namespace ConfigKey {
 		'markdown': false,
 		'scminput': false
 	});
+	export const EnterprisePolicy = defineSetting<EnterprisePolicyConfigValue>('enterprisePolicy', ConfigType.Simple, null);
 	export const selectedCompletionsModel = defineSetting<string>('selectedCompletionModel', ConfigType.Simple, '');
 
 	export const RateLimitAutoSwitchToAuto = defineSetting<boolean>('chat.rateLimitAutoSwitchToAuto', ConfigType.Simple, false, vBoolean());

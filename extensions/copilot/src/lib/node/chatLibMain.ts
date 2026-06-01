@@ -68,6 +68,7 @@ import { ChatQuotaService } from '../../platform/chat/common/chatQuotaServiceImp
 import { IConversationOptions } from '../../platform/chat/common/conversationOptions';
 import { IInteractionService, InteractionService } from '../../platform/chat/common/interactionService';
 import { BaseConfig, Config, ConfigKey, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
+import { EnterpriseManagedPolicyService, IEnterpriseManagedPolicyService } from '../../platform/configuration/common/enterpriseManagedPolicyService';
 import { DefaultsOnlyConfigurationService } from '../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { IDiffService } from '../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../platform/diff/node/diffServiceImpl';
@@ -370,6 +371,7 @@ function setupServices(options: INESProviderOptions) {
 	const { fetcher, copilotTokenManager, telemetrySender, logTarget } = options;
 	const builder = new InstantiationServiceBuilder();
 	builder.define(IConfigurationService, new SyncDescriptor(OverridableConfigurationService, [options.configOverrides ?? new Map()]));
+	builder.define(IEnterpriseManagedPolicyService, new SyncDescriptor(EnterpriseManagedPolicyService));
 	builder.define(IExperimentationService, new SyncDescriptor(SimpleExperimentationService, [options.waitForTreatmentVariables]));
 	builder.define(ISimulationTestContext, new SyncDescriptor(NulSimulationTestContext));
 	builder.define(IWorkspaceService, new SyncDescriptor(NullWorkspaceService));
@@ -859,6 +861,7 @@ function setupCompletionServices(options: IInlineCompletionsProviderOptions): II
 	builder.define(IIgnoreService, options.ignoreService || new NullIgnoreService());
 	builder.define(ITelemetryService, new SyncDescriptor(SimpleTelemetryService, [new UnwrappingTelemetrySender(telemetrySender)]));
 	builder.define(IConfigurationService, new SyncDescriptor(OverridableConfigurationService, [options.configOverrides ?? new Map()]));
+	builder.define(IEnterpriseManagedPolicyService, new SyncDescriptor(EnterpriseManagedPolicyService));
 	builder.define(IExperimentationService, new SyncDescriptor(SimpleExperimentationService, [options.waitForTreatmentVariables]));
 	builder.define(IEndpointProvider, options.endpointProvider);
 	builder.define(ICAPIClientService, options.capiClientService || new SyncDescriptor(CAPIClientImpl));

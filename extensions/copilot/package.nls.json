@@ -322,6 +322,7 @@
 	"copilot.tools.createDirectory.name": "Create Directory",
 	"copilot.tools.createDirectory.description": "Create new directories in your workspace",
 	"github.copilot.config.agent.currentEditorContext.enabled": "When enabled, Copilot will include the name of the current active editor in the context for agent mode.",
+	"github.copilot.config.enterprisePolicy": "Enterprise policy content injected verbatim into Copilot Chat system prompts for every request. Supports plain text or JSON objects.",
 	"github.copilot.config.customInstructionsInSystemMessage": "When enabled, custom instructions and mode instructions will be appended to the system message instead of a user message.",
 	"github.copilot.config.organizationCustomAgents.enabled": "When enabled, Copilot will load custom agents defined by your GitHub Organization.",
 	"github.copilot.config.organizationInstructions.enabled": "When enabled, Copilot will load custom instructions defined by your GitHub Organization.",

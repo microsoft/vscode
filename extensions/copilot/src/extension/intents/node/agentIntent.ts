@@ -17,6 +17,7 @@ import { IEndpointProvider } from '../../../platform/endpoint/common/endpointPro
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IEnterpriseManagedPolicyService } from '../../../platform/configuration/common/enterpriseManagedPolicyService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
@@ -503,6 +504,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IToolsService toolsService: IToolsService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IEnterpriseManagedPolicyService private readonly enterpriseManagedPolicyService: IEnterpriseManagedPolicyService,
 		@IEditLogService editLogService: IEditLogService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -576,6 +578,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// duplicating or shifting them — but keep summarization on, since the
 		// summarization rendering path is independent from cache breakpoints.
 		const isMessagesApi = this.endpoint.apiType === 'messages';
+		const enterprisePolicy = await this.enterpriseManagedPolicyService.getEffectiveEnterprisePolicy();
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -588,6 +591,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			location: this.location,
 			enableSummarization: summarizationEnabled,
 			enableCacheBreakpoints: summarizationEnabled && !isMessagesApi,
+			enterprisePolicy,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
