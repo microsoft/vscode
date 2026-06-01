@@ -12,7 +12,7 @@ import * as tar from 'tar';
 import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { outputChannel } from '../../../platform/log/vscode/outputChannelLogTarget';
-import { APIUsage } from '../../../platform/networking/common/openai';
+import type { APIUsage } from '../../../platform/networking/common/openai';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { ChatRequestScheme, ILoggedElementInfo, ILoggedRequestInfo, ILoggedToolCall, IRequestLogger, LoggedInfo, LoggedInfoKind, LoggedRequestKind, resolveMarkdownIcon } from '../../../platform/requestLogger/common/requestLogger';
 import { filterMap } from '../../../util/common/arrays';
