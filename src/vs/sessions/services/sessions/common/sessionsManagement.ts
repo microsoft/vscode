@@ -211,6 +211,13 @@ export interface ISessionsManagementService {
 	 */
 	closeSession(session: ISession | undefined): void;
 
+	/**
+	 * Close all sessions currently shown in the grid. Removes every visible
+	 * session in a single pass and lands on the new-session view. No-op when no
+	 * session is currently visible.
+	 */
+	closeAllSessions(): void;
+
 	setActive(session: IActiveSession | undefined): void;
 
 	/**
