@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkspaceService } from '../../configuration/browser/configurationService.js';
@@ -23,6 +23,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -43,13 +44,19 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@ILogService logService: ILogService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService);
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
+		const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
+
+			// Fire event to allow participants to join
+			// and possibly migrate data into this workspace
+			await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 
 			// Open workspace in same window
 			await this.hostService.openWindow([{ workspaceUri }], { forceReuseWindow: true });

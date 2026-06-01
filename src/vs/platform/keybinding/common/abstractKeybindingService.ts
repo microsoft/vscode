@@ -80,9 +80,6 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._logging = false;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	protected abstract _getResolver(): KeybindingResolver;
 	protected abstract _documentHasFocus(): boolean;
@@ -399,6 +396,20 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return true;
 		}
 		return false;
+	}
+
+	public appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string {
+		if (commandId) {
+			const keybindingLabel = this.lookupKeybinding(commandId, context, enforceContextCheck)?.getLabel();
+			if (keybindingLabel) {
+				return nls.localize(
+					{ key: 'keybindingLabel', comment: ['UI element label', 'A keybinding label'] },
+					"{0} ({1})",
+					label,
+					keybindingLabel);
+			}
+		}
+		return label;
 	}
 }
 

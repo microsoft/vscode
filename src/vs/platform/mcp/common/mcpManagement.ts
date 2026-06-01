@@ -10,13 +10,14 @@ import { IIterativePager } from '../../../base/common/paging.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
+import { IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 
 export type InstallSource = 'gallery' | 'local';
 
 export interface ILocalMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
+	readonly rootSandbox?: IMcpSandboxConfiguration;
 	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
@@ -249,6 +250,7 @@ export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
+export const mcpAppsEnabledConfig = 'chat.mcp.apps.enabled';
 
 export interface IMcpGalleryConfig {
 	readonly serviceUrl?: string;

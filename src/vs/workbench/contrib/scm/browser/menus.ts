@@ -29,11 +29,11 @@ export class SCMTitleMenu implements IDisposable {
 	private _secondaryActions: IAction[] = [];
 	get secondaryActions(): IAction[] { return this._secondaryActions; }
 
-	private readonly _onDidChangeTitle = new Emitter<void>();
-	readonly onDidChangeTitle = this._onDidChangeTitle.event;
-
 	readonly menu: IMenu;
 	private readonly disposables = new DisposableStore();
+
+	private readonly _onDidChangeTitle = this.disposables.add(new Emitter<void>());
+	readonly onDidChangeTitle = this._onDidChangeTitle.event;
 
 	constructor(
 		@IMenuService menuService: IMenuService,

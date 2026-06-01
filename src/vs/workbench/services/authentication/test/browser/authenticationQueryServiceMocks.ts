@@ -64,7 +64,7 @@ export abstract class BaseTestService extends Disposable {
 	/**
 	 * Track a method call for verification in tests
 	 */
-	protected trackCall(method: string, ...args: any[]): void {
+	protected trackCall(method: string, ...args: unknown[]): void {
 		this._methodCalls.push({
 			method,
 			args: [...args],
@@ -342,6 +342,7 @@ export class TestAuthenticationService extends BaseTestService implements IAuthe
 	unregisterAuthenticationProvider(): void { }
 	registerAuthenticationProviderHostDelegate(): IDisposable { return { dispose: () => { } }; }
 	createDynamicAuthenticationProvider(): Promise<any> { return Promise.resolve(undefined); }
+	createOrGetXaaProvider(): Promise<string | undefined> { return Promise.resolve(undefined); }
 	async requestNewSession(): Promise<AuthenticationSession> { return createSession(); }
 	async getSession(): Promise<AuthenticationSession | undefined> { return createSession(); }
 	getOrActivateProviderIdForServer(): Promise<string | undefined> { return Promise.resolve(undefined); }

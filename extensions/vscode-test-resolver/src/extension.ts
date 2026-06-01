@@ -158,6 +158,37 @@ export function activate(context: vscode.ExtensionContext) {
 
 			commandArgs.push('--connection-token', connectionToken);
 
+			const agentHostPort = getConfiguration('agentHostPort');
+			const agentHostBridgePort = getConfiguration('agentHostBridgePort');
+			if (
+				typeof agentHostPort === 'number' && agentHostPort > 0 &&
+				typeof agentHostBridgePort === 'number' && agentHostBridgePort > 0
+			) {
+				// `agentHostPort` spawns an agent host inside the server;
+				// `agentHostBridgePort` bridges the renderer to an
+				// externally-running one. They contradict each other —
+				// reject up front so the user notices instead of getting
+				// two agent hosts and silently confusing failure modes.
+				throw new Error(
+					`testResolver: 'agentHostPort' and 'agentHostBridgePort' are mutually exclusive. ` +
+					`Configure at most one (got port=${agentHostPort}, bridge=${agentHostBridgePort}).`
+				);
+			}
+			if (typeof agentHostPort === 'number' && agentHostPort > 0) {
+				commandArgs.push('--agent-host-port', String(agentHostPort));
+			}
+
+			// Bridge to an externally-running agent host (e.g. one started
+			// by `code agent host`). Mutually exclusive with `agentHostPort`
+			// — that one spawns its own agent host.
+			if (typeof agentHostBridgePort === 'number' && agentHostBridgePort > 0) {
+				commandArgs.push('--agent-host-bridge-port', String(agentHostBridgePort));
+			}
+			const agentHostBridgeToken = getConfiguration('agentHostBridgeConnectionToken');
+			if (typeof agentHostBridgeToken === 'string' && agentHostBridgeToken) {
+				commandArgs.push('--agent-host-bridge-connection-token', agentHostBridgeToken);
+			}
+
 			if (!commit) { // dev mode
 				const serverCommand = process.platform === 'win32' ? 'code-server.bat' : 'code-server.sh';
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
@@ -165,6 +196,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				outputChannel.appendLine(`Launching server: "${serverCommandPath}" ${commandArgs.join(' ')}`);
 				const shell = (process.platform === 'win32');
+				// Skip prelaunch to avoid redownloading electron while it may be in use
+				env['VSCODE_SKIP_PRELAUNCH'] = '1';
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath, shell });
 			} else {
 				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];
@@ -209,12 +242,12 @@ export function activate(context: vscode.ExtensionContext) {
 				console.log('Connecting via a managed authority');
 				return Promise.resolve(new vscode.ManagedResolvedAuthority(async () => {
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
-					const dataEmitter = new vscode.EventEmitter<Uint8Array>();
+					const dataEmitter = new vscode.EventEmitter<Uint8Array<ArrayBuffer>>();
 					const closeEmitter = new vscode.EventEmitter<Error | undefined>();
 					const endEmitter = new vscode.EventEmitter<void>();
 
 					await new Promise((res, rej) => {
-						remoteSocket.on('data', d => dataEmitter.fire(d))
+						remoteSocket.on('data', d => dataEmitter.fire(d as Uint8Array<ArrayBuffer>))
 							.on('error', err => { rej(); closeEmitter.fire(err); })
 							.on('close', () => endEmitter.fire())
 							.on('end', () => endEmitter.fire())

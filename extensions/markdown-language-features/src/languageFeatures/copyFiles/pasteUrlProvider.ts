@@ -21,9 +21,13 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
 	public static readonly pasteMimeTypes = [Mime.textPlain];
 
+	readonly #parser: IMdParser;
+
 	constructor(
-		private readonly _parser: IMdParser,
-	) { }
+		parser: IMdParser,
+	) {
+		this.#parser = parser;
+	}
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -64,7 +68,7 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 		workspaceEdit.set(document.uri, edit.edits);
 		pasteEdit.additionalEdit = workspaceEdit;
 
-		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, pasteUrlSetting, ranges, token))) {
+		if (!(await shouldInsertMarkdownLinkByDefault(this.#parser, document, pasteUrlSetting, ranges, token))) {
 			pasteEdit.yieldTo = [
 				vscode.DocumentDropOrPasteEditKind.Text,
 				vscode.DocumentDropOrPasteEditKind.Empty.append('uri')

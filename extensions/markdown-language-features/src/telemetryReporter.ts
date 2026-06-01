@@ -24,21 +24,21 @@ const nullReporter = new class NullTelemetryReporter implements TelemetryReporte
 };
 
 class ExtensionReporter implements TelemetryReporter {
-	private readonly _reporter: VSCodeTelemetryReporter;
+	readonly #reporter: VSCodeTelemetryReporter;
 
 	constructor(
 		packageInfo: IPackageInfo
 	) {
-		this._reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
+		this.#reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
 	}
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;
 	}) {
-		this._reporter.sendTelemetryEvent(eventName, properties);
+		this.#reporter.sendTelemetryEvent(eventName, properties);
 	}
 
 	dispose() {
-		this._reporter.dispose();
+		this.#reporter.dispose();
 	}
 }
 

@@ -8,10 +8,11 @@ import cp from 'child_process';
 import fs from 'fs';
 import File from 'vinyl';
 import es from 'event-stream';
-import filter from 'gulp-filter';
+import { filter, type FileFunction } from '../gulp/facade.ts';
 import { Stream } from 'stream';
+import { fileURLToPath } from 'url';
 
-const watcherPath = path.join(import.meta.dirname, 'watcher.exe');
+const watcherPath = path.join(typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url)), 'watcher.exe');
 
 function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 	switch (type) {
@@ -70,7 +71,7 @@ function watch(root: string): Stream {
 
 const cache: { [cwd: string]: Stream } = Object.create(null);
 
-export default function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
+export default function (pattern: string | string[] | FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());

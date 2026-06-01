@@ -9,12 +9,13 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
+import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
@@ -45,6 +46,20 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
+
+		// Bridge workbench-side language-model changes to extensions via `vscode.lm.onDidChangeChatModels`.
+		// Only forward when the set of model identifiers changes. Providers (e.g. BYOK utility aliases) can
+		// re-publish models with metadata-only diffs many times per second; firing on those lets listeners
+		// that re-resolve models (e.g. `selectChatModels`) spin an unbounded CPU-pinning feedback loop.
+		let lastModelIds = new Set(this._chatProviderService.getLanguageModelIds());
+		this._store.add(this._chatProviderService.onDidChangeLanguageModels(() => {
+			const currentModelIds = new Set(this._chatProviderService.getLanguageModelIds());
+			if (equalSets(lastModelIds, currentModelIds)) {
+				return;
+			}
+			lastModelIds = currentModelIds;
+			this._proxy.$onChatModelsChange();
+		}));
 	}
 
 	dispose(): void {
@@ -194,9 +209,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', 'Language Models');
 		const disposables = new DisposableStore();
-		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel));
+		const provider = new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel);
+		this._authenticationService.registerAuthenticationProvider(authProviderId, provider);
 		disposables.add(toDisposable(() => {
 			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
+			provider.dispose();
 		}));
 		disposables.add(this._authenticationAccessService.onDidChangeExtensionSessionAccess(async (e) => {
 			const allowedExtensions = this._authenticationAccessService.readAllowedExtensions(authProviderId, accountLabel);
@@ -281,5 +298,9 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 			accessToken: 'fake-access-token',
 			scopes,
 		};
+	}
+
+	dispose(): void {
+		this._onDidChangeSessions.dispose();
 	}
 }

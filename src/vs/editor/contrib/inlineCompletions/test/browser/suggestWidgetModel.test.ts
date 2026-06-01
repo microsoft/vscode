@@ -38,6 +38,7 @@ import { IAccessibilitySignalService } from '../../../../../platform/accessibili
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
 
 suite('Suggest Widget Model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,7 +88,7 @@ suite('Suggest Widget Model', () => {
 
 	test('Ghost Text', async () => {
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, suggest: { preview: true } },
+			{ fakeClock: true, provider, suggest: { preview: true }, quickSuggestions: { other: 'on', comments: 'off', strings: 'off' } },
 			async ({ editor, editorViewModel, context, model }) => {
 				context.keyboardType('h');
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
@@ -170,7 +171,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				[IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 					override onDidChangeDefaultAccount = Event.None;
 					override getDefaultAccount = async () => null;
-					override setDefaultAccount = () => { };
+					override setDefaultAccountProvider = () => { };
 				}],
 			);
 
@@ -181,6 +182,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			}
 
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					dispose: () => { }
+				});
 				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
 				editor.registerAndInstantiateContribution(InlineCompletionsController.ID, InlineCompletionsController);

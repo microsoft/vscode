@@ -36,28 +36,15 @@ export function inferredProjectCompilerOptions(
 		projectConfig.allowImportingTsExtensions = true;
 	}
 
-	if (serviceConfig.implicitProjectConfiguration.checkJs) {
-		projectConfig.checkJs = true;
-		if (projectType === ProjectType.TypeScript) {
-			projectConfig.allowJs = true;
-		}
+	projectConfig.checkJs = serviceConfig.implicitProjectConfiguration.checkJs;
+	if (serviceConfig.implicitProjectConfiguration.checkJs && projectType === ProjectType.TypeScript) {
+		projectConfig.allowJs = true;
 	}
 
-	if (serviceConfig.implicitProjectConfiguration.experimentalDecorators) {
-		projectConfig.experimentalDecorators = true;
-	}
-
-	if (serviceConfig.implicitProjectConfiguration.strictNullChecks) {
-		projectConfig.strictNullChecks = true;
-	}
-
-	if (serviceConfig.implicitProjectConfiguration.strictFunctionTypes) {
-		projectConfig.strictFunctionTypes = true;
-	}
-
-	if (serviceConfig.implicitProjectConfiguration.strict) {
-		projectConfig.strict = true;
-	}
+	projectConfig.experimentalDecorators = serviceConfig.implicitProjectConfiguration.experimentalDecorators;
+	projectConfig.strictNullChecks = serviceConfig.implicitProjectConfiguration.strictNullChecks;
+	projectConfig.strictFunctionTypes = serviceConfig.implicitProjectConfiguration.strictFunctionTypes;
+	projectConfig.strict = serviceConfig.implicitProjectConfiguration.strict;
 
 	if (serviceConfig.implicitProjectConfiguration.module) {
 		projectConfig.module = serviceConfig.implicitProjectConfiguration.module as Proto.ModuleKind;
