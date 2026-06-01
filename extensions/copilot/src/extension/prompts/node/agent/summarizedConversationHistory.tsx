@@ -222,6 +222,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 		// Handle the possibility that we summarized partway through the current turn (e.g. if we accumulated many tool call rounds)
 		let summaryForCurrentTurn: string | undefined = undefined;
 		let thinkingForFirstRoundAfterSummarization: ThinkingData | undefined = undefined;
+		let modelIdForSummarizedRound: string | undefined = undefined;
 		if (this.props.promptContext.toolCallRounds?.length) {
 			const toolCallRounds: IToolCallRound[] = [];
 			for (let i = this.props.promptContext.toolCallRounds.length - 1; i >= 0; i--) {
@@ -230,6 +231,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 					// This tool call round was summarized
 					summaryForCurrentTurn = toolCallRound.summary;
 					thinkingForFirstRoundAfterSummarization = toolCallRound.thinking;
+					modelIdForSummarizedRound = toolCallRound.modelId ?? (toolCallRound as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 					break;
 				}
 				toolCallRounds.push(toolCallRound);
@@ -239,9 +241,18 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 			toolCallRounds.reverse();
 
 			// For Anthropic models with thinking enabled, set the thinking on the first round
-			// so it gets rendered as the first thinking block after summarization
+			// so it gets rendered as the first thinking block after summarization.
+			// Only re-attach when the summarized round was produced by the same model as the
+			// destination round / current endpoint — otherwise we'd replay a foreign provider's
+			// signed/encrypted thinking through the endpoint and fail signature validation
+			// (related: https://github.com/microsoft/vscode/issues/316536).
 			if (isAnthropicFamily(this.props.endpoint) && thinkingForFirstRoundAfterSummarization && toolCallRounds.length > 0 && !toolCallRounds[0].thinking) {
-				toolCallRounds[0].thinking = thinkingForFirstRoundAfterSummarization;
+				const firstRoundModelId = toolCallRounds[0].modelId ?? (toolCallRounds[0] as IToolCallRound & { phaseModelId?: string }).phaseModelId;
+				const sourceMatchesDest = modelIdForSummarizedRound && firstRoundModelId && modelIdForSummarizedRound === firstRoundModelId;
+				const sourceMatchesEndpoint = modelIdForSummarizedRound === this.props.endpoint.model;
+				if (sourceMatchesDest || sourceMatchesEndpoint) {
+					toolCallRounds[0].thinking = thinkingForFirstRoundAfterSummarization;
+				}
 			}
 
 			history.push(<ChatToolCalls priority={899} flexGrow={2} promptContext={this.props.promptContext} toolCallRounds={toolCallRounds} toolCallResults={this.props.promptContext.toolCallResults} enableCacheBreakpoints={this.props.enableCacheBreakpoints} truncateAt={this.props.maxToolResultLength} />);
