@@ -419,7 +419,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		const proxy = request.proxy;
 		const store = new DisposableStore();
 		store.add(proxy);
-		this._terminalProcessProxies.set(proxy.instanceId, { proxy, dispose() { store.dispose(); } });
+		this._terminalProcessProxies.set(proxy.instanceId, { proxy, dispose: () => store.dispose() });
 
 		// Note that onResize is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override

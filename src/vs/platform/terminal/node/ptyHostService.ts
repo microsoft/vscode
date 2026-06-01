@@ -368,8 +368,12 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 
 	private _disposePtyHost(): void {
+		// Heartbeat timers are bare setTimeout handles, not disposables in the store, so they need an explicit clear.
+		// shutdownAll() is fired before clearing the store so any in-flight exit listener still has a live proxy to read from;
+		// the per-host listener store is cleared last so the on-exit signal isn't dropped on the floor.
 		this._clearHeartbeatTimeouts();
-		this._optionalProxy?.shutdownAll();
+		// Fire-and-forget: the IPC channel may already be gone; swallow rejections so we don't surface an unhandled promise.
+		this._optionalProxy?.shutdownAll().catch(() => { });
 		this.__connection = undefined;
 		this.__proxy = undefined;
 		this._ptyHostStore.clear();
