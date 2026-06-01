@@ -96,6 +96,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidDeleteChat = Event.None;
 	readonly onDidRenameChat = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
+	readonly onDidReplaceSession = Event.None;
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;

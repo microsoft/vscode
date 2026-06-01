@@ -181,6 +181,9 @@ export interface ISessionsManagementService {
 	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
 
+	/** Fires when a provider replaces a temporary session with its committed session. */
+	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+
 	// -- Active Session --
 
 	/**

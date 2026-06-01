@@ -84,6 +84,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidToggleSessionStickiness = this._register(new Emitter<IToggleSessionStickinessEvent>());
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent> = this._onDidToggleSessionStickiness.event;
 
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
@@ -294,7 +297,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const disposables = new DisposableStore();
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			if (provider.onDidReplaceSession) {
-				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
+				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
 			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
@@ -303,9 +306,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private onDidReplaceSession(from: ISession, to: ISession): void {
+	private _handleDidReplaceSession(from: ISession, to: ISession): void {
 		this._visibility.updateSession(from, to);
-
+		this._onDidReplaceSession.fire({ from, to });
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
