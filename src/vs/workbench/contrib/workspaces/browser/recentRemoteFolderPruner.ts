@@ -19,7 +19,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 export async function pruneRecentRemoteFolderIfMissing(
 	contextService: IWorkspaceContextService,
 	fileService: IFileService,
-	workspacesService: IWorkspacesService
+	workspacesService: IWorkspacesService,
 ): Promise<void> {
 	if (contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 		return;
@@ -49,7 +49,7 @@ class RecentRemoteFolderPrunerContribution implements IWorkbenchContribution {
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService fileService: IFileService,
-		@IWorkspacesService workspacesService: IWorkspacesService
+		@IWorkspacesService workspacesService: IWorkspacesService,
 	) {
 		pruneRecentRemoteFolderIfMissing(contextService, fileService, workspacesService).catch(error => {
 			if (!isCancellationError(error)) {

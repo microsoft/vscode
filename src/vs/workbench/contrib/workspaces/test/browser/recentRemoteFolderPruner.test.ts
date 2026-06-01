@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileOperationError, FileOperationResult, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { TestContextService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { pruneRecentRemoteFolderIfMissing } from '../../browser/recentRemoteFolderPruner.js';
 
@@ -39,12 +40,11 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 		const fileService = ds.add(new StubFileService());
 		fileService.statError = options.statError;
 
-		const workspacesService = {
+		const workspacesService: Pick<IWorkspacesService, 'removeRecentlyOpened'> = {
 			async removeRecentlyOpened(paths: URI[]): Promise<void> { removed.push(paths); },
 		};
 
-		// eslint-disable-next-line local/code-no-any-casts
-		await pruneRecentRemoteFolderIfMissing(contextService, fileService, workspacesService as any);
+		await pruneRecentRemoteFolderIfMissing(contextService, fileService, workspacesService as IWorkspacesService);
 
 		return { fileService, removed };
 	}
@@ -52,23 +52,23 @@ suite('pruneRecentRemoteFolderIfMissing', () => {
 	test('prunes vscode-remote on FILE_NOT_FOUND; preserves entry on transient errors, generic errors, for local URIs, and for non-remote authorities (e.g. vscode-vfs)', async () => {
 		const notFound = await run({
 			folder: remoteFolder,
-			statError: new FileOperationError('gone', FileOperationResult.FILE_NOT_FOUND)
+			statError: new FileOperationError('gone', FileOperationResult.FILE_NOT_FOUND),
 		});
 		const transient = await run({
 			folder: remoteFolder,
-			statError: new FileOperationError('host unreachable', FileOperationResult.FILE_OTHER_ERROR)
+			statError: new FileOperationError('host unreachable', FileOperationResult.FILE_OTHER_ERROR),
 		});
 		const genericError = await run({
 			folder: remoteFolder,
-			statError: new Error('No file system provider found for resource')
+			statError: new Error('No file system provider found for resource'),
 		});
 		const localUri = await run({
 			folder: localFolder,
-			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
+			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND),
 		});
 		const virtualUri = await run({
 			folder: virtualFolder,
-			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND)
+			statError: new FileOperationError('should never run', FileOperationResult.FILE_NOT_FOUND),
 		});
 
 		assert.deepStrictEqual({
