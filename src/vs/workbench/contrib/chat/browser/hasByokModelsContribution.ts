@@ -20,8 +20,8 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
  * Owns the `github.copilot.hasByokModels` context key. The key is true iff:
  *  - `github.copilot.clientByokEnabled` is true (set by `ChatEntitlementService` + Copilot extension),
  *  - `chat.aiDisabled` is off, and
- *  - the language-models configuration has at least one non-Copilot vendor group (post extension scan),
- *    or — pre-scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
+ *  - the language-models configuration has at least one non-Copilot vendor group (at any time),
+ *    or — pre extension scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
  *
  * Strategy (avoids activating BYOK extensions just to gate UI):
  *  1. Restore the last persisted answer for correct warm-reload UI.
