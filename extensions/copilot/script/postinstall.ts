@@ -118,7 +118,17 @@ async function copyCopilotCliPrebuildFiles() {
 					if (normalizedSrc.includes('/prebuilds/linuxmusl-')) {
 						return false;
 					}
-					return src.endsWith('computer.node') || src.endsWith('runtime.node');
+					return src.endsWith('computer.node')
+						|| src.endsWith('runtime.node')
+						// node-pty natives: pty.node (+ spawn-helper) on Unix,
+						// conpty.node and its companions on Windows. `endsWith('pty.node')`
+						// also matches `conpty.node`. The conpty native additionally needs
+						// conpty_console_list.node and the conpty/ helpers (OpenConsole.exe,
+						// conpty.dll) to actually spawn. The *.pdb debug symbols are skipped.
+						|| src.endsWith('pty.node')
+						|| src.endsWith('conpty_console_list.node')
+						|| src.endsWith('spawn-helper')
+						|| normalizedSrc.includes('/conpty/');
 				}
 				return true;
 			} catch {
