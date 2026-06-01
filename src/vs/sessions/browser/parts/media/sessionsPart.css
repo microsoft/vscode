@@ -111,3 +111,80 @@
 	display: inline-block;
 	transform: translateX(-0.5px);
 }
+
+/* ------------------------------------------------------------------------- *
+ * Inactive session chat input state
+ *
+ * When a session column is not the active/focused/selected one, fade out all
+ * of its chat input controls (attach, mode/model pickers, etc.) and keep only
+ * the send button visible in a desaturated state. This reduces visual noise
+ * across the multi-session grid so attention stays on the active session.
+ * ------------------------------------------------------------------------- */
+
+/* Fade out every toolbar control except the send (execute) toolbar. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+
+/* Fade out the controls that sit below the input box (secondary toolbar,
+ * attachments row and followups) so the inactive input reads as quiet. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-secondary-toolbar,
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-attachments-container,
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .interactive-input-followups {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+
+/* Fade out the placeholder text (rendered as an editor decoration inside the
+ * chat editor) for inactive sessions. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-editor-container {
+	opacity: 0.4;
+	transition: opacity 0.15s ease;
+}
+
+/* Desaturate the send button so it reads as muted while still discoverable. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	filter: grayscale(1);
+	opacity: 0.6;
+	transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* Smoothly restore controls when the session becomes active again. */
+.monaco-workbench .part.sessionspart .session-view.is-active .interactive-session .chat-input-toolbars > .chat-input-toolbar,
+.monaco-workbench .part.sessionspart .session-view.is-active .interactive-session .chat-secondary-toolbar,
+.monaco-workbench .part.sessionspart .session-view.is-active .interactive-session .chat-attachments-container,
+.monaco-workbench .part.sessionspart .session-view.is-active .interactive-session .interactive-input-followups,
+.monaco-workbench .part.sessionspart .session-view.is-active .interactive-session .chat-editor-container {
+	transition: opacity 0.15s ease;
+}
+
+.monaco-workbench .part.sessionspart .session-view.is-active .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* While a session is fading in (auto-focus happens immediately on the selecting
+ * click), suppress the focus border so it does not flash around the still-fading
+ * placeholder. The `activating` class is removed once the fade-in completes, at
+ * which point the normal focus border applies. The "working" comet state owns
+ * its own border and is left untouched. */
+.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container.focused:not(.working) {
+	border-color: var(--vscode-agentsChatInput-border) !important;
+}
+
+.monaco-workbench .part.sessionspart .session-view.activating .new-chat-input-area:focus-within {
+	border-color: var(--vscode-agentsChatInput-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .part.sessionspart .session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
+	.monaco-workbench .part.sessionspart .session-view .interactive-session .chat-secondary-toolbar,
+	.monaco-workbench .part.sessionspart .session-view .interactive-session .chat-attachments-container,
+	.monaco-workbench .part.sessionspart .session-view .interactive-session .interactive-input-followups,
+	.monaco-workbench .part.sessionspart .session-view .interactive-session .chat-editor-container,
+	.monaco-workbench .part.sessionspart .session-view .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+		transition: none;
+	}
+}
