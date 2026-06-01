@@ -5,6 +5,11 @@
 
 const cargoFeaturesGenerator: Fig.Generator = {
 	script: ['cargo', 'read-manifest'],
+	cache: {
+		strategy: 'stale-while-revalidate',
+		ttl: 5_000,
+		cacheByDirectory: true
+	},
 	postProcess: (out) => {
 		if (!out || out.trim() === '') {
 			return [];
@@ -16,7 +21,7 @@ const cargoFeaturesGenerator: Fig.Generator = {
 
 			return Object.keys(features).map((featureName) => {
 				const dependencies = features[featureName];
-				const desc = dependencies.length > 0
+				const desc = Array.isArray(dependencies) && dependencies.length > 0
 					? `Activates: ${dependencies.join(', ')}`
 					: 'Cargo feature';
 
