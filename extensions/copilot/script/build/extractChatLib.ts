@@ -864,7 +864,7 @@ class ChatLibExtractor {
 			// Update package entries in chat-lib lock file
 			let lockUpdatedCount = 0;
 			for (const pkgPath of packagesToUpdate) {
-				if (rootPackageLock.packages[pkgPath] && chatLibPackageLock.packages[pkgPath]) {
+				if (rootPackageLock.packages[pkgPath]) {
 					chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
 					lockUpdatedCount++;
 				}
@@ -877,6 +877,9 @@ class ChatLibExtractor {
 			);
 
 			console.log(`Chat-lib package-lock.json updated: ${lockUpdatedCount} package entries updated`);
+
+			console.log('Re-resolving chat-lib package-lock.json to keep dependencies consistent...');
+			await execAsync('npm install --package-lock-only --ignore-scripts', { cwd: CHAT_LIB_DIR });
 		}
 	}
 
