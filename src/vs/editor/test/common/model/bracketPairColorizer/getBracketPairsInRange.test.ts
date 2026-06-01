@@ -303,6 +303,52 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	});
 
 
+	test('Template language double-brace pairs (e.g. Twig/Handlebars {{ }})', () => {
+		// Verifies that languages defining {{ }} as colorized bracket pairs
+		// (e.g. Twig, Handlebars, Mustache) correctly treat {{ foo }} as a SINGLE
+		// bracket pair instead of two nested { } pairs.
+		disposeOnReturn(store => {
+			const languageId = 'testTemplateLang';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: languageId }));
+			const text = '¹{{ foo }}²';
+			const doc = new AnnotatedDocument(text);
+			const encodedMode = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const tokenizedDoc = new TokenizedDocument([
+				new TokenInfo(doc.text, encodedMode, StandardTokenType.Other, true)
+			]);
+			store.add(TokenizationRegistry.register(languageId, tokenizedDoc.getTokenizationSupport()));
+			// Configure as a template language: { } in brackets, but only {{ }} colorized
+			store.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['(', ')'],
+				],
+				colorizedBracketPairs: [
+					['{{', '}}'],
+					['(', ')'],
+				],
+			}));
+			const model = store.add(instantiateTextModel(instantiationService, doc.text, languageId));
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketPairsInRange(doc.range(1, 2))
+					.map(bracketPairToJSON)
+					.toArray(),
+				[
+					{
+						level: 0,
+						range: '[1,1 -> 1,3]',
+						openRange: '[1,1 -> 1,3]',
+						closeRange: '[1,8 -> 1,10]',
+					},
+				]
+			);
+		});
+	});
+
 	test('colorizedBracketsVSBrackets', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ {} [<()>] <{>} ²`);
