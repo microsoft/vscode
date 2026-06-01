@@ -48,9 +48,6 @@ export function isAgentHostEnabled(configurationService: IConfigurationService):
 	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
 }
 
-/** Configuration key that controls whether per-host IPC traffic output channels are created. */
-export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
-
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
