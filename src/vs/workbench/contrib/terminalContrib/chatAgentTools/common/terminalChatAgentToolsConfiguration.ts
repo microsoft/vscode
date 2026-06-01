@@ -601,18 +601,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
-		restricted: true,
-		policy: {
-			name: 'ChatAgentSandboxRetryWithAllowNetworkRequests',
-			category: PolicyCategory.IntegratedTerminal,
-			minimumVersion: '1.122',
-			localization: {
-				description: {
-					key: 'agentSandbox.retryWithAllowNetworkRequests',
-					value: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is set to `on` and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-				}
-			}
-		}
+		restricted: true
 	},
 	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: {
 		markdownDescription: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
