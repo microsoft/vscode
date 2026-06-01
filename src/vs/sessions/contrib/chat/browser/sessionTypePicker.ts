@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
@@ -242,10 +242,10 @@ export class SessionTypePicker extends Disposable {
 				label: sessionType.label,
 				group: providersWithDuplicates.has(providerId) ? {
 					title: isFirstInGroup ? groupTitle : '',
-					icon: sessionType.icon,
+					icon: getCompactCodicon(sessionType.icon),
 				} : {
 					title: '',
-					icon: sessionType.icon,
+					icon: getCompactCodicon(sessionType.icon),
 				},
 				item,
 			});
@@ -363,7 +363,7 @@ export class SessionTypePicker extends Disposable {
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._picked?.sessionTypeId ?? '';
 
-		dom.append(this._triggerElement, renderIcon(modeIcon));
+		dom.append(this._triggerElement, renderIcon(getCompactCodicon(modeIcon)));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 

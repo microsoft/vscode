@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -136,7 +136,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		}
 		const items: IActionListItem<IClaudePermissionModeItem>[] = availableModes.map(mode => ({
 			kind: ActionListItemKind.Action,
-			group: { kind: ActionListItemKind.Header, title: '', icon: mode.icon },
+			group: { kind: ActionListItemKind.Header, title: '', icon: getCompactCodicon(mode.icon) },
 			item: mode,
 			label: mode.label,
 			detail: mode.description,
@@ -211,7 +211,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		dom.clearNode(trigger);
 		const currentMode = [...permissionModes, autoPermissionMode, bypassPermissionMode].find(m => m.id === this._currentModeId) ?? permissionModes[1];
 
-		dom.append(trigger, renderIcon(currentMode.icon));
+		dom.append(trigger, renderIcon(getCompactCodicon(currentMode.icon)));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = currentMode.label;
 		dom.append(trigger, renderIcon(Codicon.chevronDown));

@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -137,13 +137,13 @@ export class IsolationPicker extends Disposable {
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.worktree', "Worktree"),
-				group: { title: '', icon: Codicon.worktree },
+				group: { title: '', icon: getCompactCodicon(Codicon.worktree) },
 				item: { mode: 'worktree', checked: currentIsolationMode === 'worktree' || undefined },
 			},
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.folder', "Folder"),
-				group: { title: '', icon: Codicon.folder },
+				group: { title: '', icon: getCompactCodicon(Codicon.folder) },
 				item: { mode: 'workspace', checked: currentIsolationMode === 'workspace' || undefined },
 			},
 		];
@@ -211,7 +211,7 @@ export class IsolationPicker extends Disposable {
 				break;
 		}
 
-		dom.append(this._triggerElement, renderIcon(modeIcon));
+		dom.append(this._triggerElement, renderIcon(getCompactCodicon(modeIcon)));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));

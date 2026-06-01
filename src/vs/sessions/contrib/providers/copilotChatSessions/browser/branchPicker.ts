@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
@@ -106,7 +106,7 @@ export class BranchPicker extends Disposable {
 		const items: IActionListItem<IBranchItem>[] = branches.map(branch => ({
 			kind: ActionListItemKind.Action,
 			label: branch,
-			group: { title: '', icon: Codicon.gitBranch },
+			group: { title: '', icon: getCompactCodicon(Codicon.gitBranch) },
 			item: { name: branch, checked: branch === selectedBranch || undefined },
 		}));
 
@@ -158,7 +158,7 @@ export class BranchPicker extends Disposable {
 		const isDisabled = session?.isolationMode.get() === 'workspace' || branches.length === 0;
 		const label = session?.branch.get() ?? localize('branchPicker.select', "Branch");
 
-		dom.append(this._triggerElement, renderIcon(Codicon.gitBranch));
+		dom.append(this._triggerElement, renderIcon(getCompactCodicon(Codicon.gitBranch)));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
