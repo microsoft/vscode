@@ -1266,8 +1266,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	background: none;
 }
 
-/* Show the menu item selection border only for keyboard navigation. A mouse-focused item is always under the pointer (:hover), so the border is suppressed there and the selection background indicates focus instead. A keyboard-focused item is not under the pointer, so the inline selection border remains visible. */
-.monaco-menu .monaco-action-bar.vertical .action-item.focused:hover .action-menu-item {
+/* Show the menu item selection border only for keyboard navigation. Pointer-driven focus typically does not set :focus-visible, so suppress the border in that case. */
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus:not(:focus-visible) {
 	outline: none !important;
 	outline-offset: 0 !important;
 }
