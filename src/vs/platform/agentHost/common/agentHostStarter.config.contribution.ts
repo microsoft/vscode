@@ -44,7 +44,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.rubberDuck.enabled', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model. Requires `#chat.agentHost.enabled#`."),
 			default: false,
-			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[AgentHostClaudeAgentSdkPathSettingId]: {
