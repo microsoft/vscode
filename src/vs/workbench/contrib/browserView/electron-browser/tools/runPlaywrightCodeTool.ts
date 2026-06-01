@@ -54,7 +54,37 @@ interface IRunPlaywrightCodeToolParams {
 	timeoutMs?: number;
 }
 
+/** Size metrics for a code snippet, reported in telemetry. */
+interface ICodeMetrics {
+	codeLength: number;
+	codeLineCount: number;
+}
+
+/** Context shared by the telemetry log helpers for a single invocation. */
+interface ILogContext extends ICodeMetrics {
+	wasDeferred: boolean;
+	/** {@link Date.now} timestamp captured when the invocation began. */
+	startedAt: number;
+}
+
+/** Measure the size of a (possibly absent) code snippet. */
+function measureCode(code: string | undefined): ICodeMetrics {
+	return {
+		codeLength: code?.length ?? 0,
+		codeLineCount: code ? code.split('\n').length : 0,
+	};
+}
+
 export class RunPlaywrightCodeTool implements IToolImpl {
+	/**
+	 * Code-size metrics carried from the initiating call of a deferred execution
+	 * to its resume(s), keyed by `deferredResultId`. A deferred execution is
+	 * logged exactly once - when it finally settles on a resume - but resumes
+	 * don't carry the original `code`, so we stash its size here when the
+	 * execution first defers and recover it on settle.
+	 */
+	private readonly _deferredCodeMetrics = new Map<string, { codeLength: number; codeLineCount: number }>();
+
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -92,21 +122,23 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		}
 
 		const wasDeferred = !!params.deferredResultId;
-		// Resumed deferred calls don't carry the original code; its size was
-		// already logged by the initial invocation, so report 0 here to match
-		// the documented telemetry schema.
-		const codeLength = wasDeferred ? 0 : (params.code?.length ?? 0);
-		const codeLineCount = wasDeferred ? 0 : (params.code ? params.code.split('\n').length : 0);
-		const startedAt = Date.now();
+		// A deferred execution is logged once, when it finally settles on a resume.
+		// Resumes don't carry the original `code`, so recover the size captured when
+		// the execution first deferred; otherwise measure whatever code we were given.
+		const carried = params.deferredResultId ? this._deferredCodeMetrics.get(params.deferredResultId) : undefined;
+		const codeMetrics = carried ?? measureCode(params.code);
+		const ctx = { wasDeferred, startedAt: Date.now(), ...codeMetrics };
 
 		// Resume waiting for a deferred execution.
 		if (wasDeferred) {
 			try {
 				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId!, params.timeoutMs ?? 5_000);
-				this._logTelemetry(result, { wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
+				this._trackDeferral(result, codeMetrics, params.deferredResultId);
+				this._logTelemetry(result, ctx);
 				return invokeFunctionResultToToolResult(result);
 			} catch (e) {
-				this._logInvocationFailureTelemetry({ wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
+				this._deferredCodeMetrics.delete(params.deferredResultId!);
+				this._logInvocationFailureTelemetry(ctx);
 				return errorResult(e instanceof Error ? e.message : String(e));
 			}
 		}
@@ -119,18 +151,33 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		try {
 			result = await this.playwrightService.invokeFunction(sessionId, params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
 		} catch (e) {
-			this._logInvocationFailureTelemetry({ wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
-			const message = e instanceof Error ? e.message : String(e);
-			return errorResult(`Code execution failed: ${message}`);
+			this._logInvocationFailureTelemetry(ctx);
+			return errorResult(`Code execution failed: ${e instanceof Error ? e.message : String(e)}`);
 		}
 
-		this._logTelemetry(result, { wasDeferred, codeLength, codeLineCount, durationMs: Date.now() - startedAt });
+		this._trackDeferral(result, codeMetrics);
+		this._logTelemetry(result, ctx);
 		return invokeFunctionResultToToolResult(result, params.code.trim());
+	}
+
+	/**
+	 * Maintain the carry-forward code metrics across a deferred execution: drop
+	 * the entry for the call we just resumed (if any) and, when the execution
+	 * defers (again), stash the metrics under the new deferral id so the eventual
+	 * settle can report the original code size.
+	 */
+	private _trackDeferral(result: { deferredResultId?: string }, metrics: ICodeMetrics, resumedDeferredId?: string): void {
+		if (resumedDeferredId) {
+			this._deferredCodeMetrics.delete(resumedDeferredId);
+		}
+		if (result.deferredResultId) {
+			this._deferredCodeMetrics.set(result.deferredResultId, metrics);
+		}
 	}
 
 	private _logTelemetry(
 		result: { error?: string; deferredResultId?: string; pageMethodsCalled?: Readonly<Record<string, number>> },
-		ctx: { wasDeferred: boolean; codeLength: number; codeLineCount: number; durationMs: number }
+		ctx: ILogContext
 	): void {
 		// Skip in-progress deferred runs so each user-visible invocation produces
 		// at most one event (we'll log when the resumed call eventually settles).
@@ -141,20 +188,20 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			pageMethodsCalled: result.pageMethodsCalled ?? {},
 			success: !result.error,
 			wasDeferred: ctx.wasDeferred,
-			durationMs: ctx.durationMs,
+			durationMs: Date.now() - ctx.startedAt,
 			codeLength: ctx.codeLength,
 			codeLineCount: ctx.codeLineCount,
 		});
 	}
 
-	private _logInvocationFailureTelemetry(ctx: { wasDeferred: boolean; codeLength: number; codeLineCount: number; durationMs: number }): void {
+	private _logInvocationFailureTelemetry(ctx: ILogContext): void {
 		// Infrastructure failure (IPC threw, no result available). API-usage
 		// data lives in the shared process and is lost in this case.
 		logRunPlaywrightCode(this.telemetryService, {
 			pageMethodsCalled: {},
 			success: false,
 			wasDeferred: ctx.wasDeferred,
-			durationMs: ctx.durationMs,
+			durationMs: Date.now() - ctx.startedAt,
 			codeLength: ctx.codeLength,
 			codeLineCount: ctx.codeLineCount,
 		});
@@ -163,8 +210,8 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 
 type RunPlaywrightCodeEvent = {
 	pageMethodsCalled: string;
+	pageMethodsCalledDcount: number;
 	pageMethodsCalledCount: number;
-	pageMethodsCalledTotal: number;
 	success: number;
 	wasDeferred: number;
 	durationMs: number;
@@ -174,13 +221,13 @@ type RunPlaywrightCodeEvent = {
 
 type RunPlaywrightCodeClassification = {
 	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order. Names outside the known Playwright API allowlist are bucketed under `<other>`. Truncated to 100 entries.' };
-	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked. Full count even when `pageMethodsCalled` is truncated.' };
-	pageMethodsCalledTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total method calls including duplicates (sum of all per-method counts).' };
+	pageMethodsCalledDcount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked. Full count even when `pageMethodsCalled` is truncated.' };
+	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total method calls including duplicates (sum of all per-method counts).' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the code completed without error, 0 otherwise.' };
 	wasDeferred: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if this was a resumed deferred run, 0 otherwise.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock time in ms for this invocation.' };
-	codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the supplied code. 0 for resumed deferred calls.' };
-	codeLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Line count of the supplied code. 0 for resumed deferred calls.' };
+	codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the executed code. For resumed deferred runs this is carried from the initiating call.' };
+	codeLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Line count of the executed code. For resumed deferred runs this is carried from the initiating call.' };
 	owner: 'jruales';
 	comment: 'Tracks how the run_playwright_code chat tool is exercised so we can identify common patterns that should be promoted to dedicated browser tools.';
 };
@@ -211,8 +258,8 @@ function logRunPlaywrightCode(
 		'integratedBrowser.tools.runPlaywrightCode.completed',
 		{
 			pageMethodsCalled: serialized,
-			pageMethodsCalledCount: entries.length,
-			pageMethodsCalledTotal: total,
+			pageMethodsCalledDcount: entries.length,
+			pageMethodsCalledCount: total,
 			success: data.success ? 1 : 0,
 			wasDeferred: data.wasDeferred ? 1 : 0,
 			durationMs: Math.round(data.durationMs),
