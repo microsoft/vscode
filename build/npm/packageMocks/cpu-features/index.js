@@ -3,4 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-throw new Error('cpu-features module is not available');
+const err = new Error("Cannot find module 'cpu-features'");
+err.code = 'MODULE_NOT_FOUND';
+throw err;
