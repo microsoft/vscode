@@ -633,6 +633,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		updateFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
 		revealSessionComment: async () => { },

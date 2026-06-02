@@ -698,6 +698,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 					actionGroup => actionGroup === TitleBarLeadingActionsGroup
 				);
 				actions.primary.push(...leading.primary);
+				actions.primary.push(new Separator());
 			}
 
 			// --- Editor Actions
@@ -710,10 +711,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 					actions.primary.push(...editorActions.actions.primary);
 					actions.secondary.push(...editorActions.actions.secondary);
-
-					if (editorActions.actions.primary.length > 0) {
-						actions.primary.push(new Separator());
-					}
+					actions.primary.push(new Separator());
 
 					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
 				}

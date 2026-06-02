@@ -22,8 +22,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
-	/** Output channel ID for remote provider logs. */
-	outputChannelId?: string;
 	/**
 	 * Establish (or re-establish) the connection for this host on demand.
 	 * Tears down any existing connection first. Present on remote providers

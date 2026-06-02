@@ -10,6 +10,7 @@ import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLevel, type IOtlpLogRecord, type OtlpLogLevelName } from '../../../../../platform/agentHost/common/otlp/otlpLogEmitter.js';
 import { AgentHostClientState, type RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 
 /**
@@ -57,7 +58,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 	) {
 		super();
 
-		this._channelId = `agentHost.otlp.${address}`;
+		this._channelId = remoteAgentHostLogOutputChannelId(address);
 		this._channelLabel = `Agent Host (${displayName})`;
 
 		// Wire up subscribe/teardown around the client's connection state.

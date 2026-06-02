@@ -6,7 +6,7 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
-import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
@@ -1075,6 +1075,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return `show-more:${element.kind}:${element.mode}:${element.sectionLabel}`;
 						}
 						return element.resource.toString();
+					},
+					getGroupId: (element: SessionListItem) => {
+						if (isSessionSection(element)) {
+							return NotSelectableGroupId;
+						}
+						if (isSessionShowMore(element)) {
+							return NotSelectableGroupId;
+						}
+						return 1;
 					}
 				},
 				horizontalScrolling: false,
