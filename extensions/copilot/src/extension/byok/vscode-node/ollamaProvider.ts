@@ -158,7 +158,8 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 			maxInputTokens: contextWindow - outputTokens,
 			vision: modelInfo.capabilities.includes('vision'),
 			toolCalling: modelInfo.capabilities.includes('tools'),
-			supportsReasoningEffort: modelInfo.supportedReasoningEfforts ?? modelInfo.supportsReasoningEffort
+			supportsReasoningEffort: modelInfo.supportedReasoningEfforts ?? modelInfo.supportsReasoningEffort,
+			defaultReasoningEffort: modelInfo.defaultReasoningEffort,
 		};
 
 		return resolveModelInfo(modelId, this._name, this._knownModels, modelCapabilities);

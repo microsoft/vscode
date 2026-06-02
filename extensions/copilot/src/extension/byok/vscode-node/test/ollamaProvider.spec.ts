@@ -179,4 +179,90 @@ describe('OllamaLMProvider', () => {
 			},
 		});
 	});
+
+	it('uses the explicit default reasoning effort from Ollama /api/show instead of the heuristic default', async () => {
+		const ollamaBaseUrl = 'http://localhost:11434';
+
+		const fetch = vi.fn(async (url: string, options: { body?: string }) => {
+			if (url === `${ollamaBaseUrl}/api/version`) {
+				return { json: async () => ({ version: '0.6.4' }) };
+			}
+			if (url === `${ollamaBaseUrl}/api/tags`) {
+				return { json: async () => ({ models: [{ model: 'gpt-5.4' }] }) };
+			}
+			if (url === `${ollamaBaseUrl}/api/show`) {
+				return {
+					json: async () => ({
+						template: '',
+						capabilities: [],
+						details: { family: 'gpt-5.4' },
+						remote_model: 'gpt-5.4',
+						supportedReasoningEfforts: ['low', 'medium', 'high'],
+						defaultReasoningEffort: 'high',
+						model_info: {
+							'general.basename': 'Codex GPT 5.4',
+							'general.architecture': 'gpt',
+							'gpt.context_length': 128000,
+						},
+					})
+				};
+			}
+			throw new Error(`Unexpected URL in test: ${url}`);
+		});
+
+		const logService = {
+			_serviceBrand: undefined,
+			trace: vi.fn(),
+			debug: vi.fn(),
+			info: vi.fn(),
+			warn: vi.fn(),
+			error: vi.fn(),
+			show: vi.fn(),
+			createSubLogger: vi.fn(),
+			withExtraTarget: vi.fn(),
+		};
+		logService.createSubLogger.mockReturnValue(logService);
+		logService.withExtraTarget.mockReturnValue(logService);
+
+		const provider = new OllamaLMProvider(
+			{
+				getAPIKey: vi.fn().mockResolvedValue(undefined),
+				storeAPIKey: vi.fn().mockResolvedValue(undefined),
+				deleteAPIKey: vi.fn().mockResolvedValue(undefined),
+				getStoredModelConfigs: vi.fn().mockResolvedValue({}),
+				saveModelConfig: vi.fn().mockResolvedValue(undefined),
+				removeModelConfig: vi.fn().mockResolvedValue(undefined),
+			} as any,
+			{ fetch } as any,
+			{
+				isConfigured: vi.fn().mockReturnValue(false),
+				getConfig: vi.fn(),
+				setConfig: vi.fn(),
+			} as any,
+			logService as any,
+			{
+				createInstance: vi.fn().mockReturnValue({}),
+			} as any,
+			{} as any
+		);
+
+		const tokenSource = new vscode.CancellationTokenSource();
+		const models = await provider.provideLanguageModelChatInformation(
+			{
+				silent: false,
+				configuration: { url: ollamaBaseUrl },
+			},
+			tokenSource.token
+		);
+
+		expect(models).toHaveLength(1);
+		expect(models[0].configurationSchema).toEqual({
+			properties: {
+				reasoningEffort: expect.objectContaining({
+					default: 'high',
+					enum: ['low', 'medium', 'high'],
+				}),
+			},
+		});
+	});
 });
