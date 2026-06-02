@@ -1044,7 +1044,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
 	position: relative;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
@@ -1054,9 +1054,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
-/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+/* Nudge icon position to ensure it looks optically aligned within the button */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
 	display: inline-block;
+	transform: translateX(-0.5px);
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
@@ -1064,7 +1065,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
@@ -1076,7 +1077,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	transition: background-color 120ms ease;
 }
 
