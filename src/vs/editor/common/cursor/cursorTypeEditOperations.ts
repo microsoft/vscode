@@ -23,6 +23,7 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/e
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
+import { getStringConcatenation } from '../languages/stringConcatenation.js';
 import { CompositionOutcome } from './cursorTypeOperations.js';
 
 export class AutoIndentOperation {
@@ -532,6 +533,11 @@ export class EnterOperation {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
+
+		const excludedPatterns = config.stringConcatenation?.excludedPatterns ?? [];
+
+		const stringConcatAction = getStringConcatenation(model, range, config.stringConcatenationOnEnter, excludedPatterns,);
+
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return typeCommand(range, '\n', keepPosition);
 		}
@@ -541,6 +547,26 @@ export class EnterOperation {
 			return typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
+
+		if (stringConcatAction) {
+			const lineText = model.getLineContent(range.startLineNumber);
+			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+
+			// Expand range to cover the whole line, replacing it entirely
+			const fullLineRange = new Range(
+				range.startLineNumber,
+				1,
+				range.endLineNumber,
+				model.getLineMaxColumn(range.endLineNumber)
+			);
+
+			return typeCommand(
+				fullLineRange,
+				stringConcatAction.beforeText + '\n' + config.normalizeIndentation(indentation) + stringConcatAction.afterText,
+				keepPosition
+			);
+		}
+
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special

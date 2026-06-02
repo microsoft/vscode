@@ -52,5 +52,14 @@
 			"beforeText": "^\\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*?:\\s*$",
 			"action": { "indent": "indent" }
 		}
-	]
+	],
+	"stringConcatenation":{
+		"excludedPatterns":[
+			"^\\s*import",
+			"^\\s*from",
+			"^\\s*#",
+			"^\\s*@",
+			"^\\s*raise\\s+\\w+\\("
+		]
+	}
 }

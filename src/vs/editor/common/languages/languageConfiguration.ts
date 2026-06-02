@@ -38,6 +38,17 @@ export interface CommentRule {
 }
 
 /**
+ * Stores the excluded patterns per-language
+ * for string concatenation logic
+ */
+export interface IStringConcatenation {
+	/**
+	 * RegEx patterns where string concatenation should not be applied
+	 */
+	excludedPatterns: string[];
+}
+
+/**
  * The language configuration interface defines the contract between extensions and
  * various editor features, like automatic bracket insertion, automatic indentation etc.
  */
@@ -103,6 +114,11 @@ export interface LanguageConfiguration {
 	__electricCharacterSupport?: {
 		docComment?: IDocComment;
 	};
+
+	/**
+	 * The language's string concatenation excluded patterns.
+	 */
+	stringConcatenation?: IStringConcatenation;
 }
 
 /**
@@ -258,6 +274,20 @@ export interface EnterAction {
 	 * Describes the number of characters to remove from the new line's indentation.
 	 */
 	removeText?: number;
+}
+
+/**
+ * @internal
+ */
+export interface StringConcatenationOnEnterAction {
+	/**
+	 * Previous line's text
+	 */
+	beforeText: string;
+	/**
+	 * Concatenated text that has the correspondent per-language operator
+	 */
+	afterText: string;
 }
 
 /**
