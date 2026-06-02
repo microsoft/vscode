@@ -2571,6 +2571,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
 			} else if (attachment.type === 'blob') {
 				lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
+			} else if (attachment.type === 'extension_context') {
+				lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
 			} else {
 				lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
 			}
