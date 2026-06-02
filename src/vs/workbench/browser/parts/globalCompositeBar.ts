@@ -8,7 +8,7 @@ import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionba
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -44,6 +44,9 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+
+const GITHUB_AUTH_PROVIDER_ID = 'github';
+const GITHUB_PROFILE_IMAGE_SIZE = 64;
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -261,9 +264,14 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 	private readonly groupedAccounts: Map<string, (AuthenticationSessionAccount & { canSignOut: boolean })[]> = new Map();
 	private readonly problematicProviders: Set<string> = new Set();
+	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
 
 	private initialized = false;
 	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
+	private accountProfileImageElement: HTMLImageElement | undefined;
+	private currentProfileImageUrl: string | undefined;
+	private loadedProfileImageUrl: string | undefined;
+	private profileImageRequestCounter = 0;
 
 	constructor(
 		contextMenuActionsProvider: () => IAction[],
@@ -301,11 +309,17 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private registerListeners(): void {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async (e) => {
 			await this.addAccountsFromProvider(e.id);
+			if (e.id === GITHUB_AUTH_PROVIDER_ID) {
+				this.refreshAccountProfileImage();
+			}
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider((e) => {
 			this.groupedAccounts.delete(e.id);
 			this.problematicProviders.delete(e.id);
+			if (e.id === GITHUB_AUTH_PROVIDER_ID) {
+				this.refreshAccountProfileImage();
+			}
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
@@ -320,6 +334,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				} catch (e) {
 					this.logService.error(e);
 				}
+			}
+			if (e.providerId === GITHUB_AUTH_PROVIDER_ID) {
+				this.refreshAccountProfileImage();
 			}
 		}));
 	}
@@ -351,6 +368,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 
 		this.initialized = true;
+		this.refreshAccountProfileImage();
 	}
 
 	//#region overrides
@@ -577,7 +595,99 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		this.accountProfileImageElement = append(this.label, $('img.workbench-account-profile-image', { 'aria-hidden': 'true', draggable: 'false' })) as HTMLImageElement;
+		this.accountProfileImageElement.decoding = 'async';
+		this.accountProfileImageElement.referrerPolicy = 'no-referrer';
+		this.updateAccountProfileImage();
+	}
+
+	private refreshAccountProfileImage(): void {
+		const profileImageUrl = getGitHubAccountProfileImageUrl(this.groupedAccounts.get(GITHUB_AUTH_PROVIDER_ID)?.[0]?.label);
+		if (profileImageUrl === this.currentProfileImageUrl) {
+			return;
+		}
+
+		this.currentProfileImageUrl = profileImageUrl;
+		this.loadedProfileImageUrl = undefined;
+		this.avatarLoadDisposable.clear();
+		const requestId = ++this.profileImageRequestCounter;
+
+		if (!profileImageUrl) {
+			this.updateAccountProfileImage();
+			return;
+		}
+
+		const image = new Image();
+		image.referrerPolicy = 'no-referrer';
+		const clearHandlers = () => {
+			image.onload = null;
+			image.onerror = null;
+		};
+		image.onload = () => {
+			if (requestId !== this.profileImageRequestCounter) {
+				return;
+			}
+
+			this.loadedProfileImageUrl = profileImageUrl;
+			this.updateAccountProfileImage();
+			clearHandlers();
+		};
+		image.onerror = () => {
+			if (requestId !== this.profileImageRequestCounter) {
+				return;
+			}
+
+			this.loadedProfileImageUrl = undefined;
+			this.updateAccountProfileImage();
+			clearHandlers();
+		};
+		this.avatarLoadDisposable.value = toDisposable(() => {
+			clearHandlers();
+			image.src = '';
+		});
+		image.src = profileImageUrl;
+		this.updateAccountProfileImage();
+	}
+
+	private updateAccountProfileImage(): void {
+		if (!this.accountProfileImageElement) {
+			return;
+		}
+
+		const action = this.action as CompositeBarAction;
+		const hasLoadedProfileImage = !!this.loadedProfileImageUrl;
+		const classNames = hasLoadedProfileImage
+			? ['workbench-account-profile-image-container']
+			: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON);
+
+		if (action.compositeBarActionItem.classNames?.join(' ') !== classNames.join(' ')) {
+			action.compositeBarActionItem = {
+				...action.compositeBarActionItem,
+				classNames,
+			};
+		}
+
+		if (this.loadedProfileImageUrl) {
+			if (this.accountProfileImageElement.src !== this.loadedProfileImageUrl) {
+				this.accountProfileImageElement.src = this.loadedProfileImageUrl;
+			}
+		} else {
+			this.accountProfileImageElement.removeAttribute('src');
+		}
+	}
+
 	//#endregion
+}
+
+function getGitHubAccountProfileImageUrl(accountName: string | undefined): string | undefined {
+	if (!accountName?.trim()) {
+		return undefined;
+	}
+
+	return `https://github.com/${encodeURIComponent(accountName.trim())}.png?size=${GITHUB_PROFILE_IMAGE_SIZE}`;
 }
 
 export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
