@@ -4071,6 +4071,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.gemini3LowReasoningEffort.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.gemini3LowReasoningEffort.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
