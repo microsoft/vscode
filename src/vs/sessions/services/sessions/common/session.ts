@@ -134,6 +134,12 @@ export interface IGitHubInfo {
 	};
 }
 
+export interface ISessionChangesSummary {
+	readonly files: number;
+	readonly additions: number;
+	readonly deletions: number;
+}
+
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
 export interface ISessionChangeset {
@@ -143,10 +149,41 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
+	/** Optional category for the changeset. */
+	readonly category?: string;
 	/** Whether the changeset is enabled. */
-	readonly enabled: IObservable<boolean>;
-	/** File changes associated with this changeset. */
+	readonly isEnabled: IObservable<boolean>;
+	/**
+	 * Whether this changeset should be selected by default when the UI
+	 * switches to its session. May change with session state (e.g. an
+	 * archived session may default to a snapshot changeset rather than a
+	 * live one). Producers should ensure at most one changeset in a
+	 * session reports `true` at any time.
+	 */
+	readonly isDefault: IObservable<boolean>;
+	/**
+	 * Whether this changeset is currently loading its file changes.
+	 */
+	readonly isLoadingChanges: IObservable<boolean>;
+	/** Observable for the file changes in this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Reference to the original checkpoint for this changeset. */
+	readonly originalCheckpointRef: IObservable<string | undefined>;
+	/** Reference to the modified checkpoint for this changeset. */
+	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+}
+
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
 }
 
 export interface IChatCheckpoints {
@@ -175,8 +212,6 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Changesets produced by the chat. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -221,13 +256,14 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Summary of file changes produced by the session. */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
@@ -241,17 +277,10 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**
@@ -276,6 +305,16 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether the session's underlying runtime (e.g. a cloud agent host)
+	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
+	 * environment provisioning. When `true`, the agents-window
+	 * client-side dispatcher must NOT run those tasks itself to avoid
+	 * double-execution. Defaults to `false` for sessions backed by local
+	 * or remote agent hosts, where the client is the only thing that
+	 * could trigger them.
+	 */
+	readonly runsWorktreeCreatedTasks?: boolean;
 }
 
 /**

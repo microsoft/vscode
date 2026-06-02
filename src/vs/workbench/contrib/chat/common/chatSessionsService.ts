@@ -31,6 +31,30 @@ export interface IChatSessionCommandContribution {
 	readonly when?: string;
 }
 
+export interface IChatSessionProviderOptionModelMetadata {
+	readonly name: string;
+	readonly id: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tooltip?: string;
+	readonly pricing?: string;
+	readonly multiplierNumeric?: number;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly priceCategory?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+	};
+}
+
 export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
@@ -40,6 +64,8 @@ export interface IChatSessionProviderOptionItem {
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
 	readonly slashCommand?: string;
+	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 	// [key: string]: any;
 }
 
@@ -134,6 +160,13 @@ export interface IChatSessionItem {
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
 	readonly metadata?: IChatSessionItemMetadata;
+	/**
+	 * Resource identifier the item was previously known by. When set, host-stored
+	 * per-resource state (archive, pin, read) recorded under that URI is adopted
+	 * forward onto {@link resource} on first state read, and the legacy entry is
+	 * removed. Scheme must match {@link resource}'s scheme; otherwise ignored.
+	 */
+	readonly legacyResource?: URI;
 }
 
 export interface IChatSessionItemMetadata {
@@ -184,6 +217,8 @@ export type IChatSessionHistoryItem = {
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
 	modeInstructions?: IChatRequestModeInstructions;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -193,6 +228,12 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+export interface IChatSessionServerRequest {
+	readonly prompt: string;
+	readonly variableData?: IChatRequestVariableData;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
+}
 
 /**
  * A set of well-known session types
@@ -204,7 +245,7 @@ export namespace SessionType {
 	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
-	export const AgentHostCopilot = 'agent-host-copilot';
+	export const AgentHostCopilot = 'agent-host-copilotcli';
 }
 
 /**
@@ -248,7 +289,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
+	readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
@@ -330,18 +371,50 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
 }
 
 /**
  * Resource attachment associated with a completion item. The workbench
  * adds it to the input's variable model when the item is accepted.
  */
-export interface IChatInputCompletionAttachment {
+export interface IChatInputCompletionResourceAttachment {
 	readonly kind: 'resource';
 	readonly uri: URI;
 	readonly displayName?: string;
 	readonly isDirectory?: boolean;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Command attachment associated with a completion item.
+ */
+export interface IChatInputCompletionCommandAttachment {
+	readonly kind: 'command';
+	readonly command: string;
+	readonly description: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Skill attachment associated with a completion item. The workbench
+ * adds it to the input's variable model when the item is accepted.
+ */
+export interface IChatInputCompletionSkillAttachment {
+	readonly kind: 'skill';
+	readonly uri: URI;
+	readonly displayName?: string;
+	readonly description?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a

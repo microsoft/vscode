@@ -35,7 +35,7 @@ import { IIntentService } from '../../intents/node/intentService';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
-import { formatAutoModeDetails, formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatAutoModeDetails, formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 import { ContributedToolName } from '../../tools/common/toolNames';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
 import { Conversation, getGlobalContextCacheKey, GlobalContextMessageMetadata, ICopilotChatResult, ICopilotChatResultIn, normalizeSummariesOnRounds, RenderedUserMessageMetadata, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
@@ -266,12 +266,10 @@ export class ChatParticipantRequestHandler {
 					&& this._experimentationService.getTreatmentVariable<boolean>('copilotchat.hideAutoModelName') === true;
 				if (hideAutoModelName) {
 					result.details = formatAutoModeDetails(creditsUsed, endpoint.multiplier);
-				} else if (creditsUsed !== undefined) {
-					result.details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
+				} else if (this._authService.copilotToken?.isNoAuthUser) {
+					result.details = endpoint.name;
 				} else {
-					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
-						? `${endpoint.name}`
-						: `${endpoint.name} • ${endpoint.multiplier}x`;
+					result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 				}
 			}
 

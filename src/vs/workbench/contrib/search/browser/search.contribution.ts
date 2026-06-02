@@ -314,6 +314,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
+		'search.experimental.useIgnoreFilesInFindFiles': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.experimental.useIgnoreFilesInFindFiles', "When enabled, the legacy `findFiles` extension API honors the user's `#search.useIgnoreFiles#` setting instead of always ignoring `.gitignore`. Extensions that explicitly pass `null` as the `exclude` argument still get unfiltered results. Telemetry is emitted regardless of this setting to help decide future defaults."),
+			tags: ['experimental'],
+		},
 		'search.searchView.semanticSearchBehavior': {
 			type: 'string',
 			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the Search view."),

@@ -110,7 +110,10 @@ function configureReporter(capiClientService: ICAPIClientService, envService: IE
 
 	client.context.tags[client.context.keys.sessionId] = envService.sessionId;
 
-	client.config.endpointUrl = capiClientService.copilotTelemetryURL;
+	const telemetryURL = capiClientService.copilotTelemetryURL;
+	if (telemetryURL && URL.canParse(telemetryURL)) {
+		client.config.endpointUrl = telemetryURL;
+	}
 }
 
 function decorateWithCommonProperties(properties: TelemetryProperties, envService: IEnvService): TelemetryProperties {
