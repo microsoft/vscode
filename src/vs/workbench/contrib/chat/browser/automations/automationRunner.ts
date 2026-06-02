@@ -7,50 +7,38 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AutomationRunTrigger, IAutomation } from '../../common/automations/automation.js';
+import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
 
 /**
- * Owns the act of running a single automation: claim the per-automation
- * slot, record the run, drive the chat session (Phase 5), and report
- * success/failure back to {@link IAutomationService}.
+ * Placeholder runner used by the plain workbench build. It records a
+ * `pending` run, marks it `running`, then marks it `completed` after a
+ * short delay. It does not create a real chat session.
  *
- * Phase 4 ships a placeholder implementation: it records a `pending`
- * run, marks it `running` after a short delay, then completes it. This
- * is enough to validate the scheduler end-to-end before the real
- * session creation lands in Phase 5.
+ * The Agents window registers {@link SessionsAutomationRunner} (in
+ * `vs/sessions`) for the same {@link IAutomationRunner} decorator
+ * later in the singleton chain, so the placeholder only ever runs in
+ * builds that do not load the sessions layer.
  */
-export interface IAutomationRunner {
-	/**
-	 * Runs `automation` once. Resolves when the run is finished (or
-	 * skipped because another run was already in flight). Never throws;
-	 * failures are recorded on the run row.
-	 */
-	runOnce(
-		automation: IAutomation,
-		trigger: AutomationRunTrigger,
-		leaderWindowId: number,
-		token?: CancellationToken,
-	): Promise<void>;
-}
-
-export interface IPlaceholderAutomationRunnerOptions {
-	/**
-	 * Delay between recording the run as `running` and completing it.
-	 * Tests pass 0 to remove the artificial pause.
-	 */
-	readonly placeholderRunDurationMs?: number;
-}
-
 export class PlaceholderAutomationRunner implements IAutomationRunner {
 
-	private readonly _placeholderRunDurationMs: number;
+	declare readonly _serviceBrand: undefined;
+
+	/**
+	 * Delay between recording the run as `running` and completing it.
+	 * Exposed as a setter so tests can drive it to 0 without going
+	 * through the DI registration.
+	 */
+	private _runDurationMs = 1_000;
 
 	constructor(
-		private readonly automationService: IAutomationService,
-		private readonly logService: ILogService,
-		options: IPlaceholderAutomationRunnerOptions = {},
-	) {
-		this._placeholderRunDurationMs = options.placeholderRunDurationMs ?? 1_000;
+		@IAutomationService private readonly automationService: IAutomationService,
+		@ILogService private readonly logService: ILogService,
+	) { }
+
+	/** Test-only seam. */
+	setRunDurationForTesting(ms: number): void {
+		this._runDurationMs = ms;
 	}
 
 	async runOnce(
@@ -73,8 +61,8 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 			runId = run.id;
 			await this.automationService.updateRun(runId, { status: 'running' });
 
-			if (this._placeholderRunDurationMs > 0) {
-				await timeout(this._placeholderRunDurationMs, token);
+			if (this._runDurationMs > 0) {
+				await timeout(this._runDurationMs, token);
 			}
 
 			if (token.isCancellationRequested) {
