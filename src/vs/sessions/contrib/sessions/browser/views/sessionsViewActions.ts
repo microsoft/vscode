@@ -757,6 +757,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		for (let i = 0; i < sessions.length - 1; i++) {
 			const session = sessions[i];
@@ -768,6 +769,8 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		await openSessionToTheSide(sessionsManagementService, sessions[sessions.length - 1]);
+
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 });
 
