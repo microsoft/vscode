@@ -20,6 +20,9 @@ interface OllamaModelInfoAPIResponse {
 	capabilities: string[];
 	details: { family: string };
 	remote_model?: string;
+	supportsReasoningEffort?: string[];
+	supportedReasoningEfforts?: string[];
+	defaultReasoningEffort?: string;
 	model_info?: {
 		'general.basename': string;
 		'general.architecture': string;
@@ -116,7 +119,8 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 					maxOutputTokens: modelInfo.capabilities.limits?.max_output_tokens ?? 4096,
 					name: modelInfo.name,
 					toolCalling: !!modelInfo.capabilities.supports.tool_calls,
-					vision: !!modelInfo.capabilities.supports.vision
+					vision: !!modelInfo.capabilities.supports.vision,
+					supportsReasoningEffort: modelInfo.capabilities.supports.reasoning_effort,
 				};
 			}
 
@@ -153,7 +157,8 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 			maxOutputTokens: outputTokens,
 			maxInputTokens: contextWindow - outputTokens,
 			vision: modelInfo.capabilities.includes('vision'),
-			toolCalling: modelInfo.capabilities.includes('tools')
+			toolCalling: modelInfo.capabilities.includes('tools'),
+			supportsReasoningEffort: modelInfo.supportedReasoningEfforts ?? modelInfo.supportsReasoningEffort
 		};
 
 		return resolveModelInfo(modelId, this._name, this._knownModels, modelCapabilities);
