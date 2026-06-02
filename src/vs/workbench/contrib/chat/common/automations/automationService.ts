@@ -97,4 +97,11 @@ export interface IAutomationService {
 	 * message. Called on startup to recover from crashes.
 	 */
 	markStaleRunsFailed(reason: string): Promise<void>;
+
+	/**
+	 * Sets `lastRunAt = now` and recomputes `nextRunAt` from the current
+	 * schedule. Called by the scheduler right after dispatching a run, so
+	 * the same automation is not picked up twice on a subsequent tick.
+	 */
+	advanceNextRunAt(id: string, now?: Date): Promise<IAutomation | undefined>;
 }
