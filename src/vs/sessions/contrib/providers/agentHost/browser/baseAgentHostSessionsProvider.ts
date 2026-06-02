@@ -43,9 +43,9 @@ import { computePullRequestIcon } from '../../../github/common/types.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { AgentHostChangeset, createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -307,6 +307,11 @@ export class AgentHostSessionAdapter implements ISession {
 			this.isArchived.set(true, undefined);
 		}
 
+		const isActiveSessionObs = derived(this, reader => {
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			return isEqual(activeSession?.resource, this.resource);
+		});
+
 		// Set the changes summary from the catalogue. While the session is active,
 		// the changes summary will be updated through the session changeset changes.
 		// As soon as the session is no longer active, the changes summary will be
@@ -314,9 +319,14 @@ export class AgentHostSessionAdapter implements ISession {
 		this.setChangesSummary(metadata.changesets);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const { changesSummary, changes } = this._createChangesObservable(sessionUri);
+		const { changesSummary, changes } = this._createChangesObservable(sessionUri, isActiveSessionObs);
 		this.changesSummary = changesSummary;
 		this.changes = changes;
+
+		// Set the changesets from the catalogue. When the session is active,
+		// the changesets will be updated as some changeset details are being
+		// provided async (ex: description).
+		this.changesets = constObservable(createChangesets(this._options, isActiveSessionObs, metadata.changesets));
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -335,18 +345,12 @@ export class AgentHostSessionAdapter implements ISession {
 		};
 		this.mainChat = observableValue<IChat>(this, mainChat);
 		this.chats = this.mainChat.map(c => [c]);
-		this.changesets = createChangesets(this.sessionType, this.workspace, this.chats, _options.instantiationService);
 	}
 
-	private _createChangesObservable(sessionUri: URI): {
+	private _createChangesObservable(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
 		changesSummary: IObservable<ISessionChangesSummary | undefined>;
 		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	} {
-		const isActiveSessionObs = derived(this, reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
-			return isEqual(activeSession?.resource, this.resource);
-		});
-
 		const sessionChangesetStateObs = derived(this, reader => {
 			const connection = this._options.getConnection();
 			if (!connection) {
@@ -534,6 +538,28 @@ export class AgentHostSessionAdapter implements ISession {
 			}
 		});
 		return workspaceChanged;
+	}
+
+	updateChangesets(changesets: readonly ChangesetSummary[] | undefined) {
+		if (!changesets) {
+			return;
+		}
+
+		const existingChangesets = this.changesets.get();
+
+		for (const changeset of changesets) {
+			const existingChangeset = existingChangesets
+				.find(c => c.label === changeset.label);
+
+			if (!(existingChangeset instanceof AgentHostChangeset)) {
+				continue;
+			}
+
+			// Update the existing changeset with the new descritpion. This
+			// is currently a workaround as the changeset does not have the
+			// correct descritpion in the initial catalog.
+			existingChangeset.update(changeset);
+		}
 	}
 }
 
@@ -724,7 +750,7 @@ class NewSession extends Disposable {
 		const authPending = ctx.authenticationPending;
 		const loading = this._loading;
 		const chats = this._mainChat.map(c => [c]);
-		const changesets = createChangesets(ctx.sessionType.id, workspaceObs, chats, ctx.instantiationService);
+		const changesets = constObservable([]);
 		this.session = {
 			sessionId: `${ctx.providerId}:${resource.toString()}`,
 			resource,
@@ -2229,6 +2255,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleIsArchivedChanged(e.channel, e.action.isArchived);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
+			} else if (e.action.type === ActionType.SessionChangesetsChanged && isSessionAction(e.action)) {
+				this._handleChangesetsChanged(e.channel, e.action.changesets);
 			}
 		}));
 	}
@@ -2387,6 +2415,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			});
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	private _handleChangesetsChanged(session: string, changesets: readonly ChangesetSummary[] | undefined): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.updateChangesets(changesets);
+		}
 	}
 
 	/**
