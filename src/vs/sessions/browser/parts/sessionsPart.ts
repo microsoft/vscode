@@ -18,8 +18,7 @@ import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusCon
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
-import { disposableTimeout } from '../../../base/common/async.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -34,8 +33,6 @@ interface IGridSlot {
 	readonly disposables: DisposableStore;
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
-	/** Session bound to this slot before the in-progress reconciliation, used to detect in-place content swaps. */
-	previousBoundSessionId: string | undefined;
 }
 
 export class SessionsPart extends Part {
@@ -71,36 +68,6 @@ export class SessionsPart extends Part {
 	 * are visible.
 	 */
 	private readonly _slots: IGridSlot[] = [];
-
-	/**
-	 * The id of the session that last received auto-focus when it became active.
-	 * Tracked so we only focus the chat input when the active session actually
-	 * changes, rather than on every reconciliation.
-	 */
-	private _lastFocusedActiveSessionId: string | undefined;
-
-	/**
-	 * Delay (ms) before revealing the focus border / focusing the chat input of a
-	 * newly active session. Slightly longer than the input fade-in (the `opacity`
-	 * transitions in `sessionsPart.css` run at 0.15s) so the focus border is only
-	 * revealed once the fade has reliably finished, avoiding a flash.
-	 */
-	private static readonly SESSION_VIEW_FADE_IN_MS = 200;
-
-	/**
-	 * Extra delay (ms) added to the `activating` suppression beyond the deferred
-	 * focus so the suppression class is still present at the moment `focus()` runs
-	 * and the focus border lands. Without this buffer both timers would fire on the
-	 * same tick and — because the suppression is armed first — its removal would
-	 * run before the focus, briefly re-introducing the border flash.
-	 */
-	private static readonly ACTIVATING_FOCUS_BUFFER_MS = 16;
-
-	/** Holds the pending deferred auto-focus of the active session's chat input. */
-	private readonly _pendingFocus = this._register(new MutableDisposable());
-
-	/** Holds the pending removal of the `activating` class after a fade-in. */
-	private readonly _pendingActivating = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string>());
 	/** Fired when a session view in the grid receives keyboard focus. */
@@ -214,66 +181,20 @@ export class SessionsPart extends Part {
 			slot.disposables.dispose();
 		}
 
-		// Rebind each slot to its session by position (or to undefined placeholder),
-		// remembering the previous binding so we can detect when a slot's content
-		// is swapped in place (e.g. switching sessions within a single column).
+		// Rebind each slot to its session by position (or to undefined placeholder).
 		for (let i = 0; i < this._slots.length; i++) {
 			const slot = this._slots[i];
 			const session = visible[i];
-			slot.previousBoundSessionId = slot.boundSessionId;
 			slot.boundSessionId = session?.sessionId;
 			slot.view.openSession(session);
 		}
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
-		let activeSlot: IGridSlot | undefined;
-		let activeSlotBecameActive = false;
 		for (const slot of this._slots) {
 			const isActive = (slot.boundSessionId !== undefined && slot.boundSessionId === activeId) || this._slots.length === 1;
-			const wasActive = slot.view.element.classList.contains('is-active');
 			slot.view.element.classList.toggle('is-active', isActive);
 			slot.view.setActive(isActive);
-			if (isActive) {
-				activeSlot = slot;
-				activeSlotBecameActive = !wasActive;
-			}
-		}
-
-		// When a session transitions from inactive to active its chat input fades
-		// in (see the `is-active` opacity transitions in `sessionsPart.css`).
-		// Focusing the input — whether by the selecting click landing on the
-		// editor or by our deferred auto-focus below — adds the focus border. To
-		// stop that border from appearing around the still-fading placeholder, mark
-		// the view as `activating` for the duration of the fade; the CSS suppresses
-		// the focus border while that class is present. Arm this both when the
-		// slot newly becomes active (multi-column selection) and when the active
-		// slot keeps its `is-active` state but swaps in a different session (the
-		// single-column case, where `is-active` never toggles because there is only
-		// one slot) — in both cases the input re-renders and fades in.
-		if (activeSlot && (activeSlotBecameActive || activeSlot.previousBoundSessionId !== activeSlot.boundSessionId)) {
-			this._armActivating(activeSlot.view);
-		}
-
-		// Auto-focus the chat input of the newly active session so the user can
-		// start typing immediately. Only do this when the active session actually
-		// changes to avoid stealing focus on every reconciliation. The focus is
-		// deferred until after the fade-in completes so it lands once the input has
-		// settled (and so it runs after the selecting interaction has settled its
-		// own focus).
-		if (activeSlot && activeId !== undefined && activeId !== this._lastFocusedActiveSessionId) {
-			this._lastFocusedActiveSessionId = activeId;
-			const slotToFocus = activeSlot;
-			this._pendingFocus.value = disposableTimeout(() => {
-				const activeElement = slotToFocus.view.element.ownerDocument.activeElement;
-				if (activeElement && !isAncestor(activeElement, slotToFocus.view.element)) {
-					return;
-				}
-				slotToFocus.view.focus();
-			}, SessionsPart.SESSION_VIEW_FADE_IN_MS);
-		} else if (activeId === undefined) {
-			this._lastFocusedActiveSessionId = undefined;
-			this._pendingFocus.clear();
 		}
 
 		// Exit the grid's maximized state when the active session lands in a
@@ -291,24 +212,6 @@ export class SessionsPart extends Part {
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
 		this._multipleSessionsVisibleKey.set(visible.length > 1);
-	}
-
-	/**
-	 * Marks the given view as `activating` for the duration of the chat input
-	 * fade-in. While the class is present the CSS suppresses the focus border so
-	 * it does not flash around the still-fading input as the session is promoted
-	 * to active. Replaces any previously armed activation (only one view fades in
-	 * at a time) and clears the class once the fade completes.
-	 */
-	private _armActivating(view: SessionView): void {
-		for (const slot of this._slots) {
-			slot.view.element.classList.remove('activating');
-		}
-		view.element.classList.add('activating');
-		this._pendingActivating.value = disposableTimeout(
-			() => view.element.classList.remove('activating'),
-			SessionsPart.SESSION_VIEW_FADE_IN_MS + SessionsPart.ACTIVATING_FOCUS_BUFFER_MS
-		);
 	}
 
 	/**
@@ -386,7 +289,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
-		const slot: IGridSlot = { view, disposables, boundSessionId: undefined, previousBoundSessionId: undefined };
+		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
 		// (e.g. the new chat widget's workspace picker area) where focus would
@@ -394,15 +297,6 @@ export class SessionsPart extends Part {
 		// session) has nothing to activate.
 		const fireFocus = () => {
 			if (slot.boundSessionId !== undefined) {
-				// When the click/focus lands on a currently-inactive session it is
-				// about to be promoted to active and its chat input will fade in.
-				// Arm the `activating` suppression synchronously here — before the
-				// asynchronous session-activation autorun runs and (re-)applies it —
-				// so the focus border that this very click adds is suppressed for the
-				// whole fade instead of flashing around the still-fading input.
-				if (!slot.view.element.classList.contains('is-active')) {
-					this._armActivating(slot.view);
-				}
 				this._onDidFocusSession.fire(slot.boundSessionId);
 			}
 		};
