@@ -426,25 +426,24 @@ class PlaywrightSession extends Disposable {
 			logged: false,
 		};
 
+		let fn;
+		try {
+			fn = await this._compileFunction(fnDef);
+		} catch (err: unknown) {
+			// Surface compile/syntax errors as { error, summary }, like other execution failures.
+			this._logExecution(logCtx, false);
+			const summary = await this._getSummary(pageId);
+			return { error: err instanceof Error ? err.message : String(err), summary };
+		}
+		const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, logCtx.pageMethodsCalled), args);
+
 		if (timeoutMs !== undefined) {
-			let fn;
-			try {
-				fn = await this._compileFunction(fnDef);
-			} catch (err: unknown) {
-				// Surface compile/syntax errors as { error, summary }, like other execution failures.
-				this._logExecution(logCtx, false);
-				const summary = await this._getSummary(pageId);
-				return { error: err instanceof Error ? err.message : String(err), summary };
-			}
-			const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, logCtx.pageMethodsCalled), args);
 			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, logCtx);
 		}
 
 		let result, error;
 		try {
-			// Compile inside the try so syntax/compile errors surface as { error, summary }.
-			const fn = await this._compileFunction(fnDef);
-			result = await this._runAgainstPage(pageId, async (page) => fn(createPageApiProxy(page, logCtx.pageMethodsCalled), args));
+			result = await this._runAgainstPage(pageId, wrappedCallback);
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : String(err);
 		}
