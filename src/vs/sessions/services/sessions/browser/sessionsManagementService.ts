@@ -284,16 +284,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private onDidReplaceSession(from: ISession, to: ISession): void {
-		// Rewrite the id in the visibility model so the same grid slot is
-		// reused for the replaced session.
-		const wasActive = this._visibility.activeSession.get()?.sessionId === from.sessionId;
-		this._visibility.replaceId(from.sessionId, to.sessionId);
+		this._visibility.updateSession(from, to);
 
-		if (wasActive) {
-			this.setActiveSession(to, /* force */ true);
-		} else {
-			this._visibility.refresh();
-		}
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
