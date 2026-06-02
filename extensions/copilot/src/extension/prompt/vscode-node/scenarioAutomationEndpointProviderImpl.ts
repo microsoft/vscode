@@ -31,21 +31,24 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 			const getFirstNonCopilotModel = async () => {
 				const firstNonCopilotModel = await this._resolveFirstNonCopilotModel();
 				if (firstNonCopilotModel) {
-					this._logService.trace(`Using custom contributed chat model`);
+					this._logService.trace(`ScenarioAutomation: using BYOK model ${firstNonCopilotModel.vendor}/${firstNonCopilotModel.id}`);
 					return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, firstNonCopilotModel);
 				} else {
+					this._logService.error(`ScenarioAutomation: no non-copilot models registered`);
 					throw new Error('No custom contributed chat models found.');
 				}
 			};
 
 			// Check if we have a hard-coded family which indicates a copilot model
 			if (typeof requestOrFamilyOrModel === 'string') {
+				this._logService.trace(`ScenarioAutomation: redirecting family '${requestOrFamilyOrModel}' to BYOK`);
 				return getFirstNonCopilotModel();
 			}
 
 			// Check if a copilot model was explicitly requested in the picker
 			const model = 'model' in requestOrFamilyOrModel ? requestOrFamilyOrModel.model : requestOrFamilyOrModel;
 			if (model.vendor === 'copilot') {
+				this._logService.trace(`ScenarioAutomation: redirecting copilot model '${model.id}' to BYOK`);
 				return getFirstNonCopilotModel();
 			}
 		}
@@ -56,7 +59,7 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 			// In scenario automation, some model families (e.g. copilot-utility-small → gpt-4o-mini) may
 			// not be available via the capi proxy. Fall back to copilot-utility.
 			if (typeof requestOrFamilyOrModel === 'string') {
-				this._logService.trace(`ScenarioAutomation: failed to resolve model family '${requestOrFamilyOrModel}', falling back to copilot-utility`);
+				this._logService.warn(`ScenarioAutomation: failed to resolve model family '${requestOrFamilyOrModel}', falling back to copilot-utility: ${error}`);
 				return super.getChatEndpoint('copilot-utility');
 			}
 			throw error;
@@ -69,13 +72,15 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 			this._firstNonCopilotModelPromise = (async () => {
 				try {
 					const allModels = await lm.selectChatModels();
-					return allModels.find(m => m.vendor !== 'copilot');
+					const found = allModels.find(m => m.vendor !== 'copilot');
+					this._logService.info(`ScenarioAutomation: resolved BYOK model ${found ? `${found.vendor}/${found.id}` : '<none>'} from ${allModels.length} registered model(s)`);
+					return found;
 				} catch (err) {
+					this._logService.warn(`ScenarioAutomation: selectChatModels failed; clearing cache: ${err}`);
 					this._firstNonCopilotModelPromise = undefined;
 					throw err;
 				}
 			})();
-		}
 		}
 		return this._firstNonCopilotModelPromise;
 	}
@@ -91,6 +96,7 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 		this._invalidateDelayer = this._register(new Delayer<void>(MicrotaskDelay));
 		this._register(lm.onDidChangeChatModels(() => {
 			this._invalidateDelayer!.trigger(() => {
+				this._logService.info(`ScenarioAutomation: chat model set changed; invalidating cached BYOK model`);
 				this._firstNonCopilotModelPromise = undefined;
 			}).catch(() => { /* cancelled on dispose */ });
 		}));
