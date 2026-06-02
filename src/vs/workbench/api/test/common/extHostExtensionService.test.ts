@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { promiseWithResolvers, timeout } from '../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { AbstractExtHostExtensionService } from '../../common/extHostExtensionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -16,6 +17,7 @@ suite('ExtHostExtensionService', () => {
 		const log: string[] = [];
 		const deactivation = promiseWithResolvers<void>();
 		const exited = promiseWithResolvers<void>();
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 
 		interface ITerminateHarness {
 			terminate(reason: string, code?: number): void;
@@ -63,23 +65,28 @@ suite('ExtHostExtensionService', () => {
 			}
 		};
 
-		service.terminate('test-shutdown', 0);
-		await timeout(0);
+		try {
+			service.terminate('test-shutdown', 0);
+			await timeout(0);
 
-		assert.strictEqual(log.includes('deactivate:start'), true);
-		assert.strictEqual(log.includes('rpc:dispose'), false);
+			assert.strictEqual(log.includes('deactivate:start'), true);
+			assert.strictEqual(log.includes('rpc:dispose'), false);
 
-		deactivation.resolve();
-		await exited.promise;
+			deactivation.resolve();
+			await exited.promise;
 
-		assert.strictEqual(log.includes('deactivate:done'), true);
-		assert.strictEqual(log.includes('rpc:dispose'), true);
-		assert.ok(log.indexOf('rpc:dispose') > log.indexOf('deactivate:done'));
+			assert.strictEqual(log.includes('deactivate:done'), true);
+			assert.strictEqual(log.includes('rpc:dispose'), true);
+			assert.ok(log.indexOf('rpc:dispose') > log.indexOf('deactivate:done'));
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
 	});
 
 	test('terminate exits after timeout when extension deactivation hangs', async () => {
 		const log: string[] = [];
 		const exited = promiseWithResolvers<void>();
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 
 		interface ITerminateHarness {
 			terminate(reason: string, code?: number): void;
@@ -140,6 +147,7 @@ suite('ExtHostExtensionService', () => {
 			assert.strictEqual(log.includes('rpc:dispose'), true);
 			assert.ok(log.indexOf('rpc:dispose') < log.indexOf('host:exit'));
 		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
 			clock.restore();
 		}
 	});
