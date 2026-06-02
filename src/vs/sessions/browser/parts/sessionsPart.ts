@@ -35,6 +35,8 @@ interface IGridSlot {
 	boundSessionId: string | undefined;
 }
 
+const NO_PENDING_FOCUS = Symbol('NO_PENDING_FOCUS');
+
 export class SessionsPart extends Part {
 
 	override readonly minimumWidth: number = 300;
@@ -68,6 +70,7 @@ export class SessionsPart extends Part {
 	 * are visible.
 	 */
 	private readonly _slots: IGridSlot[] = [];
+	private _pendingFocusSessionId: string | undefined | typeof NO_PENDING_FOCUS = NO_PENDING_FOCUS;
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string>());
 	/** Fired when a session view in the grid receives keyboard focus. */
@@ -215,6 +218,7 @@ export class SessionsPart extends Part {
 		}
 
 		this._updateContextKeys(visible);
+		this._focusPendingSession();
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
@@ -274,13 +278,24 @@ export class SessionsPart extends Part {
 	/**
 	 * Moves keyboard focus into the session view hosting the given session id (or
 	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
-	 * the grid when it is only partially visible. No-op if no matching slot exists.
+	 * the grid when it is only partially visible. If the target slot is not ready
+	 * yet, focus is applied after the next visible-session reconciliation.
 	 */
 	focusSession(sessionId: string | undefined): void {
-		const slot = this._slots.find(s => s.boundSessionId === sessionId);
+		this._pendingFocusSessionId = sessionId;
+		this._focusPendingSession();
+	}
+
+	private _focusPendingSession(): void {
+		if (this._pendingFocusSessionId === NO_PENDING_FOCUS) {
+			return;
+		}
+
+		const slot = this._slots.find(s => s.boundSessionId === this._pendingFocusSessionId);
 		if (!slot) {
 			return;
 		}
+		this._pendingFocusSessionId = NO_PENDING_FOCUS;
 		this._revealView(slot.view);
 		slot.view.focus();
 	}

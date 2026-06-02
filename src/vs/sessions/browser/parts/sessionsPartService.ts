@@ -15,7 +15,6 @@ import { IActiveSession, ISessionsManagementService } from '../../services/sessi
 import { autorun } from '../../../base/common/observable.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { TimeoutTimer } from '../../../base/common/async.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -83,7 +82,6 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _mainPart: SessionsPart;
-	private readonly _focusSessionTimer = this._register(new TimeoutTimer());
 
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
@@ -133,8 +131,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusSession(session: IActiveSession | undefined): void {
-		const sessionId = session?.sessionId;
-		this._focusSessionTimer.cancelAndSet(() => this._mainPart.focusSession(sessionId), 0);
+		this._mainPart.focusSession(session?.sessionId);
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
