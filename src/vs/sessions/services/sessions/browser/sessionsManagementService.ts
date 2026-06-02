@@ -321,7 +321,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
 			const fallback = this._visibility.activeSession.get();
-			if (fallback) {
+			if (fallback && this.getSession(fallback.resource)) {
 				this.openSession(fallback.resource);
 			} else {
 				this.openNewSessionView();
