@@ -837,7 +837,7 @@ export interface ICopilotCLISession extends IDisposable {
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void>;
@@ -975,7 +975,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void> {
@@ -991,7 +991,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const previousRequestSnapshot = this.previousRequest;
 
 		const handled = this._requestLogger.captureInvocation(capturingToken, async () => {
-			await this.updateModel(model?.model, model?.reasoningEffort, authInfo, token);
+			await this.updateModel(model?.model, model?.reasoningEffort, model?.contextTier, authInfo, token);
 
 			if (isAlreadyBusyWithAnotherRequest) {
 				return this._handleRequestSteering(input, attachments, model, previousRequestSnapshot, token);
@@ -1023,7 +1023,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private async _handleRequestSteering(
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		previousRequestPromise: Promise<unknown>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
@@ -1065,7 +1065,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
@@ -1672,7 +1672,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		}
 	}
 
-	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
+	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, contextTier: 'default' | 'long_context' | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
 		// Where possible try to avoid an extra call to getSelectedModel by using cached value.
 		let currentModel: string | undefined = undefined;
 		if (modelId) {
@@ -1685,8 +1685,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (token.isCancellationRequested) {
 			return;
 		}
+		const optionsUpdate: Record<string, unknown> = {};
 		if (authInfo) {
-			this._sdkSession.updateOptions({ authInfo });
+			optionsUpdate.authInfo = authInfo;
+		}
+		if (contextTier) {
+			optionsUpdate.contextTier = contextTier;
+		}
+		if (Object.keys(optionsUpdate).length > 0) {
+			this._sdkSession.updateOptions(optionsUpdate);
 		}
 		if (modelId) {
 			if (modelId !== currentModel) {

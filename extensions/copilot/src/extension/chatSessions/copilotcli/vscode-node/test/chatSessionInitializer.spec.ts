@@ -73,6 +73,7 @@ class TestModels extends mock<ICopilotCLIModels>() {
 	declare readonly _serviceBrand: undefined;
 	override resolveModel = vi.fn(async (id: string) => id === 'known-model' ? 'resolved-model' : undefined);
 	override getDefaultModel = vi.fn(async () => 'default-model');
+	override getModels = vi.fn(async () => []);
 }
 
 class TestAgents extends mock<ICopilotCLIAgents>() {
