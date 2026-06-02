@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
-import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
@@ -40,6 +40,9 @@ const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
 KeybindingsRegistry.registerKeybindingRule({
 	id: ACTION_ID_NEW_SESSION,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
+	// Don't shadow Ctrl/Cmd+N when focus is in the editor area so the standard
+	// `workbench.action.files.newUntitledFile` command handles the shortcut.
+	when: EditorAreaFocusContext.negate(),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 });
 
