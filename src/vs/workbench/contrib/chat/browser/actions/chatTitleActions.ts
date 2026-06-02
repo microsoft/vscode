@@ -21,7 +21,7 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/editing/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, IChatService } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
@@ -71,11 +71,9 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Up,
-					reason: undefined
 				}
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
-			item.setVoteDownReason(undefined);
 		}
 	});
 
@@ -108,13 +106,7 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const reason = args[1];
-			if (typeof reason !== 'string') {
-				return;
-			}
-
 			item.setVote(ChatAgentVoteDirection.Down);
-			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
@@ -126,7 +118,6 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Down,
-					reason: item.voteDownReason
 				}
 			});
 		}

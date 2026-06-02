@@ -212,6 +212,22 @@ suite('TelemetryService', () => {
 		service.dispose();
 	});
 
+	test('setCommonProperty adds property to all subsequent events', function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('eventBeforeSet');
+		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
+		service.publicLog('eventAfterSet');
+
+		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
+		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+
+		service.dispose();
+	});
+
 	test('telemetry on by default', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);

@@ -5,9 +5,8 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IMcpGatewayServerInfo, IMcpGatewayService, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
+import { IMcpGatewayServerInfo, McpGatewayChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IMcpGatewayResult, IMcpGatewayResultServer, IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 
@@ -28,7 +27,7 @@ export class BrowserMcpGatewayService implements IWorkbenchMcpGatewayService {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	async createGateway(inRemote: boolean): Promise<IMcpGatewayResult | undefined> {
+	async createGateway(inRemote: boolean, chatSessionResource?: URI): Promise<IMcpGatewayResult | undefined> {
 		this._logService.debug(`[McpGateway][BrowserWorkbench] createGateway requested (inRemote=${inRemote})`);
 
 		// Browser can only create gateways in remote environment
@@ -46,8 +45,10 @@ export class BrowserMcpGatewayService implements IWorkbenchMcpGatewayService {
 		this._logService.info('[McpGateway][BrowserWorkbench] Creating remote gateway via remote server');
 		// Use the remote server's gateway service
 		return connection.withChannel(McpGatewayChannelName, async channel => {
-			const service = ProxyChannel.toService<IMcpGatewayService>(channel);
-			const info = await service.createGateway(undefined);
+			const info = await channel.call<{ gatewayId: string; servers: readonly IMcpGatewayServerInfo[] }>(
+				'createGateway',
+				chatSessionResource ? { chatSessionResource: chatSessionResource.toString() } : undefined
+			);
 			const servers = reviveServers(info.servers);
 			this._logService.info(`[McpGateway][BrowserWorkbench] Remote gateway created with ${servers.length} server(s)`);
 
@@ -64,7 +65,9 @@ export class BrowserMcpGatewayService implements IWorkbenchMcpGatewayService {
 				onDidChangeServers,
 				dispose: () => {
 					this._logService.info(`[McpGateway][BrowserWorkbench] Disposing remote gateway: ${info.gatewayId}`);
-					service.disposeGateway(info.gatewayId);
+					void channel.call('disposeGateway', info.gatewayId).then(undefined, error => {
+						this._logService.warn(`[McpGateway][BrowserWorkbench] Failed to dispose remote gateway: ${info.gatewayId}`, error);
+					});
 				}
 			};
 		});

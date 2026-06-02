@@ -402,6 +402,8 @@
 	z-index: 2500;
 	-webkit-app-region: no-drag;
 	margin-right: auto;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions {

@@ -6,16 +6,23 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
+	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
+	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
+	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
+	UtilityModel = 'chat.utilityModel',
+	UtilitySmallModel = 'chat.utilitySmallModel',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -37,17 +44,23 @@ export enum ChatConfiguration {
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
+	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
 	AutoExpandToolFailures = 'chat.tools.autoExpandFailures',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnConfirmation = 'chat.notifyWindowOnConfirmation',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	SessionSyncEnabled = 'chat.sessionSync.enabled',
+	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
+	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
+	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -55,11 +68,28 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
-	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
+
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
-	AutopilotEnabled = 'chat.autopilot.enabled',
+	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
+	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
+	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
+	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
+	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
+	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
+	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
+	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
+	DefaultNewSessionMode = 'chat.newSession.defaultMode',
+	AgentHostClientTools = 'chat.agentHost.clientTools',
+	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
+
+	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
+	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
+	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 }
 
 /**
@@ -69,17 +99,6 @@ export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
-}
-
-export function validateChatMode(mode: unknown): ChatModeKind | undefined {
-	switch (mode) {
-		case ChatModeKind.Ask:
-		case ChatModeKind.Edit:
-		case ChatModeKind.Agent:
-			return mode as ChatModeKind;
-		default:
-			return undefined;
-	}
 }
 
 /**
@@ -94,16 +113,18 @@ export enum ChatPermissionLevel {
 	Autopilot = 'autopilot'
 }
 
+const chatPermissionLevels = new Set<string>(Object.values(ChatPermissionLevel));
+
+export function isChatPermissionLevel(level: unknown | undefined): level is ChatPermissionLevel {
+	return chatPermissionLevels.has(level as string);
+}
+
 /**
  * Returns true if the permission level enables auto-approval of all tool calls.
  * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
  */
 export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
-}
-
-export function isChatMode(mode: unknown): mode is ChatModeKind {
-	return !!validateChatMode(mode);
 }
 
 // Thinking display modes for pinned content
@@ -186,8 +207,25 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+
+export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
+export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
+	ChatEntitlementContextKeys.Setup.hidden.negate(),
+	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
+	IsSessionsWindowContext.negate(),
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	IsAuxiliaryWindowContext.negate()
+);
+
 export const ChatEditorTitleMaxLength = 30;
 
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
+
+/**
+ * The built-in general-purpose agent name. When the model uses this name,
+ * the subagent inherits the parent's system prompt, model, and tools.
+ */
+export const GeneralPurposeAgentName = 'General Purpose';

@@ -12,14 +12,15 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { InstalledAgentPluginsViewId } from '../agentPluginsView.js';
+import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
+import { InstalledAgentPluginsViewId } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -60,6 +61,7 @@ class InstallFromSourceAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 1,
@@ -70,19 +72,24 @@ class InstallFromSourceAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
 		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
 		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
 		store.add(inputBox.onDidChangeValue(() => {
 			inputBox.validationMessage = undefined;
 		}));
 
+		let installing = false;
 		store.add(inputBox.onDidHide(() => {
-			store.dispose();
+			if (!installing) {
+				store.dispose();
+			}
 		}));
 
 		store.add(inputBox.onDidAccept(async () => {
@@ -101,6 +108,7 @@ class InstallFromSourceAction extends Action2 {
 			// Show busy state and prevent concurrent installs.
 			inputBox.busy = true;
 			inputBox.enabled = false;
+			installing = true;
 			try {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
@@ -115,12 +123,16 @@ class InstallFromSourceAction extends Action2 {
 				} else {
 					const ref = parseMarketplaceReference(source);
 					if (ref) {
-						accessor.get(IExtensionsWorkbenchService).openSearch(`@agentPlugins ${ref.displayLabel}`);
+						extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 					}
+					store.dispose();
 				}
 			} finally {
-				inputBox.busy = false;
-				inputBox.enabled = true;
+				installing = false;
+				if (!store.isDisposed) {
+					inputBox.busy = false;
+					inputBox.enabled = true;
+				}
 			}
 		}));
 	}
@@ -128,6 +140,7 @@ class InstallFromSourceAction extends Action2 {
 
 interface IMarketplaceQuickPickItem extends IQuickPickItem {
 	readonly reference: IMarketplaceReference;
+	readonly managedByPolicy: boolean;
 }
 
 class ManagePluginMarketplacesAction extends Action2 {
@@ -146,6 +159,7 @@ class ManagePluginMarketplacesAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 2,
@@ -160,9 +174,11 @@ class ManagePluginMarketplacesAction extends Action2 {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
 
-		const configuredRefs = configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const refs = parseMarketplaceReferences(configuredRefs);
+		const { userValues, extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
+		const refs = parseMarketplaceReferences(effectiveValues);
+		const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(r => r.canonicalId));
 
 		if (refs.length === 0) {
 			quickInputService.pick([], { placeHolder: localize('noMarketplaces', "No plugin marketplaces configured") });
@@ -174,8 +190,11 @@ class ManagePluginMarketplacesAction extends Action2 {
 			label: ref.displayLabel,
 			description: ref.kind === MarketplaceReferenceKind.LocalFileUri
 				? localize('localMarketplace', "Local")
-				: ref.cloneUrl,
+				: policyCanonicalIds.has(ref.canonicalId)
+					? localize('managedMarketplace', "{0} (managed by enterprise policy)", ref.cloneUrl)
+					: ref.cloneUrl,
 			reference: ref,
+			managedByPolicy: policyCanonicalIds.has(ref.canonicalId),
 		}));
 
 		const selected = await quickInputService.pick(items, {
@@ -218,8 +237,15 @@ class ManagePluginMarketplacesAction extends Action2 {
 				await commandService.executeCommand('revealFileInOS', repoUri);
 				break;
 			case 'removeMarketplace': {
-				const currentValues = configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-				const updated = currentValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
+				if (selected.managedByPolicy) {
+					notificationService.notify({
+						severity: Severity.Warning,
+						message: localize('removeManagedMarketplace', "Enterprise policy manages '{0}', so it can't be removed here.", ref.displayLabel),
+					});
+					return;
+				}
+
+				const updated = userValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
 				await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
 				break;
 			}

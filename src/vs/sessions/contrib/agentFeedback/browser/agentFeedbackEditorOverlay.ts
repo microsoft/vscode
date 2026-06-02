@@ -21,10 +21,8 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { hasSessionAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, hasAgentFeedbackComments } from './sessionEditorComments.js';
 
@@ -144,9 +142,7 @@ class AgentFeedbackOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IInstantiationService instaService: IInstantiationService,
-		@IChatEditingService chatEditingService: IChatEditingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
 	) {
@@ -189,7 +185,7 @@ class AgentFeedbackOverlayController {
 			let navigationBearings = undefined;
 			let hasAgentFeedback = false;
 			for (const candidate of candidates) {
-				const sessionResource = getSessionForResource(candidate, chatEditingService, agentSessionsService);
+				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
 				if (!sessionResource) {
 					continue;
 				}

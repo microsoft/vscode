@@ -15,7 +15,7 @@ import { IAgentSession } from './agentSessionsModel.js';
 import { openSession } from './agentSessionsOpener.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
-import { archiveButton, deleteButton, getSessionButtons, getSessionDescription, renameButton, unarchiveButton } from './agentSessionsPicker.js';
+import { archiveButton, deleteButton, getSessionButtons, getSessionDescription, renameButton, shouldShowSessionInPicker, unarchiveButton } from './agentSessionsPicker.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 export const AGENT_SESSIONS_QUICK_ACCESS_PREFIX = 'agent ';
@@ -44,7 +44,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		const sessions = this.agentSessionsService.model.sessions
-			.filter(session => !this.filter.exclude(session))
+			.filter(session => shouldShowSessionInPicker(session, this.filter))
 			.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = groupAgentSessionsByDate(sessions);
 

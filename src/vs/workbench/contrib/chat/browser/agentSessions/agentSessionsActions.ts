@@ -11,6 +11,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -35,7 +36,6 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -500,19 +500,16 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		// Archive all sessions
 		for (const session of sessions) {
-			if (!environmentService.isSessionsWindow) {
-				const chatModel = chatService.getSession(session.resource);
-				if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-					isArchiveAction: true,
-					titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-					messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-				})) {
-					return;
-				}
+			const chatModel = chatService.getSession(session.resource);
+			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+				isArchiveAction: true,
+				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+			})) {
+				return;
 			}
 
 			session.setArchived(true);
@@ -693,6 +690,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const commandService = accessor.get(ICommandService);
 
 		const confirmed = await dialogService.confirm({
 			message: sessions.length === 1
@@ -706,6 +704,8 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			return;
 		}
 
+		const deletedSessionIds: string[] = [];
+
 		for (const session of sessions) {
 
 			// Clear chat widget
@@ -713,6 +713,17 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 
 			// Remove from storage
 			await chatService.removeHistoryEntry(session.resource);
+
+			// Track session ID for cloud cleanup
+			const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
+			if (sessionId) {
+				deletedSessionIds.push(sessionId);
+			}
+		}
+
+		// Notify extensions to clean up cloud data (best effort)
+		if (deletedSessionIds.length > 0) {
+			commandService.executeCommand('github.copilot.sessionSync.deleteSessionFromCloud', deletedSessionIds).catch(() => { /* best effort */ });
 		}
 	}
 }
@@ -895,8 +906,13 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
-		agentSessionsControl.refresh();
+	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+		if (control) {
+			control.refresh();
+		} else {
+			accessor.get(ICommandService).executeCommand('sessionsViewPane.refresh');
+		}
 	}
 }
 
@@ -915,8 +931,13 @@ export class FindAgentSessionInViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
-		return agentSessionsControl.openFind();
+	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+		if (control) {
+			return control.openFind();
+		} else {
+			return accessor.get(ICommandService).executeCommand('sessionsViewPane.find');
+		}
 	}
 }
 

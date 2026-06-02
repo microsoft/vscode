@@ -235,8 +235,8 @@ export class ContextView extends Disposable {
 
 		// Get anchor
 		const anchor = getAnchorRect(this.delegate!.getAnchor());
-		const activeWindow = DOM.getActiveWindow();
-		const viewport = { top: activeWindow.pageYOffset, left: activeWindow.pageXOffset, width: activeWindow.innerWidth, height: activeWindow.innerHeight };
+		const containerWindow = this.container ? DOM.getWindow(this.container) : DOM.getActiveWindow();
+		const viewport = { top: containerWindow.pageYOffset, left: containerWindow.pageXOffset, width: containerWindow.innerWidth, height: containerWindow.innerHeight };
 		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;

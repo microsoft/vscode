@@ -13,6 +13,8 @@
 	position: relative;
 	color: var(--vscode-descriptionForeground);
 
+	contain: layout style;
+
 	.chat-thinking-external-resources {
 		margin-top: 4px;
 		margin-left: 5px;
@@ -54,6 +56,19 @@
 		.chat-thinking-title-detail-text {
 			opacity: 0.7;
 		}
+
+		.chat-thinking-title-diff {
+			padding-left: 6px;
+
+			> .label-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			> .label-removed {
+				padding-left: 4px;
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
 	}
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
@@ -77,6 +92,7 @@
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
 			animation: chat-thinking-shimmer 2s linear infinite;
+			will-change: background-position;
 		}
 	}
 
@@ -93,6 +109,7 @@
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
@@ -228,6 +245,28 @@
 			}
 		}
 
+		/*
+		 * External-edit pills (agent host) sit directly inside
+		 * `.chat-thinking-tool-wrapper` rather than nested inside a markdown
+		 * code block, so they need the same left padding to clear the
+		 * absolutely-positioned thinking icon.
+		 */
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+			padding: 5px 12px 4px 24px;
+
+			.status-icon.codicon-check {
+				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
+			}
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-message-terminal-disclaimer .chat-markdown-part.rendered-markdown {
+			padding: 2px 0px;
+		}
+
 		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
 			padding: 0;
 		}
@@ -354,6 +393,10 @@
 		display: none;
 	}
 
+	&.chat-thinking-persistent-streaming {
+		margin-bottom: 3px;
+	}
+
 	> .monaco-scrollable-element > .shadow {
 		display: none;
 	}
@@ -403,6 +446,10 @@
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding-left: 19px;
+		}
+
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
 			padding-left: 19px;
 		}
 

@@ -40,11 +40,14 @@ import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { ISCMService } from '../../../scm/common/scm.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -163,10 +166,12 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMService scmService: ISCMService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, scmService, workspaceContextService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
 			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -186,11 +191,21 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}];
 	}
 
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownActionProvider {
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, scmService: ISCMService, workspaceContextService: IWorkspaceContextService, location: ActionLocation): IActionWidgetDropdownActionProvider {
 		return {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [];
 				const contributions = chatSessionsService.getAllChatSessionContributions();
+				const folders = workspaceContextService.getWorkspace().folders;
+				let hasGitRepo = false;
+				if (folders.length > 0) {
+					for (const repo of scmService.repositories) {
+						if (repo.provider.rootUri && workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
+							hasGitRepo = true;
+							break;
+						}
+					}
+				}
 
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
@@ -198,10 +213,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
 				}
 
-				// Continue in Cloud
+				// Continue in Cloud (disabled when no git repository)
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
 				if (cloudContrib && cloudContrib.canDelegate) {
-					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location));
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
 				}
 
 				// Offer actions to enter setup if we have no contributions
@@ -215,10 +230,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(provider: AgentSessionProviders, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionProviders, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
 		return {
 			id: contrib.type,
-			enabled: true,
+			enabled,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
 			description: `@${contrib.name}`,
@@ -461,16 +476,16 @@ export class CreateRemoteAgentJobAction {
 					: userPrompt;
 
 				// Extract repository info from the source session to pass to the target session
-				const initialSessionOptions: { optionId: string; value: string }[] = [];
+				const initialSessionOptions = new Map<string, string>();
 				const repoNwo = await this.extractRepoNwoFromSession(agentSessionsService, chatSessionsService, fileService, sessionResource, chatModel);
 				if (repoNwo) {
-					initialSessionOptions.push({ optionId: 'repositories', value: repoNwo });
+					initialSessionOptions.set('repositories', repoNwo);
 				}
 
 				await commandService.executeCommand(actionId, {
 					prompt: delegationPrompt,
 					attachedContext: attachedContext.asArray(),
-					initialSessionOptions: initialSessionOptions.length > 0 ? initialSessionOptions : undefined,
+					initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
 				});
 				return;
 			}
@@ -478,9 +493,9 @@ export class CreateRemoteAgentJobAction {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
-
+			const context = { sessionType: getChatSessionType(sessionResource) };
 			// Add the request to the model first
-			const parsedRequest = requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), userPrompt, ChatAgentLocation.Chat);
+			const parsedRequest = requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), userPrompt, ChatAgentLocation.Chat, context);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },

@@ -80,6 +80,7 @@ export class ApiRepository implements Repository {
 	readonly kind: RepositoryKind;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -92,6 +93,7 @@ export class ApiRepository implements Repository {
 		this.inputBox = new ApiInputBox(this.#repository.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
 		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
+		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);
@@ -156,6 +158,10 @@ export class ApiRepository implements Repository {
 
 	clean(paths: string[]) {
 		return this.#repository.clean(paths.map(p => Uri.file(p)));
+	}
+
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }) {
+		return this.#repository.restore(paths.map(p => Uri.file(p)), options);
 	}
 
 	diff(cached?: boolean) {
@@ -344,7 +350,7 @@ export class ApiRepository implements Repository {
 		return this.#repository.dropStash(index);
 	}
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		return this.#repository.createWorktree(options);
 	}
 

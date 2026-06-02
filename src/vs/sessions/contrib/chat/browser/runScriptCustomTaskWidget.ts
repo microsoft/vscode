@@ -16,7 +16,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { TaskStorageTarget } from './sessionsConfigurationService.js';
+import { TaskStorageTarget } from './sessionsTasksService.js';
 
 export const WORKTREE_CREATED_RUN_ON = 'worktreeCreated' as const;
 
@@ -120,6 +120,9 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		const storageSection = dom.append(this.domNode, dom.$('.run-script-action-section'));
 		dom.append(storageSection, dom.$('div.run-script-action-label', undefined, localize('storageLabel', "Save In")));
 		const storageDisabledReason = state.targetDisabledReason;
+		if (storageDisabledReason) {
+			dom.append(storageSection, dom.$('div.run-script-action-hint', undefined, storageDisabledReason));
+		}
 		const workspaceTargetDisabled = !!storageDisabledReason;
 		this._storageOptions = this._register(new Radio({
 			items: [
@@ -138,10 +141,9 @@ export class RunScriptCustomTaskWidget extends Disposable {
 			]
 		}));
 		this._storageOptions.domNode.setAttribute('aria-label', localize('storageAriaLabel', "Task storage target"));
+		this._storageOptions.domNode.classList.toggle('run-script-action-radio-disabled', this._targetLocked);
+		this._storageOptions.setEnabled(!this._targetLocked);
 		storageSection.appendChild(this._storageOptions.domNode);
-		if (storageDisabledReason && !this._targetLocked) {
-			dom.append(storageSection, dom.$('div.run-script-action-hint', undefined, storageDisabledReason));
-		}
 
 		const buttonRow = dom.append(this.domNode, dom.$('.run-script-action-buttons'));
 		this._cancelButton = this._register(new Button(buttonRow, { ...defaultButtonStyles, secondary: true }));
@@ -220,7 +222,7 @@ export class RunScriptCustomTaskWidget extends Disposable {
 
 	private _getSubmitLabel(): string {
 		if (this._isAddExistingTask) {
-			return localize('confirmAddToSessions', "Add to Sessions Window");
+			return localize('confirmAddToAgents', "Add to Agents Window");
 		}
 		if (!this._isExistingTask) {
 			return localize('confirmAddTask', "Add Task");

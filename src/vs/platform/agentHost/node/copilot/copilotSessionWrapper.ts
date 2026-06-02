@@ -17,7 +17,7 @@ export class CopilotSessionWrapper extends Disposable {
 	constructor(readonly session: CopilotSession) {
 		super();
 		this._register(toDisposable(() => {
-			session.destroy().catch(() => { /* best-effort */ });
+			session.disconnect().catch(() => { /* best-effort */ });
 		}));
 	}
 
@@ -206,6 +206,16 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSystemMessage: Event<SessionEventPayload<'system.message'>> | undefined;
 	get onSystemMessage(): Event<SessionEventPayload<'system.message'>> {
 		return this._onSystemMessage ??= this._sdkEvent('system.message');
+	}
+
+	private _onSystemNotification: Event<SessionEventPayload<'system.notification'>> | undefined;
+	get onSystemNotification(): Event<SessionEventPayload<'system.notification'>> {
+		return this._onSystemNotification ??= this._sdkEvent('system.notification');
+	}
+
+	private _onSessionModeChanged: Event<SessionEventPayload<'session.mode_changed'>> | undefined;
+	get onSessionModeChanged(): Event<SessionEventPayload<'session.mode_changed'>> {
+		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
 	}
 
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {

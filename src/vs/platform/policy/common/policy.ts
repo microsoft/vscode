@@ -15,7 +15,24 @@ export type PolicyValue = string | number | boolean;
 export type PolicyDefinition = {
 	type: 'string' | 'number' | 'boolean';
 	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+	restrictedValue?: PolicyValue;
 };
+
+/**
+ * Returns the value to apply for `definition` when the account-policy gate is active
+ * but not satisfied. Uses `definition.restrictedValue` when specified, otherwise falls
+ * back to a type-driven safe default.
+ */
+export function getRestrictedPolicyValue(definition: PolicyDefinition): PolicyValue {
+	if (definition.restrictedValue !== undefined) {
+		return definition.restrictedValue;
+	}
+	switch (definition.type) {
+		case 'boolean': return false;
+		case 'number': return 0;
+		case 'string': return '';
+	}
+}
 
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 

@@ -8,7 +8,7 @@ import './media/agentFeedbackEditorWidget.css';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -25,10 +25,9 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -37,11 +36,13 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 interface ICommentItemActions {
 	editAction: Action;
 	convertAction: Action | undefined;
 	removeAction: Action;
+	addReplyAction: Action;
 }
 
 /**
@@ -59,6 +60,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _toggleButton: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _itemElements = new Map<string, HTMLElement>();
+	private readonly _activeReplyInputs = new Map<string, { container: HTMLElement; textarea: HTMLTextAreaElement }>();
 
 	private _position: IOverlayWidgetPosition | null = null;
 	private _isExpanded: boolean = false;
@@ -67,6 +69,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _rangeHighlightDecoration: IEditorDecorationsCollection;
 
 	private readonly _eventStore = this._register(new DisposableStore());
+
+	private readonly _onDidExpand = this._register(new Emitter<void>());
+	readonly onDidExpand: Event<void> = this._onDidExpand.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -84,9 +89,18 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		// Create DOM structure
 		this._domNode = $('div.agent-feedback-widget');
 		this._domNode.classList.add('collapsed');
+		// Make focusable so that mousedown in selectable regions can pull focus
+		// away from the editor's textarea, allowing native Ctrl/Cmd+C to copy
+		// the DOM selection of the comment content.
+		this._domNode.tabIndex = -1;
 
 		// Header
 		this._headerNode = $('div.agent-feedback-widget-header');
+
+		// Comment icon (decorative, hidden from screen readers)
+		const commentIcon = renderIcon(Codicon.comment);
+		commentIcon.setAttribute('aria-hidden', 'true');
+		this._headerNode.appendChild(commentIcon);
 
 		// Title showing feedback count
 		this._titleNode = $('span.agent-feedback-widget-title');
@@ -148,7 +162,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _updateTitle(): void {
 		const count = this._commentItems.length;
 		if (count === 1) {
-			this._titleNode.textContent = nls.localize('oneComment', "1 comment");
+			this._titleNode.textContent = this._commentItems[0].text;
 		} else {
 			this._titleNode.textContent = nls.localize('nComments', "{0} comments", count);
 		}
@@ -168,6 +182,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _buildFeedbackItems(): void {
 		clearNode(this._bodyNode);
 		this._itemElements.clear();
+		this._activeReplyInputs.clear();
 
 		for (const comment of this._commentItems) {
 			const item = $('div.agent-feedback-widget-item');
@@ -199,39 +214,43 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
 
-			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined! };
+			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined!, addReplyAction: undefined! };
 
-			// Edit action — only disabled for PR review comments
-			const isEditable = comment.source !== SessionEditorCommentSource.PRReview;
-			const editTooltip = isEditable
-				? nls.localize('editComment', "Edit")
-				: nls.localize('editPRCommentDisabled', "PR review comments cannot be edited");
-			itemActions.editAction = new Action(
+			itemActions.editAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.edit',
-				editTooltip,
+				nls.localize('editComment', "Edit"),
 				ThemeIcon.asClassName(Codicon.edit),
-				isEditable,
+				true,
 				(): void => { this._startEditing(comment, text, itemActions); },
-			);
+			));
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
 
+			itemActions.addReplyAction = this._eventStore.add(new Action(
+				'agentFeedback.widget.addReply',
+				nls.localize('addToComment', "Add to Comment"),
+				ThemeIcon.asClassName(Codicon.commentDiscussion),
+				true,
+				(): void => { this._startAddingReply(comment, item, itemActions); },
+			));
+			actionBar.push(itemActions.addReplyAction, { icon: true, label: false });
+
 			if (comment.canConvertToAgentFeedback) {
-				itemActions.convertAction = new Action(
+				itemActions.convertAction = this._eventStore.add(new Action(
 					'agentFeedback.widget.convert',
 					nls.localize('convertComment', "Convert to Agent Feedback"),
 					ThemeIcon.asClassName(Codicon.check),
 					true,
 					() => this._convertToAgentFeedback(comment),
-				);
+				));
 				actionBar.push(itemActions.convertAction, { icon: true, label: false });
 			}
-			itemActions.removeAction = new Action(
+			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
 				nls.localize('removeComment', "Remove"),
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				() => this._removeComment(comment),
-			);
+			));
 			actionBar.push(itemActions.removeAction, { icon: true, label: false });
 
 			itemHeader.appendChild(actionBarContainer);
@@ -247,6 +266,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				item.appendChild(this._renderSuggestion(comment));
 			}
 
+			if (comment.replies?.length) {
+				item.appendChild(this._renderReplies(comment.replies));
+			}
+
 			this._eventStore.add(addDisposableListener(item, 'mouseenter', () => {
 				this._highlightRange(comment);
 			}));
@@ -256,13 +279,36 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}));
 
 			this._eventStore.add(addDisposableListener(item, 'click', e => {
-				if ((e.target as HTMLElement | null)?.closest('.action-bar')) {
+				const target = e.target as HTMLElement | null;
+				if (target?.closest('.action-bar')) {
 					return;
+				}
+				// Don't trigger navigation when interacting with the reply input.
+				if (target?.closest('.agent-feedback-widget-add-reply')) {
+					return;
+				}
+				// Don't navigate if the user just selected text inside the comment.
+				if (target?.closest('.agent-feedback-widget-text, .agent-feedback-widget-suggestion-text, .agent-feedback-widget-reply-text')) {
+					const selection = this._domNode.ownerDocument.defaultView?.getSelection();
+					if (selection && !selection.isCollapsed && this._domNode.contains(selection.anchorNode)) {
+						return;
+					}
 				}
 				this.focusFeedback(comment.id);
 				this._agentFeedbackService.setNavigationAnchor(this._sessionResource, comment.id);
 				this._revealComment(comment);
 			}));
+
+			// Pull focus to the widget when starting a selection in selectable
+			// regions so that Ctrl/Cmd+C copies the DOM selection instead of
+			// triggering the editor's copy action.
+			const onSelectableMousedown = (e: MouseEvent) => {
+				const target = e.target as HTMLElement | null;
+				if (target?.closest('.agent-feedback-widget-text, .agent-feedback-widget-suggestion-text, .agent-feedback-widget-reply-text')) {
+					this._domNode.focus({ preventScroll: true });
+				}
+			};
+			this._eventStore.add(addDisposableListener(item, 'mousedown', onSelectableMousedown));
 
 			this._bodyNode.appendChild(item);
 		}
@@ -286,19 +332,17 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
 		const suggestionNode = $('div.agent-feedback-widget-suggestion');
-		const title = $('div.agent-feedback-widget-suggestion-title');
-		title.textContent = nls.localize('suggestedChange', "Suggested Change");
-		suggestionNode.appendChild(title);
 
 		for (const edit of comment.suggestion?.edits ?? []) {
 			const editNode = $('div.agent-feedback-widget-suggestion-edit');
-			const rangeLabel = $('div.agent-feedback-widget-suggestion-range');
+
+			const header = $('div.agent-feedback-widget-suggestion-header');
 			if (edit.range.startLineNumber === edit.range.endLineNumber) {
-				rangeLabel.textContent = nls.localize('suggestionLineNumber', "Line {0}", edit.range.startLineNumber);
+				header.textContent = nls.localize('suggestedChangeLine', "Suggested Change \u2022 Line {0}", edit.range.startLineNumber);
 			} else {
-				rangeLabel.textContent = nls.localize('suggestionLineRange', "Lines {0}-{1}", edit.range.startLineNumber, edit.range.endLineNumber);
+				header.textContent = nls.localize('suggestedChangeLines', "Suggested Change \u2022 Lines {0}-{1}", edit.range.startLineNumber, edit.range.endLineNumber);
 			}
-			editNode.appendChild(rangeLabel);
+			editNode.appendChild(header);
 
 			const newText = $('pre.agent-feedback-widget-suggestion-text');
 			newText.textContent = edit.newText;
@@ -307,6 +351,22 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}
 
 		return suggestionNode;
+	}
+
+	private _renderReplies(replies: readonly string[]): HTMLElement {
+		const repliesNode = $('div.agent-feedback-widget-replies');
+
+		for (const reply of replies) {
+			const replyNode = $('div.agent-feedback-widget-reply');
+			const replyText = $('div.agent-feedback-widget-reply-text');
+			const rendered = this._markdownRendererService.render(new MarkdownString(reply));
+			this._eventStore.add(rendered);
+			replyText.appendChild(rendered.element);
+			replyNode.appendChild(replyText);
+			repliesNode.appendChild(replyNode);
+		}
+
+		return repliesNode;
 	}
 
 	private _removeComment(comment: ISessionEditorComment): void {
@@ -323,16 +383,13 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
-		if (comment.source === SessionEditorCommentSource.PRReview) {
-			return;
-		}
-
 		// Disable all actions while editing
 		actions.editAction.enabled = false;
 		if (actions.convertAction) {
 			actions.convertAction.enabled = false;
 		}
 		actions.removeAction.enabled = false;
+		actions.addReplyAction.enabled = false;
 
 		const editStore = new DisposableStore();
 		this._eventStore.add(editStore);
@@ -379,11 +436,126 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		textarea.focus();
 	}
 
+	private _startAddingReply(comment: ISessionEditorComment, itemNode: HTMLElement, actions: ICommentItemActions): void {
+		// If a reply input is already open for this item, just focus it.
+		const existing = this._activeReplyInputs.get(comment.id);
+		if (existing) {
+			existing.textarea.focus();
+			return;
+		}
+
+		// Disable item actions while replying so the action bar doesn't conflict.
+		actions.editAction.enabled = false;
+		if (actions.convertAction) {
+			actions.convertAction.enabled = false;
+		}
+		actions.removeAction.enabled = false;
+		actions.addReplyAction.enabled = false;
+
+		const replyStore = new DisposableStore();
+		this._eventStore.add(replyStore);
+
+		const replyContainer = $('div.agent-feedback-widget-add-reply');
+		const textarea = $('textarea.agent-feedback-widget-edit-textarea') as HTMLTextAreaElement;
+		textarea.placeholder = nls.localize('addReplyPlaceholder', "Add a comment\u2026");
+		textarea.rows = 1;
+		replyContainer.appendChild(textarea);
+		itemNode.appendChild(replyContainer);
+		this._activeReplyInputs.set(comment.id, { container: replyContainer, textarea });
+
+		const autoSize = () => {
+			textarea.style.height = 'auto';
+			textarea.style.height = `${textarea.scrollHeight}px`;
+			this._editor.layoutOverlayWidget(this);
+		};
+		autoSize();
+
+		replyStore.add(addDisposableListener(textarea, 'input', autoSize));
+
+		const cleanup = () => {
+			replyStore.dispose();
+			actions.editAction.enabled = true;
+			if (actions.convertAction) {
+				actions.convertAction.enabled = true;
+			}
+			actions.removeAction.enabled = true;
+			actions.addReplyAction.enabled = true;
+			this._activeReplyInputs.delete(comment.id);
+			replyContainer.remove();
+			this._editor.layoutOverlayWidget(this);
+		};
+
+		replyStore.add(addStandardDisposableListener(textarea, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
+				e.preventDefault();
+				e.stopPropagation();
+				const newReply = textarea.value.trim();
+				if (newReply) {
+					this._saveReply(comment, newReply);
+					// Widget will be rebuilt by the change event.
+				} else {
+					cleanup();
+				}
+			} else if (e.keyCode === KeyCode.Escape) {
+				e.preventDefault();
+				e.stopPropagation();
+				cleanup();
+			}
+		}));
+
+		// Cancel the reply when focus leaves and the textarea is empty.
+		replyStore.add(addDisposableListener(textarea, 'blur', () => {
+			if (textarea.value.trim() === '') {
+				cleanup();
+			}
+		}));
+
+		textarea.focus();
+	}
+
+	private _saveReply(comment: ISessionEditorComment, replyText: string): void {
+		if (comment.source === SessionEditorCommentSource.AgentFeedback) {
+			this._agentFeedbackService.addReply(this._sessionResource, comment.sourceId, replyText);
+			return;
+		}
+
+		// For external comments (code review, PR review), convert to agent
+		// feedback first preserving the original text, then add the reply so
+		// that the original comment and the reply live in the same thread.
+		if (!comment.canConvertToAgentFeedback) {
+			return;
+		}
+
+		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
+			? comment.sourceId
+			: undefined;
+		const kind = comment.source === SessionEditorCommentSource.PRReview ? 'prReview' : 'codeReview';
+
+		const feedback = this._agentFeedbackService.addFeedback(
+			this._sessionResource,
+			comment.resourceUri,
+			comment.range,
+			comment.text,
+			comment.suggestion,
+			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
+			sourcePRReviewCommentId,
+			kind,
+		);
+		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
+		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
+		if (comment.source === SessionEditorCommentSource.CodeReview) {
+			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
+		} else if (comment.source === SessionEditorCommentSource.PRReview) {
+			this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
+		}
+	}
+
 	private _saveEdit(comment: ISessionEditorComment, newText: string): void {
 		if (comment.source === SessionEditorCommentSource.AgentFeedback) {
 			this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
-		} else if (comment.source === SessionEditorCommentSource.CodeReview) {
-			this._codeReviewService.updateComment(this._sessionResource, comment.sourceId, newText);
+		} else {
+			// PR review and code review comments are converted to agent feedback on edit
+			this._convertToAgentFeedbackWithText(comment, newText);
 		}
 	}
 
@@ -391,11 +563,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		editStore.dispose();
 
 		// Re-enable actions
-		actions.editAction.enabled = comment.source !== SessionEditorCommentSource.PRReview;
+		actions.editAction.enabled = true;
 		if (actions.convertAction) {
 			actions.convertAction.enabled = true;
 		}
 		actions.removeAction.enabled = true;
+		actions.addReplyAction.enabled = true;
 
 		textContainer.classList.remove('editing');
 		clearNode(textContainer);
@@ -406,6 +579,13 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _convertToAgentFeedback(comment: ISessionEditorComment): void {
+		this._convertToAgentFeedbackWithText(comment, comment.text);
+	}
+
+	/**
+	 * Converts a non-agent-feedback comment into an agent feedback item, optionally with edited text.
+	 */
+	private _convertToAgentFeedbackWithText(comment: ISessionEditorComment, text: string): void {
 		if (!comment.canConvertToAgentFeedback) {
 			return;
 		}
@@ -413,15 +593,17 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
 			? comment.sourceId
 			: undefined;
+		const kind = comment.source === SessionEditorCommentSource.PRReview ? 'prReview' : 'codeReview';
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
 			comment.resourceUri,
 			comment.range,
-			comment.text,
+			text,
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,
+			kind,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
@@ -435,11 +617,19 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	 * Expand the widget body.
 	 */
 	expand(): void {
+		const wasExpanded = this._isExpanded;
 		this._isExpanded = true;
 		this._domNode.classList.remove('collapsed');
 		this._bodyNode.classList.remove('collapsed');
 		this._updateToggleButton();
 		this._editor.layoutOverlayWidget(this);
+		if (!wasExpanded) {
+			this._onDidExpand.fire();
+		}
+	}
+
+	get isExpanded(): boolean {
+		return this._isExpanded;
 	}
 
 	/**
@@ -621,13 +811,13 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	static readonly ID = 'agentFeedback.editorWidgetContribution';
 
 	private readonly _widgets: AgentFeedbackEditorWidget[] = [];
+	private readonly _widgetListeners = this._register(new DisposableStore());
 	private _sessionResource: URI | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -672,7 +862,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		this._sessionResource = this._agentFeedbackService.getSessionForFile(model.uri)?.resource;
 	}
 
 	private _rebuildWidgets(
@@ -711,6 +901,16 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
 			this._widgets.push(widget);
 
+			// Ensure only one widget is expanded per file at a time: when a
+			// widget expands, collapse all others.
+			this._widgetListeners.add(widget.onDidExpand(() => {
+				for (const other of this._widgets) {
+					if (other !== widget && other.isExpanded) {
+						other.collapse();
+					}
+				}
+			}));
+
 			widget.layout(group[0].range.startLineNumber);
 		}
 	}
@@ -728,20 +928,20 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		return comments.filter(comment => comment.resourceUri.fsPath === resourceUri.fsPath);
 	}
 
-	private _getSessionChangeForResource(resourceUri: URI): IChatSessionFileChange | IChatSessionFileChange2 | undefined {
+	private _getSessionChangeForResource(resourceUri: URI): ISessionFileChange | undefined {
 		if (!this._sessionResource) {
 			return undefined;
 		}
 
-		const changes = this._agentSessionsService.getSession(this._sessionResource)?.changes;
-		if (!(changes instanceof Array)) {
+		const changes = this._sessionsManagementService.getSession(this._sessionResource)?.changes.get();
+		if (!changes) {
 			return undefined;
 		}
 
 		return changes.find(change => this._changeMatchesFsPath(change, resourceUri));
 	}
 
-	private _changeMatchesFsPath(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+	private _changeMatchesFsPath(change: ISessionFileChange, resourceUri: URI): boolean {
 		if (isIChatSessionFileChange2(change)) {
 			return change.uri.fsPath === resourceUri.fsPath
 				|| change.modifiedUri?.fsPath === resourceUri.fsPath
@@ -752,7 +952,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
-	private _isCurrentOrModifiedResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+	private _isCurrentOrModifiedResource(change: ISessionFileChange, resourceUri: URI): boolean {
 		if (isIChatSessionFileChange2(change)) {
 			return isEqual(change.uri, resourceUri) || (change.modifiedUri ? isEqual(change.modifiedUri, resourceUri) : false);
 		}
@@ -812,6 +1012,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	}
 
 	private _clearWidgets(): void {
+		this._widgetListeners.clear();
 		for (const widget of this._widgets) {
 			widget.dispose();
 		}
