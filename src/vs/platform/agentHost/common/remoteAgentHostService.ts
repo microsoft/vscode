@@ -176,6 +176,10 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	}
 }
 
+export function remoteAgentHostLogOutputChannelId(address: string): string {
+	return `agentHost.otlp.${address}`;
+}
+
 export const enum RemoteAgentHostInputValidationError {
 	Empty = 'empty',
 	Invalid = 'invalid',

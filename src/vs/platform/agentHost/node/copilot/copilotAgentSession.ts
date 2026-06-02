@@ -819,7 +819,7 @@ export class CopilotAgentSession extends Disposable {
 			prompt = slashCommand.rest;
 		}
 		if (slashCommand?.command === 'rubber-duck') {
-			if (!process.env['RUBBER_DUCK_AGENT']) {
+			if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.RubberDuck) !== true) {
 				// Feature not enabled — pass the remaining text through as a plain
 				// message rather than injecting agent instructions for an unavailable agent.
 				prompt = slashCommand.rest;
