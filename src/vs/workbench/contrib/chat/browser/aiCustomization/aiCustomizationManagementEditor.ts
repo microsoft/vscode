@@ -42,6 +42,7 @@ import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { AutomationsListWidget } from './automationsListWidget.js';
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
@@ -56,7 +57,7 @@ import {
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon, automationIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -267,11 +268,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
+	private automationsListWidget: AutomationsListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
 	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
 	private mcpContentContainer: HTMLElement | undefined;
 	private pluginContentContainer: HTMLElement | undefined;
+	private automationsContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
 	private toolsContentContainer: HTMLElement | undefined;
 	private modelsFooterElement: HTMLElement | undefined;
@@ -398,6 +401,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.Instructions]: { label: localize('instructions', "Instructions"), icon: instructionsIcon, description: localize('instructionsDesc', "Set always-on instructions that guide AI behavior across your workspace or user profile.") },
 			[AICustomizationManagementSection.Prompts]: { label: localize('prompts', "Prompts"), icon: promptIcon, description: localize('promptsDesc', "Reusable prompt templates that can be invoked as slash commands.") },
 			[AICustomizationManagementSection.Hooks]: { label: localize('hooks', "Hooks"), icon: hookIcon, description: localize('hooksDesc', "Configure automated actions triggered by events like saving files or running tasks.") },
+			[AICustomizationManagementSection.Automations]: { label: localize('automations', "Automations"), icon: automationIcon, description: localize('automationsDesc', "Schedule agent sessions to run on a cadence you choose.") },
 			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), icon: Codicon.server, description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
 			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), icon: pluginIcon, description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
@@ -844,6 +848,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
+		// Container for Automations content
+		if (hasSections.has(AICustomizationManagementSection.Automations)) {
+			this.automationsContentContainer = DOM.append(contentInner, $('.automations-content-container'));
+			this.automationsListWidget = this.editorDisposables.add(new AutomationsListWidget());
+			this.automationsContentContainer.appendChild(this.automationsListWidget.element);
+		}
+
 		// Embedded editor container
 		this.editorContentContainer = DOM.append(contentInner, $('.editor-content-container'));
 		this.createEmbeddedEditor();
@@ -870,6 +881,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
 			}));
 			this.pluginListWidget.fireItemCount();
+		}
+		if (this.automationsListWidget) {
+			this.editorDisposables.add(this.automationsListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Automations, count);
+			}));
+			this.automationsListWidget.fireItemCount();
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
@@ -1020,6 +1037,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Automations) {
+			this.automationsListWidget?.focusSearch();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -1065,6 +1084,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
 		const isToolsSection = this.selectedSection === AICustomizationManagementSection.Tools;
+		const isAutomationsSection = this.selectedSection === AICustomizationManagementSection.Automations;
 
 		if (this.welcomePage) {
 			this.welcomePage.container.style.display = isWelcome && !isEditorMode && !isDetailMode ? '' : 'none';
@@ -1083,6 +1103,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isDetailMode && isPluginsSection ? '' : 'none';
+		}
+		if (this.automationsContentContainer) {
+			this.automationsContentContainer.style.display = !isEditorMode && !isDetailMode && isAutomationsSection ? '' : 'none';
 		}
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
@@ -1364,6 +1387,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.modelsWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
+		} else if (this.selectedSection === AICustomizationManagementSection.Automations) {
+			this.automationsListWidget?.focusSearch();
 		} else {
 			this.listWidget?.focusSearch();
 		}
