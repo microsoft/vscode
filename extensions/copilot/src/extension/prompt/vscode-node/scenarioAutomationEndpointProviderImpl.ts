@@ -17,8 +17,8 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 	 * Cached first-non-copilot model. Resolved lazily on first use and invalidated when the
 	 * registered chat-model set changes. Without this cache, `getChatEndpoint` would call
 	 * `lm.selectChatModels()` (empty selector) on every invocation — which fans out across
-	 * all registered vendors and re-resolves each one. In long automation runs that runs at
-	 * several Hz for the entire turn and dominates renderer/CDP traffic.
+	 * all registered vendors and re-resolves each one. In long automation runs that run at
+	 * several Hz for the entire turn, this can dominate renderer/CDP traffic.
 	 */
 	private _firstNonCopilotModelPromise: Promise<LanguageModelChat | undefined> | undefined;
 	private _invalidateDelayer: Delayer<void> | undefined;
