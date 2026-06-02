@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ------------------------------------------------------------------------- *
+ * Inactive session chat input state
+ *
+ * When a session column is not the active/focused/selected one, quiet all of
+ * its chat input controls (attach, mode/model pickers, etc.) and keep only
+ * the send button visible in a desaturated state. This reduces visual noise
+ * across the multi-session grid so attention stays on the active session.
+ * ------------------------------------------------------------------------- */
+
+/* Quiet the session toolbar controls in the top-right of inactive sessions so
+ * the active session's controls stand out, while keeping them legible. */
+.session-view:not(.is-active) .chat-composite-bar-inline-toolbar,
+.session-view:not(.is-active) .chat-composite-bar-toolbar {
+	opacity: 0.6;
+}
+
+/* Keep the mode/model/harness pickers legible (but non-interactive) in inactive
+ * sessions so it stays glanceable what each parallel session is running — just
+ * quiet them rather than hiding them entirely. */
+.session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+/* Hide the controls that sit below the input box (secondary toolbar,
+ * attachments row and followups) so the inactive input reads as quiet. */
+.session-view:not(.is-active) .interactive-session .chat-secondary-toolbar,
+.session-view:not(.is-active) .interactive-session .chat-attachments-container,
+.session-view:not(.is-active) .interactive-session .interactive-input-followups {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* Quiet the placeholder text (rendered as an editor decoration inside the
+ * chat editor) for inactive sessions. */
+.session-view:not(.is-active) .interactive-session .chat-editor-container {
+	opacity: 0.4;
+}
+
+/* Desaturate the send button so it reads as muted while still discoverable. */
+.session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	filter: grayscale(1);
+	opacity: 0.6;
+}
