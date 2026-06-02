@@ -309,7 +309,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		await client.connectDeferred.error(new ProtocolError(
 			AHP_UNSUPPORTED_PROTOCOL_VERSION,
 			'Unsupported protocol version',
-			{ supportedVersions: ['2026-05-01'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+			{ supportedVersions: ['^0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
 		));
 
 		await assert.rejects(connectPromise, /Unsupported protocol version/);
@@ -321,7 +321,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		}, {
 			added: [{
 				address: 'ssh:remote.example',
-				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', [PROTOCOL_VERSION], ['2026-05-01'], '_vscodeUpgrade'),
+				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', [PROTOCOL_VERSION], ['^0.2.0'], '_vscodeUpgrade'),
 			}],
 			connections: ['ssh:remote.example'],
 			disconnectCalls: [],
@@ -342,7 +342,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		await firstClient.connectDeferred.error(new ProtocolError(
 			AHP_UNSUPPORTED_PROTOCOL_VERSION,
 			'Unsupported protocol version',
-			{ supportedVersions: ['2026-05-01'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+			{ supportedVersions: ['^0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
 		));
 		await assert.rejects(firstConnect, /Unsupported protocol version/);
 

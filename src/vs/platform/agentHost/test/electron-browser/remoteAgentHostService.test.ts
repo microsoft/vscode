@@ -537,7 +537,7 @@ suite('RemoteAgentHostService', () => {
 				},
 				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
 				undefined,
-				RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['2026-06-01'], ['2026-05-01'], '_vscodeUpgrade'),
+				RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
 			);
 
 			const upgradeResult = await service.triggerServerUpgrade('ssh:remote.example', '_vscodeUpgrade');
@@ -548,7 +548,7 @@ suite('RemoteAgentHostService', () => {
 				upgradeCalls: mockClient.triggerVscodeUpgradeCalls,
 				upgradeResult,
 			}, {
-				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['2026-06-01'], ['2026-05-01'], '_vscodeUpgrade'),
+				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
 				connectedConnection: undefined,
 				upgradeCalls: ['_vscodeUpgrade'],
 				upgradeResult: { ok: true, upgradeStarted: true },
