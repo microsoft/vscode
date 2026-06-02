@@ -186,8 +186,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: true
-        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+        enabled: false
       binskim:
         analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
       codeql:
@@ -779,17 +778,3 @@ extends:
               parameters:
                 VSCODE_ARCH: x64
             - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
-
-      - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
-        - stage: APIScan
-          dependsOn: []
-          pool:
-            name: 1es-windows-2022-x64
-            os: windows
-          jobs:
-            - job: WindowsAPIScan
-              steps:
-                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}

@@ -1,0 +1,86 @@
+pr: none
+
+schedules:
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Mon-Fri at 3:00 UTC (SDL scan)
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 15 * * Mon-Fri"
+    displayName: Mon-Fri at 15:00 UTC (SDL scan)
+    branches:
+      include:
+        - main
+    always: true
+
+trigger: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+
+variables:
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }} SDL)"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/scanbin/**/*.exe;+:file|$(Agent.BuildDirectory)/scanbin/**/*.dll;+:file|$(Agent.BuildDirectory)/scanbin/**/*.node'
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: false
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    stages:
+      - stage: SDL
+        displayName: SDL Scans
+        dependsOn: []
+        pool:
+          name: 1es-windows-2022-x64
+          os: windows
+        jobs:
+          - job: WindowsSDLScan
+            displayName: Windows BinSkim + APIScan
+            timeoutInMinutes: 180
+            steps:
+              - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
