@@ -796,7 +796,7 @@ type RunPlaywrightCodeClassification = {
 	codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the executed function source.' };
 	codeLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Line count of the executed function source.' };
 	owner: 'jruales';
-	comment: 'Tracks how the run_playwright_code chat tool is exercised so that common patterns can be identified and promoted to dedicated browser tools.';
+	comment: 'Tracks how the run_playwright_code chat tool is exercised.';
 };
 
 /**
