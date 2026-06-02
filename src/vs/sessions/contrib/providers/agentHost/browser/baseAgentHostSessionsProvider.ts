@@ -1423,12 +1423,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	protected _resumeNewSessionAfterAuthenticationSettles(): void {
-		const newSession = this._newSession;
 		const connection = this.connection;
-		if (!newSession || !connection) {
+		if (!connection) {
 			return;
 		}
-		this._startNewSessionBackend(newSession, connection);
+		for (const newSession of this._newSessions.values()) {
+			this._startNewSessionBackend(newSession, connection);
+		}
 	}
 
 	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
