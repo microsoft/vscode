@@ -66,6 +66,7 @@ function createMockProvider(id: string, opts?: {
 		id,
 		label: `Provider ${id}`,
 		icon: Codicon.remote,
+		order: 0,
 		sessionTypes: [],
 		onDidChangeSessionTypes: Event.None,
 		browseActions: opts?.browseActions ?? [],

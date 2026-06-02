@@ -397,6 +397,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	readonly id = LOCAL_PROVIDER_ID;
 	readonly label = localize('localChatSessionsProvider', "Local Chat");
 	readonly icon = Codicon.vm;
+	readonly order = 0;
 	readonly browseActions: readonly [] = [];
 	readonly supportsLocalWorkspaces = true;
 

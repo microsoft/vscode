@@ -29,6 +29,7 @@ import { ISessionChangeEvent, ISendRequestOptions, ISessionsProvider } from '../
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -149,9 +150,10 @@ class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 }
 
 class TestSessionsProvider extends mock<ISessionsProvider>() {
-	override readonly id = 'test';
+	override readonly id: string = 'test';
 	override readonly label = 'Test';
 	override readonly icon = Codicon.vm;
+	override readonly order: number = 0;
 	override readonly sessionTypes: readonly ISessionType[] = [{ id: 'test', label: 'Test', icon: Codicon.vm }];
 	override readonly onDidChangeSessionTypes = Event.None;
 	override readonly onDidChangeSessions = Event.None;
@@ -395,4 +397,48 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(sendRequestStarted, true);
 		assert.strictEqual(service.activeSession.get(), undefined);
 	});
+
+	test('getAllSessionTypes orders providers by their order property (lower first)', () => {
+		const service = createOrderedTypesService(disposables, 0, 1);
+		assert.deepStrictEqual(service.getAllSessionTypes().map(type => type.id), ['copilot', 'agent-host']);
+	});
+
+	test('getAllSessionTypes surfaces local agent host types first when it has lower order', () => {
+		const service = createOrderedTypesService(disposables, 0, -1);
+		assert.deepStrictEqual(service.getAllSessionTypes().map(type => type.id), ['agent-host', 'copilot']);
+	});
 });
+
+/**
+ * Builds a management service with a Copilot-style provider and a
+ * local-agent-host provider, each with an explicit {@link ISessionsProvider.order}.
+ * Used to assert that the management service surfaces session types ordered by
+ * provider order (lower first).
+ */
+function createOrderedTypesService(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, copilotOrder: number, agentHostOrder: number): ISessionsManagementService {
+	const copilotProvider = new class extends TestSessionsProvider {
+		override readonly id = 'default-copilot';
+		override readonly order = copilotOrder;
+		override readonly sessionTypes: readonly ISessionType[] = [{ id: 'copilot', label: 'Copilot', icon: Codicon.vm }];
+	}(stubSession({ sessionId: 'c1', providerId: 'default-copilot' }));
+	const agentHostProvider = new class extends TestSessionsProvider {
+		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+		override readonly order = agentHostOrder;
+		override readonly sessionTypes: readonly ISessionType[] = [{ id: 'agent-host', label: 'Agent Host', icon: Codicon.vm }];
+	}(stubSession({ sessionId: 'a1', providerId: LOCAL_AGENT_HOST_PROVIDER_ID }));
+
+	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([copilotProvider, agentHostProvider]));
+	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+	instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+	instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
+	instantiationService.stub(IProgressService, new TestProgressService());
+	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+		override readonly onDidSubmitRequest = Event.None;
+	});
+
+	return disposables.add(instantiationService.createInstance(SessionsManagementService));
+}
