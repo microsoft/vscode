@@ -45,7 +45,6 @@ export async function readEncryptedSecret(
 		logService?.trace('[secrets] no secret found for key:', fullKey);
 		return undefined;
 	}
-	logService?.trace('[secrets] decrypting secret for key:', fullKey);
 	const result = await decrypt(encrypted);
 	logService?.trace('[secrets] decrypted secret for key:', fullKey);
 	return result;

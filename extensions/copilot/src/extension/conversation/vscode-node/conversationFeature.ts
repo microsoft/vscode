@@ -19,9 +19,10 @@ import { ISettingsEditorSearchService } from '../../../platform/settingsEditor/c
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtGlobalPerfMark, markChatExtGlobal } from '../../../util/common/performance';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise } from '../../../util/vs/base/common/async';
+import { DeferredPromise, Delayer } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { DisposableStore, IDisposable, combinedDisposable } from '../../../util/vs/base/common/lifecycle';
+import { MicrotaskDelay } from '../../../util/vs/base/common/symbols';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ContributionCollection, IExtensionContribution } from '../../common/contributions';
@@ -126,8 +127,17 @@ export class ConversationFeature implements IExtensionContribution {
 				this.logService.warn(`ConversationFeature: failed to query language models: ${e}`);
 			}
 		};
-		void refreshHasByokModels();
-		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
+		// Coalesce bursts of `onDidChangeChatModels` so a single in-turn flurry of
+		// BYOK utility-alias add/remove events doesn't fan out into one full
+		// `selectChatModels({})` per event (each of which round-trips to core and
+		// re-resolves every registered vendor). MicrotaskDelay collapses any
+		// synchronous burst within a tick into a single call.
+		const refreshDelayer = this._disposables.add(new Delayer<void>(MicrotaskDelay));
+		const scheduleRefresh = () => {
+			refreshDelayer.trigger(refreshHasByokModels).catch(() => { /* cancelled on dispose */ });
+		};
+		scheduleRefresh();
+		this._disposables.add(vscode.lm.onDidChangeChatModels(() => scheduleRefresh()));
 
 		// Always unblock activation when auth settles; chat enablement is driven by `reevaluate` independently.
 		// Without this, BYOK-only sessions can deadlock (the BYOK query needs this extension fully activated,

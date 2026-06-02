@@ -755,45 +755,29 @@ suite('LanguageModels - Model Change Events', function () {
 		assert.ok(true, 'Event fired when new model was added');
 	});
 
-	test('fires onChange event when models change without provider emitting change event', async function () {
+	test('does not re-poll providers that never emit onDidChange', async function () {
+		// Documents the cache contract: providers are responsible for signaling model-set
+		// changes via `onDidChange`. Without that signal, `selectLanguageModels` may reuse
+		// the previously-resolved model set and skip the per-vendor RPC + secret reads.
 		let callCount = 0;
 		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
 			onDidChange: Event.None, // Provider doesn't emit change events
 			provideLanguageModelChatInfo: async () => {
 				callCount++;
-				if (callCount === 1) {
-					// First call returns initial model
-					return [{
-						metadata: {
-							extension: nullExtensionDescription.identifier,
-							name: 'Model 1',
-							vendor: 'test-vendor',
-							family: 'family1',
-							version: '1.0',
-							id: 'model1',
-							maxInputTokens: 100,
-							maxOutputTokens: 100,
-							isDefaultForLocation: {}
-						} satisfies ILanguageModelChatMetadata,
-						identifier: 'test-vendor/model1'
-					}];
-				} else {
-					// Subsequent calls return different model
-					return [{
-						metadata: {
-							extension: nullExtensionDescription.identifier,
-							name: 'Model 2',
-							vendor: 'test-vendor',
-							family: 'family2',
-							version: '2.0',
-							id: 'model2',
-							maxInputTokens: 200,
-							maxOutputTokens: 200,
-							isDefaultForLocation: {}
-						} satisfies ILanguageModelChatMetadata,
-						identifier: 'test-vendor/model2'
-					}];
-				}
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: `Model ${callCount}`,
+						vendor: 'test-vendor',
+						family: 'family1',
+						version: '1.0',
+						id: `model${callCount}`,
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: `test-vendor/model${callCount}`
+				}];
 			},
 			sendChatRequest: async () => { throw new Error(); },
 			provideTokenCount: async () => { throw new Error(); }
@@ -801,17 +785,19 @@ suite('LanguageModels - Model Change Events', function () {
 
 		// Initial resolution
 		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		assert.strictEqual(callCount, 1, 'Initial resolve calls provider once');
 
-		// Listen for change event
 		let eventFired = false;
 		disposables.add(languageModelsService.onDidChangeLanguageModels(() => {
 			eventFired = true;
 		}));
 
-		// Call selectLanguageModels again - provider will return different models
+		// Repeated calls hit the cache: no extra provider calls, no change events.
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
 		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
 
-		assert.strictEqual(eventFired, true, 'Should fire event when models change even without provider change event');
+		assert.strictEqual(callCount, 1, 'Repeated selectLanguageModels reuse the cached resolve');
+		assert.strictEqual(eventFired, false, 'Should not fire event when nothing invalidates the cache');
 	});
 });
 

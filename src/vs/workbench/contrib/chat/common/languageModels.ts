@@ -672,6 +672,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
 
+	/**
+	 * Vendors whose `_modelsGroups` / `_modelCache` / `_modelConfigurations` are valid for reuse.
+	 * `_resolveAllLanguageModels` short-circuits when the vendor is here. Invalidation always
+	 * removes the vendor from this set AND bumps `_vendorResolveGeneration` so any in-flight
+	 * resolve declines to re-mark the cache as valid when it completes.
+	 */
+	private readonly _resolvedVendors = new Set<string>();
+	private readonly _vendorResolveGeneration = new Map<string, number>();
+	/** Secret keys touched during a vendor's last resolve. Used to invalidate on `onDidChangeSecret`. */
+	private readonly _vendorSecretKeys = new Map<string, Set<string>>();
+
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
@@ -734,6 +745,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._refreshModelsControlManifest();
 		}));
 		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
+
+		// Invalidate per-vendor resolve cache when a referenced secret changes externally
+		// (e.g. user rotates BYOK API key via another window).
+		this._store.add(this._secretStorageService.onDidChangeSecret(secretKey => {
+			for (const [vendor, keys] of this._vendorSecretKeys) {
+				if (keys.has(secretKey)) {
+					this._invalidateVendorCache(vendor);
+				}
+			}
+		}));
 
 		this._store.add(languageModelChatProviderExtensionPoint.setHandler((extensions, { added, removed }) => {
 			const addedVendors: IUserFriendlyLanguageModel[] = [];
@@ -800,6 +821,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 		for (const item of removed) {
 			this._vendors.delete(item.vendor);
 			this._providers.delete(item.vendor);
+			this._invalidateVendorCache(item.vendor);
+			this._vendorSecretKeys.delete(item.vendor);
 			this._clearModelCache(item.vendor);
 			this._modelsGroups.delete(item.vendor);
 			removedVendorIds.push(item.vendor);
@@ -821,8 +844,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
+	private _invalidateVendorCache(vendor: string): void {
+		this._resolvedVendors.delete(vendor);
+		this._vendorResolveGeneration.set(vendor, (this._vendorResolveGeneration.get(vendor) ?? 0) + 1);
+	}
+
 	private async _onDidChangeLanguageModelGroups(changedGroups: readonly ILanguageModelsProviderGroup[]): Promise<void> {
 		const changedVendors = new Set(changedGroups.map(g => g.vendor));
+		for (const vendor of changedVendors) {
+			this._invalidateVendorCache(vendor);
+		}
 		await Promise.all(Array.from(changedVendors).map(vendor => this._resolveAllLanguageModels(vendor, true)));
 	}
 
@@ -878,6 +909,20 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return this._resolveLMSequencer.queue(vendorId, async () => {
+
+			// Cache hit: skip the full resolve (per-group secret reads + ext-host RPC to
+			// `provideLanguageModelChatInfo`). Only the silent path benefits; interactive
+			// callers (`silent=false`) intentionally bypass the cache so prompts re-run.
+			if (silent && this._resolvedVendors.has(vendorId)) {
+				return;
+			}
+
+			// Capture the generation at the start of this resolve. Any external invalidation
+			// (secret change, group edit, provider re-register) bumps this counter, in which
+			// case we don't re-mark the cache as valid at the end and the next call will
+			// resolve again.
+			const startGeneration = this._vendorResolveGeneration.get(vendorId) ?? 0;
+			const seenSecretKeys = new Set<string>();
 
 			const allModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 			const languageModelsGroups: ILanguageModelsGroup[] = [];
@@ -936,7 +981,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 					continue;
 				}
 
-				const configuration = await this._resolveConfiguration(group, vendor.configuration);
+				const configuration = await this._resolveConfiguration(group, vendor.configuration, seenSecretKeys);
 
 				try {
 					const models = await provider.provideLanguageModelChatInfo({ group: group.name, silent, configuration }, CancellationToken.None);
@@ -1010,8 +1055,18 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 			if (hasChanges) {
 				this._onLanguageModelChange.fire(vendorId);
-			} else {
-				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
+			}
+
+			// Only mark resolved if no concurrent invalidation occurred while we were running.
+			// Storing the touched secret keys lets `onDidChangeSecret` invalidate precisely the
+			// vendors that depend on a rotated key.
+			if ((this._vendorResolveGeneration.get(vendorId) ?? 0) === startGeneration) {
+				this._resolvedVendors.add(vendorId);
+				if (seenSecretKeys.size > 0) {
+					this._vendorSecretKeys.set(vendorId, seenSecretKeys);
+				} else {
+					this._vendorSecretKeys.delete(vendorId);
+				}
 			}
 		});
 	}
@@ -1078,13 +1133,18 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		this._providers.set(vendor, provider);
+		// Any prior empty-state resolution is now stale: a real provider just arrived.
+		this._invalidateVendorCache(vendor);
 
 		const modelChangeListener = provider.onDidChange(() => {
+			this._invalidateVendorCache(vendor);
 			this._resolveAllLanguageModels(vendor, true);
 		});
 
 		return toDisposable(() => {
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
+			this._invalidateVendorCache(vendor);
+			this._vendorSecretKeys.delete(vendor);
 			this._clearModelCache(vendor);
 			this._modelsGroups.delete(vendor);
 			this._providers.delete(vendor);
@@ -1846,7 +1906,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
-	private async _resolveConfiguration(group: ILanguageModelsProviderGroup, schema: IJSONSchema | undefined): Promise<IStringDictionary<unknown>> {
+	private async _resolveConfiguration(group: ILanguageModelsProviderGroup, schema: IJSONSchema | undefined, secretKeysSink?: Set<string>): Promise<IStringDictionary<unknown>> {
 		if (!schema) {
 			return {};
 		}
@@ -1859,7 +1919,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 			let value = group[key];
 			if (schema.properties?.[key]?.secret) {
 				const secretKey = this.decodeSecretKey(value);
-				value = secretKey ? await this._secretStorageService.get(secretKey) : undefined;
+				if (secretKey) {
+					secretKeysSink?.add(secretKey);
+					value = await this._secretStorageService.get(secretKey);
+				} else {
+					value = undefined;
+				}
 			}
 			result[key] = value;
 		}

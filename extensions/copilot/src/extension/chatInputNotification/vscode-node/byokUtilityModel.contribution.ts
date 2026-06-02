@@ -7,7 +7,9 @@ import * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { Delayer } from '../../../util/vs/base/common/async';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { MicrotaskDelay } from '../../../util/vs/base/common/symbols';
 
 const NOTIFICATION_ID = 'copilot.byokUtilityModelHint';
 const UTILITY_MODEL_SETTING = 'chat.utilityModel';
@@ -28,6 +30,13 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 	private _notification: vscode.ChatInputNotification | undefined;
 	private _hasByokModels = false;
 	private _refreshing = false;
+	/**
+	 * Coalesces bursts of triggers (auth change + `onDidChangeChatModels` + config change can
+	 * fire together when a BYOK provider activates) so we don't fan out into multiple
+	 * `selectChatModels({})` round-trips per event. MicrotaskDelay collapses any
+	 * synchronous burst within a tick into a single call.
+	 */
+	private readonly _updateDelayer = this._register(new Delayer<void>(MicrotaskDelay));
 
 	constructor(
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
@@ -36,15 +45,19 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 	) {
 		super();
 
-		this._register(this._authService.onDidAuthenticationChange(() => this._update()));
-		this._register(vscode.lm.onDidChangeChatModels(() => this._update()));
+		this._register(this._authService.onDidAuthenticationChange(() => this._scheduleUpdate()));
+		this._register(vscode.lm.onDidChangeChatModels(() => this._scheduleUpdate()));
 		this._register(this._configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(UTILITY_MODEL_SETTING) || e.affectsConfiguration(UTILITY_SMALL_MODEL_SETTING)) {
-				this._update();
+				this._scheduleUpdate();
 			}
 		}));
 
-		this._update();
+		this._scheduleUpdate();
+	}
+
+	private _scheduleUpdate(): void {
+		this._updateDelayer.trigger(() => this._update()).catch(() => { /* cancelled on dispose */ });
 	}
 
 	private async _refreshHasByokModels(): Promise<void> {

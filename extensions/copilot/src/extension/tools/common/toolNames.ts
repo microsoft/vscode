@@ -50,7 +50,7 @@ export enum ToolName {
 	CreateDirectory = 'create_directory',
 	RunVscodeCmd = 'run_vscode_command',
 	CoreManageTodoList = 'manage_todo_list',
-	CoreRunInTerminal = 'run_in_terminal',
+	CoreRunInTerminal = 'run_in_terminal',\
 	CoreGetTerminalOutput = 'get_terminal_output',
 	CoreSendToTerminal = 'send_to_terminal',
 	CoreKillTerminal = 'kill_terminal',
