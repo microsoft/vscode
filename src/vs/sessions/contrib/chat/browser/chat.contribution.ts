@@ -34,6 +34,7 @@ import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipa
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -57,7 +58,9 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 		sessionsManagementService.openNewSessionView();
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 }
 
