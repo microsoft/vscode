@@ -308,7 +308,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			// allow-any-unicode-next-line
 			title: nls.localize('updateAvailableTitle', "发现新版本"),
 			// allow-any-unicode-next-line
-			message: nls.localize('updateAvailableMessage', "提示： {0} 有新版本", this.productService.nameLong),
+			message: nls.localize('updateAvailableMessage', "提示：{0} 有新版本", this.productService.nameLong),
 			// allow-any-unicode-next-line
 			detail: nls.localize('updateAvailableDetail', "重启安装具体版本 {0}", updateVersion),
 			// allow-any-unicode-next-line
