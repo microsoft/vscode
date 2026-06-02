@@ -262,13 +262,14 @@ export class BrowserView extends Disposable {
 			if (this._lastFavicon) {
 				this._lastFavicon = undefined;
 				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-				this._currentHistoryHandle?.update({ favicon: undefined });
+				this._currentHistoryHandle?.update({ favicon: null });
 			}
 		});
 		webContents.on('will-navigate', (event) => {
 			this._currentHistoryHandle = undefined;
-			const host = new URL(event.url).host;
-			const currHost = new URL(this.webContents.getURL()).host;
+			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
+			const host = URL.parse(event.url)?.host;
+			const currHost = URL.parse(this.webContents.getURL())?.host;
 			if (host !== currHost) {
 				this._lastFavicon = undefined;
 			}

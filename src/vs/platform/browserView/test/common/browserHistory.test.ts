@@ -329,6 +329,17 @@ suite('BrowserHistoryStore', () => {
 		store.dispose();
 	});
 
+	test('handle.update with explicit `favicon: null` clears the entry icon', () => {
+		const store = new BrowserHistoryStore();
+		const handle = store.add('https://a/', 'A', 'data:image/png;base64,XXX');
+		assert.notStrictEqual(store.entries.items[0].icon, undefined);
+
+		handle.update({ favicon: null });
+		assert.strictEqual(store.entries.items[0].icon, undefined);
+
+		store.dispose();
+	});
+
 	test('handle.delete removes the entry and GCs the orphaned favicon', () => {
 		const store = new BrowserHistoryStore();
 		const handle = store.add('https://a/', 'A', 'data:image/png;base64,XXX');

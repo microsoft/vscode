@@ -41,8 +41,7 @@ const MAX_HISTORY = 6;
 /**
  * Surfaces history from the active model's {@link BrowserHistoryStore} as
  * URL bar suggestions (deduped by host+path) and exposes a full history
- * management picker via the {@link BrowserViewCommandId.ShowHistory} action
- * and a "Manage History" button in the URL picker chrome.
+ * management picker via the {@link BrowserViewCommandId.ShowHistory} action.
  */
 export class BrowserHistoryFeature extends BrowserEditorContribution {
 

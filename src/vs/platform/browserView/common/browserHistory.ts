@@ -37,8 +37,8 @@ export interface IBrowserHistoryEntry extends ISerializedBrowserHistoryEntry { }
 
 export interface IBrowserHistoryUpdate {
 	readonly title?: string;
-	/** Favicon data URI; hashed and deduped against the sibling favicons store. */
-	readonly favicon?: string;
+	/** Favicon data URI; hashed and deduped against the sibling favicons store. Pass `null` to explicitly clear. */
+	readonly favicon?: string | null;
 }
 
 /**
@@ -119,14 +119,17 @@ export class BrowserHistoryEntriesStore extends Disposable {
 		return entry;
 	}
 
-	update(id: number, patch: { title?: string; faviconHash?: string }): boolean {
+	update(id: number, patch: { title?: string; faviconHash?: string | null }): boolean {
 		const idx = this._indexOf(id);
 		if (idx === -1) {
 			return false;
 		}
 		const existing = this._items[idx];
 		const nextTitle = patch.title && patch.title.length > 0 ? patch.title : existing.title;
-		const nextFaviconHash = patch.faviconHash !== undefined ? patch.faviconHash : existing.icon;
+		// Distinguish "leave alone" (undefined) from explicit clear (null).
+		const nextFaviconHash = patch.faviconHash === undefined
+			? existing.icon
+			: (patch.faviconHash ?? undefined);
 		if (nextTitle === existing.title && nextFaviconHash === existing.icon) {
 			return false;
 		}
@@ -312,12 +315,13 @@ export class BrowserHistoryStore extends Disposable {
 		return {
 			id,
 			update: patch => {
-				const next: { title?: string; faviconHash?: string } = {};
+				const next: { title?: string; faviconHash?: string | null } = {};
 				if (patch.title !== undefined) {
 					next.title = patch.title;
 				}
 				if (patch.favicon !== undefined) {
-					next.faviconHash = this.favicons.register(patch.favicon);
+					// null is the explicit-clear sentinel; a data URI registers and references it.
+					next.faviconHash = patch.favicon === null ? null : this.favicons.register(patch.favicon);
 				}
 				this.entries.update(id, next);
 			},
