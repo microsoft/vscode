@@ -23,7 +23,8 @@ suite('PlaceholderAutomationRunner', () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log));
-		const runner = new PlaceholderAutomationRunner(service, log, { placeholderRunDurationMs: 0 });
+		const runner = new PlaceholderAutomationRunner(service, log);
+		runner.setRunDurationForTesting(0);
 		return { service, runner };
 	}
 

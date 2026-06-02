@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationLeaderElection } from '../../../browser/automations/automationLeaderElection.js';
-import { IAutomationRunner } from '../../../browser/automations/automationRunner.js';
+import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON } from '../../../browser/automations/automationScheduler.js';
 import { AutomationService } from '../../../browser/automations/automationService.js';
 import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../common/automations/automation.js';
@@ -39,6 +39,8 @@ interface RecordedRun {
 }
 
 class RecordingRunner implements IAutomationRunner {
+	declare readonly _serviceBrand: undefined;
+
 	readonly runs: RecordedRun[] = [];
 
 	async runOnce(
@@ -74,8 +76,7 @@ suite('AutomationSchedulerCore', () => {
 
 		let now = T0;
 		service.setClockForTesting(() => now);
-		const core = teardown.add(new AutomationSchedulerCore(service, storage, log, {
-			runner,
+		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
 			leaderElection: leader,
 			disableAutoTick: true,
 			now: () => now,
@@ -186,8 +187,7 @@ suite('AutomationSchedulerCore', () => {
 		service.setClockForTesting(() => T0);
 		const runner = new RecordingRunner();
 		const leader = new FakeLeaderElection(true);
-		const core = teardown.add(new AutomationSchedulerCore(service, storage, log, {
-			runner,
+		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
 			leaderElection: leader,
 			disableAutoTick: true,
 			now: () => T0,
