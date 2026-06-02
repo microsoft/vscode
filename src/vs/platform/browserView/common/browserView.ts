@@ -560,8 +560,15 @@ export interface IBrowserViewService {
 	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
 
 	/**
-	 * Set the allowlist of filesystem roots that browsers may load via `file://`.
-	 * @param roots Normalized filesystem paths.
+	 * Replace the calling window's contribution to the `file://` allowlist
+	 * used by integrated browser sessions. Main unions every window's
+	 * contribution into a process-wide allowlist; entries are dropped when
+	 * the window is destroyed.
+	 *
+	 * @param windowId The calling window's `vscodeWindowId`.
+	 * @param roots Normalized filesystem paths the window deems trusted —
+	 * usually `getTrustedUris()` plus, when the workspace itself is trusted,
+	 * its workspace folder paths.
 	 */
-	updateTrustedFileRoots(roots: readonly string[]): Promise<void>;
+	updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void>;
 }

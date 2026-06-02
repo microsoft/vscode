@@ -118,6 +118,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		this.sendTrustedFileRoots();
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.sendTrustedFileRoots()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.sendTrustedFileRoots()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.sendTrustedFileRoots()));
 
 		// Track sharing availability from context keys
 		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
@@ -333,12 +335,19 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private sendTrustedFileRoots(): void {
-		const roots: string[] = [];
-		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
-			if (uri.scheme === Schemas.file) {
-				roots.push(uri.fsPath);
+		const roots = new Set<string>();
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			for (const folder of this.workspaceContextService.getWorkspace().folders) {
+				if (folder.uri.scheme === Schemas.file) {
+					roots.add(folder.uri.fsPath);
+				}
 			}
 		}
-		void this._browserViewService.updateTrustedFileRoots(roots);
+		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
+			if (uri.scheme === Schemas.file) {
+				roots.add(uri.fsPath);
+			}
+		}
+		void this._browserViewService.updateTrustedFileRoots(this._mainWindowId, [...roots]);
 	}
 }
