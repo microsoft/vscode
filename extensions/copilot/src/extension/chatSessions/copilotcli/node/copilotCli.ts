@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -276,19 +276,6 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 }
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
-
-function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		const value = count / 1_000_000;
-		const floored = Math.floor(value * 10) / 10;
-		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
-	} else if (count > 900_000) {
-		return '1M';
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
-}
 
 function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
@@ -693,11 +680,12 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 /**
  * Maps a user-selected numeric context size to the SDK's context tier.
  * Returns `'long_context'` when the selected size exceeds the default context
- * max, `undefined` otherwise (so the SDK uses its default tier).
+ * max, `'default'` when it is within the default tier, or `undefined` when
+ * no context size was provided or the model has no tiered pricing.
  */
 export function resolveContextTier(contextSize: unknown, modelInfo: CopilotCLIModelInfo | undefined): 'default' | 'long_context' | undefined {
 	if (typeof contextSize !== 'number' || !modelInfo?.defaultContextMax) {
 		return undefined;
 	}
-	return contextSize > modelInfo.defaultContextMax ? 'long_context' : undefined;
+	return contextSize > modelInfo.defaultContextMax ? 'long_context' : 'default';
 }
