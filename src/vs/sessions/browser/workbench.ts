@@ -1935,12 +1935,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.setEditorHidden(false);
 			}
 
-			// Hide all other content parts
+			// Collapse both side panels (primary sidebar + auxiliary changes/files)
+			// but keep the chat (sessions) part visible.
 			if (this.partVisibility.sidebar) {
 				this.setSideBarHidden(true);
 			}
-			if (this.partVisibility.sessions) {
-				this.setSessionsHidden(true);
+			if (this.partVisibility.auxiliaryBar) {
+				this.setAuxiliaryBarHidden(true);
 			}
 
 			this._editorMaximized = true;
@@ -1949,7 +1950,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			// Restore previous visibility state
 			this.setSideBarHidden(!state?.sidebar);
-			this.setSessionsHidden(!state?.sessions);
+			this.setAuxiliaryBarHidden(!state?.auxiliaryBar);
 
 			this._editorMaximized = false;
 		}
