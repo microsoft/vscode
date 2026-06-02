@@ -477,6 +477,7 @@
 .monaco-action-bar .action-item .single-terminal-tab {
 	display: flex !important;
 	align-items: center;
+	overflow: hidden;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
