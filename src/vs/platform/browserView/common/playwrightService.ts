@@ -14,11 +14,6 @@ export interface IInvokeFunctionResult {
 	summary: string;
 	/** When present the function did not complete within the timeout. Pass this ID to {@link IPlaywrightService.waitForDeferredResult} to keep waiting. */
 	deferredResultId?: string;
-	/**
-	 * Map of dotted Playwright `page` method name to call count during execution
-	 * (e.g. `click`, `keyboard.press`, `request.get`).
-	 */
-	pageMethodsCalled?: Readonly<Record<string, number>>;
 }
 
 /**
