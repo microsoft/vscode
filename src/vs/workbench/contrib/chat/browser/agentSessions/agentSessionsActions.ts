@@ -232,7 +232,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 		super({
 			id: 'agentSessionSection.archive',
 			title: localize2('archiveSection', "Archive All"),
-			icon: Codicon.archive,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
@@ -473,7 +473,7 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		super({
 			id: 'agentSession.archive',
 			title: localize2('archive', "Archive"),
-			icon: Codicon.archive,
+			icon: Codicon.check,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
@@ -566,7 +566,7 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
@@ -600,7 +600,7 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPinnedAgentSession,
 					ChatContextKeys.isArchivedAgentSession.negate()
