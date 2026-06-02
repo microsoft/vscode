@@ -29,10 +29,20 @@
 	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
 	cursor: default;
+	opacity: 1;
+	transition: opacity 120ms ease-out;
 }
 
 .agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
 	margin-left: 0;
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-hidden {
+	flex: 0 1 0;
+	width: 0;
+	margin-left: 0;
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* Session pill - clickable area for session picker */
@@ -42,7 +52,7 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	min-width: 0;
-	max-width: 600px;
+	max-width: 100%;
 	cursor: pointer;
 	touch-action: manipulation;
 }
@@ -78,24 +88,15 @@
 	color: var(--vscode-icon-foreground);
 }
 
-/* Label (title) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
-	flex: 0 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-weight: 500;
-}
-
-/* Repository/worktree metadata shrinks before the primary title. */
+/* Repository/worktree metadata. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
 	display: flex;
 	align-items: center;
-	flex: 0 999 auto;
+	flex: 0 1 auto;
 	gap: 6px;
 	min-width: 0;
 	overflow: hidden;
+	opacity: 0.7;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
@@ -104,15 +105,44 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	opacity: 0.7;
 }
 
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
+	&::before {
+		content: '\00B7';
+	}
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch {
 	display: flex;
 	align-items: center;
+	gap: 2px;
 	flex-shrink: 0;
-	opacity: 0.7;
+	white-space: nowrap;
+
+	.codicon {
+		font-size: 13px;
+		width: 13px;
+		height: 13px;
+	}
+}
+
+/* Diff stats (+insertions -deletions) shown for sessions with pending changes. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Sidebar toggle unread badge */
@@ -137,4 +167,10 @@
 	background-color: var(--vscode-agentsUnreadBadge-background);
 	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.command-center .agent-sessions-titlebar-container {
+		transition: none;
+	}
 }

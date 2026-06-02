@@ -727,6 +727,29 @@ export class ChatSessionStore extends Disposable {
 		return joinPath(this.transferredSessionStorageRoot, `${sessionId}.json`);
 	}
 
+	/**
+	 * Synchronously update the in-memory index entries for the given sessions
+	 * and flush the index to storage. This ensures the index is persisted
+	 * even when called from a synchronous `onWillSaveState` handler where
+	 * async file-write work would complete after the storage service has
+	 * already flushed.
+	 */
+	updateAndFlushIndexSync(localSessions: ChatModel[], externalSessions: ChatModel[]): void {
+		const index = this.internalGetIndex();
+		for (const session of localSessions) {
+			index.entries[session.sessionId] = getSessionMetadataSync(session);
+		}
+		for (const session of externalSessions) {
+			const externalSessionId = session.sessionResource.toString();
+			index.entries[externalSessionId] = getSessionMetadataSync(session);
+		}
+		try {
+			this.storageService.store(ChatIndexStorageKey, index, this.getIndexStorageScope(), StorageTarget.MACHINE);
+		} catch (e) {
+			this.reportError('indexWrite', 'Error writing index synchronously', e);
+		}
+	}
+
 	public getChatStorageFolder(): URI {
 		return this.storageRoot;
 	}
@@ -741,6 +764,12 @@ export interface IChatSessionEntryMetadata {
 	hasPendingEdits?: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;
+
+	/**
+	 * The working directory URI string associated with this session.
+	 * Persisted so it survives window reload in the agents/sessions window.
+	 */
+	workingDirectory?: string;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -809,57 +838,63 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
-	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
+/**
+ * Builds session metadata synchronously from a live ChatModel.
+ * Used both by {@link updateAndFlushIndexSync} (where async work is not
+ * possible) and by {@link getSessionMetadata} (which layers on async stats).
+ */
+function getSessionMetadataSync(session: ChatModel): IChatSessionEntryMetadata {
+	const title = session.customTitle || session.title;
 
-	let stats: IChatSessionStats | undefined;
-	if (session instanceof ChatModel) {
-		stats = await awaitStatsForSession(session);
-	}
-
-	const lastMessageDate = session instanceof ChatModel ?
-		session.lastMessageDate :
-		session.requests.at(-1)?.timestamp ?? session.creationDate;
-
-	const timing: IChatSessionTiming = session instanceof ChatModel ?
-		session.timing :
-		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
-		{
-			created: session.creationDate,
-			lastRequestStarted: session.requests.at(-1)?.timestamp,
-			lastRequestEnded: lastMessageDate,
-		};
-
-	let lastResponseState = session instanceof ChatModel ?
-		(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
-		ResponseModelState.Complete;
-
+	let lastResponseState = session.lastRequest?.response?.state ?? ResponseModelState.Complete;
 	if (lastResponseState === ResponseModelState.Pending || lastResponseState === ResponseModelState.NeedsInput) {
 		lastResponseState = ResponseModelState.Cancelled;
 	}
 
-	const isExternal = session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource);
-	// Persist draft input state only for external sessions; local sessions already
-	// have their full state serialized via storeSessions, so duplicating here would
-	// be wasteful and risk drift between the two locations.
-	// Attachments are excluded because they can contain large binary payloads
-	// (e.g. base64-encoded images) that would bloat the session index entry.
-	const rawInputState = isExternal ? (session as ChatModel).inputModel.toJSON() : undefined;
+	const isExternal = !LocalChatSessionUri.parseLocalSessionId(session.sessionResource);
+	const rawInputState = isExternal ? session.inputModel.toJSON() : undefined;
 	const inputState = rawInputState ? { ...rawInputState, attachments: [] } : undefined;
 
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
-		lastMessageDate,
-		timing,
+		lastMessageDate: session.lastMessageDate,
+		timing: session.timing,
 		initialLocation: session.initialLocation,
-		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
-		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
-		stats,
+		hasPendingEdits: session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified) ?? false,
+		isEmpty: session.getRequests().length === 0,
 		isExternal,
 		lastResponseState,
-		permissionLevel: session instanceof ChatModel ? session.inputModel.state.get()?.permissionLevel : undefined,
+		permissionLevel: session.inputModel.state.get()?.permissionLevel,
 		inputState,
+		workingDirectory: session.workingDirectory?.toString(),
+	};
+}
+
+async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
+	if (session instanceof ChatModel) {
+		const metadata = getSessionMetadataSync(session);
+		metadata.stats = await awaitStatsForSession(session);
+		return metadata;
+	}
+
+	// ISerializableChatData — only used in the old pre-fs storage data migration scenario
+	const lastMessageDate = session.requests.at(-1)?.timestamp ?? session.creationDate;
+
+	return {
+		sessionId: session.sessionId,
+		title: session.customTitle || localize('newChat', "New Chat"),
+		lastMessageDate,
+		timing: {
+			created: session.creationDate,
+			lastRequestStarted: session.requests.at(-1)?.timestamp,
+			lastRequestEnded: lastMessageDate,
+		},
+		initialLocation: session.initialLocation,
+		hasPendingEdits: false,
+		isEmpty: session.requests.length === 0,
+		isExternal: false,
+		lastResponseState: ResponseModelState.Complete,
 	};
 }
 

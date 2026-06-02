@@ -12,10 +12,11 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
+import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { parseSubagentSessionUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
@@ -75,6 +76,17 @@ export interface IAgentConfigurationService {
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
 
 	/**
+	 * Returns the merged config values currently stored on `session`.
+	 *
+	 * Reflects the live state managed by the reducer: every
+	 * {@link ActionType.SessionConfigChanged} action mutates these values
+	 * before this method returns. Callers materializing a provisional session
+	 * use this to read the user's latest selections without subscribing to
+	 * the action stream themselves.
+	 */
+	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined;
+
+	/**
 	 * Returns the host-level value for `key`, validating it against
 	 * `schema.definition[key]`. Invalid persisted values are logged and treated
 	 * as missing.
@@ -114,10 +126,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		// than replacing it.
 		const existing = this._stateManager.rootState.config;
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
+		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -157,17 +170,20 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession)?.summary.workingDirectory;
+			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.summary.workingDirectory;
 		}
 		return undefined;
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionConfigChanged,
-			session,
 			config: patch,
 		});
+	}
+
+	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
+		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 
 	getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
@@ -190,7 +206,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	updateRootConfig(patch: Record<string, unknown>, replace = false): void {
-		this._stateManager.dispatchServerAction({
+		this._stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: patch,
 			replace,
@@ -232,7 +248,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			const parent = this._stateManager.getSessionState(parentInfo.parentSession)?.config?.values;
+			const parent = this._stateManager.getSessionState(parentInfo.parentSession.toString())?.config?.values;
 			if (parent) {
 				yield parent;
 			}
@@ -252,7 +268,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		try {
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
-			return agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults);
+			return {
+				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
+				...sandboxConfigSchema.validateOrDefault(parsed, {}),
+			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
 			if (code !== 'ENOENT') {

@@ -42,12 +42,11 @@
 	margin: unset;
 }
 
-.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container > .titlebar-right {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
 	width: fit-content;
 	flex-grow: 0;
 	justify-content: flex-end;
-	margin-right: 12px;
 }
 
 /* Session Title Actions Container (before right toolbar) */

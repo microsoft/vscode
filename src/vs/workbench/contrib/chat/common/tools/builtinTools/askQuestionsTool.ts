@@ -331,8 +331,10 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 	 * Prefer structured metadata and fall back to legacy message parsing for
 	 * old sessions that may not carry the metadata yet.
 	 * As a final fallback, search completed runInTerminal tool invocations in
-	 * the response for the terminal ID (foreground/timeout path where the
-	 * model calls ask_questions from the same turn as runInTerminal).
+	 * the response for the terminal ID, but only when the tool output indicates
+	 * the terminal is still running and waiting for input (foreground/timeout
+	 * path where the model calls ask_questions from the same turn as
+	 * runInTerminal).
 	 */
 	private extractTerminalId(request: IChatRequestModel): string | undefined {
 		if (request.terminalExecutionId) {
@@ -346,6 +348,9 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 
 		// Search completed runInTerminal tool invocations in the response
 		// for the terminal execution ID (covers foreground/timeout path).
+		// Only match output that explicitly indicates the terminal is still
+		// running and waiting for input; otherwise the question is unrelated
+		// to the prior terminal command.
 		const response = request.response;
 		if (response) {
 			const parts = response.response.value;
@@ -356,7 +361,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					if (state.type === IChatToolInvocation.StateKind.Completed && state.contentForModel) {
 						for (const item of state.contentForModel) {
 							if (item.kind === 'text') {
-								const idMatch = item.value.match(/terminal ID ([0-9a-fA-F-]+)/);
+								const idMatch = item.value.match(/(?:running in terminal ID|may still be running in terminal ID) ([0-9a-fA-F-]+)/);
 								if (idMatch) {
 									return idMatch[1];
 								}

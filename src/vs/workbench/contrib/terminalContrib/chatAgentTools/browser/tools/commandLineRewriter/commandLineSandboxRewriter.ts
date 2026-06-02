@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { isPowerShell } from '../../runInTerminalHelpers.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../treeSitterCommandParser.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxCommand } from '../../../common/terminalSandboxService.js';
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 export class CommandLineSandboxRewriter extends Disposable implements ICommandLineRewriter {
@@ -18,24 +18,30 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
-		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs();
+		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs(false, options.sandboxPrecheckInputs);
 		if (!sandboxPrereqs.enabled || sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Config) {
 			return undefined;
 		}
 
-		const wrappedCommand = await this._sandboxService.wrapCommand(options.commandLine, options.requestUnsandboxedExecution, options.shell, await this._parseCommandKeywords(options), options.cwd);
+		const commandDetails = await this._parseCommandDetails(options);
+		const wrappedCommand = await this._sandboxService.wrapCommand(options.commandLine, options.requestUnsandboxedExecution, options.shell, options.cwd, commandDetails, options.requestAllowNetwork);
 		return {
 			rewritten: wrappedCommand.command,
-			reasoning: wrappedCommand.requiresUnsandboxConfirmation ? 'Switched command to unsandboxed execution because the command includes a domain that is not in the sandbox allowlist' : 'Wrapped command for sandbox execution',
+			reasoning: wrappedCommand.requiresAllowNetworkConfirmation ? 'Wrapped command for sandbox execution with unrestricted network access' : wrappedCommand.requiresUnsandboxConfirmation ? 'Switched command to unsandboxed execution because the command includes a domain that is not in the sandbox allowlist' : 'Wrapped command for sandbox execution',
 			forDisplay: options.commandLine, // show the command that is passed as input (after prior rewrites like cd prefix stripping)
 			isSandboxWrapped: wrappedCommand.isSandboxWrapped,
 			requiresUnsandboxConfirmation: wrappedCommand.requiresUnsandboxConfirmation,
+			requiresAllowNetworkConfirmation: wrappedCommand.requiresAllowNetworkConfirmation,
 			blockedDomains: wrappedCommand.blockedDomains,
 			deniedDomains: wrappedCommand.deniedDomains,
 		};
 	}
 
-	private async _parseCommandKeywords(options: ICommandLineRewriterOptions): Promise<string[]> {
+	/**
+	 * Parses the command line into sandbox command details. If parsing fails,
+	 * wrapping continues with the base sandbox config rather than blocking the command.
+	 */
+	private async _parseCommandDetails(options: ICommandLineRewriterOptions): Promise<ITerminalSandboxCommand[]> {
 		try {
 			if (options.requestUnsandboxedExecution === true) {
 				// if the user is requesting unsandboxed execution, not required to parse the command.
@@ -44,7 +50,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 			const languageId = isPowerShell(options.shell, options.os)
 				? TreeSitterCommandParserLanguage.PowerShell
 				: TreeSitterCommandParserLanguage.Bash;
-			return await this._treeSitterCommandParser.extractCommandKeywords(languageId, options.commandLine);
+			return await this._treeSitterCommandParser.extractCommands(languageId, options.commandLine);
 		} catch {
 			return [];
 		}

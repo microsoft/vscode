@@ -240,6 +240,22 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 		 */
 		name?: string;
 	};
+
+	/**
+	 * When specified, provides configuration overrides for the Agents window.
+	 */
+	agentsWindow?: {
+		/**
+		 * Override default value for this setting in the Agents window.
+		 */
+		default?: unknown;
+
+		/**
+		 * When `true`, this setting is read-only in the Agents window
+		 * and cannot be changed by the user.
+		 */
+		readOnly?: boolean;
+	};
 }
 
 export interface IExtensionInfo {

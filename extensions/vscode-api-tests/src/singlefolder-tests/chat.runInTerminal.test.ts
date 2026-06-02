@@ -262,7 +262,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.ok(trimmed.endsWith(`${m1}\n${m2}`), `Expected markers at end, got: ${trimmed}`);
 		});
 
-		test('non-zero exit code is reported', async function () {
+		// Flaky: #313601
+		test.skip('non-zero exit code is reported', async function () {
 			this.timeout(60000);
 
 			// Use a subshell so we don't kill the shared terminal

@@ -46,7 +46,7 @@ You MUST check compilation output before running ANY script or declaring work co
 - **`src/util/`**: Common utilities, VS Code API abstractions, and service infrastructure
 
 #### Build & Configuration
-- **`.esbuild.ts`**: Build configuration for bundling extension, web worker, and simulation workbench
+- **`.esbuild.mts`**: Build configuration for bundling extension, web worker, and simulation workbench
 - **`tsconfig.json`**: TypeScript configuration extending base config with React JSX settings
 - **`vite.config.ts`**: Test configuration for Vitest unit tests
 - **`package.json`**: Extension manifest with VS Code contributions, dependencies, and scripts

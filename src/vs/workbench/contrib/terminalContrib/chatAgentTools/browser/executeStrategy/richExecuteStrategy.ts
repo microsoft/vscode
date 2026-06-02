@@ -65,6 +65,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
+		private readonly _isSyncMode: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
@@ -110,9 +111,16 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// finished event before our new command has even started — causing
 			// the new command to be reported as having instantly exited 130 and
 			// cascading to every subsequent command on the same terminal.
-			const staleExecutingCommand = this._commandDetection.executingCommandObject;
-			const onCommandFinishedFiltered = staleExecutingCommand
-				? Event.filter(this._commandDetection.onCommandFinished, e => e !== staleExecutingCommand, store)
+			//
+			// Compare by marker identity rather than command object identity
+			// because `executingCommandObject` calls `promoteToFullCommand()`
+			// which creates a new wrapper each time, while `onCommandFinished`
+			// creates yet another wrapper. Both wrappers share the same
+			// underlying xterm `IMarker` reference from `commandStartMarker`,
+			// so marker identity is a reliable stable comparison.
+			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			const onCommandFinishedFiltered = staleMarker
+				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;
 
 			// Subscribe to terminal lifecycle events BEFORE any awaits so that we
@@ -137,9 +145,15 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					this._log(`onDone via process exit (${formatExitCodeOrError(exitCodeOrError)})`);
 					return { type: 'processExit', exitCodeOrError } as const;
 				}),
-				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService).then(() => {
-					this._log('onDone via idle prompt');
-				}),
+				// For sync mode, track idle-on-prompt as a race candidate so that
+				// commands complete when the terminal returns to a prompt. For async
+				// mode this is unnecessary — the OutputMonitor handles idle detection
+				// and the strategy result is not awaited.
+				...(this._isSyncMode ? [
+					trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService, { disableFallbacks: true }).then(() => {
+						this._log('onDone via idle prompt');
+					}),
+				] : []),
 			]);
 
 			// Ensure xterm is available

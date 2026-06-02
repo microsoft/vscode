@@ -321,10 +321,7 @@ export type Prediction = {
 	content: string | { type: string; text: string }[];
 };
 
-/** based on https://platform.openai.com/docs/api-reference/chat/create
- *
- * 'stream' param is not respected because we don't yet support non-streamed responses
- */
+/** based on https://platform.openai.com/docs/api-reference/chat/create */
 export interface OptionalChatRequestParams {
 
 	/** Non-negative temperature sampling parameter (default 1). */

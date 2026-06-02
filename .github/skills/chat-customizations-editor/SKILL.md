@@ -108,7 +108,7 @@ Without all three, built-in regrouping silently doesn't run and the fixture only
 ### Editor contribution service mocks
 
 The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
-- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation` as `Event.None`
+- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation`, `onDidAddFeedback`, `onDidConvertFeedback`, `onDidAddReply`, `onDidSubmitFeedback` as `Event.None`
 - `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
 - `IChatEditingService` — needs `editingSessionsObs` as empty observable
 - `IAgentSessionsService` — needs `model.sessions` as empty array
@@ -117,7 +117,7 @@ These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-nex
 
 ### CI regression gates
 
-Key fixtures have `blocksCi: true` in their labels. The `screenshot-test.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
+Key fixtures have `blocksCi: true` in their labels. The `component-fixtures.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
 
 Currently gated fixtures: `LocalHarness`, `McpServersTab`, `McpServersTabNarrow`, `AgentsTabNarrow`. When adding a new section or layout-critical fixture, add `blocksCi: true`:
 

@@ -303,7 +303,7 @@
 
 /* preserve list-like styling instead of tree-like styling */
 .quick-input-list .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
-	color: var(--vscode-list-focusHighlightForeground) !important;
+	color: var(--vscode-quickInputList-focusHighlightForeground) !important;
 }
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {

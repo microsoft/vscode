@@ -32,7 +32,7 @@ import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../cont
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentSkill, IChatPromptSlashCommand, ICustomAgent, IInstructionFile, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser, IChatParserContext } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
@@ -47,7 +47,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatS
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
@@ -56,6 +56,10 @@ interface AgentData {
 	id: string;
 	extensionId: ExtensionIdentifier;
 	hasFollowups?: boolean;
+}
+
+interface UnresolvedAnchor {
+	readonly response: IChatResponseModel;
 }
 
 export class MainThreadChatTask implements IChatTask {
@@ -117,7 +121,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
-	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
+	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, UnresolvedAnchor>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -251,6 +255,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			pluginUri: skill.pluginUri,
 			sessionTypes: skill.sessionTypes,
 			userInvocable: skill.userInvocable,
+			disableModelInvocation: skill.disableModelInvocation,
 		};
 	}
 
@@ -567,11 +572,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				continue;
 			}
 
-			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
+			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId && response) {
 				if (!this._unresolvedAnchors.has(requestId)) {
 					this._unresolvedAnchors.set(requestId, new Map());
 				}
-				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
+				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, { response });
 			}
 
 			chatProgressParts.push(revivedProgress);
@@ -581,15 +586,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {
-		const anchor = this._unresolvedAnchors.get(requestId)?.get(handle);
-		if (!anchor) {
+		const unresolvedAnchorsForRequest = this._unresolvedAnchors.get(requestId);
+		if (!unresolvedAnchorsForRequest) {
 			return;
 		}
 
-		this._unresolvedAnchors.get(requestId)?.delete(handle);
+		const unresolvedAnchor = unresolvedAnchorsForRequest.get(handle);
+		if (!unresolvedAnchor) {
+			return;
+		}
+
+		unresolvedAnchorsForRequest.delete(handle);
+		if (unresolvedAnchorsForRequest.size === 0) {
+			this._unresolvedAnchors.delete(requestId);
+		}
+
 		if (resolveAnchor) {
 			const revivedAnchor = revive(resolveAnchor) as IChatContentInlineReference;
-			anchor.inlineReference = revivedAnchor.inlineReference;
+			unresolvedAnchor.response.resolveInlineReference(handle, revivedAnchor);
 		}
 	}
 
@@ -702,6 +716,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				// Convert UriComponents to URI and register any inline content
 				return contributions.map(c => {
 					return {
+						name: c.name,
+						description: c.description,
+						sessionTypes: c.sessionTypes,
+						when: c.when,
 						uri: URI.revive(c.uri),
 					};
 				});
@@ -744,8 +762,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		// Build the item provider that calls back to the ExtHost
 		const itemProvider: ICustomizationItemProvider = {
 			onDidChange: emitter.event,
-			provideChatSessionCustomizations: async (token) => {
-				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
+			provideChatSessionCustomizations: async (sessionResource, token) => {
+				const items = await this._proxy.$provideChatSessionCustomizations(handle, sessionResource, token);
 				if (!items) {
 					return undefined;
 				}
@@ -753,6 +771,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
+					source: item.source,
 					description: item.description,
 					groupKey: item.groupKey,
 					badge: item.badge,
@@ -795,7 +814,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension, BUILTIN_STORAGE],
+				sources: AICustomizationSources.all
 			}),
 			itemProvider,
 		};

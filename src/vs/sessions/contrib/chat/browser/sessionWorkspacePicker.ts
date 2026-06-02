@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
-import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
@@ -16,27 +16,30 @@ import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
-import { TabbedActionListWidget } from '../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
+import { ITabDescriptor, TabbedActionListWidget } from '../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_CLOUD, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { getStatusHover, getStatusLabel, showRemoteHostOptions } from '../../remoteAgentHost/browser/remoteHostOptions.js';
+import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
+import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 
-const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const FILTER_THRESHOLD = 10;
 const MAX_RECENT_WORKSPACES = 10;
@@ -49,18 +52,6 @@ const MAX_RECENT_WORKSPACES = 10;
 const TABBED_PICKER_WIDTH = 360;
 
 /**
- * Canonical order in which well-known tab labels are rendered. Tabs whose
- * labels don't match any of these constants are appended in registration
- * order after the recognized ones.
- */
-const KNOWN_TAB_ORDER: readonly string[] = [
-	SESSION_WORKSPACE_GROUP_LOCAL,
-	SESSION_WORKSPACE_GROUP_CLOUD,
-	SESSION_WORKSPACE_GROUP_REMOTE,
-];
-const KNOWN_TAB_SET = new Set<string>(KNOWN_TAB_ORDER);
-
-/**
  * Grace period for a restored remote workspace's provider to reach Connected
  * before we fall back to no selection. SSH tunnels typically connect within
  * a couple seconds; if it hasn't connected by then, we'd rather show no
@@ -69,9 +60,19 @@ const KNOWN_TAB_SET = new Set<string>(KNOWN_TAB_ORDER);
 const RESTORE_CONNECT_GRACE_MS = 5000;
 
 /**
- * A workspace selection from the picker, pairing the workspace with its owning provider.
+ * A workspace entry as resolved from a folder URI for rendering. The
+ * `providerId` is the provider that resolved the URI (first match in
+ * iteration order). For local URIs that any local provider can resolve,
+ * this is the first registered local provider; for remote URIs it is the
+ * remote provider for that authority.
+ *
+ * Selection now flows out of the picker as a plain folder URI — the
+ * provider is rediscovered at session-creation time by
+ * {@link ISessionsManagementService.createNewSession}. The `providerId`
+ * carried here is only used internally for rendering (connection state,
+ * grouping into tabs).
  */
-export interface IWorkspaceSelection {
+export interface IResolvedFolderWorkspace {
 	readonly providerId: string;
 	readonly workspace: ISessionWorkspace;
 }
@@ -79,10 +80,14 @@ export interface IWorkspaceSelection {
 /**
  * Stored recent workspace entry. The `checked` flag marks the currently
  * selected workspace so we only need a single storage key.
+ *
+ * `providerId` is retained for backwards compatibility with previously
+ * stored entries; new entries are written without it. When reading,
+ * entries are resolved by iterating registered providers.
  */
 interface IStoredRecentWorkspace {
 	readonly uri: UriComponents;
-	readonly providerId: string;
+	readonly providerId?: string;
 	readonly checked: boolean;
 }
 
@@ -90,12 +95,18 @@ interface IStoredRecentWorkspace {
  * Item type used in the action list.
  */
 export interface IWorkspacePickerItem {
-	readonly selection?: IWorkspaceSelection;
+	readonly folderUri?: URI;
+	/** The resolved workspace (used for unavailable-provider checks). */
+	readonly providerId?: string;
 	readonly browseActionIndex?: number;
 	readonly checked?: boolean;
 	/** Command to execute when this item is selected. */
 	readonly commandId?: string;
+	/** Inline action to run when this item is selected. */
+	readonly run?: () => void;
 }
+
+type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
 
 /**
  * A unified workspace picker that shows workspaces from all registered session
@@ -105,12 +116,13 @@ export interface IWorkspacePickerItem {
  */
 export class WorkspacePicker extends Disposable {
 
-	protected readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection | undefined>());
-	readonly onDidSelectWorkspace: Event<IWorkspaceSelection | undefined> = this._onDidSelectWorkspace.event;
+	protected readonly _onDidSelectWorkspace = this._register(new Emitter<URI | undefined>());
+	readonly onDidSelectWorkspace: Event<URI | undefined> = this._onDidSelectWorkspace.event;
 	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
-	private _selectedWorkspace: IWorkspaceSelection | undefined;
+	private _selectedFolderUri: URI | undefined;
+	private _selectedResolved: IResolvedFolderWorkspace | undefined;
 
 	/**
 	 * Set to `true` once the user has explicitly picked or cleared a workspace.
@@ -128,9 +140,10 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private readonly _connectionStatusWatch = this._register(new MutableDisposable());
 
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _tabbedWidget: TabbedActionListWidget;
+	private readonly _pickerGroupContext: IContextKey<string>;
 
 	/**
 	 * Currently active workspace tab (a group label contributed by a
@@ -148,8 +161,19 @@ export class WorkspacePicker extends Disposable {
 	/** Cached VS Code recent folder URIs, resolved lazily. */
 	private _vsCodeRecentFolderUris: URI[] = [];
 
-	get selectedProject(): IWorkspaceSelection | undefined {
-		return this._selectedWorkspace;
+	get selectedFolderUri(): URI | undefined {
+		return this._selectedFolderUri;
+	}
+
+	/**
+	 * Returns the currently selected folder resolved to a workspace via the
+	 * first provider that can resolve it. Used internally for rendering
+	 * (label, icon, group). The provider association is not part of the
+	 * picker's public contract — callers should use {@link selectedFolderUri}
+	 * and let the management service rediscover the provider.
+	 */
+	get selectedResolved(): IResolvedFolderWorkspace | undefined {
+		return this._selectedResolved;
 	}
 
 	constructor(
@@ -158,24 +182,33 @@ export class WorkspacePicker extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._tabbedWidget = this._register(this.instantiationService.createInstance(TabbedActionListWidget));
-
-		// Migrate legacy storage to new key
-		this._migrateLegacyStorage();
+		this._pickerGroupContext = SessionWorkspacePickerGroupContext.bindTo(this.contextKeyService);
+		this._register(this._tabbedWidget.onDidChangeTab(tab => {
+			this._activeTab = tab;
+			this._userPickedTab = true;
+			this._pickerGroupContext.set(tab);
+		}));
+		this._register(this._tabbedWidget.onDidHide(() => {
+			this._pickerGroupContext.reset();
+		}));
 
 		// Restore selected workspace from storage
-		this._selectedWorkspace = this._restoreSelectedWorkspace();
-		if (this._selectedWorkspace) {
-			this._watchForConnectionFailure(this._selectedWorkspace);
+		const restored = this._restoreSelectedWorkspace();
+		this._applySelection(restored);
+		if (this._selectedResolved) {
+			this._watchForConnectionFailure(this._selectedResolved);
 		}
 
 		// React to provider registrations/removals: re-validate the current
@@ -183,24 +216,28 @@ export class WorkspacePicker extends Disposable {
 		// from storage so we upgrade from any fallback to the user's actual
 		// stored selection once its provider arrives.
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
-			if (this._selectedWorkspace) {
-				const providers = this.sessionsProvidersService.getProviders();
-				if (!providers.some(p => p.id === this._selectedWorkspace!.providerId)) {
-					this._selectedWorkspace = undefined;
+			if (this._selectedFolderUri) {
+				// Re-resolve in case the previous resolving provider was removed.
+				const reresolved = this._resolveFolder(this._selectedFolderUri);
+				if (!reresolved) {
+					this._selectedFolderUri = undefined;
+					this._selectedResolved = undefined;
 					this._connectionStatusWatch.clear();
 					this._updateTriggerLabel();
 					this._onDidChangeSelection.fire();
 					this._onDidSelectWorkspace.fire(undefined);
+				} else {
+					this._selectedResolved = reresolved;
 				}
 			}
 			if (!this._userHasPicked) {
-				const restored = this._restoreSelectedWorkspace();
-				if (restored && !this._isSelectedWorkspace(restored)) {
-					this._selectedWorkspace = restored;
+				const restoredNow = this._restoreSelectedWorkspace();
+				if (restoredNow && !this._isSelectedFolder(restoredNow.workspace.folders[0]?.root)) {
+					this._applySelection(restoredNow);
 					this._updateTriggerLabel();
 					this._onDidChangeSelection.fire();
-					this._onDidSelectWorkspace.fire(restored);
-					this._watchForConnectionFailure(restored);
+					this._onDidSelectWorkspace.fire(this._selectedFolderUri);
+					this._watchForConnectionFailure(restoredNow);
 				}
 			}
 		}));
@@ -282,12 +319,12 @@ export class WorkspacePicker extends Disposable {
 		// so picking a tab during one open of the picker doesn't permanently
 		// override auto-tab.
 		if (tabs.length > 0) {
-			const selectedGroup = this._selectedWorkspace?.workspace.group;
-			if (!this._userPickedTab && selectedGroup && tabs.includes(selectedGroup)) {
+			const selectedGroup = this._selectedResolved?.workspace.group;
+			if (!this._userPickedTab && selectedGroup && tabs.some(t => t.id === selectedGroup)) {
 				this._activeTab = selectedGroup;
 			}
-			if (!this._activeTab || !tabs.includes(this._activeTab)) {
-				this._activeTab = tabs[0];
+			if (!this._activeTab || !tabs.some(t => t.id === this._activeTab)) {
+				this._activeTab = tabs[0].id;
 			}
 		}
 
@@ -308,31 +345,33 @@ export class WorkspacePicker extends Disposable {
 		return true;
 	}
 
-	/**
-	 * Discovers the union of `group` labels contributed by all providers'
-	 * browse actions and recent workspaces. Well-known labels (Local /
-	 * Cloud / Remote) come first in canonical order; any custom labels
-	 * provider plug-ins might contribute follow in registration order.
-	 *
-	 * Visible to tests; not part of the public API.
-	 */
-	protected _getAvailableTabs(): string[] {
-		const seen = new Set<string>();
+	protected _getAvailableTabs(): ITabDescriptor[] {
+		const byLabel = new Map<string, ITabDescriptor>();
+		const remoteAgentHostsEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		if (remoteAgentHostsEnabled) {
+			byLabel.set(SESSION_WORKSPACE_GROUP_REMOTE, {
+				id: SESSION_WORKSPACE_GROUP_REMOTE,
+				icon: Codicon.beaker,
+				tooltip: `${SESSION_WORKSPACE_GROUP_REMOTE} (${localize('workspacePicker.experimental', "Experimental")})`,
+			});
+		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (provider.supportsLocalWorkspaces && !byLabel.has(SESSION_WORKSPACE_GROUP_LOCAL)) {
+				byLabel.set(SESSION_WORKSPACE_GROUP_LOCAL, { id: SESSION_WORKSPACE_GROUP_LOCAL });
+			}
 			for (const action of provider.browseActions) {
-				if (action.group) {
-					seen.add(action.group);
+				if (action.group === SESSION_WORKSPACE_GROUP_REMOTE && !remoteAgentHostsEnabled) {
+					continue;
+				}
+				if (action.group && !byLabel.has(action.group)) {
+					byLabel.set(action.group, { id: action.group });
 				}
 			}
 		}
-		for (const { workspace } of this._getRecentWorkspaces()) {
-			if (workspace.group) {
-				seen.add(workspace.group);
-			}
-		}
-		const known = KNOWN_TAB_ORDER.filter(g => seen.has(g));
-		const extra = [...seen].filter(g => !KNOWN_TAB_SET.has(g));
-		return [...known, ...extra];
+		return Array.from(byLabel.values()).sort((a, b) =>
+			a.id === SESSION_WORKSPACE_GROUP_LOCAL ? -1
+				: b.id === SESSION_WORKSPACE_GROUP_LOCAL ? 1
+					: a.id.localeCompare(b.id));
 	}
 
 	/**
@@ -343,17 +382,7 @@ export class WorkspacePicker extends Disposable {
 		return {
 			onSelect: (item) => {
 				hide();
-				if (item.commandId) {
-					this.commandService.executeCommand(item.commandId);
-				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
-					// Workspace belongs to an unavailable remote — ignore selection
-					return;
-				}
-				if (item.browseActionIndex !== undefined) {
-					this._executeBrowseAction(item.browseActionIndex);
-				} else if (item.selection) {
-					this._selectProject(item.selection);
-				}
+				this._dispatchPickerItem(item);
 			},
 			onHide: () => {
 				triggerElement.setAttribute('aria-expanded', 'false');
@@ -365,8 +394,8 @@ export class WorkspacePicker extends Disposable {
 	private _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
 		const showFilter = items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth }
-			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth };
+			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -404,7 +433,7 @@ export class WorkspacePicker extends Disposable {
 	 * platform `TabbedActionListWidget`; this picker only owns the data
 	 * and selection logic.
 	 */
-	private _showTabbedPicker(tabs: readonly string[]): void {
+	private _showTabbedPicker(tabs: readonly ITabDescriptor[]): void {
 		const triggerElement = this._triggerElement!;
 		// Hide the flat picker if it's visible — the two presentations
 		// don't co-exist.
@@ -419,33 +448,82 @@ export class WorkspacePicker extends Disposable {
 		};
 
 		triggerElement.setAttribute('aria-expanded', 'true');
+		this._pickerGroupContext.set(this._activeTab ?? tabs[0].id);
 		this._tabbedWidget.show<IWorkspacePickerItem>({
 			user: 'workspacePicker',
 			anchor: triggerElement,
 			tabs,
-			initialTab: this._activeTab ?? tabs[0],
-			buildItems: (tab) => {
+			initialTab: this._activeTab ?? tabs[0].id,
+			createActionList: (tab) => {
 				this._activeTab = tab;
 				const items = this._buildItems();
-				return { items, listOptions: this._buildListOptions(items, TABBED_PICKER_WIDTH) };
+				return { items, listOptions: { inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true } };
 			},
 			delegate,
 			accessibilityProvider,
 			width: TABBED_PICKER_WIDTH,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
-			onDidChangeTab: (tab) => {
-				this._activeTab = tab;
-				this._userPickedTab = true;
-			},
 		});
 	}
 
 	/**
-	 * Programmatically set the selected project.
-	 * @param fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
+	 * Dispatch logic for a picker item once the user picks it. Shared
+	 * between the desktop action-widget delegate and any mobile sheet
+	 * subclass that opts to render a different UI but reuse the
+	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
-	setSelectedWorkspace(project: IWorkspaceSelection, fireEvent = true): void {
-		this._selectProject(project, fireEvent);
+	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+		this._reportPickerClosed(item);
+		if (item.run) {
+			item.run();
+		} else if (item.commandId) {
+			this.commandService.executeCommand(item.commandId);
+		} else if (item.folderUri && item.providerId && this._isProviderUnavailable(item.providerId)) {
+			// Workspace belongs to an unavailable remote — ignore selection
+			return;
+		}
+		if (item.browseActionIndex !== undefined) {
+			this._executeBrowseAction(item.browseActionIndex);
+		} else if (item.folderUri) {
+			this._selectFolder(item.folderUri);
+		}
+	}
+
+	/**
+	 * Emits `newChatPickerClosed` telemetry on user selection. The
+	 * "before" value is read from storage (the currently-checked recent
+	 * workspace) if available, otherwise from the in-memory selection.
+	 * The "after" value comes from the item the user picked — undefined
+	 * when the item is a browse action or command rather than a workspace.
+	 */
+	private _reportPickerClosed(item: IWorkspacePickerItem): void {
+		const beforeFromStorage = this._restoreCheckedWorkspace();
+		const before = beforeFromStorage ?? this._selectedResolved;
+		const afterUri = item.folderUri;
+		const afterResolved = afterUri ? this._resolveFolder(afterUri) : undefined;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatWorkspacePicker',
+			name: 'NewChatWorkspacePicker',
+			optionIdBefore: before?.workspace?.uri.toString(),
+			optionIdAfter: afterResolved?.workspace?.uri.toString(),
+			optionLabelBefore: before?.workspace?.label,
+			optionLabelAfter: afterResolved?.workspace?.label,
+			isPII: true,
+		});
+	}
+
+	/**
+	 * Programmatically set the selected workspace by folder URI.
+	 * @param folderUri The folder URI to select.
+	 * @param options.fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
+	 * @param options.providerId Optional providerId hint that wins over any historical
+	 *        recent entry's provider. Use when the caller knows which provider should
+	 *        own the resulting session (e.g. "New Session" invoked from a workspace
+	 *        section in the sessions list, where the existing sessions for the
+	 *        workspace were created by a specific provider).
+	 */
+	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string }): void {
+		this._selectFolder(folderUri, options?.fireEvent ?? true, options?.providerId);
 	}
 
 	/**
@@ -467,7 +545,8 @@ export class WorkspacePicker extends Disposable {
 		this._hidePicker();
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
-		this._selectedWorkspace = undefined;
+		this._selectedFolderUri = undefined;
+		this._selectedResolved = undefined;
 		// Clear checked state from all recents
 		const recents = this._getStoredRecentWorkspaces();
 		const updated = recents.map(p => ({ ...p, checked: false }));
@@ -480,21 +559,61 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selection if it matches the given URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.repositories[0]?.uri, uri)) {
+		if (this._selectedFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, uri)) {
 			this.clearSelection();
 		}
 	}
 
-	private _selectProject(selection: IWorkspaceSelection, fireEvent = true): void {
+	private _selectFolder(folderUri: URI, fireEvent = true, providerIdHint?: string): void {
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
-		this._selectedWorkspace = selection;
-		this._persistSelectedWorkspace(selection);
+		// Prefer the caller-supplied providerId hint, then the historical
+		// providerId stored in the recents for this URI, so re-picking a
+		// Local Agent Host folder restores the Local Agent Host association
+		// even when another provider also resolves the URI.
+		const storedProviderId = this._getStoredRecentWorkspaces()
+			.find(r => this.uriIdentityService.extUri.isEqual(URI.revive(r.uri), folderUri))
+			?.providerId;
+		const resolved = this._resolveFolder(folderUri, providerIdHint ?? storedProviderId);
+		this._selectedFolderUri = folderUri;
+		this._selectedResolved = resolved;
+		this._persistSelectedFolder(folderUri, resolved?.providerId);
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 		if (fireEvent) {
-			this._onDidSelectWorkspace.fire(selection);
+			this._onDidSelectWorkspace.fire(folderUri);
 		}
+	}
+
+	/**
+	 * Apply a restored selection without firing events or persisting. Used
+	 * during construction and after provider list changes.
+	 */
+	private _applySelection(resolved: IResolvedFolderWorkspace | undefined): void {
+		this._selectedResolved = resolved;
+		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
+	}
+
+	/**
+	 * Iterate providers and return the first resolution of the folder URI.
+	 * When `preferredProviderId` is given, that provider is tried first so a
+	 * user's historical pick survives provider iteration order changes.
+	 */
+	private _resolveFolder(folderUri: URI, preferredProviderId?: string): IResolvedFolderWorkspace | undefined {
+		if (preferredProviderId) {
+			const preferred = this.sessionsProvidersService.getProvider(preferredProviderId);
+			const workspace = preferred?.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: preferredProviderId, workspace };
+			}
+		}
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			const workspace = provider.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: provider.id, workspace };
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -510,7 +629,10 @@ export class WorkspacePicker extends Disposable {
 		try {
 			const workspace = await action.run();
 			if (workspace) {
-				this._selectProject({ providerId: action.providerId, workspace });
+				const folderUri = workspace.folders[0]?.root;
+				if (folderUri) {
+					this._selectFolder(folderUri);
+				}
 			}
 		} catch {
 			// browse action was cancelled or failed
@@ -523,27 +645,58 @@ export class WorkspacePicker extends Disposable {
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
+		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
+		if (hasLocalSupport) {
+			const localAction: ISessionWorkspaceBrowseAction = {
+				label: localize('workspacePicker.browseSelectLocal', "Select..."),
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				icon: Codicon.folderOpened,
+				providerId: '',
+				run: () => this._browseForLocalFolder(),
+			};
+			all.unshift(localAction);
+		}
 		if (!this._isTabFiltered()) {
 			return all;
 		}
 		return all.filter(a => a.group === this._activeTab);
 	}
 
+	/**
+	 * Opens a folder picker dialog and returns the chosen URI. The folder's
+	 * provider is rediscovered later by the management service when the
+	 * session is created — no provider quick-pick is needed here.
+	 */
+	private async _browseForLocalFolder(): Promise<ISessionWorkspace | undefined> {
+		const localProviders = this.sessionsProvidersService.getProviders().filter(p => p.supportsLocalWorkspaces);
+		if (localProviders.length === 0) {
+			return undefined;
+		}
+
+		const result = await this.fileDialogService.showOpenDialog({
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+		});
+		if (!result?.length) {
+			return undefined;
+		}
+
+		// Resolve through any local provider so the returned ISessionWorkspace
+		// carries a label/icon for the browse-action handshake; the actual
+		// provider used to create the session is rediscovered at creation time.
+		for (const provider of localProviders) {
+			const workspace = provider.resolveWorkspace(result[0]);
+			if (workspace) {
+				return workspace;
+			}
+		}
+		return undefined;
+	}
+
 	/** True when the picker is currently scoped to a single tab. */
 	protected _isTabFiltered(): boolean {
 		return this._showTabs() && !!this._activeTab && this._getAvailableTabs().length > 1;
-	}
-
-	/**
-	 * Whether the bottom "Manage…" submenu should be included. Hidden
-	 * outside the Remote tab because the contributed actions (Tunnels…,
-	 * SSH…, remote provider list) are remote-specific.
-	 */
-	protected _includeManageSubmenu(): boolean {
-		if (!this._isTabFiltered()) {
-			return true;
-		}
-		return this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
 	}
 
 	/**
@@ -560,16 +713,16 @@ export class WorkspacePicker extends Disposable {
 		const allProviders = this.sessionsProvidersService.getProviders();
 		const providerIds = new Set(allProviders.map(p => p.id));
 		const tabFilter = this._isTabFiltered()
-			? (w: IWorkspaceSelection) => w.workspace.group === this._activeTab
+			? (w: IResolvedFolderWorkspace) => w.workspace.group === this._activeTab
 			: undefined;
 		const ownRecentWorkspaces = this._getRecentWorkspaces()
 			.filter(w => providerIds.has(w.providerId))
-			.filter(w => !tabFilter || tabFilter({ providerId: w.providerId, workspace: w.workspace }));
+			.filter(w => !tabFilter || tabFilter(w));
 
 		// Merge VS Code recent folders (resolved through providers, deduplicated)
 		const vsCodeRecents = this._getVSCodeRecentWorkspaces()
 			.filter(w => providerIds.has(w.providerId))
-			.filter(w => !tabFilter || tabFilter({ providerId: w.providerId, workspace: w.workspace }));
+			.filter(w => !tabFilter || tabFilter(w));
 		const ownRecentCount = ownRecentWorkspaces.length;
 		const recentWorkspaces = [...ownRecentWorkspaces, ...vsCodeRecents];
 
@@ -579,28 +732,31 @@ export class WorkspacePicker extends Disposable {
 			const isOwnRecent = i < ownRecentCount;
 			const provider = allProviders.find(p => p.id === providerId);
 			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isDisconnected = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected;
-			const selection: IWorkspaceSelection = { providerId, workspace };
-			const selected = this._isSelectedWorkspace(selection);
+			const isDisconnected = RemoteAgentHostConnectionStatus.isDisconnected(connectionStatus) || RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
+			const folderUri = workspace.folders[0]?.root;
+			if (!folderUri) {
+				continue;
+			}
+			const selected = this._isSelectedFolder(folderUri);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
 				disabled: isDisconnected,
-				item: { selection, checked: selected || undefined },
-				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(selection) : () => this._removeVSCodeRecentWorkspace(selection),
+				item: { folderUri, providerId, checked: selected || undefined },
+				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(folderUri) : () => this._removeVSCodeRecentWorkspace(folderUri),
 			});
 		}
 
 		// Browse actions from all providers (filtered to the active tab)
 		const allBrowseActions = this._getAllBrowseActions();
-		// Remote providers with connection status — only relevant for the
-		// Manage submenu, which is itself only included on the Remote tab.
+		// Remote providers with connection status — shown as dynamic rows
+		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
-		const includeManage = this._includeManageSubmenu();
+		const includeRemoteProviders = this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
 
-		if (items.length > 0 && (allBrowseActions.length > 0 || (includeManage && remoteProviders.length > 0))) {
+		if (items.length > 0 && (allBrowseActions.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
 
@@ -610,10 +766,10 @@ export class WorkspacePicker extends Disposable {
 		allBrowseActions.forEach((action, index) => {
 			const provider = allProviders.find(p => p.id === action.providerId);
 			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
+			const isUnavailable = !!connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(connectionStatus);
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.browseSelectAction', "Select {0}...", action.label),
+				label: localize('workspacePicker.browseSelectAction', "Select..."),
 				description: action.description,
 				group: { title: '', icon: action.icon },
 				disabled: isUnavailable,
@@ -621,12 +777,11 @@ export class WorkspacePicker extends Disposable {
 			});
 		});
 
-		// Inline "Manage" entries: dynamic remote provider rows + menu-contributed
-		// actions (Tunnels…, SSH…), separated from the workspace list above.
-		// The actions are tracked in a per-render array so the picker delegate
-		// can dispatch by index when an item is selected.
+		// Inline "Manage" entries: dynamic remote provider rows (scoped to
+		// the Remote tab) + menu-contributed actions (filtered by the
+		// `sessionWorkspacePickerGroup` context key).
 		const manageActions: IAction[] = [];
-		if (includeManage) {
+		if (includeRemoteProviders) {
 			for (const provider of remoteProviders) {
 				const status = provider.connectionStatus!.get();
 				const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
@@ -640,25 +795,26 @@ export class WorkspacePicker extends Disposable {
 						this._showRemoteHostOptionsDelayed(provider);
 					},
 				});
-				const extended = action as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
-				extended.icon = isTunnel ? Codicon.cloud : Codicon.remote;
+				const extended = action as IWorkspacePickerAction;
+				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
+					? Codicon.warning
+					: (isTunnel ? Codicon.cloud : Codicon.remote);
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
-				if (!isTunnel && provider.remoteAddress) {
-					const address = provider.remoteAddress;
+				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
-						await this.remoteAgentHostService.removeRemoteAgentHost(address);
+						await removeRemoteHost(provider, this.remoteAgentHostService);
 					};
 				}
 				manageActions.push(action);
 			}
+		}
 
-			const menuActions = this.menuService.getMenuActions(Menus.SessionWorkspaceManage, this.contextKeyService, { renderShortTitle: true });
-			for (const [, actions] of menuActions) {
-				for (const menuAction of actions) {
-					if (menuAction instanceof MenuItemAction) {
-						const icon = ThemeIcon.isThemeIcon(menuAction.item.icon) ? menuAction.item.icon : undefined;
-						manageActions.push(Object.assign(menuAction, { icon }));
-					}
+		const menuActions = this.menuService.getMenuActions(Menus.SessionWorkspaceManage, this.contextKeyService, { renderShortTitle: true });
+		for (const [, actions] of menuActions) {
+			for (const menuAction of actions) {
+				if (menuAction instanceof MenuItemAction) {
+					const icon = ThemeIcon.isThemeIcon(menuAction.item.icon) ? menuAction.item.icon : undefined;
+					manageActions.push(Object.assign(menuAction, { icon }));
 				}
 			}
 		}
@@ -667,13 +823,17 @@ export class WorkspacePicker extends Disposable {
 			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.manage', "Manage..."),
-				group: { title: '', icon: Codicon.settingsGear },
-				item: {},
-				submenuActions: [new SubmenuAction('workspacePicker.manage.submenu', '', manageActions)],
-			});
+			for (const action of manageActions) {
+				const extended = action as IWorkspacePickerAction;
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: action.label,
+					description: extended.onRemove ? action.tooltip || undefined : undefined,
+					group: { title: '', icon: extended.icon ?? Codicon.settingsGear },
+					item: { run: () => action.run(), commandId: action.id },
+					onRemove: extended.onRemove,
+				});
+			}
 		}
 
 		return items;
@@ -694,7 +854,7 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		dom.clearNode(this._triggerElement);
-		const workspace = this._selectedWorkspace?.workspace;
+		const workspace = this._selectedResolved?.workspace;
 		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
@@ -718,30 +878,21 @@ export class WorkspacePicker extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
 		}
-		return provider.connectionStatus.get() !== RemoteAgentHostConnectionStatus.Connected;
+		return !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get());
 	}
 
-	protected _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
-		if (!this._selectedWorkspace) {
+	protected _isSelectedFolder(folderUri: URI | undefined): boolean {
+		if (!this._selectedFolderUri || !folderUri) {
 			return false;
 		}
-		if (this._selectedWorkspace.providerId !== selection.providerId) {
-			return false;
-		}
-		const selectedUri = this._selectedWorkspace.workspace.repositories[0]?.uri;
-		const candidateUri = selection.workspace.repositories[0]?.uri;
-		return this.uriIdentityService.extUri.isEqual(selectedUri, candidateUri);
+		return this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folderUri);
 	}
 
-	private _persistSelectedWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
-		if (!uri) {
-			return;
-		}
-		this._addRecentWorkspace(selection.providerId, selection.workspace, true);
+	private _persistSelectedFolder(folderUri: URI, providerId: string | undefined): void {
+		this._addRecentFolder(folderUri, providerId, true);
 	}
 
-	private _restoreSelectedWorkspace(): IWorkspaceSelection | undefined {
+	private _restoreSelectedWorkspace(): IResolvedFolderWorkspace | undefined {
 		// Try the checked entry first
 		const checked = this._restoreCheckedWorkspace();
 		if (checked) {
@@ -753,22 +904,17 @@ export class WorkspacePicker extends Disposable {
 		// to be ready: we don't want to silently land on, e.g., a disconnected
 		// remote workspace that the user never picked.
 		try {
-			const providers = this.sessionsProvidersService.getProviders();
-			const providerIds = new Set(providers.map(p => p.id));
 			const storedRecents = this._getStoredRecentWorkspaces();
-
 			for (const stored of storedRecents) {
-				if (!providerIds.has(stored.providerId)) {
-					continue;
-				}
-				if (this._isProviderUnavailable(stored.providerId)) {
-					continue;
-				}
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
-				if (workspace) {
-					return { providerId: stored.providerId, workspace };
+				const resolved = this._resolveFolder(uri, stored.providerId);
+				if (!resolved) {
+					continue;
 				}
+				if (this._isProviderUnavailable(resolved.providerId)) {
+					continue;
+				}
+				return resolved;
 			}
 			return undefined;
 		} catch {
@@ -777,26 +923,24 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Restore only the checked (previously selected) workspace if its provider
-	 * is registered. The provider's connection status is intentionally NOT
-	 * checked — we honor the user's explicit pick even if the remote is still
-	 * connecting or currently disconnected. The trigger label reflects the
-	 * connection state separately (spinner / grayed).
+	 * Restore only the checked (previously selected) workspace if any
+	 * provider can resolve its URI. The provider's connection status is
+	 * intentionally NOT checked — we honor the user's explicit pick even
+	 * if the remote is still connecting or currently disconnected. The
+	 * trigger label reflects the connection state separately
+	 * (spinner / grayed).
 	 */
-	private _restoreCheckedWorkspace(): IWorkspaceSelection | undefined {
+	private _restoreCheckedWorkspace(): IResolvedFolderWorkspace | undefined {
 		try {
-			const providers = this.sessionsProvidersService.getProviders();
-			const providerIds = new Set(providers.map(p => p.id));
 			const storedRecents = this._getStoredRecentWorkspaces();
-
 			for (const stored of storedRecents) {
-				if (!stored.checked || !providerIds.has(stored.providerId)) {
+				if (!stored.checked) {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
-				if (workspace) {
-					return { providerId: stored.providerId, workspace };
+				const resolved = this._resolveFolder(uri, stored.providerId);
+				if (resolved) {
+					return resolved;
 				}
 			}
 			return undefined;
@@ -820,13 +964,18 @@ export class WorkspacePicker extends Disposable {
 	 *
 	 * Has no effect once the user makes an explicit pick (`_userHasPicked`).
 	 */
-	private _watchForConnectionFailure(selection: IWorkspaceSelection): void {
-		const provider = this.sessionsProvidersService.getProvider(selection.providerId);
+	private _watchForConnectionFailure(resolved: IResolvedFolderWorkspace): void {
+		const provider = this.sessionsProvidersService.getProvider(resolved.providerId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return;
 		}
 		const connStatus = provider.connectionStatus;
-		if (connStatus.get() === RemoteAgentHostConnectionStatus.Connected) {
+		if (RemoteAgentHostConnectionStatus.isConnected(connStatus.get())) {
+			return;
+		}
+
+		const folderUri = resolved.workspace.folders[0]?.root;
+		if (!folderUri) {
 			return;
 		}
 
@@ -835,8 +984,9 @@ export class WorkspacePicker extends Disposable {
 
 		const fallback = () => {
 			this._connectionStatusWatch.clear();
-			if (!this._userHasPicked && this._isSelectedWorkspace(selection)) {
-				this._selectedWorkspace = undefined;
+			if (!this._userHasPicked && this._isSelectedFolder(folderUri)) {
+				this._selectedFolderUri = undefined;
+				this._selectedResolved = undefined;
 				this._updateTriggerLabel();
 				this._onDidChangeSelection.fire();
 				this._onDidSelectWorkspace.fire(undefined);
@@ -846,9 +996,9 @@ export class WorkspacePicker extends Disposable {
 		let isFirstRun = true;
 		store.add(autorun(reader => {
 			const status = connStatus.read(reader);
-			if (status === RemoteAgentHostConnectionStatus.Connected) {
+			if (RemoteAgentHostConnectionStatus.isConnected(status)) {
 				this._connectionStatusWatch.clear();
-			} else if (status === RemoteAgentHostConnectionStatus.Disconnected && !isFirstRun) {
+			} else if ((RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) && !isFirstRun) {
 				fallback();
 			}
 			isFirstRun = false;
@@ -858,53 +1008,19 @@ export class WorkspacePicker extends Disposable {
 		// fall back. Catches the case where the provider's status flips before
 		// our autorun subscribes (so we never observe a transition).
 		disposableTimeout(() => {
-			if (connStatus.get() !== RemoteAgentHostConnectionStatus.Connected) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connStatus.get())) {
 				fallback();
 			}
 		}, RESTORE_CONNECT_GRACE_MS, store);
 	}
 
-	/**
-	 * Migrate legacy `sessions.recentlyPickedProjects` storage to the new
-	 * `sessions.recentlyPickedWorkspaces` key, adding `providerId` (defaulting
-	 * to Copilot) and ensuring at least one entry is checked.
-	 */
-	private _migrateLegacyStorage(): void {
-		// Already migrated
-		if (this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE)) {
-			return;
-		}
-
-		const raw = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-		if (!raw) {
-			return;
-		}
-
-		try {
-			const parsed = JSON.parse(raw) as { uri: UriComponents; checked?: boolean }[];
-			const hasAnyChecked = parsed.some(e => e.checked);
-			const migrated: IStoredRecentWorkspace[] = parsed.map((entry, index) => ({
-				uri: entry.uri,
-				providerId: COPILOT_PROVIDER_ID,
-				checked: hasAnyChecked ? !!entry.checked : index === 0,
-			}));
-			this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(migrated), StorageScope.PROFILE, StorageTarget.MACHINE);
-		} catch { /* ignore */ }
-
-		this.storageService.remove(LEGACY_STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-	}
-
 	// -- Recent workspaces storage --
 
-	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace, checked: boolean): void {
-		const uri = workspace.repositories[0]?.uri;
-		if (!uri) {
-			return;
-		}
+	private _addRecentFolder(folderUri: URI, providerId: string | undefined, checked: boolean): void {
 		const recents = this._getStoredRecentWorkspaces();
 		const filtered = recents.map(p => {
 			// Remove the entry being re-added (it will go to the front)
-			if (p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri)) {
+			if (this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri)) {
 				return undefined;
 			}
 			// Clear checked from all other entries when marking checked
@@ -914,55 +1030,45 @@ export class WorkspacePicker extends Disposable {
 			return p;
 		}).filter((p): p is IStoredRecentWorkspace => p !== undefined);
 
-		const entry: IStoredRecentWorkspace = { uri: uri.toJSON(), providerId, checked };
+		const entry: IStoredRecentWorkspace = { uri: folderUri.toJSON(), providerId, checked };
 		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	protected _getRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
+	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
 		return this._getStoredRecentWorkspaces()
 			.map(stored => {
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
-				if (!workspace) {
-					return undefined;
-				}
-				return { providerId: stored.providerId, workspace };
+				return this._resolveFolder(uri, stored.providerId);
 			})
-			.filter((w): w is { providerId: string; workspace: ISessionWorkspace } => w !== undefined);
+			.filter((w): w is IResolvedFolderWorkspace => w !== undefined);
 	}
 
-	protected _removeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
-		if (!uri) {
-			return;
-		}
+	protected _removeRecentWorkspace(folderUri: URI): void {
 		const recents = this._getStoredRecentWorkspaces();
 		const updated = recents.filter(p =>
-			!(p.providerId === selection.providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri))
+			!this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri)
 		);
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		// Clear current selection if it was the removed workspace
-		if (this._isSelectedWorkspace(selection)) {
+		if (this._isSelectedFolder(folderUri)) {
 			this._hidePicker();
-			this._selectedWorkspace = undefined;
+			this._selectedFolderUri = undefined;
+			this._selectedResolved = undefined;
 			this._updateTriggerLabel();
 			this._onDidSelectWorkspace.fire(undefined);
 		}
 	}
 
-	protected _removeVSCodeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
-		if (!uri) {
-			return;
-		}
-		this.workspacesService.removeRecentlyOpened([uri]);
+	protected _removeVSCodeRecentWorkspace(folderUri: URI): void {
+		this.workspacesService.removeRecentlyOpened([folderUri]);
 
 		// Clear current selection if it was the removed workspace
-		if (this._isSelectedWorkspace(selection)) {
+		if (this._isSelectedFolder(folderUri)) {
 			this._hidePicker();
-			this._selectedWorkspace = undefined;
+			this._selectedFolderUri = undefined;
+			this._selectedResolved = undefined;
 			this._updateTriggerLabel();
 			this._onDidSelectWorkspace.fire(undefined);
 		}
@@ -1004,7 +1110,7 @@ export class WorkspacePicker extends Disposable {
 	 * providers, excluding any URIs already present in the sessions' own
 	 * recent workspace history.
 	 */
-	protected _getVSCodeRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
+	protected _getVSCodeRecentWorkspaces(): IResolvedFolderWorkspace[] {
 		if (this._vsCodeRecentFolderUris.length === 0) {
 			return [];
 		}
@@ -1013,21 +1119,15 @@ export class WorkspacePicker extends Disposable {
 		const ownRecents = this._getStoredRecentWorkspaces();
 		const ownUris = new Set(ownRecents.map(r => URI.revive(r.uri).toString()));
 
-		const providers = this.sessionsProvidersService.getProviders();
-		const result: { providerId: string; workspace: ISessionWorkspace }[] = [];
+		const result: IResolvedFolderWorkspace[] = [];
 
 		for (const folderUri of this._vsCodeRecentFolderUris) {
 			if (ownUris.has(folderUri.toString())) {
 				continue;
 			}
-			for (const provider of providers) {
-				if (this._isProviderUnavailable(provider.id)) {
-					continue;
-				}
-				const workspace = provider.resolveWorkspace(folderUri);
-				if (workspace) {
-					result.push({ providerId: provider.id, workspace });
-				}
+			const resolved = this._resolveFolder(folderUri);
+			if (resolved && !this._isProviderUnavailable(resolved.providerId)) {
+				result.push(resolved);
 			}
 			if (result.length >= 10) {
 				break;
