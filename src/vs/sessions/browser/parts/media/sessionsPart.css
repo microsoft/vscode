@@ -121,10 +121,25 @@
  * across the multi-session grid so attention stays on the active session.
  * ------------------------------------------------------------------------- */
 
-/* Fade out every toolbar control except the send (execute) toolbar. */
+/* Keep the mode/model/harness pickers legible (but non-interactive) in inactive
+ * sessions so it stays glanceable what each parallel session is running — just
+ * quiet them rather than hiding them entirely. */
 .monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
-	opacity: 0;
+	opacity: 0.6;
 	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+
+/* Quiet the session toolbar controls in the top-right of inactive sessions so
+ * the active session's controls stand out, while keeping them legible. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .chat-composite-bar-inline-toolbar,
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .chat-composite-bar-toolbar {
+	opacity: 0.6;
+	transition: opacity 0.15s ease;
+}
+
+.monaco-workbench .part.sessionspart .session-view.is-active .chat-composite-bar-inline-toolbar,
+.monaco-workbench .part.sessionspart .session-view.is-active .chat-composite-bar-toolbar {
 	transition: opacity 0.15s ease;
 }
 
@@ -165,17 +180,38 @@
 	transition: filter 0.15s ease, opacity 0.15s ease;
 }
 
-/* While a session is fading in (auto-focus happens immediately on the selecting
- * click), suppress the focus border so it does not flash around the still-fading
- * placeholder. The `activating` class is removed once the fade-in completes, at
- * which point the normal focus border applies. The "working" comet state owns
- * its own border and is left untouched. */
+/* While a session is inactive or fading in, suppress the focus border so it
+ * does not flash around the still-fading placeholder. Clicking an inactive
+ * session's input focuses it (adding `.focused`) before it is marked active, and
+ * the `activating` class covers the subsequent fade-in. The border therefore
+ * only appears in the settled `.is-active:not(.activating)` state. The "working"
+ * comet state owns its own border and is left untouched. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container.focused:not(.working),
 .monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container.focused:not(.working) {
 	border-color: var(--vscode-agentsChatInput-border) !important;
 }
 
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .new-chat-input-area:focus-within,
 .monaco-workbench .part.sessionspart .session-view.activating .new-chat-input-area:focus-within {
 	border-color: var(--vscode-agentsChatInput-border);
+}
+
+/* The Monaco editor inside the chat input paints its own focus outline (see
+ * `standalone-tokens.css`: `textarea:focus`/`[tabindex]:focus`/`.synthetic-focus`
+ * → `outline-color: var(--vscode-focusBorder)`). Clicking an inactive session's
+ * input focuses that editor synchronously, so this inner outline lands a frame
+ * before the JS-applied `.chat-input-container.focused` outer border — producing
+ * a brief focus border around the still-fading inner placeholder/editor. Suppress
+ * the inner outline for the duration of the inactive→active fade so neither the
+ * inner nor the outer border shows until the session settles into its active,
+ * non-`activating` state. */
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor .synthetic-focus,
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor [tabindex]:focus,
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor textarea:focus,
+.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor .synthetic-focus,
+.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor [tabindex]:focus,
+.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor textarea:focus {
+	outline-color: transparent !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
