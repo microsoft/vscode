@@ -21,6 +21,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
@@ -170,11 +171,12 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteChat(): Promise<void> { }
+	override deleteNewSession(): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 }
 
-function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): { service: ISessionsManagementService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {
+function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const agentSessionsService = new TestAgentSessionsService();
@@ -182,11 +184,14 @@ function createSessionsManagementService(session: ISession, disposables: ReturnT
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([new TestSessionsProvider(session)]));
+	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IAgentSessionsService, agentSessionsService);
 	instantiationService.stub(IProgressService, new TestProgressService());
+	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+		override readonly onDidSubmitRequest = Event.None;
+	});
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	return { service, chatWidgetService, agentSessionsService };
@@ -232,6 +237,9 @@ suite('SessionsManagementService', () => {
 		instantiationService.stub(IChatWidgetService, chatWidgetService);
 		instantiationService.stub(IAgentSessionsService, agentSessionsService);
 		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 
@@ -282,6 +290,9 @@ suite('SessionsManagementService', () => {
 		instantiationService.stub(IChatWidgetService, chatWidgetService);
 		instantiationService.stub(IAgentSessionsService, agentSessionsService);
 		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 
@@ -300,5 +311,88 @@ suite('SessionsManagementService', () => {
 		await restorePromise;
 		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), [targetSession.resource.toString()]);
 	});
-});
 
+	test('sendNewChatRequest with background returns to the new-session view', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const { service } = createSessionsManagementService(session, disposables);
+
+		// Open the session so it becomes the active session.
+		await service.openSession(session.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 's1');
+
+		// A background new-chat send resets to the new-session view (no active session).
+		await service.sendNewChatRequest(session, { query: 'hi', background: true });
+		assert.strictEqual(service.activeSession.get(), undefined);
+
+		// A normal new-chat send keeps the started session active.
+		await service.openSession(session.resource);
+		await service.sendNewChatRequest(session, { query: 'hi' });
+		assert.strictEqual(service.activeSession.get()?.sessionId, 's1');
+	});
+
+	test('sendNewChatRequest with background resolves before provider send commits', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		let completeSendRequest: (() => void) | undefined;
+		let sendRequestStarted = false;
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				sendRequestStarted = true;
+				await new Promise<void>(resolve => {
+					completeSendRequest = resolve;
+				});
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.openSession(session.resource);
+
+		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
+		await sendPromise;
+
+		assert.strictEqual(sendRequestStarted, true);
+		assert.strictEqual(service.activeSession.get(), undefined);
+
+		completeSendRequest?.();
+	});
+
+	test('createAndSendNewChatRequest sends without changing the active view', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		let sendRequestStarted = false;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				sendRequestStarted = true;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		// No active session and no pending composer before the headless send.
+		assert.strictEqual(service.activeSession.get(), undefined);
+
+		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' });
+
+		// The request was sent, but the user's view was not navigated into the session.
+		assert.strictEqual(sendRequestStarted, true);
+		assert.strictEqual(service.activeSession.get(), undefined);
+	});
+});

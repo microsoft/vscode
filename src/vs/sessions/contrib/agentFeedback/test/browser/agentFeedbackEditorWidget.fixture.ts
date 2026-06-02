@@ -220,6 +220,7 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 		editor,
 		options.commentItems,
 		sessionResource,
+		undefined,
 	));
 
 	widget.layout(options.commentItems[0].range.startLineNumber);

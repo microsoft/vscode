@@ -375,6 +375,17 @@ export class ChatEndpoint implements IChatEndpoint {
 			}
 		}
 
+		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
+		if (this.family.toLowerCase().includes('gemini-3')) {
+			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
+				ConfigKey.EnableGemini3LowReasoningEffort,
+				this._expService
+			);
+			if (lowReasoningEnabled) {
+				body.reasoning_effort = 'low';
+			}
+		}
+
 		return body;
 	}
 
