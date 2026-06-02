@@ -262,6 +262,20 @@ class CodeMain {
 			}
 		});
 
+		// test-workbench_change start
+		// Two variables are needed in third-party plugin tracking method
+		const productService = (environmentMainService as any).productService;
+		const extensionTelemetry = productService?.extensionTelemetry as { connectionString?: string; endpointUrl?: string } | undefined;
+		if (extensionTelemetry) {
+			if (extensionTelemetry.connectionString) {
+				instanceEnvironment['TSCODE_EXTENSION_TELEMETRY_CONNECTION_STRING'] = extensionTelemetry.connectionString + (extensionTelemetry.endpointUrl ?? '');
+			}
+			if (extensionTelemetry.endpointUrl) {
+				instanceEnvironment['TSCODE_EXTENSION_TELEMETRY_ENDPOINT_URL'] = extensionTelemetry.endpointUrl;
+			}
+		}
+		// test-workbench_change end
+
 		Object.assign(process.env, instanceEnvironment);
 
 		return instanceEnvironment;
