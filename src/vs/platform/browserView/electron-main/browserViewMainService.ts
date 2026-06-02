@@ -337,7 +337,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (!window) {
 			return;
 		}
-		this._windowCloseSubscriptions.set(windowId, Event.once(window.onDidClose)(() => {
+		const onWindowGone = Event.any(window.onDidClose, window.onDidDestroy);
+		this._windowCloseSubscriptions.set(windowId, Event.once(onWindowGone)(() => {
 			this._windowCloseSubscriptions.deleteAndDispose(windowId);
 			if (this._perWindowTrustedRoots.delete(windowId)) {
 				this._recomputeTrustedFileRoots();
