@@ -5,7 +5,7 @@
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
-import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
+import { ErrorCode, RenameKind, type CachedContextRunnableResult, type CodeUsage, type CodeUsageRequest, type CodeUsageResponse, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
 const ts = TS();
 
@@ -13,6 +13,7 @@ import type { Host } from '../common/host';
 import { PrepareNesRenameResult } from '../common/nesRenameValidator';
 import TS from '../common/typescript';
 import { NodeHost } from './host';
+import { getCodeUsages } from '../common/codeUsage';
 
 export class LanguageServerSession extends ComputeContextSession {
 	private readonly session: tt.server.Session;
@@ -99,6 +100,10 @@ interface PrepareNesRenameHandlerResponse extends tt.server.HandlerResponse {
 
 interface NesRenameHandlerResponse extends tt.server.HandlerResponse {
 	response: NesRenameResponse.OK | NesRenameResponse.Failed;
+}
+
+interface CodeUsageHandlerResponse extends tt.server.HandlerResponse {
+	response: CodeUsageResponse.OK | CodeUsageResponse.Failed;
 }
 
 let installAttempted: boolean = false;
@@ -254,6 +259,27 @@ const nesRenameHandler = (request: NesRenameRequest): NesRenameHandlerResponse =
 	return { response: { groups: result }, responseRequired: true };
 };
 
+const codeUsageHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse => {
+	const input = resolveInput(request.arguments, 0);
+	if (FailedHandlerResponse.is(input)) {
+		return input;
+	}
+
+	const { languageService, file, pos } = input;
+
+	let result: CodeUsage[];
+	try {
+		result = getCodeUsages(languageServerSession!, languageService, file, pos);
+	} catch (error) {
+		if (error instanceof Error) {
+			return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };
+		} else {
+			return { response: { error: ErrorCode.exception, message: 'Unknown error' }, responseRequired: true };
+		}
+	}
+	return { response: { usages: result }, responseRequired: true };
+};
+
 export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
 	if (installAttempted) {
 		return info.languageService;
@@ -273,6 +299,7 @@ export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
 					info.session.addProtocolHandler('_.copilot.context', computeContextHandler);
 					info.session.addProtocolHandler('_.copilot.prepareNesRename', prepareNesRenameHandler);
 					info.session.addProtocolHandler('_.copilot.postNesRename', nesRenameHandler);
+					info.session.addProtocolHandler('_.copilot.codeUsage', codeUsageHandler);
 				}
 
 			} catch (e) {
