@@ -97,6 +97,15 @@ export function installMobileEdgeSwipeToOpenSidebar(
 		startX = e.clientX;
 		startY = e.clientY;
 		startTime = Date.now();
+		// Capture the pointer so POINTER_MOVE/UP keep arriving on
+		// `mainContainer` even if the target changes during the swipe
+		// (e.g. the pointer crosses into an iframe/overlay), avoiding
+		// a stuck `tracking` flag.
+		try {
+			mainContainer.setPointerCapture(e.pointerId);
+		} catch {
+			// Ignore environments without pointer capture support.
+		}
 	}, true));
 
 	store.add(addDisposableListener(mainContainer, EventType.POINTER_MOVE, (e: PointerEvent) => {

@@ -197,6 +197,7 @@ export function showMobilePickerSheet(
 ): Promise<string | undefined> {
 	return new Promise<string | undefined>(resolve => {
 		let resolved = false;
+		// eslint-disable-next-line prefer-const
 		let shell!: IMobileSheetShell;
 
 		const finish = (id: string | undefined) => {
@@ -426,6 +427,7 @@ export function showMobileContentSheet(
 ): Promise<void> {
 	return new Promise<void>(resolve => {
 		let resolved = false;
+		// eslint-disable-next-line prefer-const
 		let shell!: IMobileSheetShell;
 
 		const close = () => {
@@ -607,8 +609,7 @@ function buildMobileSheetShell(
 	if (vv) {
 		const adjustForKeyboard = () => {
 			// The keyboard height is the difference between the
-			// layout viewport height and the visual viewport height,
-			// plus any scroll offset the browser applied.
+			// layout viewport height and the visual viewport height.
 			const keyboardHeight = win.innerHeight - vv.height;
 			overlay.style.bottom = `${Math.max(0, keyboardHeight)}px`;
 			overlay.style.height = `${vv.height}px`;

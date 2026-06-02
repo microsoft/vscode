@@ -154,6 +154,15 @@ export function installLongPress(
 		pointerId = e.pointerId;
 		startX = e.clientX;
 		startY = e.clientY;
+		// Capture the pointer so POINTER_MOVE/UP keep firing on
+		// `element` even when the finger drifts off it (e.g. during a
+		// scroll attempt). Without this, a drag-off can leave the
+		// long-press timer armed with no cancel event.
+		try {
+			element.setPointerCapture(e.pointerId);
+		} catch {
+			// Ignore environments without pointer capture support.
+		}
 		timerId = targetWindow.setTimeout(() => {
 			timerId = undefined;
 			pointerId = undefined;

@@ -160,6 +160,15 @@ export function installPulldownDismiss(
 			}
 			dragging = true;
 			applyDragStyles();
+			// Capture the pointer so POINTER_MOVE/UP keep arriving on
+			// `headerHandle` even when the finger drifts off it during
+			// the drag — otherwise we could miss release and leave the
+			// overlay stuck mid-translate.
+			try {
+				headerHandle.setPointerCapture(e.pointerId);
+			} catch {
+				// Ignore environments without pointer capture support.
+			}
 		}
 
 		// Update running velocity sample for flick detection.
