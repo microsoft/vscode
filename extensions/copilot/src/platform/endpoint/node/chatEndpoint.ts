@@ -164,7 +164,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.version = modelMetadata.version;
 		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
 		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
-		this.tokenizer = modelMetadata.capabilities.tokenizer;
+		this.tokenizer = modelMetadata.capabilities.tokenizer ?? TokenizerType.O200K;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
@@ -372,6 +372,17 @@ export class ChatEndpoint implements IChatEndpoint {
 			// Only override tool_choice if experiment provides a value and user hasn't specified a function call
 			if (geminiFunctionCallingMode && typeof body.tool_choice !== 'object') {
 				body.tool_choice = geminiFunctionCallingMode;
+			}
+		}
+
+		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
+		if (this.family.toLowerCase().includes('gemini-3')) {
+			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
+				ConfigKey.EnableGemini3LowReasoningEffort,
+				this._expService
+			);
+			if (lowReasoningEnabled) {
+				body.reasoning_effort = 'low';
 			}
 		}
 

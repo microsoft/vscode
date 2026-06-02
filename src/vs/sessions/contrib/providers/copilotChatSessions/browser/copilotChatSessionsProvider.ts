@@ -8,7 +8,7 @@ import { raceCancellationError, raceTimeout } from '../../../../../base/common/a
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -1493,32 +1493,39 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Session Lifecycle --
 
-	private readonly _currentNewSession = this._register(new MutableDisposable<NewSession>());
+	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
 
 	/**
-	 * Clear {@link _currentNewSession} only if it still holds the given
-	 * session. Async flows (commit wait, cache population) may complete
-	 * after a newer session has been assigned — unconditionally clearing
-	 * would dispose the newer session and leave it dangling.
+	 * Clear the tracked new session with the given session's id, but only if
+	 * the map still holds exactly that instance. Async flows (commit wait,
+	 * cache population) may complete after the entry was already replaced or
+	 * removed — acting unconditionally would dispose an unrelated session.
 	 *
 	 * @param session The session that initiated the async flow.
-	 * @param leak When `true` use {@link MutableDisposable.clearAndLeak}
-	 *             (the session is still referenced elsewhere); otherwise
-	 *             use {@link MutableDisposable.clear} which also disposes.
+	 * @param leak When `true` use {@link DisposableMap.deleteAndLeak}
+	 *             (the session is still referenced elsewhere, e.g. the session
+	 *             cache); otherwise use {@link DisposableMap.deleteAndDispose}.
 	 */
 	private _clearCurrentNewSessionIfMatch(session: NewSession, leak?: boolean): void {
-		if (this._currentNewSession.value === session) {
+		if (this._newSessions.get(session.sessionId) === session) {
 			if (leak) {
-				this._currentNewSession.clearAndLeak();
+				this._newSessions.deleteAndLeak(session.sessionId);
 			} else {
-				this._currentNewSession.clear();
+				this._newSessions.deleteAndDispose(session.sessionId);
 			}
 		}
 	}
 
+	deleteNewSession(sessionId: string): void {
+		if (this._newSessions.has(sessionId)) {
+			this._newSessions.deleteAndDispose(sessionId);
+		}
+	}
+
 	getSession(sessionId: string): ICopilotChatSession | undefined {
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			return this._currentNewSession.value;
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			return newSession;
 		}
 		return this._findChatSession(sessionId);
 	}
@@ -1535,14 +1542,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id);
-			this._currentNewSession.value = session;
+			this._newSessions.set(session.sessionId, session);
 			return this._chatToSession(session);
 		}
 
 		if (sessionTypeId === ClaudeCodeSessionType.id) {
 			const resource = URI.from({ scheme: AgentSessionProviders.Claude, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(ClaudeCodeNewSession, resource, workspace, this.id);
-			this._currentNewSession.value = session;
+			this._newSessions.set(session.sessionId, session);
 			return this._chatToSession(session);
 		}
 
@@ -1552,7 +1559,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
 		session.setPermissionLevel(this._defaultPermissionLevel());
-		this._currentNewSession.value = session;
+		this._newSessions.set(session.sessionId, session);
 		return this._chatToSession(session);
 	}
 
@@ -1571,8 +1578,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	setModel(sessionId: string, modelId: string): void {
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			this._currentNewSession.value.setModelId(modelId);
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			newSession.setModelId(modelId);
 			return;
 		}
 
@@ -1714,8 +1722,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				const key = chat.resource.toString();
 				this._sessionCache.delete(key);
 				this._invalidateGroupingCaches();
-				if (this._currentNewSession.value?.sessionId === chatId) {
-					this._currentNewSession.clear();
+				if (this._newSessions.has(chatId)) {
+					this._newSessions.deleteAndDispose(chatId);
 				}
 			}
 			this._sessionGroupCache.delete(sessionId);
@@ -1744,8 +1752,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	async createNewChat(sessionId: string, prompt?: string): Promise<IChat> {
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			const session = this._currentNewSession.value;
+		const currentNewSession = this._newSessions.get(sessionId);
+		if (currentNewSession) {
+			const session = currentNewSession;
 			let newChat: IChat;
 			// new session
 			if (session instanceof ClaudeCodeNewSession) {
@@ -1809,7 +1818,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
 		session.setPermissionLevel(this._defaultPermissionLevel());
 		session.setTitle(localize('new chat', "New Chat"));
-		this._currentNewSession.value = session;
+		this._newSessions.set(session.sessionId, session);
 
 		(await this._createChatSession(session.resource, session)).dispose();
 
@@ -1824,8 +1833,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
-		const newSession = this._currentNewSession.value;
-		if (newSession && newSession.sessionId === sessionId) {
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
 			if (!this.uriIdentityService.extUri.isEqual(newSession.mainChat.get().resource, chatResource)) {
 				throw new Error('Chat resource does not match the main chat of the current new session');
 			}
@@ -2399,8 +2408,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.delete(key);
 		this._invalidateGroupingCaches();
 		this._sessionGroupCache.delete(chatSession.sessionId);
-		if (this._currentNewSession.value?.sessionId === chatSession.sessionId) {
-			this._currentNewSession.clearAndLeak();
+		if (this._newSessions.has(chatSession.sessionId)) {
+			this._newSessions.deleteAndLeak(chatSession.sessionId);
 		}
 		const removedSession = this._chatToSession(chatSession);
 		this._sessionGroupCache.delete(chatSession.sessionId);

@@ -747,6 +747,7 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 			label: localize('browser.openTabs', "Open Tabs"),
 			description: localize('browser.openTabsDescription', "Select a tab to switch"),
 			order: 100,
+			actions: [],
 			getSuggestions: async ({ input }) => {
 				// Only surface tab suggestions on a new / empty tab.
 				if (input.url) {

@@ -642,20 +642,20 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			case SessionStatus.InProgress:
 				// When motion is allowed, the pixel spinner is rendered directly in renderSession
 				// and this method is not consulted; here we only provide the reduced-motion fallback.
-				return { ...Codicon.sessionInProgressCompact, color: themeColorFromId('textLink.foreground') };
+				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput:
 				// Same as above — pixel spinner replaces the pulsing dot when motion is allowed.
-				return { ...Codicon.circleFilledCompact, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error: return { ...Codicon.errorCompact, color: themeColorFromId('errorForeground') };
+				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
 				if (pullRequestIcon) {
 					return pullRequestIcon;
 				}
 
 				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilledCompact, color: themeColorFromId('textLink.foreground') };
+					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
-				return { ...Codicon.circleSmallFilledCompact, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 	}
 
