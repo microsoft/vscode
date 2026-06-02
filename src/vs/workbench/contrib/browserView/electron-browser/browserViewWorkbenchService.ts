@@ -23,7 +23,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
-import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
 import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
@@ -68,9 +67,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		ContextKeyExpr.or(
 			IsSessionsWindowContext.negate(),
 			ContextKeyExpr.and(
-				IsSessionsWindowContext,
-				ContextKeyExpr.has(`config.${AgentHostEnabledSettingId}`),
 				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('activeSessionType', 'local'),
+					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
+				)
 			),
 		),
 	)!;
