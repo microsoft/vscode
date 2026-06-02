@@ -86,12 +86,6 @@ export const BROWSER_SEARCH_ENGINES: readonly IBrowserSearchEngine[] = [
 export type AddressBarInputKind = 'empty' | 'url' | 'query' | 'unknown';
 
 /**
- * Back-compat alias. Prefer {@link AddressBarInputKind}.
- * @deprecated
- */
-export type AddressBarKind = AddressBarInputKind;
-
-/**
  * Known URL schemes other than http/https and javascript. Anything in this
  * set is classified as URL when typed as a leading `scheme:` prefix.
  */
