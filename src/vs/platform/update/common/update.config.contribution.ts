@@ -65,7 +65,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			type: 'boolean',
-			default: true, // test-workbench_change - Keep background updates enabled
+			default: false, // test-workbench_change - Keep background updates enabled
 			scope: ConfigurationScope.APPLICATION,
 			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),

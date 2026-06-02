@@ -152,7 +152,7 @@ function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
 
 export class ProductContribution implements IWorkbenchContribution {
 
-	private static readonly KEY = 'releaseNotes/tscodeLastVersion';   // test-workbench_change change from 'update/lastKnownVersion' to 'releaseNotes/lastVersion' for tscode version update
+	private static readonly KEY = 'releaseNotes/lastVersion';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -174,17 +174,17 @@ export class ProductContribution implements IWorkbenchContribution {
 			}
 
 			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
-			const currentVersion = tryParseVersion(productService.gitVersion ?? productService.version);  // test-workbench_change
+			const currentVersion = tryParseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
 			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && currentVersion && (!lastVersion || isMajorMinorUpdate(lastVersion, currentVersion))) {
-				showReleaseNotesInEditor(instantiationService, productService.gitVersion ?? productService.version, false)  // test-workbench_change
+			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+				showReleaseNotesInEditor(instantiationService, productService.version, false)
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
-							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.gitVersion ?? productService.version), // test-workbench_change
+							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
 							[{
 								label: nls.localize('releaseNotes', "Release Notes"),
 								run: () => {
@@ -197,7 +197,7 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			storageService.store(ProductContribution.KEY, productService.gitVersion ?? productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);  // test-workbench_change
+			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
 	}
 }
@@ -208,6 +208,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
+	private promptedUpdateVersion: string | undefined; // test-workbench_change
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -264,6 +265,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					const nextVersion = tryParseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
 				}
+				this.promptToRestartForUpdate(state);
 				break;
 			}
 		}
@@ -292,6 +294,33 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private onUpdateNotAvailable(): void {
 		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
+
+	// test-workbench_change start
+	private async promptToRestartForUpdate(state: Extract<UpdateState, { type: StateType.Ready }>): Promise<void> {
+		const updateVersion = this.productService.gitVersion ?? state.update.productVersion ?? state.update.version;
+		if (this.promptedUpdateVersion === updateVersion || !await this.hostService.hadLastFocus()) {
+			return;
+		}
+
+		this.promptedUpdateVersion = updateVersion;
+		const result = await this.dialogService.confirm({
+			type: 'info',
+			// allow-any-unicode-next-line
+			title: nls.localize('updateAvailableTitle', "发现新版本"),
+			// allow-any-unicode-next-line
+			message: nls.localize('updateAvailableMessage', "提示： {0} 有新版本", this.productService.nameLong),
+			// allow-any-unicode-next-line
+			detail: nls.localize('updateAvailableDetail', "重启安装具体版本 {0}", updateVersion),
+			// allow-any-unicode-next-line
+			primaryButton: nls.localize({ key: 'restartToUpdateButton', comment: ['&& denotes a mnemonic'] }, "&&重启并更新"),
+			cancelButton: nls.localize('later', "Later")
+		});
+
+		if (result.confirmed && this.updateService.state.type === StateType.Ready) {
+			await this.updateService.quitAndInstall();
+		}
+	}
+	// test-workbench_change end
 
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
