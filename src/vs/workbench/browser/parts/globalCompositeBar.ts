@@ -275,6 +275,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private accountProfileImageElement: HTMLImageElement | undefined;
 	private currentProfileImageUrl: string | undefined;
 	private loadedProfileImageUrl: string | undefined;
+	private profileImageLoadState: 'idle' | 'loading' | 'loaded' | 'failed' = 'idle';
 	private profileImageResolveRequestCounter = 0;
 	private profileImageLoadRequestCounter = 0;
 
@@ -613,57 +614,65 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	}
 
 	private async refreshAccountProfileImage(): Promise<void> {
-		const requestId = ++this.profileImageResolveRequestCounter;
-		const account = await this.resolveGitHubAccountProfileImageInfo();
-		if (requestId !== this.profileImageResolveRequestCounter) {
-			return;
-		}
-
-		const profileImageUrl = getGitHubAccountProfileImageUrl(account?.accountName, account?.baseUrl);
-		if (profileImageUrl === this.currentProfileImageUrl) {
-			return;
-		}
-
-		this.currentProfileImageUrl = profileImageUrl;
-		this.loadedProfileImageUrl = undefined;
-		this.avatarLoadDisposable.clear();
-		const loadRequestId = ++this.profileImageLoadRequestCounter;
-
-		if (!profileImageUrl) {
-			this.updateAccountProfileImage();
-			return;
-		}
-
-		const image = new Image();
-		image.referrerPolicy = 'no-referrer';
-		const clearHandlers = () => {
-			image.onload = null;
-			image.onerror = null;
-		};
-		image.onload = () => {
-			if (loadRequestId !== this.profileImageLoadRequestCounter) {
+		try {
+			const requestId = ++this.profileImageResolveRequestCounter;
+			const account = await this.resolveGitHubAccountProfileImageInfo();
+			if (requestId !== this.profileImageResolveRequestCounter) {
 				return;
 			}
 
-			this.loadedProfileImageUrl = profileImageUrl;
-			this.updateAccountProfileImage();
-			clearHandlers();
-		};
-		image.onerror = () => {
-			if (loadRequestId !== this.profileImageLoadRequestCounter) {
+			const profileImageUrl = getGitHubAccountProfileImageUrl(account?.accountName, account?.baseUrl);
+			if (profileImageUrl === this.currentProfileImageUrl && this.profileImageLoadState !== 'failed') {
 				return;
 			}
 
+			this.currentProfileImageUrl = profileImageUrl;
 			this.loadedProfileImageUrl = undefined;
+			this.avatarLoadDisposable.clear();
+			const loadRequestId = ++this.profileImageLoadRequestCounter;
+
+			if (!profileImageUrl) {
+				this.profileImageLoadState = 'idle';
+				this.updateAccountProfileImage();
+				return;
+			}
+
+			this.profileImageLoadState = 'loading';
+			const image = new Image();
+			image.referrerPolicy = 'no-referrer';
+			const clearHandlers = () => {
+				image.onload = null;
+				image.onerror = null;
+			};
+			image.onload = () => {
+				if (loadRequestId !== this.profileImageLoadRequestCounter) {
+					return;
+				}
+
+				this.profileImageLoadState = 'loaded';
+				this.loadedProfileImageUrl = profileImageUrl;
+				this.updateAccountProfileImage();
+				clearHandlers();
+			};
+			image.onerror = () => {
+				if (loadRequestId !== this.profileImageLoadRequestCounter) {
+					return;
+				}
+
+				this.profileImageLoadState = 'failed';
+				this.loadedProfileImageUrl = undefined;
+				this.updateAccountProfileImage();
+				clearHandlers();
+			};
+			this.avatarLoadDisposable.value = toDisposable(() => {
+				clearHandlers();
+				image.src = '';
+			});
+			image.src = profileImageUrl;
 			this.updateAccountProfileImage();
-			clearHandlers();
-		};
-		this.avatarLoadDisposable.value = toDisposable(() => {
-			clearHandlers();
-			image.src = '';
-		});
-		image.src = profileImageUrl;
-		this.updateAccountProfileImage();
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private async resolveGitHubAccountProfileImageInfo(): Promise<{ accountName: string; baseUrl: string } | undefined> {
@@ -699,7 +708,12 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 
 		if (providerId === GITHUB_ENTERPRISE_AUTH_PROVIDER_ID) {
-			const value = this.configurationService.getValue<string | undefined>(this.productService.defaultChatAgent.providerUriSetting);
+			const providerUriSetting = this.productService.defaultChatAgent.providerUriSetting;
+			if (!providerUriSetting) {
+				return GITHUB_DOTCOM_URL;
+			}
+
+			const value = this.configurationService.getValue<string | undefined>(providerUriSetting);
 			if (value) {
 				try {
 					const enterpriseUrl = new URL(value);
