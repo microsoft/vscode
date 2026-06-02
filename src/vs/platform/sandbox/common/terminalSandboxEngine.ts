@@ -20,7 +20,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
-import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from './terminalSandboxService.js';
+import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck } from './terminalSandboxService.js';
 
 interface ITerminalSandboxFileSystemSetting {
 	denyRead?: string[];
@@ -317,21 +317,11 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
-			const missingDependencies = await this.getMissingSandboxDependencies();
-			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
-				return {
-					enabled: true,
-					sandboxConfigPath,
-					failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
-					remediations: this._getBubblewrapRemediations(),
-					detail: this._sandboxDependencyStatus.bubblewrapError,
-				};
-			}
 			return {
 				enabled: true,
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
-				missingDependencies,
+				missingDependencies: await this.getMissingSandboxDependencies(),
 			};
 		}
 
@@ -400,7 +390,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		if (!forceRefresh && this._sandboxDependencyStatus) {
-			return this._sandboxDependencyStatus.bubblewrapInstalled && this._sandboxDependencyStatus.bubblewrapUsable && this._sandboxDependencyStatus.socatInstalled;
+			return this._sandboxDependencyStatus.bubblewrapInstalled && this._sandboxDependencyStatus.socatInstalled;
 		}
 
 		const status = await this._host.checkSandboxDependencies();
@@ -408,20 +398,12 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (status && !status.bubblewrapInstalled) {
 			this._logService.warn('TerminalSandboxEngine: bubblewrap (bwrap) is not installed');
-		} else if (status && !status.bubblewrapUsable) {
-			this._logService.warn('TerminalSandboxEngine: bubblewrap (bwrap) is installed but failed its capability check', status.bubblewrapError);
 		}
 		if (status && !status.socatInstalled) {
 			this._logService.warn('TerminalSandboxEngine: socat is not installed');
 		}
 
-		return status ? status.bubblewrapInstalled && status.bubblewrapUsable && status.socatInstalled : true;
-	}
-
-	private _getBubblewrapRemediations(): readonly TerminalSandboxPreCheckRemediation[] | undefined {
-		return this._sandboxDependencyStatus?.supportsUbuntuAppArmorRemediation
-			? [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]
-			: undefined;
+		return status ? status.bubblewrapInstalled && status.socatInstalled : true;
 	}
 
 	private _quoteShellArgument(value: string): string {
