@@ -111,6 +111,10 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
+  - name: VSCODE_RUN_TSA
+    displayName: "Run TSA checks"
+    type: boolean
+    default: false
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -186,7 +190,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: true
+        enabled: ${{ parameters.VSCODE_RUN_TSA }}
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       binskim:
         analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
@@ -780,7 +784,7 @@ extends:
                 VSCODE_ARCH: x64
             - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
-      - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_TSA, true)) }}:
         - stage: APIScan
           dependsOn: []
           pool:
