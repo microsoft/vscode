@@ -197,8 +197,6 @@ export function showMobilePickerSheet(
 ): Promise<string | undefined> {
 	return new Promise<string | undefined>(resolve => {
 		let resolved = false;
-		// eslint-disable-next-line prefer-const
-		let shell!: IMobileSheetShell;
 
 		const finish = (id: string | undefined) => {
 			if (resolved) {
@@ -208,7 +206,7 @@ export function showMobilePickerSheet(
 			shell.close(() => resolve(id));
 		};
 
-		shell = buildMobileSheetShell(workbenchContainer, title, {
+		const shell: IMobileSheetShell = buildMobileSheetShell(workbenchContainer, title, {
 			caption: options?.caption,
 			headerActions: options?.headerActions,
 			onDismiss: () => finish(undefined),
@@ -427,8 +425,6 @@ export function showMobileContentSheet(
 ): Promise<void> {
 	return new Promise<void>(resolve => {
 		let resolved = false;
-		// eslint-disable-next-line prefer-const
-		let shell!: IMobileSheetShell;
 
 		const close = () => {
 			if (resolved) {
@@ -438,7 +434,7 @@ export function showMobileContentSheet(
 			shell.close(() => resolve());
 		};
 
-		shell = buildMobileSheetShell(workbenchContainer, title, {
+		const shell: IMobileSheetShell = buildMobileSheetShell(workbenchContainer, title, {
 			caption: options?.caption,
 			headerActions: options?.headerActions,
 			doneLabel: options?.doneLabel,
