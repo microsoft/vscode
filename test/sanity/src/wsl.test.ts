@@ -155,6 +155,10 @@ export function setup(context: TestContext) {
 			'--user-data-dir', test.userDataDir,
 			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,
 		];
+		const crashDumpsDir = context.getCrashDumpsDir();
+		if (crashDumpsDir) {
+			args.push('--crash-reporter-directory', crashDumpsDir);
+		}
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
