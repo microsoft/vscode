@@ -605,12 +605,17 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			};
 		}
 
+		const { resolveAuthInfoFromToken } = await this.getPackage();
 		const copilotToken = await this.authentService.getGitHubSession('any', { silent: true });
-		return {
-			type: 'token',
-			token: copilotToken?.accessToken ?? '',
-			host: 'https://github.com'
-		};
+		const userInfo = copilotToken ? await resolveAuthInfoFromToken(copilotToken?.accessToken) : undefined;
+		if (!userInfo) {
+			return {
+				type: 'token',
+				token: copilotToken?.accessToken ?? '',
+				host: 'https://github.com'
+			};
+		}
+		return userInfo;
 	}
 }
 
