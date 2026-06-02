@@ -67,9 +67,15 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 		this._ensureChangeListener();
 		if (!this._firstNonCopilotModelPromise) {
 			this._firstNonCopilotModelPromise = (async () => {
-				const allModels = await lm.selectChatModels();
-				return allModels.find(m => m.vendor !== 'copilot');
+				try {
+					const allModels = await lm.selectChatModels();
+					return allModels.find(m => m.vendor !== 'copilot');
+				} catch (err) {
+					this._firstNonCopilotModelPromise = undefined;
+					throw err;
+				}
 			})();
+		}
 		}
 		return this._firstNonCopilotModelPromise;
 	}
