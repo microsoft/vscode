@@ -28,6 +28,7 @@ import { getActionBarActions } from '../../../platform/actions/browser/menuEntry
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
@@ -45,8 +46,11 @@ import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '..
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 
-const GITHUB_AUTH_PROVIDER_ID = 'github';
 const GITHUB_PROFILE_IMAGE_SIZE = 64;
+const GITHUB_AUTH_PROVIDER_ID = 'github';
+const GITHUB_ENTERPRISE_AUTH_PROVIDER_ID = 'github-enterprise';
+const GITHUB_AUTH_PROVIDER_IDS = new Set([GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID]);
+const GITHUB_DOTCOM_URL = 'https://github.com/';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -271,7 +275,8 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private accountProfileImageElement: HTMLImageElement | undefined;
 	private currentProfileImageUrl: string | undefined;
 	private loadedProfileImageUrl: string | undefined;
-	private profileImageRequestCounter = 0;
+	private profileImageResolveRequestCounter = 0;
+	private profileImageLoadRequestCounter = 0;
 
 	constructor(
 		contextMenuActionsProvider: () => IAction[],
@@ -285,9 +290,10 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -309,7 +315,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private registerListeners(): void {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async (e) => {
 			await this.addAccountsFromProvider(e.id);
-			if (e.id === GITHUB_AUTH_PROVIDER_ID) {
+			if (this.isGitHubProvider(e.id)) {
 				this.refreshAccountProfileImage();
 			}
 		}));
@@ -317,7 +323,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider((e) => {
 			this.groupedAccounts.delete(e.id);
 			this.problematicProviders.delete(e.id);
-			if (e.id === GITHUB_AUTH_PROVIDER_ID) {
+			if (this.isGitHubProvider(e.id)) {
 				this.refreshAccountProfileImage();
 			}
 		}));
@@ -335,10 +341,12 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					this.logService.error(e);
 				}
 			}
-			if (e.providerId === GITHUB_AUTH_PROVIDER_ID) {
+			if (this.isGitHubProvider(e.providerId)) {
 				this.refreshAccountProfileImage();
 			}
 		}));
+
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccountProfileImage()));
 	}
 
 	// This function exists to ensure that the accounts are added for auth providers that had already been registered
@@ -604,8 +612,14 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		this.updateAccountProfileImage();
 	}
 
-	private refreshAccountProfileImage(): void {
-		const profileImageUrl = getGitHubAccountProfileImageUrl(this.groupedAccounts.get(GITHUB_AUTH_PROVIDER_ID)?.[0]?.label);
+	private async refreshAccountProfileImage(): Promise<void> {
+		const requestId = ++this.profileImageResolveRequestCounter;
+		const account = await this.resolveGitHubAccountProfileImageInfo();
+		if (requestId !== this.profileImageResolveRequestCounter) {
+			return;
+		}
+
+		const profileImageUrl = getGitHubAccountProfileImageUrl(account?.accountName, account?.baseUrl);
 		if (profileImageUrl === this.currentProfileImageUrl) {
 			return;
 		}
@@ -613,7 +627,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		this.currentProfileImageUrl = profileImageUrl;
 		this.loadedProfileImageUrl = undefined;
 		this.avatarLoadDisposable.clear();
-		const requestId = ++this.profileImageRequestCounter;
+		const loadRequestId = ++this.profileImageLoadRequestCounter;
 
 		if (!profileImageUrl) {
 			this.updateAccountProfileImage();
@@ -627,7 +641,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			image.onerror = null;
 		};
 		image.onload = () => {
-			if (requestId !== this.profileImageRequestCounter) {
+			if (loadRequestId !== this.profileImageLoadRequestCounter) {
 				return;
 			}
 
@@ -636,7 +650,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			clearHandlers();
 		};
 		image.onerror = () => {
-			if (requestId !== this.profileImageRequestCounter) {
+			if (loadRequestId !== this.profileImageLoadRequestCounter) {
 				return;
 			}
 
@@ -650,6 +664,53 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		});
 		image.src = profileImageUrl;
 		this.updateAccountProfileImage();
+	}
+
+	private async resolveGitHubAccountProfileImageInfo(): Promise<{ accountName: string; baseUrl: string } | undefined> {
+		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+		if (defaultAccount && this.isGitHubProvider(defaultAccount.authenticationProvider.id)) {
+			return {
+				accountName: defaultAccount.accountName,
+				baseUrl: this.defaultAccountService.resolveGitHubUrl(''),
+			};
+		}
+
+		const defaultAccountProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
+		const preferredProviderIds = this.isGitHubProvider(defaultAccountProvider.id)
+			? [defaultAccountProvider.id, ...[...GITHUB_AUTH_PROVIDER_IDS].filter(providerId => providerId !== defaultAccountProvider.id)]
+			: [...GITHUB_AUTH_PROVIDER_IDS];
+
+		for (const providerId of preferredProviderIds) {
+			const accounts = this.groupedAccounts.get(providerId);
+			if (accounts?.length) {
+				return {
+					accountName: accounts[0].label,
+					baseUrl: this.getGitHubProviderBaseUrl(providerId),
+				};
+			}
+		}
+
+		return undefined;
+	}
+
+	private getGitHubProviderBaseUrl(providerId: string): string {
+		if (providerId === this.defaultAccountService.getDefaultAccountAuthenticationProvider().id) {
+			return this.defaultAccountService.resolveGitHubUrl('');
+		}
+
+		if (providerId === GITHUB_ENTERPRISE_AUTH_PROVIDER_ID) {
+			const value = this.configurationService.getValue<string | undefined>(this.productService.defaultChatAgent.providerUriSetting);
+			if (value) {
+				try {
+					const enterpriseUrl = new URL(value);
+					return `${enterpriseUrl.protocol}//${enterpriseUrl.host}/`;
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+		}
+
+		return GITHUB_DOTCOM_URL;
 	}
 
 	private updateAccountProfileImage(): void {
@@ -680,14 +741,18 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	}
 
 	//#endregion
+
+	private isGitHubProvider(providerId: string): boolean {
+		return GITHUB_AUTH_PROVIDER_IDS.has(providerId);
+	}
 }
 
-function getGitHubAccountProfileImageUrl(accountName: string | undefined): string | undefined {
+function getGitHubAccountProfileImageUrl(accountName: string | undefined, baseUrl = GITHUB_DOTCOM_URL): string | undefined {
 	if (!accountName?.trim()) {
 		return undefined;
 	}
 
-	return `https://github.com/${encodeURIComponent(accountName.trim())}.png?size=${GITHUB_PROFILE_IMAGE_SIZE}`;
+	return new URL(`${encodeURIComponent(accountName.trim())}.png?size=${GITHUB_PROFILE_IMAGE_SIZE}`, baseUrl).toString();
 }
 
 export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
@@ -781,6 +846,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -801,7 +867,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 				}),
 				hoverOptions,
 				compact: true,
-			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService);
+			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, defaultAccountService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService);
 	}
 }
 
