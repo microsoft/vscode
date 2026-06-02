@@ -6,7 +6,7 @@
 import { Delayer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
@@ -22,6 +22,7 @@ export const enum DiscoveredType {
 	Agent = 'agent',
 	Skill = 'skill',
 	Instruction = 'instruction',
+	AgentInstruction = 'agentInstruction',
 }
 
 export interface IDiscoveredDirectory {
@@ -44,6 +45,12 @@ const README_FILENAME = 'README.md';
 interface ISearchRoot {
 	readonly path: readonly string[];
 	readonly type: DiscoveredType;
+	readonly recursive?: boolean; // whether to watch recursively for changes (defaults to false)
+}
+
+interface IInstructionFile {
+	readonly path: readonly string[];
+	readonly filenames: string[];
 }
 
 /**
@@ -51,24 +58,40 @@ interface ISearchRoot {
  * Skills require a depth-2 scan (`<skillDir>/SKILL.md`); agents and instructions
  * are flat single-directory scans.
  */
-function getSearchRoots(workingDirectory: URI, userHome: URI): { workspace: ISearchRoot[]; user: ISearchRoot[] } {
-	return {
-		workspace: [
-			{ path: ['.github', 'agents'], type: DiscoveredType.Agent },
-			{ path: ['.agents', 'agents'], type: DiscoveredType.Agent },
-			{ path: ['.claude', 'agents'], type: DiscoveredType.Agent },
-			{ path: ['.github', 'skills'], type: DiscoveredType.Skill },
-			{ path: ['.agents', 'skills'], type: DiscoveredType.Skill },
-			{ path: ['.claude', 'skills'], type: DiscoveredType.Skill },
-			{ path: ['.github', 'instructions'], type: DiscoveredType.Instruction },
-		],
-		user: [
-			{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent },
-			{ path: ['.agents', 'skills'], type: DiscoveredType.Skill },
-			{ path: ['.copilot', 'instructions'], type: DiscoveredType.Instruction },
-		],
-	};
-}
+const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
+	workspace: [
+		{ path: ['.github', 'agents'], type: DiscoveredType.Agent },
+		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent },
+		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent },
+		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill },
+		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill },
+		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction },
+	],
+	user: [
+		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill },
+		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction },
+	],
+};
+
+
+/**
+ * Builds the list of instruction file candidates used by the Copilot CLI.
+ *
+ * Returns explicit file URIs (not directories) for workspace and user-home
+ * locations so callers can probe for existence in priority order.
+ */
+const agentInstructions: { workspace: IInstructionFile[]; user: IInstructionFile[] } = {
+	workspace: [
+		{ path: ['.github'], filenames: ['copilot-instructions.md'] },
+		{ path: [], filenames: ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'] },
+		{ path: ['.claude'], filenames: ['CLAUDE.md'] },
+	],
+	user: [
+		{ path: ['.copilot'], filenames: ['copilot-instructions.md'] },
+	],
+};
 
 const REFRESH_DEBOUNCE_MS = 100;
 
@@ -93,7 +116,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private readonly _watchers = this._register(new DisposableStore());
 	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
-	private readonly _rootUris: readonly URI[];
+	private readonly _watchRootUris = new ResourceMap<boolean>();
 
 	private _cached: Promise<readonly IDiscoveredDirectory[]> | undefined;
 
@@ -104,14 +127,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		const { workspace, user } = getSearchRoots(this._workingDirectory, this._userHome);
-		this._rootUris = [
-			...workspace.map(root => joinPath(this._workingDirectory, ...root.path)),
-			...user.map(root => joinPath(this._userHome, ...root.path)),
-		];
+		this._watchRootUris.clear();
 		this._register(this._fileService.onDidFilesChange(e => {
-			if (this._rootUris.some(rootUri => e.affects(rootUri))) {
-				this._scheduleRefresh();
+			for (const rootUri of this._watchRootUris.keys()) {
+				if (e.affects(rootUri)) {
+					this._scheduleRefresh();
+					break;
+				}
 			}
 		}));
 	}
@@ -142,17 +164,57 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private async _scan(): Promise<readonly IDiscoveredDirectory[]> {
 		this._watchers.clear();
+		this._watchRootUris.clear();
 		const seen = new ResourceSet();
 		const result: IDiscoveredDirectory[] = [];
-		const { workspace, user } = getSearchRoots(this._workingDirectory, this._userHome);
 
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
-			...workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result)),
-			...user.map(root => this._scanRoot(this._userHome, root, seen, result)),
+			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result)),
+			...agentInstructions.workspace.map(root => this._scanAgentInstructions(this._workingDirectory, root, seen, result)),
+			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result)),
+			...agentInstructions.user.map(root => this._scanAgentInstructions(this._userHome, root, seen, result)),
 		]);
 
+		for (const [rootUri, recursive] of this._watchRootUris.entries()) {
+			try {
+				this._watchers.add(this._fileService.watch(rootUri, { recursive, excludes: [] }));
+			} catch (err) {
+				this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
 		return result;
+	}
+
+	private async _scanAgentInstructions(base: URI, root: IInstructionFile, seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
+
+		const rootUri = joinPath(base, ...root.path);
+		let stat: IFileStatWithMetadata;
+		try {
+			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
+		} catch {
+			// Root does not exist (or is unreadable) — nothing to discover or watch.
+			return;
+		}
+		if (!stat.isDirectory || !stat.children) {
+			return;
+		}
+
+		if (!this._watchRootUris.has(rootUri)) {
+			this._watchRootUris.set(rootUri, false); // set up non recursive watcher
+		}
+
+		const files = [];
+		for (const entry of stat.children) {
+			if (entry.isFile && root.filenames.includes(entry.name)) {
+				const uri = joinPath(rootUri, entry.name);
+				if (!seen.has(uri)) {
+					seen.add(uri);
+					files.push(uri);
+				}
+			}
+		}
+		result.push({ uri: rootUri, type: DiscoveredType.AgentInstruction, files });
 	}
 
 	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
@@ -168,15 +230,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 			return;
 		}
 
-		// Only watch roots that exist; recursive: true so we pick up edits to
-		// files inside skill subdirectories.
-		try {
-			const recursive = root.type === DiscoveredType.Skill || root.type === DiscoveredType.Instruction;
-			this._watchers.add(this._fileService.watch(rootUri, { recursive, excludes: [] }));
-		} catch (err) {
-			this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
-		}
-
+		const recursive = root.recursive || this._watchRootUris.get(rootUri) === true;
+		this._watchRootUris.set(rootUri, recursive);
 
 		if (root.type === DiscoveredType.Skill) {
 			const files = [];
@@ -248,5 +303,6 @@ export const _internal = {
 	AGENT_FILE_SUFFIX,
 	INSTRUCTION_FILE_SUFFIX,
 	SKILL_FILENAME,
-	getSearchRoots,
+	searchRoots,
+	agentInstructions,
 };
