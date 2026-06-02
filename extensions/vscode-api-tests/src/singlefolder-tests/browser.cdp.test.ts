@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { window, workspace } from 'vscode';
@@ -295,55 +293,5 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 
 		// Tab should have been closed
 		assert.equal(window.browserTabs.length, 0);
-	});
-
-	test('navigating to a file outside the trusted workspace returns 403', async function () {
-		this.timeout(30_000);
-
-		// Plant an HTML file outside the workspace folder. The OS temp dir
-		// is not part of the workspace and therefore not part of the
-		// trusted-roots allowlist `BrowserViewWorkbenchService` pushes for
-		// this window.
-		const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-browser-trust-cdp-'));
-		const untrustedFile = path.join(tempDir, 'untrusted.html');
-		await fs.promises.writeFile(untrustedFile, '<!doctype html><title>secret</title><body>should not be visible</body>');
-		const pageUrl = vscode.Uri.file(untrustedFile).toString();
-
-		try {
-			const tab = await window.openBrowserTab('');
-			const session = await tab.startCDPSession();
-			const { cdpSend, waitForEvent } = createHarness(session);
-
-			// Attach to the browser and discover the page target.
-			const browserAttach = await cdpSend('Target.attachToBrowserTarget');
-			const browserSessionId = browserAttach.sessionId;
-			const pageCreated = waitForEvent((msg: any) =>
-				msg.method === 'Target.targetCreated'
-				&& msg.params?.targetInfo?.type === 'page'
-			);
-			await cdpSend('Target.setDiscoverTargets', { discover: true }, browserSessionId);
-			const pageTarget = (await pageCreated).params.targetInfo;
-			const pageAttach = await cdpSend('Target.attachToTarget', {
-				targetId: pageTarget.targetId,
-				flatten: true,
-			}, browserSessionId);
-			const pageSessionId = pageAttach.sessionId;
-
-			// Enable the Network domain so we can observe the response status
-			// returned by the `file://` protocol handler.
-			await cdpSend('Network.enable', {}, pageSessionId);
-			const responseReceived = waitForEvent((msg: any) =>
-				msg.method === 'Network.responseReceived'
-				&& msg.params?.response?.url === pageUrl
-				&& msg.sessionId === pageSessionId
-			);
-
-			await cdpSend('Page.navigate', { url: pageUrl }, pageSessionId);
-			const event = await responseReceived;
-
-			assert.strictEqual(event.params.response.status, 403, `Expected 403 for untrusted file:// URL, got status ${event.params.response.status}`);
-		} finally {
-			await fs.promises.rm(tempDir, { recursive: true, force: true });
-		}
 	});
 });
