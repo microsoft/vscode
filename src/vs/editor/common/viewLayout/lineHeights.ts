@@ -146,28 +146,29 @@ export class LineHeightsManager {
 		this._hasPending = false;
 
 		const stagedInserts: CustomLine[] = [];
+		const stagedIdMap = new ArrayMap<string, CustomLine>();
 		for (const change of changes) {
 			switch (change.kind) {
 				case PendingChangeKind.Remove:
-					this._doRemoveCustomLineHeight(change.decorationId, stagedInserts);
+					this._doRemoveCustomLineHeight(change.decorationId, stagedIdMap);
 					break;
 				case PendingChangeKind.InsertOrChange:
-					this._doInsertOrChangeCustomLineHeight(change.decorationId, change.startLineNumber, change.endLineNumber, change.lineHeight, stagedInserts);
+					this._doInsertOrChangeCustomLineHeight(change.decorationId, change.startLineNumber, change.endLineNumber, change.lineHeight, stagedInserts, stagedIdMap);
 					break;
 				case PendingChangeKind.LinesDeleted:
-					this._flushStagedDecorationChanges(stagedInserts);
+					this._flushStagedDecorationChanges(stagedInserts, stagedIdMap);
 					this._doLinesDeleted(change.fromLineNumber, change.toLineNumber);
 					break;
 				case PendingChangeKind.LinesInserted:
-					this._flushStagedDecorationChanges(stagedInserts);
-					this._doLinesInserted(change.fromLineNumber, change.toLineNumber, stagedInserts);
+					this._flushStagedDecorationChanges(stagedInserts, stagedIdMap);
+					this._doLinesInserted(change.fromLineNumber, change.toLineNumber, stagedInserts, stagedIdMap);
 					break;
 			}
 		}
-		this._flushStagedDecorationChanges(stagedInserts);
+		this._flushStagedDecorationChanges(stagedInserts, stagedIdMap);
 	}
 
-	private _doRemoveCustomLineHeight(decorationID: string, stagedInserts: CustomLine[]): void {
+	private _doRemoveCustomLineHeight(decorationID: string, stagedIdMap: ArrayMap<string, CustomLine>): void {
 		const customLines = this._decorationIDToCustomLine.get(decorationID);
 		if (customLines) {
 			this._decorationIDToCustomLine.delete(decorationID);
@@ -176,32 +177,42 @@ export class LineHeightsManager {
 				this._invalidIndex = Math.min(this._invalidIndex, customLine.index);
 			}
 		}
-		for (let i = stagedInserts.length - 1; i >= 0; i--) {
-			if (stagedInserts[i].decorationId === decorationID) {
-				stagedInserts.splice(i, 1);
+		const stagedLines = stagedIdMap.get(decorationID);
+		if (stagedLines) {
+			stagedIdMap.delete(decorationID);
+			for (const line of stagedLines) {
+				line.deleted = true;
 			}
 		}
 	}
 
-	private _doInsertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number, stagedInserts: CustomLine[]): void {
-		this._doRemoveCustomLineHeight(decorationId, stagedInserts);
+	private _doInsertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number, stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
+		this._doRemoveCustomLineHeight(decorationId, stagedIdMap);
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			const customLine = new CustomLine(decorationId, -1, lineNumber, lineHeight, 0);
 			stagedInserts.push(customLine);
+			stagedIdMap.add(decorationId, customLine);
 		}
 	}
 
-	private _flushStagedDecorationChanges(stagedInserts: CustomLine[]): void {
+	private _flushStagedDecorationChanges(stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
 		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
 			return;
 		}
 		for (const pendingChange of stagedInserts) {
+			if (pendingChange.deleted) {
+				continue;
+			}
 			const candidateInsertionIndex = this._binarySearchOverOrderedCustomLinesArray(pendingChange.lineNumber);
 			const insertionIndex = candidateInsertionIndex >= 0 ? candidateInsertionIndex : -(candidateInsertionIndex + 1);
 			this._orderedCustomLines.splice(insertionIndex, 0, pendingChange);
 			this._invalidIndex = Math.min(this._invalidIndex, insertionIndex);
 		}
 		stagedInserts.length = 0;
+		stagedIdMap.clear();
+		if (this._invalidIndex === Infinity) {
+			return;
+		}
 		const newDecorationIDToSpecialLine = new ArrayMap<string, CustomLine>();
 		const newOrderedSpecialLines: CustomLine[] = [];
 
@@ -358,7 +369,7 @@ export class LineHeightsManager {
 		}
 	}
 
-	private _doLinesInserted(fromLineNumber: number, toLineNumber: number, stagedInserts: CustomLine[]): void {
+	private _doLinesInserted(fromLineNumber: number, toLineNumber: number, stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
 		const insertCount = toLineNumber - fromLineNumber + 1;
 		const candidateStartIndexOfInsertion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
 		let startIndexOfInsertion: number;
@@ -411,7 +422,7 @@ export class LineHeightsManager {
 			}
 
 			for (const dec of toReAdd) {
-				this._doInsertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight, stagedInserts);
+				this._doInsertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight, stagedInserts, stagedIdMap);
 			}
 		}
 	}
@@ -474,5 +485,9 @@ class ArrayMap<K, T> {
 
 	delete(key: K): void {
 		this._map.delete(key);
+	}
+
+	clear(): void {
+		this._map.clear();
 	}
 }

@@ -56,6 +56,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	description?: string;
 	state?: ModifiedFileEntryState;
 	excluded?: boolean;
+	showModifiedState?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
@@ -214,7 +215,7 @@ export class CollapsibleListPool extends Disposable {
 		const container = $('.chat-used-context-list');
 		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const list = this.instantiationService.createInstance(
+		const list = store.add(this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
 			container,
@@ -267,7 +268,7 @@ export class CollapsibleListPool extends Disposable {
 						}
 					},
 				},
-			});
+			}));
 
 		return {
 			list,
@@ -433,7 +434,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		if (data.state !== undefined) {
-			if (templateData.actionBarContainer) {
+			if (templateData.actionBarContainer || data.showModifiedState) {
 				const diffMeta = data?.options?.diffMeta;
 				if (diffMeta) {
 					if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {

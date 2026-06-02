@@ -20,11 +20,11 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asJson, IRequestService, isClientError, isSuccess } from '../../../../platform/request/common/request.js';
+import { asJson, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -32,6 +32,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExt
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
+import { adaptManagedSettings, IManagedSettingsResponse } from './managedSettings.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -51,6 +52,7 @@ interface IDefaultAccountConfig {
 	readonly tokenEntitlementUrl: string;
 	readonly entitlementUrl: string;
 	readonly mcpRegistryDataUrl: string;
+	readonly managedSettingsUrl: string;
 }
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
@@ -64,6 +66,7 @@ const enum DefaultAccountStatus {
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -107,6 +110,7 @@ function toDefaultAccountConfig(defaultChatAgent: IDefaultChatAgent): IDefaultAc
 		entitlementUrl: defaultChatAgent.entitlementUrl,
 		tokenEntitlementUrl: defaultChatAgent.tokenEntitlementUrl,
 		mcpRegistryDataUrl: defaultChatAgent.mcpRegistryDataUrl,
+		managedSettingsUrl: defaultChatAgent.managedSettingsUrl,
 	};
 }
 
@@ -114,8 +118,12 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	declare _serviceBrand: undefined;
 
 	private defaultAccount: IDefaultAccount | null = null;
+	get currentDefaultAccount(): IDefaultAccount | null { return this.defaultAccount; }
 	get policyData(): IPolicyData | null { return this.defaultAccountProvider?.policyData ?? null; }
 	get copilotTokenInfo(): ICopilotTokenInfo | null { return this.defaultAccountProvider?.copilotTokenInfo ?? null; }
+
+	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this.defaultAccountProvider?.managedSettingsFetchStatus ?? null; }
+	get managedSettingsFetchedAt(): number | null { return this.defaultAccountProvider?.managedSettingsFetchedAt ?? null; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -172,10 +180,10 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		});
 	}
 
-	async refresh(): Promise<IDefaultAccount | null> {
+	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
 		await this.initBarrier.wait();
 
-		const account = await this.defaultAccountProvider?.refresh();
+		const account = await this.defaultAccountProvider?.refresh(options);
 		this.setDefaultAccount(account ?? null);
 		return this.defaultAccount;
 	}
@@ -190,6 +198,14 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		await this.defaultAccountProvider?.signOut();
 	}
 
+	resolveGitHubUrl(path: string): string {
+		if (this.defaultAccountProvider) {
+			return this.defaultAccountProvider.resolveGitHubUrl(path);
+		}
+
+		return `https://github.com/${path}`;
+	}
+
 	private setDefaultAccount(account: IDefaultAccount | null): void {
 		if (equals(this.defaultAccount, account)) {
 			return;
@@ -202,8 +218,10 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 interface IAccountPolicyData {
 	readonly accountId: string;
 	readonly policyData: IPolicyData;
+	readonly entitlementsFetchedAt?: number;
 	readonly tokenEntitlementsFetchedAt?: number;
 	readonly mcpRegistryDataFetchedAt?: number;
+	readonly managedSettingsFetchedAt?: number;
 }
 
 interface ICachedAccountData {
@@ -230,6 +248,18 @@ type DefaultAccountStatusTelemetryClassification = {
 	initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
 };
 
+type ManagedSettingsFetchTelemetry = {
+	outcome: string;
+	rateLimitBackoffActive: boolean;
+};
+
+type ManagedSettingsFetchTelemetryClassification = {
+	owner: 'joshspicer';
+	comment: 'Outcome of a fetch against the enterprise managed_settings endpoint. Used to detect endpoint regressions and abnormal failure rates in the wild.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'High-level outcome: a numeric HTTP status (`status:NNN`), or one of `ok` / `no-response` / `parse-error`.' };
+	rateLimitBackoffActive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'True when the request was short-circuited because a prior rate-limit Retry-After window was still active.' };
+};
+
 class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
 
 	private _defaultAccount: IDefaultAccountData | null = null;
@@ -240,6 +270,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 	private _copilotTokenInfo: ICopilotTokenInfo | null = null;
 	get copilotTokenInfo(): ICopilotTokenInfo | null { return this._copilotTokenInfo; }
+
+	private _managedSettingsFetchStatus: ManagedSettingsFetchStatus = null;
+	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this._managedSettingsFetchStatus; }
+	get managedSettingsFetchedAt(): number | null { return this._policyData?.managedSettingsFetchedAt ?? null; }
 
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
@@ -317,7 +351,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private async init(): Promise<void> {
-		if (isWeb && !this.environmentService.remoteAuthority) {
+		// Skip initialization for classic web-no-remote (vscode.dev editor), but
+		// still initialize for the agents web workbench (vscode.dev/agents) where
+		// account state drives the title bar and the welcome walkthrough.
+		if (isWeb && !this.environmentService.remoteAuthority && !this.environmentService.isSessionsWindow) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
 			return;
 		}
@@ -379,12 +416,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		this._register(this.hostService.onDidChangeFocus(focused => {
 			if (focused) {
-				this.refetchDefaultAccount(true);
+				this.refetchDefaultAccount();
 			}
 		}));
 	}
 
-	async refresh(): Promise<IDefaultAccount | null> {
+	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
 		if (!this.initialized) {
 			await this.initPromise;
 			return this.defaultAccount;
@@ -392,11 +429,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		this.logService.debug('[DefaultAccount] Refreshing default account');
 
-		await this.updateDefaultAccount();
+		await this.updateDefaultAccount(options);
 		return this.defaultAccount;
 	}
 
-	private async refetchDefaultAccount(useExistingEntitlements?: boolean): Promise<void> {
+	private async refetchDefaultAccount(): Promise<void> {
 		if (this.accountDataPollScheduler.isScheduled()) {
 			this.accountDataPollScheduler.cancel();
 		}
@@ -406,16 +443,16 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return;
 		}
 		this.logService.debug('[DefaultAccount] Refetching default account');
-		await this.updateDefaultAccount(useExistingEntitlements);
+		await this.updateDefaultAccount();
 	}
 
-	private async updateDefaultAccount(useExistingEntitlements?: boolean): Promise<void> {
-		await this.updateThrottler.trigger(() => this.doUpdateDefaultAccount(useExistingEntitlements));
+	private async updateDefaultAccount(options?: { forceRefresh?: boolean }): Promise<void> {
+		await this.updateThrottler.trigger(() => this.doUpdateDefaultAccount(options));
 	}
 
-	private async doUpdateDefaultAccount(useExistingEntitlements: boolean = false): Promise<void> {
+	private async doUpdateDefaultAccount(options?: { forceRefresh?: boolean }): Promise<void> {
 		try {
-			const defaultAccount = await this.fetchDefaultAccount(useExistingEntitlements);
+			const defaultAccount = await this.fetchDefaultAccount(options);
 			this.setDefaultAccount(defaultAccount);
 			this.scheduleAccountDataPoll();
 		} catch (error) {
@@ -423,7 +460,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async fetchDefaultAccount(useExistingEntitlements: boolean): Promise<IDefaultAccountData | null> {
+	private async fetchDefaultAccount(options?: { forceRefresh?: boolean }): Promise<IDefaultAccountData | null> {
 		const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProvider.id);
 
@@ -433,7 +470,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return null;
 		}
 
-		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, useExistingEntitlements);
+		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, options);
 	}
 
 	private setDefaultAccount(account: IDefaultAccountData | null): void {
@@ -510,7 +547,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return result;
 	}
 
-	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider, useExistingEntitlements: boolean): Promise<IDefaultAccountData | null> {
+	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider, options?: { forceRefresh?: boolean }): Promise<IDefaultAccountData | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authenticationProvider.id);
 			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, this.defaultAccountConfig.authenticationProvider.scopes);
@@ -519,37 +556,44 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authenticationProvider.id);
 				return null;
 			}
-
-			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, useExistingEntitlements);
+			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
 			return null;
 		}
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[], useExistingEntitlements: boolean): Promise<IDefaultAccountData | null> {
+	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[], options?: { forceRefresh?: boolean }): Promise<IDefaultAccountData | null> {
 		try {
 			const accountId = sessions[0].account.id;
-			const existingEntitlementsData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
 			const accountPolicyData = this._policyData?.accountId === accountId ? this._policyData : undefined;
 
-			const [entitlementsData, tokenEntitlementsResult] = await Promise.all([
-				useExistingEntitlements && existingEntitlementsData ? existingEntitlementsData : this.getEntitlements(sessions),
-				this.getTokenEntitlements(sessions, accountPolicyData),
-			]);
+			const entitlementsResult = await this.getEntitlements(sessions, accountPolicyData, options);
+			const entitlementsData = entitlementsResult?.data;
+			const entitlementsFetchedAt = entitlementsResult?.fetchedAt;
+			const [tokenEntitlementsResult, managedSettingsResult] = entitlementsData?.chat_enabled
+				? await Promise.all([
+					this.getTokenEntitlements(sessions, accountPolicyData, options),
+					this.getManagedSettings(sessions, accountPolicyData, options),
+				])
+				: [undefined, undefined];
 
-			let tokenEntitlementsFetchedAt: number | undefined;
+			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
+			const managedSettingsFetchedAt: number | undefined = managedSettingsResult?.fetchedAt;
 			let mcpRegistryDataFetchedAt: number | undefined;
 			let policyData: Mutable<IPolicyData> | undefined = accountPolicyData?.policyData ? { ...accountPolicyData.policyData } : undefined;
-			if (tokenEntitlementsResult) {
-				tokenEntitlementsFetchedAt = tokenEntitlementsResult.fetchedAt;
+			if (entitlementsData) {
+				policyData = policyData ?? {};
+				policyData.cloud_session_storage_enabled = entitlementsData.cloud_session_storage_enabled;
+			}
+			if (tokenEntitlementsResult?.data) {
 				const tokenEntitlementsData = tokenEntitlementsResult.data;
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
-					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData);
+					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
 					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
 					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
@@ -557,6 +601,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					policyData.mcpRegistryUrl = undefined;
 					policyData.mcpAccess = undefined;
 				}
+			}
+			if (managedSettingsResult?.data) {
+				policyData = { ...(policyData ?? {}), ...managedSettingsResult.data };
 			}
 
 			const defaultAccount: IDefaultAccount = {
@@ -567,11 +614,14 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				entitlementsData,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
+			const accountPolicyResult: IAccountPolicyData | null = policyData || entitlementsFetchedAt
+				? { accountId, policyData: policyData ?? {}, entitlementsFetchedAt, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt, managedSettingsFetchedAt }
+				: null;
 			return {
 				defaultAccount,
 				accountId,
-				policyData: policyData ? { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt } : null,
-				copilotTokenInfo: tokenEntitlementsResult?.data.copilotTokenInfo ?? null,
+				policyData: accountPolicyResult,
+				copilotTokenInfo: tokenEntitlementsResult?.data?.copilotTokenInfo ?? null,
 			};
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authenticationProvider.id, getErrorMessage(error));
@@ -627,13 +677,13 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo }; fetchedAt: number } | undefined> {
-		if (accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
+	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
+		if (!options?.forceRefresh && accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched token entitlements data');
 			return { data: { policyData: accountPolicyData.policyData, copilotTokenInfo: this._copilotTokenInfo ?? {} }, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
 		}
 		const data = await this.requestTokenEntitlements(sessions);
-		return data ? { data, fetchedAt: Date.now() } : undefined;
+		return { data, fetchedAt: Date.now() };
 	}
 
 	private async requestTokenEntitlements(sessions: AuthenticationSession[]): Promise<{ policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined> {
@@ -644,7 +694,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
-		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.tokenEntitlements');
 		if (!response) {
 			return undefined;
 		}
@@ -663,8 +713,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						// Editor preview features are disabled if the flag is present and set to 0
 						chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
-						// MCP is disabled if the flag is present and set to 0
-						mcp: tokenMap.get('mcp') !== '0',
+						// MCP is only enabled if the flag is explicitly present and set to 1
+						mcp: tokenMap.get('mcp') === '1',
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),
@@ -680,41 +730,49 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return undefined;
 	}
 
-	private async getEntitlements(sessions: AuthenticationSession[]): Promise<IEntitlementsData | undefined | null> {
+	private async getEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IEntitlementsData | undefined | null; fetchedAt: number | undefined }> {
+		const accountId = sessions[0].account.id;
+		const existingData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
+		if (!options?.forceRefresh && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
+			this.logService.debug('[DefaultAccount] Using last fetched entitlements data');
+			return { data: existingData, fetchedAt: accountPolicyData.entitlementsFetchedAt };
+		}
+
 		const entitlementUrl = this.getEntitlementUrl();
 		if (!entitlementUrl) {
 			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
-			return undefined;
+			return { data: undefined, fetchedAt: undefined };
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching entitlements from:', entitlementUrl);
-		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.entitlements');
 		if (!response) {
-			return undefined;
+			return { data: undefined, fetchedAt: Date.now() };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching entitlements`);
-			return (
+			const data = (
 				response.res.statusCode === 401 || 	// oauth token being unavailable (expired/revoked)
 				response.res.statusCode === 404		// missing scopes/permissions, service pretends the endpoint doesn't exist
 			) ? null : undefined;
+			return { data, fetchedAt: Date.now() };
 		}
 
 		try {
 			const data = await asJson<IEntitlementsData>(response);
 			if (data) {
-				return data;
+				return { data, fetchedAt: Date.now() };
 			}
 			this.logService.error('[DefaultAccount] Failed to fetch entitlements', 'No data returned');
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to fetch entitlements', getErrorMessage(error));
 		}
-		return undefined;
+		return { data: undefined, fetchedAt: Date.now() };
 	}
 
-	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
+		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -731,7 +789,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
-		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider');
 		if (!response) {
 			return undefined;
 		}
@@ -759,9 +817,126 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
+	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
+		if (!options?.forceRefresh && accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
+			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
+			// Seed status so Policy Diagnostics reflects "applied" rather than
+			// "not yet fetched" after a process restart that warm-starts from
+			// the cached policy payload.
+			this._managedSettingsFetchStatus = 'ok';
+			return {
+				data: {
+					enabledPlugins: accountPolicyData.policyData.enabledPlugins,
+					extraKnownMarketplaces: accountPolicyData.policyData.extraKnownMarketplaces,
+					strictKnownMarketplaces: accountPolicyData.policyData.strictKnownMarketplaces,
+				},
+				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
+			};
+		}
+		const data = await this.requestManagedSettings(sessions);
+		return { data, fetchedAt: Date.now() };
+	}
+
+	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {
+		const managedSettingsUrl = this.getManagedSettingsUrl();
+		if (!managedSettingsUrl) {
+			this.logService.debug('[DefaultAccount] No managed settings URL configured; skipping enterprise policy fetch');
+			this._managedSettingsFetchStatus = 'no-url';
+			return undefined;
+		}
+
+		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
+		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
+		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
+		if (!response) {
+			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
+			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
+			return undefined;
+		}
+
+		// Any non-2xx response means "fall back to local settings only and continue
+		// operating normally" — silent fallback, no policy.
+		if (!isSuccess(response)) {
+			const status = response.res.statusCode ?? 0;
+			this.logService.warn(`[DefaultAccount] Managed settings fetch returned non-success status ${status}; falling back to local-only policy`);
+			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
+			return undefined;
+		}
+
+		try {
+			const data = await asJson<IManagedSettingsResponse>(response);
+			this.logService.trace('[DefaultAccount] Managed settings raw response:', JSON.stringify(data ?? null));
+			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
+			// An empty response (`{}`) is a successful "no policy file present" signal.
+			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
+			const marketplaceCount = adapted.extraKnownMarketplaces?.length ?? 0;
+			const strictSet = adapted.strictKnownMarketplaces !== undefined;
+			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet) {
+				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
+			} else {
+				this.logService.info('[DefaultAccount] Managed settings applied');
+				this.logService.trace('[DefaultAccount] Managed settings payload:', JSON.stringify(adapted));
+			}
+			this.reportManagedSettingsOutcome('ok', rateLimitBackoffActive);
+			return adapted;
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Failed to parse managed settings response', getErrorMessage(error));
+			this.reportManagedSettingsOutcome('parse-error', rateLimitBackoffActive);
+			return undefined;
+		}
+	}
+
+	private reportManagedSettingsOutcome(status: Exclude<ManagedSettingsFetchStatus, null | 'no-url'>, rateLimitBackoffActive: boolean): void {
+		this._managedSettingsFetchStatus = status;
+		this.telemetryService.publicLog2<ManagedSettingsFetchTelemetry, ManagedSettingsFetchTelemetryClassification>('defaultaccount:managedSettings:fetch', {
+			outcome: typeof status === 'number' ? `status:${status}` : status,
+			rateLimitBackoffActive,
+		});
+	}
+
+	/**
+	 * Detects a rate-limited GitHub response. Mirrors the public-API check in
+	 * `githubRepoFetcher.ts`:
+	 * - Canonical `429 Too Many Requests`.
+	 * - Primary quota exhaustion: `403` with `X-RateLimit-Remaining: 0`.
+	 * - Secondary throttling: GitHub omits `X-RateLimit-Remaining` but sets
+	 *   `Retry-After` (on a non-2xx response). We treat any non-success status
+	 *   that carries `Retry-After` as a back-off signal.
+	 */
+	private isRateLimited(response: IRequestContext): boolean {
+		const status = response.res.statusCode;
+		if (status === 429) {
+			return true;
+		}
+		if (status === 403 && readHeader(response.res.headers, 'x-ratelimit-remaining') === '0') {
+			return true;
+		}
+		// Secondary rate limit: the server explicitly asks the client to wait,
+		// regardless of which non-2xx code it returned with.
+		if (!isSuccess(response) && readHeader(response.res.headers, 'retry-after') !== undefined) {
+			return true;
+		}
+		return false;
+	}
+
+	private _rateLimitBackoffUntil = 0;
+
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined> {
+		// Rate-limit backoff: when any prior `/copilot_internal/*` request was
+		// throttled (429 or 403 + `X-RateLimit-Remaining: 0`), every subsequent
+		// request is short-circuited until the parsed `Retry-After` elapses.
+		// All endpoints called from here share the same host and bearer token,
+		// so backing off the bucket as a whole avoids piling on a server that
+		// has already asked us to slow down. See `githubRepoFetcher.ts` for the
+		// public-API analogue.
+		if (Date.now() < this._rateLimitBackoffUntil) {
+			const remainingSec = Math.ceil((this._rateLimitBackoffUntil - Date.now()) / 1000);
+			this.logService.debug(`[DefaultAccount] Skipping request to ${url} — rate-limit backoff active for ${remainingSec}s more`);
+			return undefined;
+		}
+
 		let lastResponse: IRequestContext | undefined;
 
 		for (const session of sessions) {
@@ -775,12 +950,20 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					url,
 					data: type === 'POST' ? JSON.stringify(body) : undefined,
 					disableCache: true,
+					timeout: requestTimeoutMs,
 					headers: {
 						'Authorization': `Bearer ${session.accessToken}`
-					}
+					},
+					callSite
 				}, token);
 
 				const status = response.res.statusCode;
+				if (this.isRateLimited(response)) {
+					const retryAfterSec = retryAfterFromHeaders(response.res.headers) ?? 60;
+					this._rateLimitBackoffUntil = Date.now() + retryAfterSec * 1000;
+					this.logService.warn(`[DefaultAccount] Rate limited by ${url} (status ${status}); backing off for ${retryAfterSec}s`);
+					return response;
+				}
 				if (status === 401 || status === 404) {
 					this.logService.debug(`[DefaultAccount] Received ${status} for URL ${url} with session ${session.id}, likely due to expired/revoked token or insufficient permissions.`, 'Trying next session if available.');
 					lastResponse = response;
@@ -855,6 +1038,22 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return this.defaultAccountConfig.mcpRegistryDataUrl;
 	}
 
+	private getManagedSettingsUrl(): string | undefined {
+		if (this.getDefaultAccountAuthenticationProvider().enterprise) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (!enterpriseUrl) {
+					return undefined;
+				}
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot_internal/managed_settings`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return this.defaultAccountConfig.managedSettingsUrl;
+	}
+
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		if (this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig) === this.defaultAccountConfig.authenticationProvider.enterprise.id) {
 			return {
@@ -866,6 +1065,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			...this.defaultAccountConfig.authenticationProvider.default,
 			enterprise: false
 		};
+	}
+
+	resolveGitHubUrl(path: string): string {
+		if (this.getDefaultAccountAuthenticationProvider().enterprise) {
+			try {
+				const enterpriseUrl = this.getEnterpriseUrl();
+				if (enterpriseUrl) {
+					return `${enterpriseUrl.protocol}//${enterpriseUrl.host}/${path}`;
+				}
+			} catch {
+				// fall through to default
+			}
+		}
+
+		return `https://github.com/${path}`;
 	}
 
 	private getEnterpriseUrl(): URL | undefined {
@@ -896,7 +1110,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		if (!this.defaultAccount) {
 			return;
 		}
-		this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
+		await this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
 	}
 
 }

@@ -8,7 +8,9 @@
   "engines": {
     "vscode": "^1.20.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -18,7 +20,6 @@
           "markdown"
         ],
         "extensions": [
-          ".litcoffee",
           ".md",
           ".mkd",
           ".mkdn",
@@ -28,6 +29,7 @@
           ".markdn",
           ".mdtxt",
           ".mdtext",
+          ".litcoffee",
           ".ron",
           ".ronn",
           ".workbook"

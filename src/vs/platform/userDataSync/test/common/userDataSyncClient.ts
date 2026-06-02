@@ -6,7 +6,7 @@
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -26,7 +26,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
+import { AuthInfo, Credentials, IRequestCompleteEvent, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -180,6 +180,8 @@ const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines
 export class UserDataSyncTestServer implements IRequestService {
 
 	_serviceBrand: undefined;
+
+	readonly onDidCompleteRequest = Event.None as Event<IRequestCompleteEvent>;
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;

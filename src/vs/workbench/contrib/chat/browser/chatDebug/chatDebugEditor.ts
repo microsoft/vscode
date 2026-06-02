@@ -11,6 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -22,6 +23,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
@@ -29,12 +31,13 @@ import { ChatDebugHomeView } from './chatDebugHomeView.js';
 import { ChatDebugOverviewView, OverviewNavigation } from './chatDebugOverviewView.js';
 import { ChatDebugLogsView, LogsNavigation } from './chatDebugLogsView.js';
 import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChartView.js';
+import { ChatDebugCacheExplorerView, CacheExplorerNavigation } from './chatDebugCacheExplorerView.js';
 
 const $ = DOM.$;
 
 type ChatDebugPanelOpenedClassification = {
 	owner: 'vijayu';
-	comment: 'Event fired when the agent debug panel is opened';
+	comment: 'Event fired when the agent debug logs panel is opened';
 };
 
 type ChatDebugViewSwitchedEvent = {
@@ -42,9 +45,9 @@ type ChatDebugViewSwitchedEvent = {
 };
 
 type ChatDebugViewSwitchedClassification = {
-	viewState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view the user navigated to (home, overview, logs, flowchart).' };
+	viewState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view the user navigated to (home, overview, logs, flowchart, cache).' };
 	owner: 'vijayu';
-	comment: 'Tracks which views users navigate to in the debug panel.';
+	comment: 'Tracks which views users navigate to in the Agent Debug Logs.';
 };
 
 export class ChatDebugEditor extends EditorPane {
@@ -60,13 +63,11 @@ export class ChatDebugEditor extends EditorPane {
 	private overviewView: ChatDebugOverviewView | undefined;
 	private logsView: ChatDebugLogsView | undefined;
 	private flowChartView: ChatDebugFlowChartView | undefined;
+	private cacheExplorerView: ChatDebugCacheExplorerView | undefined;
 	private filterState: ChatDebugFilterState | undefined;
 
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
-
-	/** Saved session resource so we can restore it after the editor is re-shown. */
-	private savedSessionResource: URI | undefined;
 
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
@@ -91,6 +92,7 @@ export class ChatDebugEditor extends EditorPane {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(ChatDebugEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -122,6 +124,9 @@ export class ChatDebugEditor extends EditorPane {
 				case OverviewNavigation.FlowChart:
 					this.showView(ViewState.FlowChart);
 					break;
+				case OverviewNavigation.CacheExplorer:
+					this.showView(ViewState.CacheExplorer);
+					break;
 			}
 		}));
 
@@ -151,6 +156,19 @@ export class ChatDebugEditor extends EditorPane {
 			}
 		}));
 
+		this.cacheExplorerView = this._register(this.instantiationService.createInstance(ChatDebugCacheExplorerView, this.container));
+		this._register(this.cacheExplorerView.onNavigate(nav => {
+			switch (nav) {
+				case CacheExplorerNavigation.Home:
+					this.endActiveSession();
+					this.showView(ViewState.Home);
+					break;
+				case CacheExplorerNavigation.Overview:
+					this.showView(ViewState.Overview);
+					break;
+			}
+		}));
+
 		// When new debug events arrive, refresh the active session view
 		this._register(this.chatDebugService.onDidAddEvent(event => {
 			if (this.viewState === ViewState.Home) {
@@ -158,11 +176,14 @@ export class ChatDebugEditor extends EditorPane {
 			} else if (this.chatDebugService.activeSessionResource && event.sessionResource.toString() === this.chatDebugService.activeSessionResource.toString()) {
 				if (this.viewState === ViewState.Overview) {
 					this.overviewView?.refresh();
-				} else if (this.viewState === ViewState.Logs) {
-					this.logsView?.refreshList();
 				} else if (this.viewState === ViewState.FlowChart) {
 					this.flowChartView?.refresh();
+				} else if (this.viewState === ViewState.CacheExplorer) {
+					this.cacheExplorerView?.refresh();
 				}
+				// Note: Logs view is intentionally omitted here — it handles
+				// onDidAddEvent internally via loadEvents() → addEvent() →
+				// scheduleRefresh() to avoid a redundant full refresh.
 			}
 		}));
 
@@ -174,10 +195,6 @@ export class ChatDebugEditor extends EditorPane {
 		}));
 
 		this._register(this.chatService.onDidCreateModel(model => {
-			if (this.viewState === ViewState.Home) {
-				this.homeView?.render();
-			}
-
 			// Track title changes per model, disposing the previous listener
 			// for the same model URI to avoid leaks.
 			const key = model.sessionResource.toString();
@@ -185,10 +202,11 @@ export class ChatDebugEditor extends EditorPane {
 				if (e.kind === 'setCustomTitle') {
 					if (this.viewState === ViewState.Home) {
 						this.homeView?.render();
-					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart) {
+					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart || this.viewState === ViewState.CacheExplorer) {
 						this.overviewView?.updateBreadcrumb();
 						this.logsView?.updateBreadcrumb();
 						this.flowChartView?.updateBreadcrumb();
+						this.cacheExplorerView?.updateBreadcrumb();
 					}
 				}
 			}));
@@ -240,9 +258,15 @@ export class ChatDebugEditor extends EditorPane {
 			this.flowChartView?.hide();
 		}
 
+		if (state === ViewState.CacheExplorer) {
+			this.cacheExplorerView?.show();
+		} else {
+			this.cacheExplorerView?.hide();
+		}
+
 	}
 
-	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart'): void {
+	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart' | 'cache'): void {
 		// End the previous session's streaming pipeline before switching
 		const previousSessionResource = this.chatDebugService.activeSessionResource;
 		if (previousSessionResource && previousSessionResource.toString() !== sessionResource.toString()) {
@@ -258,8 +282,13 @@ export class ChatDebugEditor extends EditorPane {
 		this.overviewView?.setSession(sessionResource);
 		this.logsView?.setSession(sessionResource);
 		this.flowChartView?.setSession(sessionResource);
+		this.cacheExplorerView?.setSession(sessionResource);
 
-		this.showView(view === 'logs' ? ViewState.Logs : view === 'flowchart' ? ViewState.FlowChart : ViewState.Overview);
+		const targetState = view === 'logs' ? ViewState.Logs
+			: view === 'flowchart' ? ViewState.FlowChart
+				: view === 'cache' ? ViewState.CacheExplorer
+					: ViewState.Overview;
+		this.showView(targetState);
 	}
 
 	private trackSessionModelChanges(sessionResource: URI): void {
@@ -303,53 +332,39 @@ export class ChatDebugEditor extends EditorPane {
 		}
 	}
 
-	override setEditorVisible(visible: boolean): void {
+	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			// Note: do NOT read this.options here. When the editor becomes
-			// visible via openEditor(), setEditorVisible fires before
-			// setOptions, so this.options still contains stale values from
-			// the previous openEditor() call. Navigation from new options
-			// is handled entirely by setOptions → _applyNavigationOptions.
-			// Here we only restore the previous state when the editor is
-			// re-shown without a new openEditor() call (e.g., tab switch).
-			if (this.viewState === ViewState.Home) {
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.navigateToSession(sessionResource, 'overview');
-				} else {
-					this.showView(ViewState.Home);
-				}
-			} else {
-				// Re-activate the streaming pipeline for the current session,
-				// restoring the saved session resource if the editor was temporarily hidden.
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.chatDebugService.activeSessionResource = sessionResource;
-					if (!this.chatDebugService.hasInvokedProviders(sessionResource)) {
-						this.chatDebugService.invokeProviders(sessionResource);
-					}
-				} else {
-					this.showView(ViewState.Home);
-				}
+			// If file logging is disabled, always reset to the home view
+			if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
+				this.endActiveSession();
+				this.showView(ViewState.Home);
+				return;
 			}
-		} else {
-			// Remember the active session so we can restore when re-shown
-			this.savedSessionResource = this.chatDebugService.activeSessionResource;
-			// Stop the streaming pipeline when the editor is hidden
-			this.endActiveSession();
+			// Re-show the current view so it reloads events from scratch,
+			// ensuring correct ordering and no stale duplicates.
+			// Navigation from new openEditor() options is handled by
+			// setOptions → _applyNavigationOptions (fires after this).
+			this.showView(this.viewState);
 		}
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
+		// If file logging is disabled, always show the home view
+		if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
+			this.endActiveSession();
+			this.showView(ViewState.Home);
+			return;
+		}
+
 		const { sessionResource, viewHint, filter } = options;
 		if (viewHint === 'logs' && sessionResource) {
 			this.navigateToSession(sessionResource, 'logs');
 		} else if (viewHint === 'flowchart' && sessionResource) {
 			this.navigateToSession(sessionResource, 'flowchart');
+		} else if (viewHint === 'cache' && sessionResource) {
+			this.navigateToSession(sessionResource, 'cache');
 		} else if (viewHint === 'overview' && sessionResource) {
 			this.navigateToSession(sessionResource, 'overview');
 		} else if (viewHint === 'home') {

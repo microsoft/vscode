@@ -1,0 +1,17 @@
+[
+  {
+    "name": "nodeApp",
+    "question": "/setupTests mocha",
+    "expectations": {
+      "filePatterns": ["(mocharc|mocha\\.opts)", "\\.test\\.ts"],
+      "installCommandPattern": "npm i.*mocha",
+      "runCommandPattern": "mocha"
+    },
+    "files": [
+      "src/app.ts",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json"
+    ]
+  }
+]

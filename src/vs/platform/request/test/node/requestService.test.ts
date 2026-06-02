@@ -36,7 +36,7 @@ suite('Request Service', () => {
 		setTimeout(() => cts.cancel(), 50);
 
 		try {
-			await nodeRequest({ url: 'http://localhost:9999/nonexistent' }, cts.token);
+			await nodeRequest({ url: 'http://localhost:9999/nonexistent', callSite: 'requestService.test.cancellation' }, cts.token);
 			assert.fail('Request should have been cancelled');
 		} catch (err) {
 			const elapsed = Date.now() - startTime;
@@ -74,7 +74,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'GET',
-				getRawRequest: () => mockRawRequest as IRawRequestFunction
+				getRawRequest: () => mockRawRequest as IRawRequestFunction,
+				callSite: 'requestService.test.retryGET'
 			}, CancellationToken.None);
 		} catch (err) {
 			// Expected to eventually succeed or fail after retries
@@ -106,7 +107,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'POST',
-				getRawRequest: () => mockRawRequest
+				getRawRequest: () => mockRawRequest,
+				callSite: 'requestService.test.noRetryPOST'
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
@@ -144,7 +146,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'HEAD',
-				getRawRequest: () => mockRawRequest as IRawRequestFunction
+				getRawRequest: () => mockRawRequest as IRawRequestFunction,
+				callSite: 'requestService.test.retryHEAD'
 			}, CancellationToken.None);
 		} catch (err) {
 			// Expected to eventually succeed or fail after retries
@@ -181,7 +184,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'OPTIONS',
-				getRawRequest: () => mockRawRequest as IRawRequestFunction
+				getRawRequest: () => mockRawRequest as IRawRequestFunction,
+				callSite: 'requestService.test.retryOPTIONS'
 			}, CancellationToken.None);
 		} catch (err) {
 			// Expected to eventually succeed or fail after retries
@@ -213,7 +217,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'DELETE',
-				getRawRequest: () => mockRawRequest
+				getRawRequest: () => mockRawRequest,
+				callSite: 'requestService.test.noRetryDELETE'
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
@@ -246,7 +251,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'PUT',
-				getRawRequest: () => mockRawRequest
+				getRawRequest: () => mockRawRequest,
+				callSite: 'requestService.test.noRetryPUT'
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
@@ -279,7 +285,8 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'PATCH',
-				getRawRequest: () => mockRawRequest
+				getRawRequest: () => mockRawRequest,
+				callSite: 'requestService.test.noRetryPATCH'
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {

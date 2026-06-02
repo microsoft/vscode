@@ -6,16 +6,17 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Color } from '../../../../../base/common/color.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
 import { IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { AgentFeedbackEditorWidget } from '../../browser/agentFeedbackEditorWidgetContribution.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { CodeReviewStateKind, ICodeReviewService, ICodeReviewState, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
@@ -55,7 +56,7 @@ function createRange(startLineNumber: number, endLineNumber: number = startLineN
 	};
 }
 
-function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion): ISessionEditorComment {
+function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion, replies?: readonly string[]): ISessionEditorComment {
 	return {
 		id: `agentFeedback:${id}`,
 		sourceId: id,
@@ -66,6 +67,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
+		replies,
 	};
 }
 
@@ -91,16 +93,35 @@ function createReviewComment(id: string, text: string, startLineNumber: number, 
 	};
 }
 
+function createPRReviewComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber): ISessionEditorComment {
+	return {
+		id: `prReview:${id}`,
+		sourceId: id,
+		source: SessionEditorCommentSource.PRReview,
+		text,
+		resourceUri: fileResource,
+		range: createRange(startLineNumber, endLineNumber),
+		sessionResource,
+		canConvertToAgentFeedback: true,
+	};
+}
+
 function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidAddFeedback = Event.None;
+		override readonly onDidConvertFeedback = Event.None;
+		override readonly onDidAddReply = Event.None;
+		override readonly onDidSubmitFeedback = Event.None;
 
 		override addFeedback(): IAgentFeedback {
 			throw new Error('Not implemented for fixture');
 		}
 
 		override removeFeedback(): void { }
+
+		override addReply(): void { }
 
 		override getFeedback(): readonly IAgentFeedback[] {
 			return [];
@@ -129,26 +150,6 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override clearFeedback(): void { }
 
 		override async addFeedbackAndSubmit(): Promise<void> { }
-	}();
-}
-
-function createMockCodeReviewService(): ICodeReviewService {
-	return new class extends mock<ICodeReviewService>() {
-		private readonly _state = observableValue<ICodeReviewState>('fixture.reviewState', { kind: CodeReviewStateKind.Idle });
-
-		override getReviewState() {
-			return this._state;
-		}
-
-		override hasReview(): boolean {
-			return false;
-		}
-
-		override requestReview(): void { }
-
-		override removeComment(): void { }
-
-		override dismissReview(): void { }
 	}();
 }
 
@@ -182,7 +183,16 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 
 	ensureTokenColorMap();
 
-	const instantiationService = createEditorServices(scopedDisposables, { colorTheme: context.theme });
+	const agentFeedbackService = createMockAgentFeedbackService();
+	const codeReviewService = createMockCodeReviewService();
+	const instantiationService = createEditorServices(scopedDisposables, {
+		colorTheme: context.theme,
+		additionalServices: reg => {
+			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, codeReviewService);
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
+		},
+	});
 	const model = scopedDisposables.add(createTextModel(instantiationService, sampleCode, fileResource, 'typescript'));
 
 	const editorOptions: ICodeEditorWidgetOptions = {
@@ -205,12 +215,11 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 
 	editor.setModel(model);
 
-	const widget = scopedDisposables.add(new AgentFeedbackEditorWidget(
+	const widget = scopedDisposables.add(instantiationService.createInstance(
+		AgentFeedbackEditorWidget,
 		editor,
 		options.commentItems,
 		sessionResource,
-		createMockAgentFeedbackService(),
-		createMockCodeReviewService(),
 	));
 
 	widget.layout(options.commentItems[0].range.startLineNumber);
@@ -261,6 +270,32 @@ const reviewSuggestion: ICodeReviewSuggestion = {
 const suggestionMix = [
 	createReviewComment('r-3', 'Prefer using the helper so the intent is explicit.', 8, 8, reviewSuggestion),
 	createFeedbackComment('f-3', 'Keep the helper name aligned with the domain concept.', 9),
+];
+
+const prReviewOnly = [
+	createPRReviewComment('pr-1', 'This variable should be renamed to match our naming conventions.', 2),
+	createPRReviewComment('pr-2', 'Please add error handling for the edge case when second is zero.', 7, 8),
+];
+
+const threadedFeedback = [
+	createFeedbackComment(
+		'f-thread',
+		'Consider extracting this into a helper function.',
+		7,
+		7,
+		undefined,
+		[
+			'I agree, and we should also unit test the helper.',
+			'Make sure the helper name matches the domain concept.',
+		],
+	),
+];
+
+const allSourcesMixed = [
+	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
+	createPRReviewComment('pr-1', 'Our style guide says to use descriptive names here.', 3),
+	createReviewComment('r-1', 'This should be extracted into a helper.', 6),
+	createPRReviewComment('pr-2', 'This logic duplicates what we have in utils.ts — consider reusing.', 8, 9),
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
@@ -332,6 +367,39 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {
 			commentItems: suggestionMix,
+			expanded: true,
+		}),
+	}),
+
+	ExpandedPRReviewOnly: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: prReviewOnly,
+			expanded: true,
+		}),
+	}),
+
+	ExpandedAllSourcesMixed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: allSourcesMixed,
+			expanded: true,
+		}),
+	}),
+
+	ExpandedFocusedPRReview: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: allSourcesMixed,
+			expanded: true,
+			focusedCommentId: 'prReview:pr-2',
+		}),
+	}),
+
+	ExpandedThreadedFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: threadedFeedback,
 			expanded: true,
 		}),
 	}),

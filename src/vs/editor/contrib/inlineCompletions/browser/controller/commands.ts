@@ -320,6 +320,7 @@ export class HideInlineCompletion extends EditorAction {
 			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
 				weight: KeybindingWeight.EditorContrib + 90, // same as hiding the suggest widget
 				primary: KeyCode.Escape,
 			},

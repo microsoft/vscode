@@ -25,7 +25,7 @@ export const enum Parts {
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
-	CHATBAR_PART = 'workbench.parts.chatbar',
+	SESSIONS_PART = 'workbench.parts.sessions',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -48,7 +48,8 @@ export const enum LayoutSettings {
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
-	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled'
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
+	SHADOWS = 'workbench.shadows'
 }
 
 export const enum ActivityBarPosition {

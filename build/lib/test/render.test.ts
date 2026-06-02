@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP, renderJsonPolicies } from '../policies/render.ts';
 import { type NlsString, type LanguageTranslations, type Category, type Policy, PolicyType } from '../policies/types.ts';
 

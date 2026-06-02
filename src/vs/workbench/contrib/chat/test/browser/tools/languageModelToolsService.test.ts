@@ -19,6 +19,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
@@ -29,12 +30,21 @@ import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { CopilotChatSettingId, CopilotToolId } from '../../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
+import { IToolResultCompressor } from '../../../common/tools/toolResultCompressor.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
+
+const noopToolResultCompressor: IToolResultCompressor = {
+	_serviceBrand: undefined,
+	registerFilter: () => { },
+	registerCache: () => { },
+	maybeCompress: () => undefined,
+};
 
 class TestAccessibilitySignalService implements Partial<IAccessibilitySignalService> {
 	public signalPlayedCalls: { signal: AccessibilitySignal; options?: any }[] = [];
@@ -141,6 +151,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	const chatService = new MockChatService();
 	instaService.stub(IChatService, chatService);
 	instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+	instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 
 	if (options?.accessibilityService) {
 		instaService.stub(IAccessibilityService, options.accessibilityService);
@@ -510,7 +521,10 @@ suite('LanguageModelToolsService', () => {
 				confirmationMessages: {
 					title: 'Confirm',
 					message: 'Pick an option',
-					customButtons: ['Option A', 'Option B'],
+					customOptions: [
+						{ id: 'Option A', label: 'Option A', kind: ConfirmationOptionKind.Approve },
+						{ id: 'Option B', label: 'Option B', kind: ConfirmationOptionKind.Deny },
+					],
 					allowAutoConfirm: false,
 				}
 			}),
@@ -564,13 +578,16 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'ok');
 	});
 
-	test('confirmationMessages with customButtons disables allowAutoConfirm', async () => {
+	test('confirmationMessages with customOptions disables allowAutoConfirm', async () => {
 		const tool = registerToolForTest(service, store, 'testToolCustomBtnNoAuto', {
 			prepareToolInvocation: async () => ({
 				confirmationMessages: {
 					title: 'Confirm',
 					message: 'Choose',
-					customButtons: ['Yes', 'No'],
+					customOptions: [
+						{ id: 'Yes', label: 'Yes', kind: ConfirmationOptionKind.Approve },
+						{ id: 'No', label: 'No', kind: ConfirmationOptionKind.Deny },
+					],
 					allowAutoConfirm: false,
 				}
 			}),
@@ -586,10 +603,52 @@ suite('LanguageModelToolsService', () => {
 		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
 		const published = await waitForPublishedInvocation(capture);
 		assert.ok(published, 'expected ChatToolInvocation to be published');
-		assert.deepStrictEqual(published.confirmationMessages?.customButtons, ['Yes', 'No']);
+		assert.deepStrictEqual(published.confirmationMessages?.customOptions?.map(o => o.label), ['Yes', 'No']);
 
 		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction, selectedButton: 'Yes' });
 		await promise;
+	});
+
+	test('skipping modified-files confirmation returns the shared skip message and does not invoke the tool', async () => {
+		let invoked = false;
+		const tool = registerToolForTest(service, store, 'testModifiedFilesConfirmationSkip', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Confirm',
+					message: 'Choose',
+					allowAutoConfirm: false,
+				},
+				toolSpecificData: {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Copy Changes', 'Move Changes'],
+					modifiedFiles: [{
+						uri: URI.parse('file:///workspace/file1.ts')
+					}]
+				}
+			}),
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'should not run' }] };
+			},
+		});
+
+		const sessionId = 'sessionId-modified-files-skip';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-modified-files-skip', capture });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+		const result = await promise;
+
+		assert.strictEqual(invoked, false);
+		assert.deepStrictEqual(result.content, [{
+			kind: 'text',
+			value: 'The user chose to skip the tool call, they want to proceed without running it'
+		}]);
 	});
 
 	test('cancel tool call', async () => {
@@ -1591,6 +1650,97 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'bypass executed');
 	});
 
+	test('bypass approvals does not auto-approve tools in toolIdsThatCannotBeAutoApproved for CLI sessions', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		// Register a tool with the ID that should never be auto-approved
+		registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Uncommitted Changes',
+					message: 'Should these changes be included?',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'confirmed' }] })
+		});
+
+		// Create a CLI session URI (authority = 'copilotcli' instead of 'local')
+		const sessionId = 'test-bypass-no-auto-confirm';
+		const cliSessionResource = URI.from({
+			scheme: LocalChatSessionUri.scheme,
+			authority: 'copilotcli',
+			path: '/' + sessionId
+		});
+
+		const capture: { invocation?: any } = {};
+		const fakeModel = {
+			sessionId,
+			sessionResource: cliSessionResource,
+			getRequests: () => [{ id: 'req1', modelId: 'test-model', modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } }],
+		} as ChatModel;
+		testChatService.addSession(fakeModel);
+		testChatService.appendProgress = (_request, progress) => {
+			capture.invocation = progress;
+		};
+
+		const resultPromise = testService.invokeTool(
+			{
+				callId: '1',
+				toolId: 'vscode_get_modified_files_confirmation',
+				tokenBudget: 100,
+				parameters: { test: true },
+				context: { sessionResource: cliSessionResource },
+			},
+			async () => 0,
+			CancellationToken.None
+		);
+
+		// The tool should NOT be auto-approved for CLI sessions — it must show confirmation UI
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool in toolIdsThatCannotBeAutoApproved should require confirmation for CLI sessions even with Bypass Approvals');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await resultPromise;
+		assert.strictEqual(result.content[0].value, 'confirmed');
+	});
+
+	test('bypass approvals auto-approves tools in toolIdsThatCannotBeAutoApproved for local sessions', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		// Register a tool with the ID that cannot be auto-approved for CLI
+		const tool = registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Uncommitted Changes',
+					message: 'Should these changes be included?',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved for local' }] })
+		});
+
+		const sessionId = 'test-bypass-local-auto-confirm';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		// For local sessions, Bypass Approvals should auto-approve even these tools
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: true }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'auto approved for local');
+	});
+
 	test('shouldAutoConfirm with basic configuration', async () => {
 		// Test basic shouldAutoConfirm behavior with simple configuration
 		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
@@ -1883,6 +2033,7 @@ suite('LanguageModelToolsService', () => {
 		instaService1.stub(IAccessibilityService, testAccessibilityService1);
 		instaService1.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
 		instaService1.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService1.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService1 = store.add(instaService1.createInstance(LanguageModelToolsService));
 
 		const tool1 = registerToolForTest(testService1, store, 'soundOnlyTool', {
@@ -1924,6 +2075,7 @@ suite('LanguageModelToolsService', () => {
 		instaService2.stub(IAccessibilityService, testAccessibilityService2);
 		instaService2.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
 		instaService2.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService2.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService2 = store.add(instaService2.createInstance(LanguageModelToolsService));
 
 		const tool2 = registerToolForTest(testService2, store, 'autoScreenReaderTool', {
@@ -1966,6 +2118,7 @@ suite('LanguageModelToolsService', () => {
 		instaService3.stub(IAccessibilityService, testAccessibilityService3);
 		instaService3.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
 		instaService3.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService3.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService3 = store.add(instaService3.createInstance(LanguageModelToolsService));
 
 		const tool3 = registerToolForTest(testService3, store, 'offTool', {
@@ -2759,6 +2912,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		const tool = registerToolForTest(testService, store, 'gitCommitTool', {
@@ -2797,6 +2951,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool that was previously namespaced under extension but is now internal
@@ -2836,6 +2991,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool that was previously namespaced under extension but is now internal
@@ -2878,6 +3034,7 @@ suite('LanguageModelToolsService', () => {
 		}, store);
 		instaService.stub(IChatService, chatService);
 		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
 
 		// Tool that was previously namespaced under extension but is now internal
@@ -2936,6 +3093,34 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		assert.strictEqual(invocation, undefined, 'beginToolCall should return undefined for unknown tools');
+	});
+
+	test('beginToolCall returns undefined for tool without handleToolStream', () => {
+		const tool = registerToolForTest(service, store, 'noStreamTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		});
+
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-no-stream',
+			toolId: tool.id,
+		});
+
+		assert.strictEqual(invocation, undefined, 'beginToolCall should return undefined when tool lacks handleToolStream');
+	});
+
+	test('beginToolCall with force creates invocation even without handleToolStream', () => {
+		const tool = registerToolForTest(service, store, 'forceStreamTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		});
+
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-force',
+			toolId: tool.id,
+			force: true,
+		});
+
+		assert.ok(invocation, 'beginToolCall with force should return an invocation');
+		assert.strictEqual(invocation.toolId, tool.id);
 	});
 
 	test('updateToolStream calls handleToolStream on tool implementation', async () => {
@@ -3034,6 +3219,45 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.get(anyModelTool), true, 'anyModelTool should be enabled');
 		// claudeTool should NOT be in the enablement map (filtered out by model)
 		assert.strictEqual(result.has(claudeTool), false, 'claudeTool should be filtered out by model');
+	});
+
+	test('gpt-5.5 readFile setting controls Copilot read tool availability', () => {
+		const readTool: IToolData = {
+			id: CopilotToolId.ReadFile,
+			toolReferenceName: 'readFile',
+			modelDescription: 'Read File Tool',
+			displayName: 'Read File',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(readTool));
+		store.add(service.readToolSet.addTool(readTool));
+
+		const gpt55Model = { id: 'gpt-5.5', vendor: 'copilot', family: 'gpt-5.5', version: '1.0' } as ILanguageModelChatMetadata;
+
+		configurationService.setUserConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled, false);
+
+		const disabledTools = Array.from(service.getTools(gpt55Model));
+		assert.ok(!disabledTools.some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should not be returned from getTools when disabled for gpt-5.5');
+
+		const disabledReadToolSet = Array.from(service.getToolSetsForModel(gpt55Model)).find(toolSet => toolSet.id === 'read');
+		assert.ok(disabledReadToolSet, 'read tool set should exist');
+		assert.ok(!Array.from(disabledReadToolSet.getTools()).some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should not be included as a read tool-set member when disabled for gpt-5.5');
+
+		const disabledEnablementMap = service.toToolAndToolSetEnablementMap(['read/readFile'], gpt55Model);
+		assert.strictEqual(disabledEnablementMap.has(readTool), false, 'readFile should not be included in explicit enablement maps when disabled for gpt-5.5');
+
+		configurationService.setUserConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled, true);
+
+		const enabledTools = Array.from(service.getTools(gpt55Model));
+		assert.ok(enabledTools.some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should be returned from getTools when enabled for gpt-5.5');
+
+		const enabledReadToolSet = Array.from(service.getToolSetsForModel(gpt55Model)).find(toolSet => toolSet.id === 'read');
+		assert.ok(enabledReadToolSet, 'read tool set should exist');
+		assert.ok(Array.from(enabledReadToolSet.getTools()).some(tool => tool.id === CopilotToolId.ReadFile), 'readFile should be included as a read tool-set member when enabled for gpt-5.5');
+
+		const enabledEnablementMap = service.toToolAndToolSetEnablementMap(['read/readFile'], gpt55Model);
+		assert.strictEqual(enabledEnablementMap.get(readTool), true, 'readFile should be included in explicit enablement maps when enabled for gpt-5.5');
 	});
 
 	test('observeTools returns tools filtered by context', async () => {

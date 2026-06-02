@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -215,6 +216,28 @@ suite('NLS plugin source maps', () => {
 				'sourcesContent should NOT contain NLS placeholder.\nActual:\n' + greetingContent);
 			assert.ok(greetingContent.includes('localize("myKey", "Hello World")'),
 				'sourcesContent should contain the exact original localize call.\nActual:\n' + greetingContent);
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('NLS-affected nested file keeps a non-duplicated source path', async () => {
+		const source = [
+			'import { localize } from "../../vs/nls";',
+			'export const msg = localize("myKey", "Hello World");',
+		].join('\n');
+
+		const { mapJson, cleanup } = await bundleWithNLS(
+			{ 'nested/deep/file.ts': source },
+			'nested/deep/file.ts',
+		);
+
+		try {
+			const sources: string[] = mapJson.sources ?? [];
+			const nestedSource = sources.find((s: string) => s.endsWith('/nested/deep/file.ts'));
+			assert.ok(nestedSource, 'Should find nested/deep/file.ts in sources');
+			assert.ok(!nestedSource.includes('/nested/deep/nested/deep/file.ts'),
+				`Source path should not duplicate directory segments. Actual: ${nestedSource}`);
 		} finally {
 			cleanup();
 		}

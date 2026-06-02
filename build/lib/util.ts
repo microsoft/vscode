@@ -5,8 +5,7 @@
 
 import es from 'event-stream';
 import _debounce from 'debounce';
-import _filter from 'gulp-filter';
-import rename from 'gulp-rename';
+import { filter as _filter, rename } from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
 import _rimraf from 'rimraf';
@@ -379,6 +378,12 @@ export function getElectronVersion(): Record<string, string> {
 	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
 	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
 	return { electronVersion, msBuildId };
+}
+
+export function getVersionedResourcesFolder(platform: string, commit: string): string {
+	const productJson = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+	const useVersionedUpdate = platform === 'win32' && productJson.win32VersionedUpdate;
+	return useVersionedUpdate ? commit.substring(0, 10) : '';
 }
 
 export class VinylStat implements fs.Stats {

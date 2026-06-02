@@ -91,3 +91,7 @@ export function getChatSessionType(resource: URI): string {
 
 	return resource.scheme;
 }
+
+export function isUntitledChatSession(resource: URI): boolean {
+	return resource.path.startsWith('/untitled-');
+}

@@ -17,6 +17,7 @@ import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
+import type { ILanguageModelChatMetadata } from '../languageModels.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Mutable } from '../../../../../base/common/types.js';
 
@@ -36,6 +37,14 @@ interface IBaseChatRequestVariableEntry {
 	readonly value: IChatRequestVariableValue;
 	readonly references?: IChatContentReference[];
 
+	/**
+	 * Implementation-defined metadata that providers attach to a variable
+	 * entry. Used to round-trip provider-specific data (e.g. agent-host
+	 * `_meta`) when an entry is sent back to the provider as part of a
+	 * request attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+
 	omittedState?: OmittedState;
 }
 
@@ -46,6 +55,7 @@ export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariab
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
 	kind: 'directory';
+	imageCount?: number;
 }
 
 export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
@@ -56,6 +66,33 @@ export const enum OmittedState {
 	NotOmitted,
 	Partial,
 	Full,
+	ImageLimitExceeded,
+}
+
+const CLAUDE_MESSAGES_MAX_IMAGES_PER_REQUEST = 20;
+const GEMINI_MAX_IMAGES_PER_REQUEST = 10;
+
+/**
+ * Returns the image-attachment limit for the selected model.
+ *
+ * Claude-family models use a max of 20 (Messages API), Gemini-family models use
+ * a max of 10. Other models do not have a UI-enforced image count limit.
+ */
+export function getImageAttachmentLimit(model: Pick<ILanguageModelChatMetadata, 'family'> | undefined): number | undefined {
+	if (!model) {
+		return undefined;
+	}
+
+	const family = model.family.toLowerCase();
+	if (family.startsWith('gemini')) {
+		return GEMINI_MAX_IMAGES_PER_REQUEST;
+	}
+
+	if (family.startsWith('claude') || family.startsWith('anthropic')) {
+		return CLAUDE_MESSAGES_MAX_IMAGES_PER_REQUEST;
+	}
+
+	return undefined;
 }
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
@@ -306,6 +343,11 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly resourceUri: URI;
 		readonly range: IRange;
 		readonly codeSelection?: string;
+		readonly diffHunks?: string;
+		/** When this item was converted from a PR review comment, the original thread ID. */
+		readonly sourcePRReviewCommentId?: string;
+		/** Additional replies that belong to the same comment thread as {@link text}. */
+		readonly replies?: readonly string[];
 	}>;
 }
 
@@ -317,6 +359,21 @@ export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVa
 	readonly sessionResource: URI;
 }
 
+export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'sessionReference';
+	readonly value: URI;
+}
+
+export interface IBrowserViewVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'browserView';
+	readonly value: URI;
+	readonly browserId: string;
+}
+
+export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): entry is IBrowserViewVariableEntry {
+	return entry.kind === 'browserView';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -324,7 +381,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -409,6 +466,27 @@ export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IIm
 	return obj.kind === 'image';
 }
 
+export function isExplicitFileOrImageVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry | IChatRequestDirectoryEntry | IImageVariableEntry {
+	return obj.kind === 'file' || obj.kind === 'directory' || obj.kind === 'image';
+}
+
+export function getExplicitFileOrImageAttachmentSummary(entries: readonly IChatRequestVariableEntry[]): string | undefined {
+	const fileOrImageEntries = entries.filter(isExplicitFileOrImageVariableEntry);
+	if (!fileOrImageEntries.length) {
+		return undefined;
+	}
+
+	if (fileOrImageEntries.every(isImageVariableEntry)) {
+		return fileOrImageEntries.length === 1
+			? localize('chat.attachmentSummary.image.one', "Attached 1 image")
+			: localize('chat.attachmentSummary.image.many', "Attached {0} images", fileOrImageEntries.length);
+	}
+
+	return fileOrImageEntries.length === 1
+		? localize('chat.attachmentSummary.file.one', "Attached 1 file")
+		: localize('chat.attachmentSummary.file.many', "Attached {0} files", fileOrImageEntries.length);
+}
+
 export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
 	return obj.kind === 'notebookOutput';
 }
@@ -469,17 +547,17 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 }
 
 export enum PromptFileVariableKind {
-	Instruction = 'vscode.prompt.instructions.root',
-	InstructionReference = `vscode.prompt.instructions`,
-	PromptFile = 'vscode.prompt.file'
+	Instruction = 'vscode.instructions.file.root',
+	InstructionReference = `vscode.instructions.file.reference`,
+	PromptFile = 'vscode.prompt.file',
 }
 
 /**
  * Utility to convert a {@link uri} to a chat variable entry.
  * The `id` of the chat variable can be one of the following:
  *
- * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
- * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
+ * - `vscode.instructions.file.reference__<URI>`: for all non-root prompt instructions references
+ * - `vscode.instructions.file.root__<URI>`: for *root* prompt instructions references
  * - `vscode.prompt.file__<URI>`: for prompt file references
  *
  * @param uri A resource URI that points to a prompt instructions file.
@@ -500,13 +578,17 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 	};
 }
 
+enum PromptTextVariableKind {
+	CustomizationsIndex = 'vscode.customizations.index',
+}
+
 export function toPromptTextVariableEntry(content: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptTextVariableEntry {
 	return {
-		id: `vscode.prompt.instructions.text`,
-		name: `prompt:instructionsList`,
+		id: PromptTextVariableKind.CustomizationsIndex,
+		name: `prompt:customizationsIndex`,
 		value: content,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions list',
+		modelDescription: 'Chat customizations index',
 		automaticallyAdded,
 		toolReferences
 	};

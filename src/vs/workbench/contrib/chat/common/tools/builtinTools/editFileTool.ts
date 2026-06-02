@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
@@ -118,7 +119,7 @@ export class EditTool implements IToolImpl {
 			dispose = autorun((r) => {
 
 				const entries = editSession.entries.read(r);
-				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
+				const currentFile = entries?.find((e) => isEqual(e.modifiedURI, uri));
 				if (currentFile) {
 					if (currentFile.isCurrentlyBeingModifiedBy.read(r)) {
 						wasFileBeingModified = true;

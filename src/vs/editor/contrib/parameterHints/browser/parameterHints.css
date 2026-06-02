@@ -78,6 +78,9 @@
 .monaco-editor .parameter-hints-widget .docs {
 	padding: 0 10px 0 5px;
 	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	min-width: 0;
 }
 
 .monaco-editor .parameter-hints-widget .docs.empty {
@@ -95,6 +98,9 @@
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs {
 	white-space: initial;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	max-width: 100%;
 }
 
 .monaco-editor .parameter-hints-widget .docs code {
