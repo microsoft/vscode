@@ -431,7 +431,12 @@ export class BrowserUrlBarWidget extends Disposable {
 				// `buttons: []` opts the separator into being rendered as
 				// its own row (a separator without buttons is otherwise
 				// collapsed into the first item below it as a header).
-				items.push({ type: 'separator', label: provider.label, description: provider.description, buttons: [] });
+				items.push({
+					type: 'separator',
+					label: provider.label,
+					description: provider.description,
+					buttons: provider.actions,
+				});
 			}
 			for (const s of suggestions) {
 				const item: IUrlPickerItem = {
@@ -595,6 +600,15 @@ export class BrowserUrlBarWidget extends Disposable {
 		// Unlike onDidTriggerButton this does NOT count as "the user accepted the suggestion"
 		// — the picker stays open and the action runs in-place.
 		disposables.add(picker.onDidTriggerItemButton(({ button }) => {
+			const action = button as IBrowserUrlSuggestionAction;
+			const input = this._host.input;
+			if (typeof action.run === 'function' && input) {
+				void Promise.resolve(action.run(input));
+			}
+		}));
+		// Per-group separator button. Routed the same way as per-item buttons
+		// (the IBrowserUrlSuggestionAction was attached directly to the separator).
+		disposables.add(picker.onDidTriggerSeparatorButton(({ button }) => {
 			const action = button as IBrowserUrlSuggestionAction;
 			const input = this._host.input;
 			if (typeof action.run === 'function' && input) {

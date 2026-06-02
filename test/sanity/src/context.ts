@@ -56,6 +56,7 @@ export class TestContext {
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
 		screenshotsDir: string | undefined;
+		crashDumpsDir: string | undefined;
 	}>) {
 	}
 
@@ -1227,6 +1228,19 @@ export class TestContext {
 				clearTimeout(timeoutHandle);
 			}
 		}
+	}
+
+	/**
+	 * Returns a per-test crash dump directory for the desktop app to use with
+	 * `--crash-reporter-directory`. Returns undefined if `--crash-dumps-dir` was
+	 * not provided.
+	 */
+	public getCrashDumpsDir(): string | undefined {
+		if (!this.options.crashDumpsDir || !this.currentTestName) {
+			return undefined;
+		}
+		const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return path.join(this.options.crashDumpsDir, sanitizedName);
 	}
 
 	/**
