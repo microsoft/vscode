@@ -172,7 +172,7 @@ function toSuggestion(model: IBrowserViewModel, history: BrowserHistoryStore, en
 		id: 'history:' + entry.id,
 		label,
 		description,
-		icon: faviconUri ? undefined : Codicon.history,
+		icon: faviconUri ? undefined : Codicon.globe,
 		iconPath: faviconUri ? { dark: faviconUri } : undefined,
 		apply: input => input.navigate(entry.url),
 		actions: [deleteAction],
