@@ -170,7 +170,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 
 		// No real session URI to hand off (empty-workspace path triggered
 		// from the input tip): pre-seed the agents window's session-type
-		// picker so it lands on Copilot CLI [Agent Host].
+		// picker so it lands on Copilot CLI.
 		let preferredSessionType: { providerId?: string; sessionTypeId: string } | undefined;
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
 		if (!hasRealSession) {
