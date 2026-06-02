@@ -5,14 +5,16 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import type { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
-import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { ChatRequestTurn2, ChatResponseConfirmationPart, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
-import { normalizeInitialSessionOptions, parseSessionLogChunksSafely } from '../copilotCloudSessionsProvider';
+import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, validateMetadata } from '../copilotCloudSessionsProvider';
+import { TaskApiBackend, parseRepoFromTaskUrl } from '../taskApiBackend';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
@@ -313,5 +315,235 @@ describe('ChatSessionContentBuilder Task API history', () => {
 		expect(history[0]).toBeInstanceOf(ChatRequestTurn2);
 		const req = history[0] as ChatRequestTurn2;
 		expect(req.prompt).toBe('Original prompt from creation');
+	});
+
+	describe('inline "Create pull request" confirmation', () => {
+		const inlineRepo = { owner: 'octocat', repo: 'hello-world' };
+
+		const buildHistory = async (state: string, opts: { hasPullRequest?: boolean; inline?: { owner: string; repo: string } } = {}) => {
+			const events: AgentTaskSessionEvent[] = [
+				userMessage('Do the thing'),
+				evt('assistant.message', { messageId: 'turn-1', content: 'All done.' }),
+			];
+			return newBuilder().buildTaskHistory(
+				makeTask([{ state }]),
+				events,
+				opts.hasPullRequest ? createPullRequest() : undefined,
+				Promise.resolve([]),
+				opts.inline,
+			);
+		};
+
+		const findConfirmationPart = (history: ReadonlyArray<vscode.ChatRequestTurn | ChatResponseTurn2>): ChatResponseConfirmationPart | undefined => {
+			for (const turn of history) {
+				if (turn instanceof ChatResponseTurn2) {
+					for (const part of turn.response) {
+						if (part instanceof ChatResponseConfirmationPart) {
+							return part;
+						}
+					}
+				}
+			}
+			return undefined;
+		};
+
+		it('appends a "Create pull request" confirmation for completed PR-less tasks', async () => {
+			const history = await buildHistory('completed', { inline: inlineRepo });
+			const confirmation = findConfirmationPart(history);
+			expect(confirmation).toBeInstanceOf(ChatResponseConfirmationPart);
+			expect(confirmation?.buttons).toEqual(['Create pull request']);
+			expect(confirmation?.data).toEqual({
+				kind: 'create-pr',
+				taskId: 'task-1',
+				owner: inlineRepo.owner,
+				repo: inlineRepo.repo,
+			});
+		});
+
+		it('appends a "Create pull request" confirmation for idle PR-less tasks', async () => {
+			const history = await buildHistory('idle', { inline: inlineRepo });
+			expect(findConfirmationPart(history)).toBeInstanceOf(ChatResponseConfirmationPart);
+		});
+
+		it('omits the confirmation while the task is still in_progress', async () => {
+			const history = await buildHistory('in_progress', { inline: inlineRepo });
+			expect(findConfirmationPart(history)).toBeUndefined();
+		});
+
+		it('omits the confirmation while the task is queued', async () => {
+			const history = await buildHistory('queued', { inline: inlineRepo });
+			expect(findConfirmationPart(history)).toBeUndefined();
+		});
+
+		it('omits the confirmation when the task already has a pull request', async () => {
+			const history = await buildHistory('completed', { hasPullRequest: true, inline: inlineRepo });
+			expect(findConfirmationPart(history)).toBeUndefined();
+		});
+
+		it('omits the confirmation when the caller does not pass owner/repo (v1 backend)', async () => {
+			const history = await buildHistory('completed');
+			expect(findConfirmationPart(history)).toBeUndefined();
+		});
+	});
+});
+
+// --- TaskApiBackend (v2) -------------------------------------------------------------------
+
+class FakeTaskApiClient implements ITaskApiClient {
+	public lastCreateRequest: AgentTaskCreateRequest | undefined;
+	public createPRCalls: Array<{ owner: string; repo: string; taskId: string }> = [];
+	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
+	private readonly _createResult: AgentTask;
+
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse }) {
+		this._createResult = opts?.createResult ?? ({
+			id: 'task-created',
+			state: 'queued',
+			created_at: '2026-03-27T00:00:00Z',
+			html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-created',
+		} as unknown as AgentTask);
+		this._createPRResult = opts?.createPRResult ?? ({
+			pull_request: { number: 42 },
+		} as unknown as AgentTaskCreatePullRequestResponse);
+	}
+
+	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
+		this.lastCreateRequest = request;
+		return this._createResult;
+	}
+	async listTasksForRepo(_owner: string, _repo: string, _options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		return { tasks: [] } as unknown as AgentTaskListResponse;
+	}
+	async listTasks(_options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		return { tasks: [] } as unknown as AgentTaskListResponse;
+	}
+	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
+		return { id: _taskId } as unknown as AgentTaskGetResponse;
+	}
+	async getTaskEvents(_taskId: string, _options?: ListTaskEventsOptions): Promise<AgentTaskListEventsResponse> {
+		return { events: [] } as unknown as AgentTaskListEventsResponse;
+	}
+	async steerTask(_taskId: string, _request: AgentTaskSteerRequest): Promise<void> { }
+	async createPRForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse> {
+		this.createPRCalls.push({ owner, repo, taskId });
+		return this._createPRResult;
+	}
+	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
+		return { id: taskId } as unknown as AgentTask;
+	}
+	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
+		return { id: taskId } as unknown as AgentTask;
+	}
+}
+
+const fakeChatStream = {} as vscode.ChatResponseStream;
+const noToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) } as unknown as vscode.CancellationToken;
+
+describe('TaskApiBackend', () => {
+	it('createSession sends create_pull_request: false so the v2 backend no longer auto-creates PRs', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService());
+
+		await backend.createSession({
+			owner: 'octocat',
+			repo: 'hello-world',
+			host: 'github.com',
+			title: 'New task',
+			prompt: 'Do the thing',
+			problemStatement: 'Statement',
+			baseRef: 'main',
+		}, fakeChatStream, noToken);
+
+		expect(client.lastCreateRequest?.create_pull_request).toBe(false);
+	});
+
+	it('createPullRequestForTask delegates to ITaskApiClient.createPRForTask with the same args', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService());
+
+		const result = await backend.createPullRequestForTask('octocat', 'hello-world', 'task-1');
+
+		expect(client.createPRCalls).toEqual([{ owner: 'octocat', repo: 'hello-world', taskId: 'task-1' }]);
+		expect(result).toEqual({ pull_request: { number: 42 } });
+	});
+});
+
+describe('parseRepoFromTaskUrl', () => {
+	it('extracts owner and name from a task html_url', () => {
+		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+	});
+
+	it('returns undefined for an unparseable URL', () => {
+		expect(parseRepoFromTaskUrl('not-a-url')).toBeUndefined();
+	});
+
+	it('returns undefined when the path does not start with owner/repo', () => {
+		expect(parseRepoFromTaskUrl('https://github.com/')).toBeUndefined();
+	});
+
+	it('returns undefined when the URL is undefined', () => {
+		expect(parseRepoFromTaskUrl(undefined)).toBeUndefined();
+	});
+});
+
+describe('validateMetadata (ConfirmationMetadata discriminator)', () => {
+	const minimalChatContext = {} as unknown as vscode.ChatContext;
+
+	it('accepts a delegation confirmation with explicit kind', () => {
+		expect(() => validateMetadata({
+			kind: 'delegation',
+			prompt: 'do thing',
+			chatContext: minimalChatContext,
+		})).not.toThrow();
+	});
+
+	it('accepts a legacy delegation confirmation without a kind discriminator', () => {
+		// Confirmations stored before the discriminator existed look like this.
+		expect(() => validateMetadata({
+			prompt: 'do thing',
+			chatContext: minimalChatContext,
+		})).not.toThrow();
+	});
+
+	it('accepts a well-formed create-pr confirmation', () => {
+		expect(() => validateMetadata({
+			kind: 'create-pr',
+			taskId: 'task-1',
+			owner: 'octocat',
+			repo: 'hello-world',
+		})).not.toThrow();
+	});
+
+	it('rejects a create-pr confirmation missing taskId', () => {
+		expect(() => validateMetadata({
+			kind: 'create-pr',
+			owner: 'octocat',
+			repo: 'hello-world',
+		})).toThrow(/taskId/);
+	});
+
+	it('rejects a create-pr confirmation missing owner', () => {
+		expect(() => validateMetadata({
+			kind: 'create-pr',
+			taskId: 'task-1',
+			repo: 'hello-world',
+		})).toThrow(/owner/);
+	});
+
+	it('rejects a create-pr confirmation missing repo', () => {
+		expect(() => validateMetadata({
+			kind: 'create-pr',
+			taskId: 'task-1',
+			owner: 'octocat',
+		})).toThrow(/repo/);
+	});
+
+	it('rejects null or non-object input', () => {
+		expect(() => validateMetadata(null)).toThrow();
+		expect(() => validateMetadata('string')).toThrow();
+	});
+
+	it('rejects an unknown discriminator', () => {
+		expect(() => validateMetadata({ kind: 'something-else' })).toThrow(/unknown kind/);
 	});
 });

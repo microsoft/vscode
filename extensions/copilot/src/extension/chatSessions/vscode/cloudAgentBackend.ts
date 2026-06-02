@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 
@@ -220,6 +220,18 @@ export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
 		repo: string,
 		prNumber: number,
 	): Promise<string | undefined>;
+
+	/**
+	 * Materialise a pull request for a task that finished without one. The v2 backend
+	 * no longer auto-creates a PR on `createTask`, so the provider offers an inline
+	 * "Create pull request" confirmation button at the end of a completed task's history
+	 * that calls this method when accepted.
+	 */
+	createPullRequestForTask(
+		owner: string,
+		repo: string,
+		taskId: string,
+	): Promise<AgentTaskCreatePullRequestResponse>;
 }
 
 /** Discriminated union of all backends. Narrow via `backend.kind`. */

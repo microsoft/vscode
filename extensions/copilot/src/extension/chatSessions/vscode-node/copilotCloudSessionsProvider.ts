@@ -40,17 +40,41 @@ import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsMan
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
-import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
+import { TaskApiBackend, TaskApiHttpClient, parseRepoFromTaskUrl } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
 
 const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.t('Sign in to GitHub to access Copilot cloud sessions.') } };
 
-interface ConfirmationMetadata {
-	prompt: string;
-	references?: readonly vscode.ChatPromptReference[];
-	chatContext: vscode.ChatContext;
+/**
+ * Payload carried on a `stream.confirmation(...)` part rendered by the cloud-sessions
+ * provider. The original use-case is the pre-delegation prompt
+ * (`kind: 'delegation'`), where the user picks Authorize / Commit / Push / Delegate
+ * before we hand off to the cloud agent. A second case (`kind: 'create-pr'`) is
+ * appended to a completed v2 task's history when the task has no pull artifact, so
+ * the user can ask the Task API to materialise a PR after the fact.
+ *
+ * The discriminator MUST be set on every confirmation we emit so `handleConfirmationData`
+ * can route correctly; legacy stored confirmations without `kind` are treated as
+ * `delegation` for backwards-compat.
+ */
+type ConfirmationMetadata =
+	| DelegationConfirmationMetadata
+	| CreatePullRequestConfirmationMetadata;
+
+interface DelegationConfirmationMetadata {
+	readonly kind: 'delegation';
+	readonly prompt: string;
+	readonly references?: readonly vscode.ChatPromptReference[];
+	readonly chatContext: vscode.ChatContext;
+}
+
+interface CreatePullRequestConfirmationMetadata {
+	readonly kind: 'create-pr';
+	readonly taskId: string;
+	readonly owner: string;
+	readonly repo: string;
 }
 
 type InitialSessionOption = {
@@ -58,19 +82,39 @@ type InitialSessionOption = {
 	readonly value: string | vscode.ChatSessionProviderOptionItem;
 };
 
-function validateMetadata(metadata: unknown): asserts metadata is ConfirmationMetadata {
+export function validateMetadata(metadata: unknown): asserts metadata is ConfirmationMetadata {
 	if (typeof metadata !== 'object') {
 		throw new Error('Invalid confirmation metadata: not an object.');
 	}
 	if (metadata === null) {
 		throw new Error('Invalid confirmation metadata: null value.');
 	}
-	if (typeof (metadata as ConfirmationMetadata).prompt !== 'string') {
-		throw new Error('Invalid confirmation metadata: missing or invalid prompt.');
+	const m = metadata as Partial<ConfirmationMetadata> & Record<string, unknown>;
+	// Legacy delegation confirmations stored before the discriminator was added carry
+	// `prompt` + `chatContext` but no `kind`. Treat those as delegation.
+	const kind = m.kind ?? (typeof m.prompt === 'string' ? 'delegation' : undefined);
+	if (kind === 'delegation') {
+		if (typeof m.prompt !== 'string') {
+			throw new Error('Invalid confirmation metadata: missing or invalid prompt.');
+		}
+		if (typeof m.chatContext !== 'object' || m.chatContext === null) {
+			throw new Error('Invalid confirmation metadata: missing or invalid chatContext.');
+		}
+		return;
 	}
-	if (typeof (metadata as ConfirmationMetadata).chatContext !== 'object' || (metadata as ConfirmationMetadata).chatContext === null) {
-		throw new Error('Invalid confirmation metadata: missing or invalid chatContext.');
+	if (kind === 'create-pr') {
+		if (typeof m.taskId !== 'string' || !m.taskId) {
+			throw new Error('Invalid confirmation metadata: missing or invalid taskId.');
+		}
+		if (typeof m.owner !== 'string' || !m.owner) {
+			throw new Error('Invalid confirmation metadata: missing or invalid owner.');
+		}
+		if (typeof m.repo !== 'string' || !m.repo) {
+			throw new Error('Invalid confirmation metadata: missing or invalid repo.');
+		}
+		return;
 	}
+	throw new Error(`Invalid confirmation metadata: unknown kind ${String(kind)}.`);
 }
 
 function describeRuntimeValue(value: unknown): string {
@@ -1503,7 +1547,19 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
 		const builder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService);
-		const history = await builder.buildTaskHistory(taskContent.task, events, pullRequest, storedReferences);
+		// Offer the inline "Create pull request" confirmation button only for v2 tasks that
+		// settled without a pull artifact. We need owner/repo for the create-pr API call,
+		// which we derive from `task.html_url`.
+		const inlineCreatePullRequest = !taskContent.pullArtifact
+			? parseRepoFromTaskUrl(taskContent.task.html_url)
+			: undefined;
+		const history = await builder.buildTaskHistory(
+			taskContent.task,
+			events,
+			pullRequest,
+			storedReferences,
+			inlineCreatePullRequest ? { owner: inlineCreatePullRequest.owner, repo: inlineCreatePullRequest.name } : undefined,
+		);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];
 		const activeResponseCallback = latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
@@ -1829,7 +1885,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		stream: vscode.ChatResponseStream,
 		context: vscode.ChatContext,
 		token: vscode.CancellationToken,
-		metadata: ConfirmationMetadata,
+		metadata: DelegationConfirmationMetadata,
 		base_ref?: string,
 		head_ref?: string
 	): Promise<vscode.ChatResponsePullRequestPart> {
@@ -1977,13 +2033,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	private async handleConfirmationData(request: vscode.ChatRequest, stream: vscode.ChatResponseStream, context: vscode.ChatContext, token: vscode.CancellationToken) {
-		if (!request.prompt || request.prompt.indexOf(':') === -1) {
-			this.logService.error('Invalid confirmation prompt format.');
-			return {};
-		}
-
-		// Parse out the button selected by the user
-		const selection = (request.prompt?.split(':')[0] || '').trim().toUpperCase();
 		const metadata: unknown = request.acceptedConfirmationData?.[0]?.metadata || request.rejectedConfirmationData?.[0]?.metadata;
 		try {
 			validateMetadata(metadata);
@@ -1991,6 +2040,24 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.logService.error(`Invalid confirmation metadata: ${error}`);
 			return {};
 		}
+
+		// Route on the metadata discriminator before parsing the button selection: the
+		// "Create pull request" confirmation has its own one-button flow and does not
+		// share the Authorize/Commit/Push/Delegate selection state machine below.
+		if (metadata.kind === 'create-pr') {
+			await this.handleCreatePullRequestConfirmation(request, metadata, stream, token);
+			return {};
+		}
+
+		// Delegation flow: the prompt is expected to be "<buttonLabel>: <message>"
+		// (the workbench builds this from the clicked confirmation button + message text).
+		if (!request.prompt || request.prompt.indexOf(':') === -1) {
+			this.logService.error('Invalid confirmation prompt format.');
+			return {};
+		}
+
+		// Parse out the button selected by the user (delegation flow)
+		const selection = (request.prompt?.split(':')[0] || '').trim().toUpperCase();
 
 		// -- Process each button press in order of precedence
 
@@ -2066,6 +2133,56 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.logService.error(`Failure in delegation: ${error}`);
 			throw new Error(vscode.l10n.t('{0}', (error instanceof Error ? error.message : String(error))));
 		}
+	}
+
+	/**
+	 * Handle a click on the inline "Create pull request" confirmation appended to a
+	 * completed v2 task's history. Calls the Task API's `create-pr` endpoint, then
+	 * refreshes the session so the next render replaces the inline button with a
+	 * proper PR card (resolved via `pullArtifact`).
+	 */
+	private async handleCreatePullRequestConfirmation(
+		_request: vscode.ChatRequest,
+		metadata: CreatePullRequestConfirmationMetadata,
+		stream: vscode.ChatResponseStream,
+		token: vscode.CancellationToken,
+	): Promise<void> {
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
+			stream.warning(vscode.l10n.t('Creating a pull request from a task is only supported on the v2 cloud agent backend.'));
+			return;
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		stream.progress(vscode.l10n.t('Creating pull request'));
+		try {
+			const result = await backend.createPullRequestForTask(metadata.owner, metadata.repo, metadata.taskId);
+			/* __GDPR__
+				"copilotcloud.chat.createPRFromTask" : {
+					"owner": "joshspicer",
+					"comment": "Event sent when the user clicks the inline 'Create pull request' button on a completed v2 cloud task.",
+					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the create-pull-request call succeeded or failed." }
+				}
+			*/
+			this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
+				outcome: 'success'
+			});
+			const prNumber = (result as { pull_request?: { number?: number } } | undefined)?.pull_request?.number;
+			if (typeof prNumber === 'number') {
+				stream.markdown(vscode.l10n.t('Pull request [#{0}](command:github.copilot.chat.openPullRequestReroute?{1}) created.', prNumber, encodeURIComponent(JSON.stringify([prNumber]))));
+			} else {
+				stream.markdown(vscode.l10n.t('Pull request created.'));
+			}
+		} catch (error) {
+			this.logService.error(`[handleCreatePullRequestConfirmation] Failed to create PR for task ${metadata.taskId}: ${error}`);
+			this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
+				outcome: 'failure'
+			});
+			stream.warning(vscode.l10n.t('Failed to create pull request: {0}', error instanceof Error ? error.message : String(error)));
+			return;
+		}
+		this.refresh();
 	}
 
 	private setWorkspaceContext(key: string, value: string) {
@@ -2315,10 +2432,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				message,
 				{
 					metadata: {
+						kind: 'delegation',
 						prompt: request.prompt,
 						references: request.references,
 						chatContext: context,
-					} satisfies ConfirmationMetadata
+					} satisfies DelegationConfirmationMetadata
 				},
 				buttons
 			);
@@ -2330,10 +2448,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				context,
 				token,
 				{
+					kind: 'delegation',
 					prompt: request.prompt,
 					references: request.references,
 					chatContext: context
-				} satisfies ConfirmationMetadata,
+				} satisfies DelegationConfirmationMetadata,
 			);
 		}
 	}

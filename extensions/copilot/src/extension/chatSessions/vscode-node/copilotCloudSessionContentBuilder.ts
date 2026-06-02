@@ -8,6 +8,7 @@ import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent } from '@
 import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
+import { ChatResponseConfirmationPart } from '../../../vscodeTypes';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -170,13 +171,21 @@ export class ChatSessionContentBuilder {
 	 * (request = the turn prompt; response = a markdown summary derived from events scoped
 	 * to that turn). This does NOT call the SSE log parser — events are typed.
 	 *
-	 * `pullArtifact` is shown as a header card only when the task happens to have a PR.
+	 * `pullRequest` is shown as a header card only when the task happens to have a PR.
+	 *
+	 * `inlineCreatePullRequest`, when provided, appends a one-button
+	 * `ChatResponseConfirmationPart` ("Create pull request") after the last response turn.
+	 * The provider only sets it when the task is on the v2 backend, has no `pullArtifact`,
+	 * and the latest session state is `completed` / `idle` — so users can opt in to PR
+	 * creation after the agent finishes. The metadata routes through
+	 * `handleConfirmationData` via the `kind: 'create-pr'` branch.
 	 */
 	public buildTaskHistory(
 		task: AgentTaskGetResponse,
 		events: readonly AgentTaskSessionEvent[],
 		pullRequest: PullRequestSearchItem | undefined,
 		initialReferences: Promise<vscode.ChatPromptReference[]>,
+		inlineCreatePullRequest?: { owner: string; repo: string },
 	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
 		return (async () => {
 			const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
@@ -245,8 +254,39 @@ export class ChatSessionContentBuilder {
 				history.push(...this.buildTaskResponseTurn(turn.events, state));
 			});
 
+			// Inline "Create pull request" confirmation, after the last response turn,
+			// only when the task is settled (completed / idle) and has no PR yet.
+			// The metadata's `kind: 'create-pr'` discriminator routes the click through
+			// `CopilotCloudSessionsProvider.handleConfirmationData`.
+			if (inlineCreatePullRequest && !pullRequest && this.isTaskSettledWithoutPr(latestSession?.state)) {
+				const confirmation = new ChatResponseConfirmationPart(
+					vscode.l10n.t('Pull request not created'),
+					new vscode.MarkdownString(vscode.l10n.t('The cloud agent finished without creating a pull request. Create one now to review the changes.')),
+					{
+						kind: 'create-pr',
+						taskId: task.id,
+						owner: inlineCreatePullRequest.owner,
+						repo: inlineCreatePullRequest.repo,
+					},
+					[vscode.l10n.t('Create pull request')],
+				);
+				history.push(new ChatResponseTurn2([confirmation], {}, this.type));
+			}
+
 			return history;
 		})();
+	}
+
+	/**
+	 * Whether the task's latest session has settled into a terminal/idle state where
+	 * offering "Create pull request" makes sense. Mirrors the predicate the provider's
+	 * `activeResponseCallback` uses to decide *not* to attach a streamer.
+	 */
+	private isTaskSettledWithoutPr(state: string | undefined): boolean {
+		if (!state) {
+			return false;
+		}
+		return state !== 'in_progress' && state !== 'queued';
 	}
 
 	/**

@@ -109,9 +109,11 @@ function taskToSessionInfo(task: AgentTask): SessionInfo {
  * Parse `task.html_url` (e.g. `https://github.com/<owner>/<repo>/agents/tasks/<id>`) to
  * recover the repo identity. The Task API wire shape only carries `task.repository.id`, so
  * when the caller doesn't already know the repo (e.g. the global `listTasks` path) this is
- * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks.
+ * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks. Also
+ * exported so the provider can derive `{owner, repo}` for the inline "Create pull request"
+ * confirmation on PR-less tasks.
  */
-function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
+export function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
 	if (!htmlUrl) {
 		return undefined;
 	}
@@ -189,7 +191,12 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			event_content: params.prompt,
 			problem_statement: params.problemStatement,
 			base_ref: params.baseRef,
-			create_pull_request: true,
+			// v2 default: don't auto-create a PR. The provider surfaces an inline
+			// "Create pull request" confirmation button at the end of the task's history
+			// when the task completes without an attached pull artifact, so the user can
+			// opt in. See `ChatSessionContentBuilder.buildTaskHistory` + the
+			// `kind: 'create-pr'` branch in `handleConfirmationData`.
+			create_pull_request: false,
 			event_type: 'visual_studio_code_remote_agent_tool_invoked',
 			...(params.headRef && { head_ref: params.headRef }),
 			...(params.customAgent && { custom_agent: params.customAgent }),
@@ -332,6 +339,10 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			this._logService.warn(`Failed to find task for ${owner}/${repo}#${prNumber}: ${e}`);
 			return undefined;
 		}
+	}
+
+	async createPullRequestForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse> {
+		return this._taskApiClient.createPRForTask(owner, repo, taskId);
 	}
 }
 
