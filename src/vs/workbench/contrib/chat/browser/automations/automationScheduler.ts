@@ -11,9 +11,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IAutomation } from '../../common/automations/automation.js';
+import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { AutomationLeaderElection, IAutomationLeaderElection } from './automationLeaderElection.js';
-import { IAutomationRunner, PlaceholderAutomationRunner } from './automationRunner.js';
 
 /**
  * Default cadence at which the scheduler scans for due automations.
@@ -32,7 +32,6 @@ export const CRASH_RECOVERY_REASON = 'Interrupted by app shutdown';
 export interface IAutomationSchedulerCoreOptions {
 	readonly tickIntervalMs?: number;
 	readonly now?: () => Date;
-	readonly runner?: IAutomationRunner;
 	readonly leaderElection?: IAutomationLeaderElection;
 	/** If true, the periodic timer is not started; useful for tests. */
 	readonly disableAutoTick?: boolean;
@@ -58,7 +57,6 @@ export interface IAutomationSchedulerCoreOptions {
 export class AutomationSchedulerCore extends Disposable {
 
 	private readonly _leader: IAutomationLeaderElection;
-	private readonly _runner: IAutomationRunner;
 
 	private readonly _tickIntervalMs: number;
 	private readonly _now: () => Date;
@@ -78,6 +76,7 @@ export class AutomationSchedulerCore extends Disposable {
 
 	constructor(
 		private readonly automationService: IAutomationService,
+		private readonly runner: IAutomationRunner,
 		storageService: IStorageService,
 		private readonly logService: ILogService,
 		options: IAutomationSchedulerCoreOptions = {},
@@ -88,7 +87,6 @@ export class AutomationSchedulerCore extends Disposable {
 		this._now = options.now ?? (() => new Date());
 
 		this._leader = options.leaderElection ?? this._register(new AutomationLeaderElection(storageService, logService));
-		this._runner = options.runner ?? new PlaceholderAutomationRunner(automationService, logService);
 
 		// React to leadership transitions. When we *become* leader, do
 		// the startup work and an immediate tick; when we lose it, arm
@@ -161,7 +159,7 @@ export class AutomationSchedulerCore extends Disposable {
 			// concurrent leader race) does not pick the same row up.
 			await this.automationService.advanceNextRunAt(automation.id, now);
 			// runOnce never throws; failures are recorded on the run row.
-			await this._runner.runOnce(automation, trigger, leaderWindowId, this._runCts.token);
+			await this.runner.runOnce(automation, trigger, leaderWindowId, this._runCts.token);
 		}
 	}
 
@@ -182,11 +180,12 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 
 	constructor(
 		@IAutomationService automationService: IAutomationService,
+		@IAutomationRunner runner: IAutomationRunner,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 	) {
 		super();
-		this._register(new AutomationSchedulerCore(automationService, storageService, logService));
+		this._register(new AutomationSchedulerCore(automationService, runner, storageService, logService));
 	}
 }
 
