@@ -167,6 +167,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		finishedCb,
 		location,
 		source,
+		telemetryProperties,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages);
 		const ourRequestId = generateUuid();
@@ -177,6 +178,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// - Anthropic: inside AnthropicLMProvider
 		// - Gemini: inside GeminiNativeBYOKLMProvider
 		const activeTraceCtx = this._otelService.getActiveTraceContext();
+		const telemetryTurn = getTelemetryTurnFromProperties(telemetryProperties);
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
@@ -188,6 +190,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
+				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
 			}
 		};
 
@@ -305,6 +308,15 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			maxInputTokens: modelMaxPromptTokens
 		});
 	}
+}
+
+function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOptions['telemetryProperties']): number | undefined {
+	if (typeof telemetryProperties?.turnIndex !== 'string') {
+		return undefined;
+	}
+
+	const turn = Number(telemetryProperties.turnIndex);
+	return Number.isFinite(turn) ? turn : undefined;
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
