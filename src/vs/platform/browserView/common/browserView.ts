@@ -33,6 +33,9 @@ export enum BrowserViewCommandId {
 	AddFavorite = `${commandPrefix}.addFavorite`,
 	RemoveFavorite = `${commandPrefix}.removeFavorite`,
 
+	// History
+	ShowHistory = `${commandPrefix}.showHistory`,
+
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
@@ -89,6 +92,8 @@ export interface IBrowserViewTheme {
 
 export interface IBrowserViewConfiguration {
 	readonly aiFeaturesDisabled?: boolean;
+	/** Maximum number of entries to retain per browser session history. */
+	readonly maxHistoryEntries?: number;
 }
 
 export interface IBrowserViewBounds {
@@ -180,6 +185,12 @@ export interface IBrowserViewCreateOptions {
 	readonly initialState?: Partial<IBrowserViewState>;
 }
 
+/** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
+export interface IBrowserViewStorageKeys {
+	readonly history?: string;
+	readonly favicons?: string;
+}
+
 export interface IBrowserViewState {
 	url: string;
 	title: string;
@@ -194,6 +205,7 @@ export interface IBrowserViewState {
 	lastError: IBrowserViewLoadError | undefined;
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
+	storageKeys: IBrowserViewStorageKeys;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
 	isAreaSelectionActive: boolean;
@@ -511,6 +523,13 @@ export interface IBrowserViewService {
 	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke
 	 */
 	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Delete entries from this view's session history.
+	 * @param id The browser view identifier
+	 * @param entryIds The IDs of the history entries to delete. If omitted, deletes all history.
+	 */
+	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

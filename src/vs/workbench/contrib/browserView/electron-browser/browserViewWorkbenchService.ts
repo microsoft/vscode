@@ -41,6 +41,7 @@ import { Schemas } from '../../../../base/common/network.js';
  * Sessions window or when the agent host is disabled.
  */
 export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
+export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -112,6 +113,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
+				this.sendConfiguration();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId)) {
 				this.sendConfiguration();
 			}
 		}));
@@ -331,6 +337,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private sendConfiguration(): void {
 		void this._browserViewService.updateConfiguration({
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 		});
 	}
 
