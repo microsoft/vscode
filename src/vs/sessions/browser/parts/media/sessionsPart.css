@@ -205,12 +205,8 @@
  * the inner outline for the duration of the inactive→active fade so neither the
  * inner nor the outer border shows until the session settles into its active,
  * non-`activating` state. */
-.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor .synthetic-focus,
-.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor [tabindex]:focus,
-.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor textarea:focus,
-.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor .synthetic-focus,
-.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor [tabindex]:focus,
-.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor textarea:focus {
+.monaco-workbench .part.sessionspart .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor :is(.synthetic-focus, [tabindex]:focus, textarea:focus),
+.monaco-workbench .part.sessionspart .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor :is(.synthetic-focus, [tabindex]:focus, textarea:focus) {
 	outline-color: transparent !important;
 }
 

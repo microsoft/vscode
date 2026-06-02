@@ -34,6 +34,8 @@ interface IGridSlot {
 	readonly disposables: DisposableStore;
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
+	/** Session bound to this slot before the in-progress reconciliation, used to detect in-place content swaps. */
+	previousBoundSessionId: string | undefined;
 }
 
 export class SessionsPart extends Part {
@@ -215,11 +217,10 @@ export class SessionsPart extends Part {
 		// Rebind each slot to its session by position (or to undefined placeholder),
 		// remembering the previous binding so we can detect when a slot's content
 		// is swapped in place (e.g. switching sessions within a single column).
-		const previousBoundBySlot = new Map<IGridSlot, string | undefined>();
 		for (let i = 0; i < this._slots.length; i++) {
 			const slot = this._slots[i];
 			const session = visible[i];
-			previousBoundBySlot.set(slot, slot.boundSessionId);
+			slot.previousBoundSessionId = slot.boundSessionId;
 			slot.boundSessionId = session?.sessionId;
 			slot.view.openSession(session);
 		}
@@ -250,7 +251,7 @@ export class SessionsPart extends Part {
 		// slot keeps its `is-active` state but swaps in a different session (the
 		// single-column case, where `is-active` never toggles because there is only
 		// one slot) — in both cases the input re-renders and fades in.
-		if (activeSlot && (activeSlotBecameActive || previousBoundBySlot.get(activeSlot) !== activeSlot.boundSessionId)) {
+		if (activeSlot && (activeSlotBecameActive || activeSlot.previousBoundSessionId !== activeSlot.boundSessionId)) {
 			this._armActivating(activeSlot.view);
 		}
 
@@ -382,7 +383,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
-		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
+		const slot: IGridSlot = { view, disposables, boundSessionId: undefined, previousBoundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
 		// (e.g. the new chat widget's workspace picker area) where focus would
