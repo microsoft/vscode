@@ -61,12 +61,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
-
-		this._register(this.windowsMainService.onDidDestroyWindow(window => {
-			if (this._perWindowTrustedRoots.delete(window.id)) {
-				this._recomputeTrustedFileRoots();
-			}
-		}));
 	}
 
 	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState> {
@@ -329,10 +323,27 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void> {
 		this._perWindowTrustedRoots.set(windowId, roots);
+		this._ensureWindowCloseSubscription(windowId);
 		this._recomputeTrustedFileRoots();
 	}
 
 	private readonly _perWindowTrustedRoots = new Map<number, readonly string[]>();
+	private readonly _windowCloseSubscriptions = this._register(new DisposableMap<number>());
+	private _ensureWindowCloseSubscription(windowId: number): void {
+		if (this._windowCloseSubscriptions.has(windowId)) {
+			return;
+		}
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (!window) {
+			return;
+		}
+		this._windowCloseSubscriptions.set(windowId, Event.once(window.onDidClose)(() => {
+			this._windowCloseSubscriptions.deleteAndDispose(windowId);
+			if (this._perWindowTrustedRoots.delete(windowId)) {
+				this._recomputeTrustedFileRoots();
+			}
+		}));
+	}
 	private _recomputeTrustedFileRoots(): void {
 		const roots = new Set<string>();
 		for (const contribution of this._perWindowTrustedRoots.values()) {
