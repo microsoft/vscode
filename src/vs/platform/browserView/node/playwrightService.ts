@@ -422,6 +422,7 @@ class PlaywrightSession extends Disposable {
 			codeLineCount: fnDef.split('\n').length,
 			pageMethodsCalled: new Map<string, number>(),
 			wasDeferred: false,
+			resumeCount: 0,
 			logged: false,
 		};
 
@@ -463,6 +464,9 @@ class PlaywrightSession extends Disposable {
 		}
 
 		const { pageId, promise, logCtx } = entry;
+		if (logCtx) {
+			logCtx.resumeCount++;
+		}
 		this._deferredResults.deleteAndDispose(deferredResultId);
 		return this._runWithDeferral(pageId, () => promise, timeoutMs, deferredResultId, logCtx);
 	}
@@ -587,6 +591,7 @@ class PlaywrightSession extends Disposable {
 				pageMethodsCalledCount: total,
 				success: success ? 1 : 0,
 				wasDeferred: ctx.wasDeferred ? 1 : 0,
+				resumeCount: ctx.resumeCount,
 				durationMs: Math.round(Date.now() - ctx.startedAt),
 				codeLength: ctx.codeLength,
 				codeLineCount: ctx.codeLineCount,
@@ -773,6 +778,8 @@ interface IExecutionLogContext {
 	readonly pageMethodsCalled: Map<string, number>;
 	/** Set once the execution is interrupted and deferred at least once. */
 	wasDeferred: boolean;
+	/** Number of times the caller resumed this execution via {@link PlaywrightSession.waitForDeferredResult}. */
+	resumeCount: number;
 	/** Guards against double-logging; set by {@link PlaywrightSession._logExecution}. */
 	logged: boolean;
 }
@@ -783,6 +790,7 @@ type RunPlaywrightCodeEvent = {
 	pageMethodsCalledCount: number;
 	success: number;
 	wasDeferred: number;
+	resumeCount: number;
 	durationMs: number;
 	codeLength: number;
 	codeLineCount: number;
@@ -794,6 +802,7 @@ type RunPlaywrightCodeClassification = {
 	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total `page.*` method calls including duplicates (sum of all per-method counts).' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the code completed without error, 0 otherwise.' };
 	wasDeferred: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the execution was interrupted and deferred at least once, 0 otherwise.' };
+	resumeCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of times the caller resumed this execution by polling for its deferred result. 0 means the run either completed within the first timeout or was deferred and never resumed (settled in the background).' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock time in milliseconds from invocation start until the page work settled.' };
 	codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the executed function source.' };
 	codeLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Line count of the executed function source.' };
