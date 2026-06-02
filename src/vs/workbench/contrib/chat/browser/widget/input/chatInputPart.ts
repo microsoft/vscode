@@ -1113,6 +1113,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncInputStateToModel();
 		}
 
+		this._currentSessionType = getChatSessionType(forSessionResource);
 		this._inputModel = model;
 		this._inputModelSessionResource = forSessionResource;
 		this._modelSyncDisposables.clear();
@@ -1155,13 +1156,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// active session - indicates a late/stale model.state.read() landed for
 			// the outgoing session.
 			const widgetSessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (widgetSessionResource && !isEqual(widgetSessionResource, forSessionResource)) {
+			const isStaleSession =
+				!!widgetSessionResource && !isEqual(widgetSessionResource, forSessionResource);
+			if (isStaleSession) {
 				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource.toString()})`;
 			}
 			// Untracked read: we only want a snapshot for the log, not a dependency
 			// that would re-trigger this autorun.
 			const prevState = this._inputModel?.state.read(undefined);
 			logChangesToStateModel(this._inputModel, message, state, prevState, this.logService);
+
+			// A stale autorun must NOT write the outgoing session's model into the
+			// shared _currentLanguageModel — doing so overwrites the active session's
+			// selection (e.g. flips it to Auto). The active session has its own autorun
+			// that syncs the correct model.
+			if (isStaleSession) {
+				return;
+			}
 			this._syncFromModel(state, forSessionResource);
 		}));
 	}
@@ -2315,11 +2326,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// different model pools via targetChatSessionType).
 			const newSessionType = this.getCurrentSessionType();
 			if (e.currentSessionResource && this._currentSessionType && newSessionType !== this._currentSessionType) {
+				logChangesToStateModel(this._inputModel, `[CVVM].1 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
 				this.checkModeInSessionPool();
 				this._notificationWidget.value?.rerender();
+			} else if (e.currentSessionResource) {
+				logChangesToStateModel(this._inputModel, `[CVVM].2 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
+				this._currentSessionType = newSessionType;
 			}
 
 			// For contributed sessions with history, pre-select the model
