@@ -266,7 +266,6 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('will-navigate', (event) => {
-			this._currentHistoryHandle = undefined;
 			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
 			const host = URL.parse(event.url)?.host;
 			const currHost = URL.parse(this.webContents.getURL())?.host;
@@ -281,8 +280,7 @@ export class BrowserView extends Disposable {
 			this._currentHistoryHandle?.update({ title });
 		});
 
-		const fireNavigationEvent = () => {
-			const url = webContents.getURL();
+		const fireNavigationEvent = (url: string, createNewHistoryItem: boolean) => {
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -290,7 +288,11 @@ export class BrowserView extends Disposable {
 				canGoForward: webContents.navigationHistory.canGoForward(),
 				certificateError: this.session.trust.getCertificateError(url)
 			});
-			this._trackVisit(url);
+			if (createNewHistoryItem) {
+				this._trackVisit(url);
+			} else {
+				this._currentHistoryHandle?.update({ url });
+			}
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
@@ -348,8 +350,8 @@ export class BrowserView extends Disposable {
 		});
 
 		// Navigation events (when URL actually changes)
-		webContents.on('did-navigate', fireNavigationEvent);
-		webContents.on('did-navigate-in-page', fireNavigationEvent);
+		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url, true));
+		webContents.on('did-navigate-in-page', (_, url) => fireNavigationEvent(url, false));
 
 		webContents.on('did-navigate', () => {
 			// Chromium resets the zoom factor to its per-origin default (100%) when

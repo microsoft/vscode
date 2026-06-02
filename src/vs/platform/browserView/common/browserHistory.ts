@@ -36,6 +36,8 @@ export interface ISerializedBrowserHistoryEntry {
 export interface IBrowserHistoryEntry extends ISerializedBrowserHistoryEntry { }
 
 export interface IBrowserHistoryUpdate {
+	/** URL may be updated e.g. during a redirect or in-page navigation. */
+	readonly url?: string;
 	readonly title?: string;
 	/** Favicon data URI; hashed and deduped against the sibling favicons store. Pass `null` to explicitly clear. */
 	readonly favicon?: string | null;
@@ -119,21 +121,22 @@ export class BrowserHistoryEntriesStore extends Disposable {
 		return entry;
 	}
 
-	update(id: number, patch: { title?: string; faviconHash?: string | null }): boolean {
+	update(id: number, patch: { url?: string; title?: string; faviconHash?: string | null }): boolean {
 		const idx = this._indexOf(id);
 		if (idx === -1) {
 			return false;
 		}
 		const existing = this._items[idx];
 		const nextTitle = patch.title && patch.title.length > 0 ? patch.title : existing.title;
+		const nextUrl = patch.url && patch.url.length > 0 ? patch.url : existing.url;
 		// Distinguish "leave alone" (undefined) from explicit clear (null).
 		const nextFaviconHash = patch.faviconHash === undefined
 			? existing.icon
 			: (patch.faviconHash ?? undefined);
-		if (nextTitle === existing.title && nextFaviconHash === existing.icon) {
+		if (nextUrl === existing.url && nextTitle === existing.title && nextFaviconHash === existing.icon) {
 			return false;
 		}
-		this._items[idx] = { ...existing, title: nextTitle, icon: nextFaviconHash };
+		this._items[idx] = { ...existing, url: nextUrl, title: nextTitle, icon: nextFaviconHash };
 		this._onDidChange.fire();
 		return true;
 	}
@@ -315,7 +318,10 @@ export class BrowserHistoryStore extends Disposable {
 		return {
 			id,
 			update: patch => {
-				const next: { title?: string; faviconHash?: string | null } = {};
+				const next: { url?: string; title?: string; faviconHash?: string | null } = {};
+				if (patch.url !== undefined) {
+					next.url = patch.url;
+				}
 				if (patch.title !== undefined) {
 					next.title = patch.title;
 				}
