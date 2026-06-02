@@ -67,7 +67,7 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Copilot CLI [Agent Host]';
+			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot CLI [Agent Host]");
 		default:
 			return provider;
 	}
