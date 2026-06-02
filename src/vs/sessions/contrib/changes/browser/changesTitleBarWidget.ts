@@ -5,23 +5,21 @@
 
 import './media/changesTitleBarWidget.css';
 
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IsAuxiliaryWindowContext, AuxiliaryBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Menus } from '../../../browser/menus.js';
-import { IsChangesPanelCollapsedContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { logChangesViewToggle } from '../../../common/sessionsTelemetry.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../common/changes.js';
 
@@ -49,7 +47,7 @@ export class ChangesTitleBarContribution extends Disposable implements IWorkbenc
 				tooltip: TOGGLE_SECONDARY_SIDEBAR_TOOLTIP,
 				icon: secondarySidebarToggleClosedIcon,
 				toggled: {
-					condition: ContextKeyExpr.or(AuxiliaryBarVisibleContext, IsChangesPanelCollapsedContext)!,
+					condition: AuxiliaryBarVisibleContext,
 					icon: secondarySidebarToggleOpenIcon,
 					title: localize('hideChanges', "Hide Changes"),
 					tooltip: TOGGLE_SECONDARY_SIDEBAR_TOOLTIP,
@@ -71,7 +69,7 @@ registerAction2(class extends Action2 {
 			tooltip: TOGGLE_SECONDARY_SIDEBAR_TOOLTIP,
 			icon: secondarySidebarToggleClosedIcon,
 			toggled: {
-				condition: ContextKeyExpr.or(AuxiliaryBarVisibleContext, IsChangesPanelCollapsedContext)!,
+				condition: AuxiliaryBarVisibleContext,
 				icon: secondarySidebarToggleOpenIcon,
 				title: localize('hideChanges', "Hide Changes"),
 				tooltip: TOGGLE_SECONDARY_SIDEBAR_TOOLTIP,
@@ -83,35 +81,14 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const collapsedKey = IsChangesPanelCollapsedContext.bindTo(contextKeyService);
 
-		// Treat "collapsed via editor toggle" as logically open so this action acts
-		// as a true close when the user clicks it while collapsed.
-		const isLogicallyOpen = layoutService.isVisible(Parts.AUXILIARYBAR_PART) || !!collapsedKey.get();
-		const isVisible = !isLogicallyOpen;
+		const isVisible = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 
+		layoutService.setPartHidden(!isVisible, Parts.AUXILIARYBAR_PART);
 		if (isVisible) {
-			// Editor part
-			const hasEditors = editorGroupService.groups.some(group => !group.isEmpty);
-			if (hasEditors && !layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				layoutService.setPartHidden(false, Parts.EDITOR_PART);
-			}
-
-			// Auxiliary bar part
-			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
-		} else {
-			// hiding must happen in opposite order than showing
-			layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		}
-
-		// Always clear the collapsed flag — this action expresses an explicit
-		// open/close intent and supersedes any prior collapse-only state.
-		collapsedKey.set(false);
 
 		logChangesViewToggle(telemetryService, isVisible);
 	}

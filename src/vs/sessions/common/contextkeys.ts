@@ -65,7 +65,6 @@ export const CanGoForwardContext = new RawContextKey<boolean>('sessionsCanGoForw
 //#region < --- Editor --- >
 
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
-export const IsChangesPanelCollapsedContext = new RawContextKey<boolean>('isChangesPanelCollapsed', false, localize('isChangesPanelCollapsed', "Whether the changes panel was collapsed via the editor area toggle (distinct from the secondary side bar being closed entirely)"));
 
 //#endregion
 
