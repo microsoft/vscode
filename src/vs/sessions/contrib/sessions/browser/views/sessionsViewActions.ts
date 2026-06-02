@@ -768,9 +768,14 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			}
 		}
 
-		await openSessionToTheSide(sessionsManagementService, sessions[sessions.length - 1]);
+		const lastRequested = sessions[sessions.length - 1];
+		await openSessionToTheSide(sessionsManagementService, lastRequested);
 
-		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+		const visibleAfterOpen = sessionsManagementService.visibleSessions.get();
+		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
+		if (opened) {
+			sessionsPartService.focusSession(opened);
+		}
 	}
 });
 
