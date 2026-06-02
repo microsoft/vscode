@@ -1,0 +1,7 @@
+{
+  "name": "cpu-features",
+  "version": "0.0.10",
+  "description": "OVERRIDE cpu-features since the pure-JS ssh2 path is sufficient (see vscode#304882)",
+  "license": "MIT",
+  "main": "index.js"
+}

@@ -56,7 +56,7 @@
       "node-addon-api": "7.1.0"
     },
     "ssh2": {
-      "cpu-features": "0.0.0"
+      "cpu-features": "file:../build/npm/packageMocks/cpu-features"
     },
     "yauzl": "^3.3.1"
   }

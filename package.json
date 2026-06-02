@@ -263,7 +263,7 @@
     },
     "serialize-javascript": "^7.0.3",
     "ssh2": {
-      "cpu-features": "0.0.0"
+      "cpu-features": "file:build/npm/packageMocks/cpu-features"
     },
     "yauzl": "^3.3.1"
   },
