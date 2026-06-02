@@ -233,7 +233,7 @@ function getFunctionLikeName(fn: FunctionLike): string {
 		return fn.name.text;
 	}
 	// Function expression assigned to a variable — surface the variable name when possible.
-	let parent: ts.Node | undefined = fn.parent;
+	const parent: ts.Node | undefined = fn.parent;
 	if (parent && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
 		return `${parent.name.text} (${ts.isArrowFunction(fn) ? 'arrow' : 'fn-expr'})`;
 	}
@@ -294,10 +294,11 @@ function getFirstArgStringLiteral(call: ts.CallExpression): string | undefined {
 }
 
 //
-// Resolve a callee CallExpression / NewExpression to a list of FunctionLike declarations the
-// checker can follow from. Returns multiple entries for overloaded methods or constructors with
-// multiple call signatures. Returns [] if the callee can't be resolved (indirect call, dynamic
-// dispatch, external library, etc.).
+// Resolve a callee CallExpression / NewExpression to the FunctionLike declaration the checker
+// can follow from. Returns at most one entry: TypeScript's getResolvedSignature picks a single
+// implementation signature for any given call (overload declarations share one implementation
+// body in TS). Returns [] if the callee can't be resolved (indirect call, dynamic dispatch,
+// external library, etc.) or if the declaration lives in a .d.ts (ambient — no body to walk).
 //
 function resolveCalleeFunctions(checker: ts.TypeChecker, call: ts.CallExpression | ts.NewExpression): FunctionLike[] {
 	const signature = checker.getResolvedSignature(call);
@@ -398,9 +399,13 @@ function getStaticImportTargets(checker: ts.TypeChecker, sf: ts.SourceFile): ts.
 
 //
 // The body of a Callable that should be walked when collecting call edges. For module-init,
-// this is the whole source file (but the walker skips into nested function bodies). For a
-// FunctionLike, this is its body (or its initializer for arrow functions, plus property
-// initializer expressions for class fields).
+// this is the whole source file. For a FunctionLike, this is its body (which for arrow
+// functions with an expression body is the expression itself). The walker skips into nested
+// function bodies — they are their own callables and walked independently.
+//
+// Note: class field initializers (e.g. `class { x = expensiveCall(); }`) are not walked here.
+// TypeScript desugars them into the constructor, so they are reached via the constructor edge
+// when the class is instantiated through new / createInstance.
 //
 function getCallableBody(c: Callable): ts.Node | undefined {
 	if (isModuleInit(c)) {
@@ -652,7 +657,9 @@ function run(): boolean {
 		console.error(`  Reachability path from boot:`);
 		for (let i = 0; i < v.path.length; i++) {
 			const arrow = i === 0 ? '   ' : '→  ';
-			console.error(`    ${arrow}${callableLabel(v.path[i])}`);
+			const edgeCall = v.pathCalls[i];
+			const via = edgeCall ? ` (called at ${formatLocation(edgeCall.getSourceFile(), edgeCall.getStart())})` : '';
+			console.error(`    ${arrow}${callableLabel(v.path[i])}${via}`);
 		}
 		console.error(`    →  ${v.sink.typeName}.${v.sink.method} at ${callLoc}`);
 	}
