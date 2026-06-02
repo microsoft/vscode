@@ -264,10 +264,13 @@ export class SessionsPart extends Part {
 		if (activeSlot && activeId !== undefined && activeId !== this._lastFocusedActiveSessionId) {
 			this._lastFocusedActiveSessionId = activeId;
 			const slotToFocus = activeSlot;
-			this._pendingFocus.value = disposableTimeout(
-				() => slotToFocus.view.focus(),
-				SessionsPart.SESSION_VIEW_FADE_IN_MS
-			);
+			this._pendingFocus.value = disposableTimeout(() => {
+				const activeElement = slotToFocus.view.element.ownerDocument.activeElement;
+				if (activeElement && !isAncestor(activeElement, slotToFocus.view.element)) {
+					return;
+				}
+				slotToFocus.view.focus();
+			}, SessionsPart.SESSION_VIEW_FADE_IN_MS);
 		} else if (activeId === undefined) {
 			this._lastFocusedActiveSessionId = undefined;
 			this._pendingFocus.clear();
