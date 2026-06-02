@@ -27,7 +27,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#chat.agentHost.enabled#`."),
+			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#{0}#`.", AgentHostEnabledSettingId),
 		},
 	},
 });
