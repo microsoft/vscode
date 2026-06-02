@@ -128,5 +128,14 @@
 				"appendText": "// "
 			}
 		},
-	]
+	],
+	"stringConcatenation":{
+		"excludedPatterns": [
+			"^\\s*#\\s*include",
+			"^\\s*#\\s*pragma",
+			"^\\s*#\\s*error",
+			"^\\s*#\\s*warning",
+			"^\\s*#\\s*define",
+		]
+	}
 }

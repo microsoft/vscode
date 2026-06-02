@@ -106,5 +106,13 @@
 				"appendText": "// "
 			}
 		},
-	]
+	],
+	"stringConcatenation":{
+		"excludedPatterns":[
+			"^\\s*import",
+			"^\\s*package",
+			"^\\s*//",
+			"^\\s*/\\*"
+		]
+	}
 }

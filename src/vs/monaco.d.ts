@@ -4000,6 +4000,13 @@ declare namespace monaco.editor {
 		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 		 */
 		inlineCompletionsAccessibilityVerbose?: boolean;
+		/**
+		 * Enable/disable automatic string concatenation formatting when pressing Enter inside string literal.
+		 * When enabled, pressing Enter inside a string will automatically close the current string and open
+		 * a new one with the appropriate concatenation operator for the current language.
+		 * Defaults to true.
+		 */
+		stringConcatenationOnEnter?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5253,7 +5260,8 @@ declare namespace monaco.editor {
 		effectiveEditContext = 170,
 		scrollOnMiddleClick = 171,
 		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		doubleClickSelectsBlock = 173,
+		stringConcatenationOnEnter = 174
 	}
 
 	export const EditorOptions: {
@@ -5431,6 +5439,7 @@ declare namespace monaco.editor {
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
+		stringConcatenationOnEnter: IEditorOption<EditorOption.stringConcatenationOnEnter, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
@@ -6971,6 +6980,17 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	* Stores the excluded patterns per-language
+	* for string concatenation logic
+	*/
+	export interface IStringConcatenation {
+		/**
+		 * RegEx patterns where string concatenation should not be applied
+		 */
+		excludedPatterns: string[];
+	}
+
+	/**
 	 * The language configuration interface defines the contract between extensions and
 	 * various editor features, like automatic bracket insertion, automatic indentation etc.
 	 */
@@ -7034,6 +7054,10 @@ declare namespace monaco.languages {
 		__electricCharacterSupport?: {
 			docComment?: IDocComment;
 		};
+		/**
+		 * The language's string concatenation excluded patterns.
+		 */
+		stringConcatenation?: IStringConcatenation;
 	}
 
 	/**

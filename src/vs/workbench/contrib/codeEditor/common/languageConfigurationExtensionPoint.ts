@@ -8,7 +8,7 @@ import { ParseError, parse, getNodeType } from '../../../../base/common/json.js'
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import * as types from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, IStringConcatenation, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
@@ -64,6 +64,7 @@ export interface ILanguageConfiguration {
 	};
 	autoCloseBefore?: string;
 	onEnterRules?: IOnEnterRule[];
+	stringConcatenation?: IStringConcatenation;
 }
 
 function isStringArr(something: string[] | null): something is string[] {
@@ -396,6 +397,24 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		return result;
 	}
 
+	private static _extractValidStringConcatenation(languageId: string, configuration: ILanguageConfiguration): IStringConcatenation | undefined {
+		const source = configuration.stringConcatenation;
+		if (typeof source === 'undefined') {
+			return undefined;
+		}
+		if (!types.isObject(source)) {
+			console.warn(`[${languageId}]: language configuration: expected \`stringConcatenation\` to be an object.`);
+			return undefined;
+		}
+		if (!Array.isArray(source.excludedPatterns)) {
+			console.warn(`[${languageId}]: language configuration: expected \`stringConcatenation.excludedPatterns\` to be an array.`);
+			return undefined;
+		}
+		return {
+			excludedPatterns: source.excludedPatterns.filter((s: unknown) => typeof s === 'string'),
+		};
+	}
+
 	public static extractValidConfig(languageId: string, configuration: ILanguageConfiguration): ExplicitLanguageConfiguration {
 
 		const comments = this._extractValidCommentRule(languageId, configuration);
@@ -418,6 +437,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			};
 		}
 		const onEnterRules = this._extractValidOnEnterRules(languageId, configuration);
+		const stringConcatenation = this._extractValidStringConcatenation(languageId, configuration);
 
 		const richEditConfig: ExplicitLanguageConfiguration = {
 			comments,
@@ -431,6 +451,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			autoCloseBefore,
 			folding,
 			__electricCharacterSupport: undefined,
+			stringConcatenation
 		};
 		return richEditConfig;
 	}

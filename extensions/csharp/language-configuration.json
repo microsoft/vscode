@@ -126,5 +126,17 @@
 				"appendText": "/// "
 			}
 		},
-	]
+	],
+	"stringConcatenation":{
+		"excludedPatterns":[
+			"^\\s*using",
+			"^\\s*//",
+			"^\\s*/\\*",
+			"^\\s*#\\s*region",
+			"^\\s*#\\s*pragma",
+			"^\\s*\\[",
+			"^\\s*namespace",
+			"^\\s*throw\\s+new\\s+\\w+\\(" 
+		]
+	}
 }
