@@ -1522,3 +1522,44 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
+
+
+/* Automations section */
+.automations-content-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: auto;
+}
+
+.automations-list-widget {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+}
+
+.automations-list-widget .automations-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 8px;
+	text-align: center;
+	flex: 1;
+}
+
+.automations-list-widget .automations-empty-state .automations-empty-title {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	margin: 0;
+}
+
+.automations-list-widget .automations-empty-state .automations-empty-message {
+	font-size: var(--vscode-agents-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
+	max-width: 320px;
+	line-height: 1.4;
+	margin: 0;
+}
