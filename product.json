@@ -47,6 +47,10 @@
 	"aiConfig": {
 		"ariaKey": "tscode-telemetry-key"
 	},
+	"extensionTelemetry": {
+		"connectionString": "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=",
+		"endpointUrl": "https://tscode-telemetry-collector.paasuat.cmbchina.cn"
+	},
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{
