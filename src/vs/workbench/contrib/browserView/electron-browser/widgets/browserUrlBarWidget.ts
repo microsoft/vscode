@@ -26,6 +26,29 @@ import {
 } from '../browserEditor.js';
 
 /**
+ * Presentation of one URL bar primary ("Enter") action for a given input
+ * text. Lets the host label the action contextually — e.g. "Go to {url}" vs
+ * "Search Bing for {query}" — and run the matching navigation, without the
+ * generic widget needing to know about search settings. The host may return
+ * more than one (e.g. both Search and Go to for ambiguous input).
+ */
+export interface IBrowserUrlPrimaryAction {
+	/** Label shown on the primary picker item (e.g. "Search Bing for cats"). */
+	readonly label: string;
+	/** Leading icon for the primary picker item. */
+	readonly icon: ThemeIcon;
+	/**
+	 * Optional inline buttons rendered on the primary picker item's row
+	 * (e.g. a gear button next to the search entry that opens the search
+	 * engine setting). Triggering a button runs its action in-place and
+	 * leaves the picker open.
+	 */
+	readonly buttons?: readonly IBrowserUrlSuggestionAction[];
+	/** Perform this action against the editor's input. */
+	run(input: BrowserEditorInput): void;
+}
+
+/**
  * The minimal surface {@link BrowserUrlBarWidget} needs from its owning
  * editor: the current browser input (for the canonical URL, navigation, and
  * provider context) and a way to release focus back into the page.
@@ -33,6 +56,18 @@ import {
 export interface IBrowserUrlBarHost {
 	readonly input: BrowserEditorInput | undefined;
 	ensureBrowserFocus(): void;
+	/**
+	 * Resolve the built-in primary action(s) for the given (trimmed, non-empty)
+	 * text. Returning multiple actions lets the bar offer a choice (e.g. Search
+	 * then Go to for ambiguous input). When omitted or empty, the widget falls
+	 * back to a plain "Go to {text}" entry.
+	 */
+	getPrimaryActions?(text: string): readonly IBrowserUrlPrimaryAction[];
+	/**
+	 * The placeholder shown in the URL display and picker. When omitted the
+	 * widget uses a plain "Enter a URL" placeholder.
+	 */
+	getPlaceholder?(): string;
 }
 
 /**
@@ -86,7 +121,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._urlDisplay = $('div.browser-url-display');
 		this._urlDisplay.contentEditable = 'plaintext-only';
 		this._urlDisplay.spellcheck = false;
-		this._urlDisplay.setAttribute('data-placeholder', localize('browser.urlPlaceholder', "Enter a URL"));
+		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
@@ -108,6 +143,8 @@ export class BrowserUrlBarWidget extends Disposable {
 		if (!isEditing) {
 			this._renderUrl();
 		}
+		// Keep the placeholder in sync with host state (e.g. search enablement).
+		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 		const picker = this._picker.value;
 		if (picker) {
 			picker.value = this._canonicalUrl;
@@ -182,6 +219,11 @@ export class BrowserUrlBarWidget extends Disposable {
 	/** The canonical URL: model.url if attached, else the input's initial URL. */
 	private get _canonicalUrl(): string {
 		return this._host.input?.url ?? '';
+	}
+
+	/** Placeholder text for the display and picker (host-provided or default). */
+	private get _placeholder(): string {
+		return this._host.getPlaceholder?.() ?? localize('browser.urlPlaceholder', "Enter a URL");
 	}
 
 	private _registerDisplayListeners(): void {
@@ -381,19 +423,38 @@ export class BrowserUrlBarWidget extends Disposable {
 	}
 
 	/**
-	 * Build the synchronous "Go to <value>" picker item (when there is a
-	 * non-empty value). Provider-contributed suggestions are loaded
+	 * Build the synchronous primary picker item(s) for the current value: the
+	 * host's contextual actions (e.g. Search and/or Go to), or a plain
+	 * "Go to <value>" fallback. Provider-contributed suggestions are loaded
 	 * asynchronously by {@link _loadProviderSuggestions} and appended below.
 	 */
 	private _buildSuggestionItems(value: string): (IUrlPickerItem | IQuickPickSeparator)[] {
 		const items: (IUrlPickerItem | IQuickPickSeparator)[] = [];
 		const trimmed = value.trim();
 		if (trimmed) {
-			items.push({
-				id: trimmed,
-				label: localize('browser.goTo', "Go to {0}", trimmed),
-				iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
-			});
+			const actions = this._host.getPrimaryActions?.(trimmed) ?? [];
+			if (actions.length > 0) {
+				for (const action of actions) {
+					const item: IUrlPickerItem = {
+						id: trimmed,
+						label: action.label,
+						iconClass: ThemeIcon.asClassName(action.icon),
+						apply: input => action.run(input),
+					};
+					if (action.buttons && action.buttons.length > 0) {
+						// Pass the action objects through directly so
+						// onDidTriggerItemButton hands them back to us by reference.
+						item.buttons = action.buttons;
+					}
+					items.push(item);
+				}
+			} else {
+				items.push({
+					id: trimmed,
+					label: localize('browser.goTo', "Go to {0}", trimmed),
+					iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
+				});
+			}
 		}
 		return items;
 	}
@@ -475,7 +536,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._urlDisplay.style.visibility = 'hidden';
 
 		const picker = this._quickInputService.createQuickPick<IUrlPickerItem>({ useSeparators: true });
-		picker.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
+		picker.placeholder = this._placeholder;
 		picker.ignoreFocusOut = false;
 		// Preserve the order produced by _buildSuggestionItems (Go to first, then
 		// tabs in known-view order) so the "Go to" entry is always the picker's

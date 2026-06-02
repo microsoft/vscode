@@ -7,6 +7,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -15,6 +16,7 @@ import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/ho
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -23,6 +25,14 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import {
+	BrowserSearchEnabledSettingId,
+	BrowserSearchEngineId,
+	BrowserSearchEngineSettingId,
+	DEFAULT_BROWSER_SEARCH_ENGINE,
+	getBrowserSearchEngineLabel,
+	resolveAddressBarInputType,
+} from '../../common/browserSearch.js';
 import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 import {
 	BROWSER_EDITOR_ACTIVE,
@@ -34,8 +44,9 @@ import {
 	CONTEXT_BROWSER_FOCUSED,
 	CONTEXT_BROWSER_HAS_URL,
 	IBrowserEditorWidget,
+	IBrowserUrlSuggestionAction,
 } from '../browserEditor.js';
-import { BrowserUrlBarWidget, IBrowserUrlBarHost } from '../widgets/browserUrlBarWidget.js';
+import { BrowserUrlBarWidget, IBrowserUrlBarHost, IBrowserUrlPrimaryAction } from '../widgets/browserUrlBarWidget.js';
 
 const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -53,6 +64,8 @@ class BrowserNavigationBar extends Disposable {
 		editor: BrowserEditor,
 		instantiationService: IInstantiationService,
 		scopedContextKeyService: IContextKeyService,
+		private readonly _configurationService: IConfigurationService,
+		private readonly _preferencesService: IPreferencesService,
 	) {
 		super();
 
@@ -89,6 +102,10 @@ class BrowserNavigationBar extends Disposable {
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
+			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
+			getPlaceholder: () => this._searchEnabled
+				? localize('browser.urlOrSearchPlaceholder', "Search or enter a URL")
+				: localize('browser.urlPlaceholder', "Enter a URL"),
 		};
 		this._urlBar = this._register(instantiationService.createInstance(BrowserUrlBarWidget, urlBarHost));
 
@@ -118,6 +135,53 @@ class BrowserNavigationBar extends Disposable {
 	clear(): void { this._urlBar.clear(); }
 
 	mountContributions(contributions: readonly BrowserEditorContribution[]): void { this._urlBar.mountContributions(contributions); }
+
+	/** Whether address bar search routing is currently enabled. */
+	private get _searchEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
+	}
+
+	/**
+	 * The URL bar's primary action(s) for the given text, mirroring Chrome/Edge.
+	 * With search enabled: a URL reads "{url}" (globe icon) first with a search
+	 * fallback after, a clear query reads "{query} - {engine} Search" (search
+	 * icon), and an ambiguous input offers both — Search first, then Go to — so
+	 * the user can pick. Each action navigates with an explicit mode so its
+	 * label and behaviour always agree.
+	 */
+	private _resolvePrimaryActions(text: string): IBrowserUrlPrimaryAction[] {
+		const goTo: IBrowserUrlPrimaryAction = {
+			label: text,
+			icon: Codicon.globe,
+			run: input => input.navigate(text, { as: 'url' }),
+		};
+		if (!this._searchEnabled) {
+			return [goTo];
+		}
+		const engineId = this._configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
+		const configureEngineButton: IBrowserUrlSuggestionAction = {
+			id: 'browser.configureSearchEngine',
+			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+			tooltip: localize('browser.configureSearchEngine', "Configure Search Engine"),
+			run: () => this._preferencesService.openSettings({ query: `@id:workbench.browser.addressBarSearch.*` }),
+		};
+		const search: IBrowserUrlPrimaryAction = {
+			label: localize('browser.searchFor', "{0} - {1} Search", text, getBrowserSearchEngineLabel(engineId)),
+			icon: Codicon.search,
+			buttons: [configureEngineButton],
+			run: input => input.navigate(text, { as: 'search' }),
+		};
+		switch (resolveAddressBarInputType(text)) {
+			case 'url':
+				// Looks like a URL: navigate first, but still offer search after.
+				return [goTo, search];
+			case 'query':
+				return [search];
+			default:
+				// Ambiguous: offer both, search first.
+				return [search, goTo];
+		}
+	}
 }
 
 
@@ -135,11 +199,21 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 		editor: BrowserEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super(editor);
-		this._navbar = this._register(new BrowserNavigationBar(editor, instantiationService, contextKeyService));
+		this._navbar = this._register(new BrowserNavigationBar(editor, instantiationService, contextKeyService, configurationService, preferencesService));
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
+
+		// Keep the URL bar presentation (placeholder, primary action) in sync
+		// when the user toggles search settings while the bar is visible.
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserSearchEnabledSettingId) || e.affectsConfiguration(BrowserSearchEngineSettingId)) {
+				this._navbar.refreshUrl();
+			}
+		}));
 	}
 
 	override get widgets(): readonly IBrowserEditorWidget[] {

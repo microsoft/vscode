@@ -8,7 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import {
 	BrowserSearchEngineId,
 	buildSearchUrl,
+	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
+	resolveAddressBarNavigation,
 } from '../../common/browserSearch.js';
 
 suite('BrowserSearch - resolveAddressBarInput', () => {
@@ -206,6 +208,54 @@ suite('BrowserSearch - buildSearchUrl', () => {
 		assert.strictEqual(
 			buildSearchUrl('cats', 'nonexistent' as BrowserSearchEngineId),
 			'https://www.bing.com/search?q=cats',
+		);
+	});
+});
+
+suite('BrowserSearch - getBrowserSearchEngineLabel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns the engine label, falling back to default for unknown ids', () => {
+		assert.deepStrictEqual(
+			[
+				getBrowserSearchEngineLabel(BrowserSearchEngineId.Bing),
+				getBrowserSearchEngineLabel(BrowserSearchEngineId.Google),
+				getBrowserSearchEngineLabel(BrowserSearchEngineId.DuckDuckGo),
+				getBrowserSearchEngineLabel('nonexistent' as BrowserSearchEngineId),
+			],
+			['Bing', 'Google', 'DuckDuckGo', 'Bing'],
+		);
+	});
+});
+
+suite('BrowserSearch - resolveAddressBarNavigation', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('navigates as a URL when search is disabled, regardless of input', () => {
+		assert.deepStrictEqual(
+			[
+				resolveAddressBarNavigation('  example.com  ', false, BrowserSearchEngineId.Bing),
+				resolveAddressBarNavigation('how to make pasta', false, BrowserSearchEngineId.Bing),
+			],
+			[
+				{ isSearch: false, url: 'example.com' },
+				{ isSearch: false, url: 'how to make pasta' },
+			],
+		);
+	});
+
+	test('routes queries to search and URLs to navigation when search is enabled', () => {
+		assert.deepStrictEqual(
+			[
+				resolveAddressBarNavigation('how to make pasta', true, BrowserSearchEngineId.Bing),
+				resolveAddressBarNavigation('https://example.com', true, BrowserSearchEngineId.Bing),
+				resolveAddressBarNavigation('example.com', true, BrowserSearchEngineId.Bing),
+			],
+			[
+				{ isSearch: true, url: 'https://www.bing.com/search?q=how+to+make+pasta' },
+				{ isSearch: false, url: 'https://example.com' },
+				{ isSearch: false, url: 'example.com' },
+			],
 		);
 	});
 });
