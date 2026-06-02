@@ -122,9 +122,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		if (this._isSessionsWindow && sessionTypeItem.type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
-			return localize('chat.cloudRequiresGit', "Requires a Git repository");
-		}
 		return undefined;
 	}
 
@@ -151,7 +148,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			class: undefined,
 			label: localize('chat.newChatSession', "New Chat Session"),
 			tooltip: '',
-			hover: { content: '', position: this.pickerOptions.hoverPosition },
+			hover: { content: '' },
 			checked: false,
 			icon: Codicon.plus,
 			enabled: true,

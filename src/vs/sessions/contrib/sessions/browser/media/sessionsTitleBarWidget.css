@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Container - button style hover */
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+}
+
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item {
+	margin-left: 0;
+}
+
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 100%;
+	flex: 1;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding-left: 16px;
+	min-width: 0;
+	margin-left: 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -19,10 +29,20 @@
 	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
 	cursor: default;
+	opacity: 1;
+	transition: opacity 120ms ease-out;
 }
 
 .agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
-	padding-left: 0;
+	margin-left: 0;
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-hidden {
+	flex: 0 1 0;
+	width: 0;
+	margin-left: 0;
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* Session pill - clickable area for session picker */
@@ -32,7 +52,9 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	min-width: 0;
-	max-width: 600px;
+	max-width: 100%;
+	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
@@ -49,9 +71,11 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	flex: 1 1 auto;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
+	overflow: hidden;
 }
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
@@ -60,34 +84,76 @@
 	font-size: 14px;
 }
 
-/* Label (title) */
+.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
+	color: var(--vscode-icon-foreground);
+}
+
+/* Label (title) — shrinks first so folder/branch/diff stats stay visible. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+	flex: 0 999 auto;
+	min-width: 0;
+	max-width: 400px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-weight: 500;
 }
 
-/* Repository/folder label */
+/* Repository/worktree metadata shrinks after the primary title. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
+	display: flex;
+	align-items: center;
+	flex: 0 1 auto;
+	gap: 6px;
+	min-width: 0;
+	overflow: hidden;
+	opacity: 0.7;
+}
+
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-/* Dot separator */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
-	opacity: 0.5;
-	flex-shrink: 0;
+	&::before {
+		content: '\00B7';
+	}
 }
 
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch {
 	display: flex;
 	align-items: center;
+	gap: 2px;
 	flex-shrink: 0;
-	opacity: 0.7;
+	white-space: nowrap;
+
+	.codicon {
+		font-size: 13px;
+		width: 13px;
+		height: 13px;
+	}
+}
+
+/* Diff stats (+insertions -deletions) shown for sessions with pending changes. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-diff-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Sidebar toggle unread badge */
@@ -109,7 +175,13 @@
 	font-variant-numeric: tabular-nums;
 	text-align: center;
 	border-radius: 4px;
-	background-color: var(--vscode-activityBarBadge-background);
-	color: var(--vscode-activityBarBadge-foreground);
+	background-color: var(--vscode-agentsUnreadBadge-background);
+	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.command-center .agent-sessions-titlebar-container {
+		transition: none;
+	}
 }

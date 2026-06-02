@@ -47,6 +47,7 @@ import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -475,16 +476,16 @@ export class CreateRemoteAgentJobAction {
 					: userPrompt;
 
 				// Extract repository info from the source session to pass to the target session
-				const initialSessionOptions: { optionId: string; value: string }[] = [];
+				const initialSessionOptions = new Map<string, string>();
 				const repoNwo = await this.extractRepoNwoFromSession(agentSessionsService, chatSessionsService, fileService, sessionResource, chatModel);
 				if (repoNwo) {
-					initialSessionOptions.push({ optionId: 'repositories', value: repoNwo });
+					initialSessionOptions.set('repositories', repoNwo);
 				}
 
 				await commandService.executeCommand(actionId, {
 					prompt: delegationPrompt,
 					attachedContext: attachedContext.asArray(),
-					initialSessionOptions: initialSessionOptions.length > 0 ? initialSessionOptions : undefined,
+					initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
 				});
 				return;
 			}
@@ -492,9 +493,9 @@ export class CreateRemoteAgentJobAction {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
-
+			const context = { sessionType: getChatSessionType(sessionResource) };
 			// Add the request to the model first
-			const parsedRequest = requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), userPrompt, ChatAgentLocation.Chat);
+			const parsedRequest = requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), userPrompt, ChatAgentLocation.Chat, context);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },

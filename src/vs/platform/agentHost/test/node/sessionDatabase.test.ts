@@ -4,10 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
+import * as fs from 'fs/promises';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
+import { FileEditKind } from '../../common/state/sessionState.js';
 import type { Database } from '@vscode/sqlite3';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { join } from '../../../../base/common/path.js';
 
 suite('SessionDatabase', () => {
 
@@ -125,6 +130,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -136,7 +142,9 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual(edits, [{
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
+				originalPath: undefined,
 				addedLines: 5,
 				removedLines: 2,
 			}]);
@@ -149,6 +157,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('a-before'),
 				afterContent: new TextEncoder().encode('a-after'),
@@ -158,6 +167,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new TextEncoder().encode('b-before'),
 				afterContent: new TextEncoder().encode('b-after'),
@@ -178,6 +188,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('hello'),
@@ -187,6 +198,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('world'),
@@ -209,7 +221,7 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual(edits, []);
 		});
 
-		test.skip('returns empty array when given empty array' /* Flaky https://github.com/microsoft/vscode/issues/306057 */, async () => {
+		test('returns empty array when given empty array' /* Regression test for https://github.com/microsoft/vscode/issues/306057 */, async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const edits = await db.getFileEdits([]);
 			assert.deepStrictEqual(edits, []);
@@ -222,6 +234,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v1'),
 				afterContent: new TextEncoder().encode('v1-after'),
@@ -231,6 +244,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v2'),
 				afterContent: new TextEncoder().encode('v2-after'),
@@ -254,6 +268,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -281,6 +296,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-bin',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/image.png',
 				beforeContent: new Uint8Array(0),
 				afterContent: binary,
@@ -300,6 +316,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'auto-turn',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/x',
 				beforeContent: new Uint8Array(0),
 				afterContent: new Uint8Array(0),
@@ -330,6 +347,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -353,6 +371,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('a'),
@@ -362,6 +381,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-2',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('b'),
@@ -378,6 +398,53 @@ suite('SessionDatabase', () => {
 		test('deleteTurn is a no-op for unknown turn', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.deleteTurn('nonexistent'); // should not throw
+		});
+	});
+
+	// ---- Turn event ids -------------------------------------------------
+
+	suite('turn event ids', () => {
+
+		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), 'evt-2');
+		});
+
+		test('getNextTurnEventId falls back to `event_id` when the key is the SDK event id', async () => {
+			// Sessions restored from disk surface SDK envelope ids as the
+			// protocol turn id (see mapSessionEvents.ts), but `turns.id`
+			// was populated live with the client-side `request_xxx` id.
+			// The fallback lets fork / truncate resolve the boundary
+			// without forcing every caller to translate.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('sdk-evt-1'), 'sdk-evt-2');
+		});
+
+		test('getNextTurnEventId returns undefined for the last turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), undefined);
+			assert.strictEqual(await db.getNextTurnEventId('evt-1'), undefined);
+		});
+
+		test('getNextTurnEventId returns undefined for an unknown key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
 		});
 	});
 
@@ -471,6 +538,37 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const tables = await db.getAllTables();
 			assert.ok(tables.includes('session_metadata'));
+		});
+	});
+
+	// ---- vacuumInto -----------------------------------------------------
+
+	suite('vacuumInto', () => {
+
+		let tmpDir: string;
+
+		setup(async () => {
+			tmpDir = await fs.mkdtemp(join(tmpdir(), 'session-db-test-' + generateUuid()));
+		});
+
+		teardown(async () => {
+			await Promise.all([db?.close(), db2?.close()]);
+			db = db2 = undefined;
+			await fs.rm(tmpDir, { recursive: true, force: true });
+		});
+
+		test('produces a copy with the same data', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setMetadata('key', 'value');
+
+			const targetPath = join(tmpDir, 'copy.db');
+			await db.vacuumInto(targetPath);
+
+			db2 = disposables.add(await SessionDatabase.open(targetPath));
+			assert.strictEqual(await db2.getTurnEventId('turn-1'), 'evt-1');
+			assert.strictEqual(await db2.getMetadata('key'), 'value');
 		});
 	});
 });

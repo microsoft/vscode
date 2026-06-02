@@ -179,7 +179,8 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
-		const useUnifiedQuickAccess = configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
+		const aiFeaturesDisabled = configurationService.getValue<boolean>('chat.disableAIFeatures') === true;
+		const useUnifiedQuickAccess = !aiFeaturesDisabled && configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
 		if (useUnifiedQuickAccess) {
 			try {
 				await commandService.executeCommand('workbench.action.unifiedQuickAccess');

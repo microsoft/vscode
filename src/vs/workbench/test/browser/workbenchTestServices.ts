@@ -153,7 +153,7 @@ import { CustomEditorLabelService, ICustomEditorLabelService } from '../../servi
 import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
-import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
+import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, IVisibleEditorsChangeEvent, PreferredGroup } from '../../services/editor/common/editorService.js';
 import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -583,11 +583,11 @@ export class TestMenuService implements IMenuService {
 	}
 
 	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	getMenuContexts(id: MenuId): ReadonlySet<string> {
-		throw new Error('Method not implemented.');
+		return new Set<string>();
 	}
 
 	resetHiddenStates(): void {
@@ -1050,7 +1050,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidActiveEditorChange: Event<void> = Event.None;
-	readonly onDidVisibleEditorsChange: Event<void> = Event.None;
+	readonly onDidVisibleEditorsChange: Event<IVisibleEditorsChangeEvent> = Event.None;
 	readonly onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
 	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
@@ -1360,6 +1360,7 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
+	async shutdown(): Promise<void> { }
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
 		return await expectedShutdownTask();
 	}
@@ -1818,7 +1819,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	onDidChangeInstances = Event.None;
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
 	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance> { throw new Error('Method not implemented.'); }
 	revealActiveEditor(preserveFocus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	resolveResource(instance: ITerminalInstance): URI { throw new Error('Method not implemented.'); }
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
@@ -1892,8 +1893,10 @@ export class TestTerminalProfileService implements ITerminalProfileService {
 	getDefaultProfile(): ITerminalProfile | undefined { throw new Error('Method not implemented.'); }
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> { throw new Error('Method not implemented.'); }
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void> { throw new Error('Method not implemented.'); }
+	registerInternalContributedProfile(_profile: IExtensionTerminalProfile): IDisposable { return Disposable.None; }
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined { throw new Error('Method not implemented.'); }
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable { throw new Error('Method not implemented.'); }
+	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable { return Disposable.None; }
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {

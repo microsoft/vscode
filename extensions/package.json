@@ -4,7 +4,7 @@
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   },
   "scripts": {
     "postinstall": "node ./postinstall.mjs"

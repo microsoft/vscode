@@ -6,8 +6,22 @@
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Event } from '../../../base/common/event.js';
+import type { FileEditKind } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
+
+/** Filename of the per-session SQLite database. */
+export const SESSION_DB_FILENAME = 'session.db';
+
+/**
+ * Subdirectory under a session's data directory that holds snapshotted
+ * user-message attachments (e.g. pasted images, fetched file references).
+ * The agent host writes these on dispatch so large blobs stay out of the
+ * in-memory state tree, and reads of files under this directory are
+ * auto-approved by the agent's permission flow.
+ */
+export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -20,8 +34,12 @@ export interface IFileEditRecord {
 	turnId: string;
 	/** The tool call that produced this edit. */
 	toolCallId: string;
-	/** Absolute file path that was edited. */
+	/** Primary file path (after-path for edits/creates/renames, before-path for deletes). */
 	filePath: string;
+	/** The kind of file operation. */
+	kind: FileEditKind;
+	/** For renames, the original file path before the move. */
+	originalPath?: string;
 	/** Number of lines added (informational, for diff metadata). */
 	addedLines: number | undefined;
 	/** Number of lines removed (informational, for diff metadata). */
@@ -31,12 +49,15 @@ export interface IFileEditRecord {
 /**
  * The before/after content blobs for a single file edit.
  * Retrieved on demand via {@link ISessionDatabase.readFileEditContent}.
+ *
+ * For creates, `beforeContent` is absent.
+ * For deletes, `afterContent` is absent.
  */
 export interface IFileEditContent {
-	/** File content before the edit (may be empty for newly created files). */
-	beforeContent: Uint8Array;
-	/** File content after the edit. */
-	afterContent: Uint8Array;
+	/** File content before the edit. Absent for file creations. */
+	beforeContent?: Uint8Array;
+	/** File content after the edit. Absent for file deletions. */
+	afterContent?: Uint8Array;
 }
 
 // ---- Session database ---------------------------------------------------
@@ -61,6 +82,75 @@ export interface ISessionDatabase extends IDisposable {
 	deleteTurn(turnId: string): Promise<void>;
 
 	/**
+	 * Associates a Copilot SDK event ID with a turn. The event ID corresponds
+	 * to the `user.message` event in the SDK event stream and is used by
+	 * the SDK's `history.truncate` and `sessions.fork` RPCs.
+	 */
+	setTurnEventId(turnId: string, eventId: string): Promise<void>;
+
+	/**
+	 * Retrieves the SDK event ID previously stored for a turn.
+	 * Returns `undefined` if no event ID has been set.
+	 */
+	getTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the SDK event ID of the turn inserted immediately after the
+	 * given turn, or `undefined` if the given turn is the last one.
+	 */
+	getNextTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the SDK event ID of the earliest turn in insertion order,
+	 * or `undefined` if there are no turns.
+	 */
+	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
+	 * with a turn. Idempotent — last writer wins per turn.
+	 */
+	setTurnCheckpointRef(turnId: string, ref: string): Promise<void>;
+
+	/**
+	 * Retrieves the checkpoint ref previously stored for a turn, or
+	 * `undefined` if none.
+	 */
+	getTurnCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the checkpoint ref of the most recent turn (in insertion
+	 * order) prior to `turnId` that has a non-null `checkpoint_ref`.
+	 * Used to resolve the parent checkpoint for end-of-turn diffs without
+	 * persisting an explicit parent column.
+	 */
+	getPreviousCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns every non-null `checkpoint_ref` recorded against any turn in
+	 * this session. Used by checkpoint cleanup to enumerate refs precisely
+	 * (rather than scanning `for-each-ref` on the underlying repo).
+	 */
+	getAllCheckpointRefs(): Promise<string[]>;
+
+	/**
+	 * Deletes the given turn and all turns inserted after it, along
+	 * with their associated file edits (cascade).
+	 */
+	truncateFromTurn(turnId: string): Promise<void>;
+
+	/**
+	 * Deletes all turns inserted after the given turn (but keeps the
+	 * given turn itself). Associated file edits cascade-delete.
+	 */
+	deleteTurnsAfter(turnId: string): Promise<void>;
+
+	/**
+	 * Deletes all turns and their associated file edits.
+	 */
+	deleteAllTurns(): Promise<void>;
+
+	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
 	 * within a turn.
 	 *
@@ -77,6 +167,20 @@ export interface ISessionDatabase extends IDisposable {
 	getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]>;
 
 	/**
+	 * Retrieve file-edit metadata for all edits in this session.
+	 * Content blobs are **not** included — use {@link readFileEditContent}
+	 * to fetch them on demand. Results are returned in insertion order.
+	 */
+	getAllFileEdits(): Promise<IFileEditRecord[]>;
+
+	/**
+	 * Retrieve file-edit metadata for all edits belonging to a specific turn.
+	 * Content blobs are **not** included — use {@link readFileEditContent}
+	 * to fetch them on demand. Results are returned in insertion order.
+	 */
+	getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]>;
+
+	/**
 	 * Read the before/after content blobs for a single file edit.
 	 * Returns `undefined` if no edit exists for the given key.
 	 */
@@ -91,9 +195,33 @@ export interface ISessionDatabase extends IDisposable {
 	getMetadata(key: string): Promise<string | undefined>;
 
 	/**
+	 * Gets a bulk of metadata. For example `getMetadataObject({ foo: true }) ->  { foo: 'data' }`
+	 */
+	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
+
+	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
+
+	/**
+	 * Bulk-remaps turn IDs using the provided old→new mapping.
+	 * Used after copying a database file for a forked session.
+	 */
+	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+
+	/**
+	 * Creates a safe, consistent copy of the database at the given path
+	 * using SQLite's `VACUUM INTO` command.
+	 */
+	vacuumInto(targetPath: string): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations on this database have
+	 * settled. Used by graceful shutdown to flush fire-and-forget writes
+	 * before the process exits.
+	 */
+	whenIdle(): Promise<void>;
 
 	/**
 	 * Close the database connection. After calling this method, the object is
@@ -153,8 +281,45 @@ export interface ISessionDataService {
 	deleteSessionData(session: URI): Promise<void>;
 
 	/**
+	 * Fires immediately before a session's data directory (and the
+	 * SQLite database within it) is deleted by {@link deleteSessionData}.
+	 *
+	 * Subscribers can register asynchronous cleanup work via
+	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
+	 * blocked until all registered promises settle. Used by
+	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
+	 * list of checkpoint refs from the (still-readable) database and
+	 * delete them before the directory is removed.
+	 *
+	 * Subscribers must own their own error handling — exceptions
+	 * propagated out of `waitUntil` promises are logged and ignored;
+	 * deletion proceeds regardless.
+	 */
+	readonly onWillDeleteSessionData: Event<IWillDeleteSessionDataEvent>;
+
+	/**
 	 * Deletes data directories that do not correspond to any known session.
 	 * Called at startup; safe to call multiple times.
 	 */
 	cleanupOrphanedData(knownSessionIds: Set<string>): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations across every currently
+	 * open per-session database have settled. Intended for graceful
+	 * shutdown — fire-and-forget writes (e.g. metadata persistence) would
+	 * otherwise be lost when the process exits.
+	 */
+	whenIdle(): Promise<void>;
+}
+
+/**
+ * Payload of {@link ISessionDataService.onWillDeleteSessionData}.
+ */
+export interface IWillDeleteSessionDataEvent {
+	readonly session: URI;
+	/**
+	 * Register an asynchronous task that must settle before the session's
+	 * data directory is removed.
+	 */
+	waitUntil(promise: Promise<unknown>): void;
 }

@@ -85,6 +85,7 @@ const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
 	default: false,
+	...(isWeb ? { agentsWindow: { default: true } } : {}),
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
 
@@ -282,19 +283,7 @@ const colorSchemeToPreferred = {
 };
 
 export class ThemeConfiguration {
-	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService, private readonly isNewUser: boolean = false) {
-	}
-
-	private shouldAutoDetectColorScheme(): boolean {
-		const { value, userValue, userLocalValue, userRemoteValue } = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
-		if (value) {
-			return true;
-		}
-		if (this.isNewUser) {
-			const hasUserScopedValue = userValue !== undefined || userLocalValue !== undefined || userRemoteValue !== undefined;
-			return !hasUserScopedValue;
-		}
-		return false;
+	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService) {
 	}
 
 	public get colorTheme(): string {
@@ -348,14 +337,14 @@ export class ThemeConfiguration {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
 		}
-		if (this.shouldAutoDetectColorScheme()) {
+		if (this.isDetectingColorScheme()) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
 	}
 
 	public isDetectingColorScheme(): boolean {
-		return this.shouldAutoDetectColorScheme();
+		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {
@@ -389,7 +378,7 @@ export class ThemeConfiguration {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		} else if (!types.isUndefined(settings.workspaceValue)) {
 			return ConfigurationTarget.WORKSPACE;
-		} else if (!types.isUndefined(settings.userRemote)) {
+		} else if (!types.isUndefined(settings.userRemoteValue)) {
 			return ConfigurationTarget.USER_REMOTE;
 		}
 		return ConfigurationTarget.USER;

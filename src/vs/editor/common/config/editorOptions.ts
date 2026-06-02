@@ -962,7 +962,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced';
+	diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -2368,7 +2368,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 						nls.localize('hover.enabled.off', "Hover is disabled."),
 						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when holding `{0}` or `Alt` (the opposite modifier of `#editor.multiCursorModifier#`)", platform.isMacintosh ? `Command` : `Control`)
 					],
-					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
+					description: nls.localize('hover.enabled', "Controls whether the hover is shown."),
+					keywords: ['hint', 'info', 'tooltip']
 				},
 				'editor.hover.delay': {
 					type: 'number',
@@ -3763,7 +3764,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 	constructor() {
 		const defaults: InternalQuickSuggestionsOptions = {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		};

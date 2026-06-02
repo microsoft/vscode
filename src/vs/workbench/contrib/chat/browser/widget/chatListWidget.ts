@@ -450,6 +450,9 @@ export class ChatListWidget extends Disposable {
 			this.updateScrollDownButtonVisibility();
 		}));
 
+		// Set initial at-bottom state (scrollLock defaults to true)
+		this.updateScrollDownButtonVisibility();
+
 		// Handle context menu internally
 		this._register(this._tree.onContextMenu(e => {
 			this.handleContextMenu(e);
@@ -469,8 +472,9 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const show = !this.isScrolledToBottom && !this._scrollLock;
-		this._scrollDownButton.element.style.display = show ? '' : 'none';
+		const atBottom = this.isScrolledToBottom || this._scrollLock;
+		this._scrollDownButton.element.style.display = atBottom ? 'none' : '';
+		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 	}
 
 	/**
@@ -809,6 +813,33 @@ export class ChatListWidget extends Disposable {
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
 		this._renderer.updateOptions(options);
+	}
+
+	/**
+	 * Update the list/tree color overrides. Re-applies the same fan-out from
+	 * `listBackground`/`listForeground` to all interaction states that was
+	 * originally configured at construction time.
+	 */
+	setStyles(styles: IChatListWidgetStyles): void {
+		this._tree.updateOptions({
+			overrideStyles: {
+				listFocusBackground: styles.listBackground,
+				listInactiveFocusBackground: styles.listBackground,
+				listActiveSelectionBackground: styles.listBackground,
+				listFocusAndSelectionBackground: styles.listBackground,
+				listInactiveSelectionBackground: styles.listBackground,
+				listHoverBackground: styles.listBackground,
+				listBackground: styles.listBackground,
+				listFocusForeground: styles.listForeground,
+				listHoverForeground: styles.listForeground,
+				listInactiveFocusForeground: styles.listForeground,
+				listInactiveSelectionForeground: styles.listForeground,
+				listActiveSelectionForeground: styles.listForeground,
+				listFocusAndSelectionForeground: styles.listForeground,
+				listActiveSelectionIconForeground: undefined,
+				listInactiveSelectionIconForeground: undefined,
+			}
+		});
 	}
 
 	/**

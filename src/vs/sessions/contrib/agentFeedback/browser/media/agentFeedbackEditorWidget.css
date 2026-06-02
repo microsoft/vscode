@@ -23,6 +23,10 @@
 	opacity: 1;
 }
 
+.agent-feedback-widget:focus {
+	outline: none;
+}
+
 .agent-feedback-widget.fadeOut {
 	animation: agentFeedbackFadeOut 150ms ease-out forwards;
 }
@@ -85,6 +89,7 @@
 /* Title */
 .agent-feedback-widget-title {
 	font-weight: 500;
+	line-height: 16px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -104,6 +109,7 @@
 	justify-content: center;
 	width: 22px;
 	height: 22px;
+	min-width: 22px;
 	border-radius: var(--vscode-cornerRadius-medium);
 	cursor: pointer;
 	color: var(--vscode-foreground);
@@ -154,14 +160,6 @@
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
-.agent-feedback-widget-item-codeReview {
-	box-shadow: inset 2px 0 0 var(--vscode-editorWarning-foreground);
-}
-
-.agent-feedback-widget-item-prReview {
-	box-shadow: inset 2px 0 0 var(--vscode-editorInfo-foreground);
-}
-
 .agent-feedback-widget-item-header {
 	display: flex;
 	align-items: center;
@@ -195,7 +193,7 @@
 	display: inline-flex;
 	align-items: center;
 	padding: 1px 6px;
-	border-radius: 999px;
+	border-radius: 4px;
 	font-size: 10px;
 	font-weight: 600;
 	letter-spacing: 0.2px;
@@ -204,12 +202,12 @@
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, var(--vscode-editorWidget-background));
 	color: var(--vscode-editorWarning-foreground);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, var(--vscode-editorWidget-background));
 	color: var(--vscode-editorInfo-foreground);
 }
 
@@ -226,6 +224,9 @@
 .agent-feedback-widget-text {
 	color: var(--vscode-foreground);
 	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 .agent-feedback-widget-text .rendered-markdown p {
@@ -244,21 +245,19 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
-	padding: 8px;
-	border-radius: 6px;
-	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 12%, transparent);
+	margin-top: 8px;
+	padding: 0px 8px 4px 12px;
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, transparent);
+	border-left: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
-	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 10%, transparent);
+	border-left: 1px solid color-mix(in srgb, var(--vscode-editorInfo-foreground) 50%, transparent);
 }
 
-.agent-feedback-widget-suggestion-title,
-.agent-feedback-widget-suggestion-range {
+.agent-feedback-widget-suggestion-header {
 	font-size: 10px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -278,10 +277,13 @@
 	border-radius: 4px;
 	overflow-x: auto;
 	white-space: pre-wrap;
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	line-height: 1.45;
-	background: color-mix(in srgb, var(--vscode-editor-background) 65%, transparent);
+	background: var(--vscode-editorWidget-background);
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 /* Gutter decoration for range indicator on hover */
@@ -315,4 +317,47 @@
 .agent-feedback-widget-edit-textarea:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
+}
+
+/* Replies — visually grouped with the parent comment but with subtle separation */
+.agent-feedback-widget-replies {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.agent-feedback-widget-reply {
+	padding-top: 4px;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
+}
+
+.agent-feedback-widget-reply-text {
+	color: var(--vscode-foreground);
+	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+}
+
+/* Reply composer shown when adding to a comment */
+.agent-feedback-widget-add-reply {
+	padding-top: 4px;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
+}
+
+.agent-feedback-widget-add-reply .agent-feedback-widget-edit-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 1;
 }

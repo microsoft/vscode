@@ -22,6 +22,14 @@ interface IDatabaseConnection {
 
 export interface ISQLiteStorageDatabaseOptions {
 	readonly logging?: ISQLiteStorageDatabaseLoggingOptions;
+	readonly useWAL?: boolean;
+
+	/**
+	 * If set, configures SQLite's busy timeout in milliseconds.
+	 * When another process holds a write lock, SQLite will retry
+	 * for this duration before returning SQLITE_BUSY.
+	 */
+	readonly busyTimeout?: number;
 }
 
 export interface ISQLiteStorageDatabaseLoggingOptions {
@@ -41,6 +49,8 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private readonly name: string;
 
 	private readonly logger: SQLiteStorageDatabaseLogger;
+	private readonly useWAL: boolean;
+	private readonly busyTimeout: number | undefined;
 
 	private readonly whenConnected: Promise<IDatabaseConnection>;
 
@@ -50,6 +60,8 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	) {
 		this.name = basename(this.path);
 		this.logger = new SQLiteStorageDatabaseLogger(options.logging);
+		this.useWAL = !!options.useWAL;
+		this.busyTimeout = options.busyTimeout;
 		this.whenConnected = this.connect(this.path);
 	}
 
@@ -326,10 +338,17 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						// The following exec() statement serves two purposes:
 						// - create the DB if it does not exist yet
 						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
-						return this.exec(connection, [
+						const pragmas: string[] = [
 							'PRAGMA user_version = 1;',
-							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
-						].join('')).then(() => {
+							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);'
+						];
+						if (this.useWAL) {
+							pragmas.push('PRAGMA journal_mode=WAL;');
+						}
+						if (this.busyTimeout) {
+							pragmas.push(`PRAGMA busy_timeout=${this.busyTimeout};`);
+						}
+						return this.exec(connection, pragmas.join('')).then(() => {
 							return resolve(connection);
 						}, error => {
 							return connection.db.close(() => reject(error));

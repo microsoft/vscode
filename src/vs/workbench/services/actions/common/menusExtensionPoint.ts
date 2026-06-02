@@ -485,21 +485,9 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
-		key: 'chat/input/editing/sessionApplyActions',
-		id: MenuId.ChatEditingSessionApplySubmenu,
-		description: localize('menus.chatEditingSessionApplySubmenu', "Submenu for apply actions in the Chat Editing session changes toolbar."),
-		proposed: 'chatSessionsProvider'
-	},
-	{
 		key: 'chat/input/editing/sessionTitleToolbar',
 		id: MenuId.ChatEditingSessionTitleToolbar,
 		description: localize('menus.chatEditingSessionTitleToolbar', "The Chat Editing widget toolbar menu for session title."),
-		proposed: 'chatSessionsProvider'
-	},
-	{
-		key: 'chat/input/editing/sessionChangeToolbar',
-		id: MenuId.ChatEditingSessionChangeToolbar,
-		description: localize('menus.chatEditingSessionChangeToolbar', "The Chat Editing widget toolbar menu for session changes."),
 		proposed: 'chatSessionsProvider'
 	},
 	{
@@ -507,6 +495,13 @@ const apiMenus: IAPIMenu[] = [
 		key: 'chat/chatSessions',
 		id: MenuId.AgentSessionsContext,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/item/context',
+		id: MenuId.SessionItemContextMenu,
+		description: localize('menus.chatSessionsItemContext', "The context menu for items in the Sessions window's session list."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
@@ -532,6 +527,13 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionCustomizationProvider',
 	},
 	{
+		key: 'chat/customizations/item',
+		id: MenuId.for('AICustomizationManagementEditorItem'),
+		description: localize('menus.chatCustomizationsItem', "The item context menu in the Chat Customizations management editor, including inline actions."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
 		key: 'chat/editor/inlineGutter',
 		id: MenuId.ChatEditorInlineMenu,
 		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
@@ -548,6 +550,24 @@ const apiMenus: IAPIMenu[] = [
 		key: 'chat/newSession',
 		id: MenuId.ChatNewMenu,
 		description: localize('menus.chatNewSession', "The Chat new session menu."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/changes/actions',
+		id: MenuId.AgentsChangesToolbar,
+		description: localize('menus.agentsChangesToolbar', "The Changes view toolbar of the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/changes/actions/primary',
+		id: MenuId.AgentsChangesPrimaryActionSubMenu,
+		description: localize('menus.agentsChangesPrimaryActionSubMenu', "The Changes view toolbar primary action submenu in the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/change/inline',
+		id: MenuId.AgentsChangeInlineToolbar,
+		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
 		proposed: 'chatSessionsProvider'
 	},
 ];
