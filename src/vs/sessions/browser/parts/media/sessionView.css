@@ -6,8 +6,8 @@
 /* ------------------------------------------------------------------------- *
  * Inactive session chat input state
  *
- * When a session column is not the active/focused/selected one, quiet all of
- * its chat input controls (attach, mode/model pickers, etc.) and keep only
+ * When a session column is not the active/focused/selected one, fade out all
+ * of its chat input controls (attach, mode/model pickers, etc.) and keep only
  * the send button visible in a desaturated state. This reduces visual noise
  * across the multi-session grid so attention stays on the active session.
  * ------------------------------------------------------------------------- */
@@ -17,6 +17,12 @@
 .session-view:not(.is-active) .chat-composite-bar-inline-toolbar,
 .session-view:not(.is-active) .chat-composite-bar-toolbar {
 	opacity: 0.6;
+	transition: opacity 0.15s ease;
+}
+
+.session-view.is-active .chat-composite-bar-inline-toolbar,
+.session-view.is-active .chat-composite-bar-toolbar {
+	transition: opacity 0.15s ease;
 }
 
 /* Keep the mode/model/harness pickers legible (but non-interactive) in inactive
@@ -25,25 +31,83 @@
 .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	opacity: 0.6;
 	pointer-events: none;
+	transition: opacity 0.15s ease;
 }
 
-/* Hide the controls that sit below the input box (secondary toolbar,
+/* Fade out the controls that sit below the input box (secondary toolbar,
  * attachments row and followups) so the inactive input reads as quiet. */
 .session-view:not(.is-active) .interactive-session .chat-secondary-toolbar,
 .session-view:not(.is-active) .interactive-session .chat-attachments-container,
 .session-view:not(.is-active) .interactive-session .interactive-input-followups {
 	opacity: 0;
 	pointer-events: none;
+	transition: opacity 0.15s ease;
 }
 
-/* Quiet the placeholder text (rendered as an editor decoration inside the
+/* Fade out the placeholder text (rendered as an editor decoration inside the
  * chat editor) for inactive sessions. */
 .session-view:not(.is-active) .interactive-session .chat-editor-container {
 	opacity: 0.4;
+	transition: opacity 0.15s ease;
 }
 
 /* Desaturate the send button so it reads as muted while still discoverable. */
 .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	filter: grayscale(1);
 	opacity: 0.6;
+	transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* Smoothly restore controls when the session becomes active again. */
+.session-view.is-active .interactive-session .chat-input-toolbars > .chat-input-toolbar,
+.session-view.is-active .interactive-session .chat-secondary-toolbar,
+.session-view.is-active .interactive-session .chat-attachments-container,
+.session-view.is-active .interactive-session .interactive-input-followups,
+.session-view.is-active .interactive-session .chat-editor-container {
+	transition: opacity 0.15s ease;
+}
+
+.session-view.is-active .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* While a session is inactive or fading in, suppress the focus border so it
+ * does not flash around the still-fading placeholder. Clicking an inactive
+ * session's input focuses it (adding `.focused`) before it is marked active, and
+ * the `activating` class covers the subsequent fade-in. The border therefore
+ * only appears in the settled `.is-active:not(.activating)` state. The "working"
+ * comet state owns its own border and is left untouched. */
+.session-view:not(.is-active) .interactive-session .chat-input-container.focused:not(.working),
+.session-view.activating .interactive-session .chat-input-container.focused:not(.working) {
+	border-color: var(--vscode-agentsChatInput-border) !important;
+}
+
+.session-view:not(.is-active) .new-chat-input-area:focus-within,
+.session-view.activating .new-chat-input-area:focus-within {
+	border-color: var(--vscode-agentsChatInput-border) !important;
+}
+
+/* The Monaco editor inside the chat input paints its own focus outline (see
+ * `standalone-tokens.css`: `textarea:focus`/`[tabindex]:focus`/`.synthetic-focus`
+ * → `outline-color: var(--vscode-focusBorder)`). Clicking an inactive session's
+ * input focuses that editor synchronously, so this inner outline lands a frame
+ * before the JS-applied `.chat-input-container.focused` outer border — producing
+ * a brief focus border around the still-fading inner placeholder/editor. Suppress
+ * the inner outline for the duration of the inactive→active fade so neither the
+ * inner nor the outer border shows until the session settles into its active,
+ * non-`activating` state. */
+.session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor :is(.synthetic-focus, [tabindex]:focus, textarea:focus),
+.session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor :is(.synthetic-focus, [tabindex]:focus, textarea:focus) {
+	outline-color: transparent !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
+	.session-view .interactive-session .chat-secondary-toolbar,
+	.session-view .interactive-session .chat-attachments-container,
+	.session-view .interactive-session .interactive-input-followups,
+	.session-view .interactive-session .chat-editor-container,
+	.session-view .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+		transition: none;
+	}
 }
