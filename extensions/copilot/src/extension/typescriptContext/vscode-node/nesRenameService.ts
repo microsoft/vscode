@@ -5,9 +5,8 @@
 import * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import * as protocol from '../common/serverProtocol';
+import { TypeScriptServiceContribution } from './typeScriptService';
 
 enum ExecutionTarget {
 	Semantic,
@@ -135,20 +134,18 @@ class TelemetrySender {
 }
 
 
-export class NesRenameContribution implements vscode.Disposable {
+export class NesRenameContribution extends TypeScriptServiceContribution {
 
-	private _isActivated: Promise<boolean> | undefined;
-	private readonly disposables: DisposableStore;
 	private readonly telemetrySender: TelemetrySender;
 
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 	) {
+		super(logService);
 		this.telemetrySender = new TelemetrySender(telemetryService, logService);
-		this.disposables = new DisposableStore();
 		this.disposables.add(vscode.commands.registerCommand('github.copilot.nes.prepareRename', async (uri: vscode.Uri | undefined, position: vscode.Position | undefined, oldName: string | undefined, newName: string | undefined, requestId: string | undefined, lastSymbolRename: vscode.Range | undefined): Promise<protocol.PrepareNesRenameResult> => {
 			const no: protocol.PrepareNesRenameResult.No = { canRename: protocol.RenameKind.no, timedOut: false };
 			const params = this.resolvePrepareParams(uri, position, oldName, newName, requestId);
@@ -245,53 +242,6 @@ export class NesRenameContribution implements vscode.Disposable {
 				tokenSource.dispose();
 			}
 		}));
-	}
-
-	public dispose(): void {
-		this.disposables.dispose();
-	}
-
-	private async isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean> {
-		const languageId = typeof documentOrLanguageId === 'string' ? documentOrLanguageId : documentOrLanguageId.languageId;
-		if (languageId !== 'typescript' && languageId !== 'typescriptreact') {
-			return false;
-		}
-		if (this._isActivated === undefined) {
-			this._isActivated = this.doIsTypeScriptActivated(languageId);
-		}
-		return this._isActivated;
-	}
-
-	private async doIsTypeScriptActivated(languageId: string): Promise<boolean> {
-		let activated = false;
-
-		try {
-			// Check that the TypeScript extension is installed and runs in the same extension host.
-			const typeScriptExtension = vscode.extensions.getExtension('vscode.typescript-language-features');
-			if (typeScriptExtension === undefined) {
-				return false;
-			}
-
-			// Make sure the TypeScript extension is activated.
-			await typeScriptExtension.activate();
-
-			// Send a ping request to see if the TS server plugin got installed correctly.
-			const response: protocol.PingResponse | undefined = await vscode.commands.executeCommand('typescript.tsserverRequest', '_.copilot.ping', NesRenameContribution.ExecConfig, CancellationToken.None);
-			if (response !== undefined) {
-				if (response.body?.kind === 'ok') {
-					this.logService.info('TypeScript server plugin activated.');
-					activated = true;
-				} else {
-					this.logService.error('TypeScript server plugin not activated:', response.body?.message ?? 'Message not provided.');
-				}
-			} else {
-				this.logService.error('TypeScript server plugin not activated:', 'No ping response received.');
-			}
-		} catch (error) {
-			this.logService.error('Error pinging TypeScript server plugin:', error);
-		}
-
-		return activated;
 	}
 
 	private resolvePrepareParams(uri: vscode.Uri | undefined, position: vscode.Position | undefined, oldName: string | undefined, newName: string | undefined, requestId: string | undefined): { document: vscode.TextDocument; position: vscode.Position; oldName: string; newName: string; requestId: string } | undefined {

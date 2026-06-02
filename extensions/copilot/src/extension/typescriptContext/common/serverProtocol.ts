@@ -601,3 +601,61 @@ export namespace NesRenameResponse {
 export type NesRenameResponse = (tt.server.protocol.Response & {
 	body: NesRenameResponse.OK | NesRenameResponse.Failed;
 }) | { type: 'cancelled' };
+
+
+export interface CodeUsageRequest extends tt.server.protocol.Request {
+	arguments?: CodeUsageRequestArgs;
+}
+
+export interface CodeUsageRequestArgs extends tt.server.protocol.FileLocationRequestArgs {
+}
+
+export interface LineRange {
+	start: number;
+	end: number;
+}
+
+export interface CodeUsage {
+	file: FilePath;
+	line: number;
+	parents?: LineRange[];
+}
+
+export interface CodeUsages {
+	definitions?: CodeUsage[];
+	references?: CodeUsage[];
+	implementations?: CodeUsage[];
+}
+
+export namespace CodeUsages {
+	export function is(usages: CodeUsages): usages is CodeUsages {
+		return usages.definitions !== undefined || usages.references !== undefined || usages.implementations !== undefined;
+	}
+}
+
+export namespace CodeUsageResult {
+	export type OK = CodeUsages;
+	export type Failed = CustomResponse.Failed;
+}
+
+export namespace CodeUsageResponse {
+
+	export type OK = CodeUsageResult.OK;
+
+	export type Failed = CustomResponse.Failed;
+
+	export function isCancelled(response: CodeUsageResponse): boolean {
+		return (response.type === 'cancelled');
+	}
+
+	export function isOk(response: CodeUsageResponse): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
+		return response.type === 'response' && CodeUsages.is((response.body as OK));
+	}
+	export function isError(response: CodeUsageResponse): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
+		return response.type === 'response' && (response.body as CodeUsageResult.Failed).error !== undefined;
+	}
+}
+
+export type CodeUsageResponse = (tt.server.protocol.Response & {
+	body: CodeUsageResponse.OK | CodeUsageResponse.Failed;
+}) | { type: 'cancelled' };
