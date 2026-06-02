@@ -4,12 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId } from '../../../node/codex/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, isCodexSupportedModel, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowReasoningEffort, narrowSandboxMode, narrowWebSearchMode, normalizeCodexModelId } from '../../../node/codex/codexSessionConfigKeys.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { CodexAgent } from '../../../node/codex/codexAgent.js';
+import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
+import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
+
+function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
+	const instantiationService = new TestInstantiationService();
+	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
+	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
+	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentConfigurationService, { _serviceBrand: undefined });
+	instantiationService.stub(ILogService, new NullLogService());
+	return disposables.add(instantiationService.createInstance(CodexAgent));
+}
 
 suite('codexSessionConfigKeys', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('narrows valid values and rejects invalid values', () => {
 		assert.deepStrictEqual({
@@ -50,6 +68,44 @@ suite('codexSessionConfigKeys', () => {
 			prefixed: 'gpt-5.2',
 			unsupportedRaw: undefined,
 			unsupportedPrefixed: undefined,
+		});
+	});
+
+	test('resolveSessionConfig scopes Codex-specific config properties', async () => {
+		const agent = createAgent(disposables);
+
+		const readOnly = await agent.resolveSessionConfig({ config: { [CodexSessionConfigKey.SandboxMode]: 'read-only' } });
+		const workspaceWrite = await agent.resolveSessionConfig({ config: { [CodexSessionConfigKey.SandboxMode]: 'workspace-write' } });
+
+		assert.deepStrictEqual({
+			readOnlyProperties: Object.keys(readOnly.schema.properties).filter(key => key.startsWith('codex.')).sort(),
+			readOnlyValues: readOnly.values,
+			workspaceWriteProperties: Object.keys(workspaceWrite.schema.properties).filter(key => key.startsWith('codex.')).sort(),
+			workspaceWriteValues: {
+				additionalDirectories: workspaceWrite.values[CodexSessionConfigKey.AdditionalDirectories],
+				networkAccessEnabled: workspaceWrite.values[CodexSessionConfigKey.NetworkAccessEnabled],
+			},
+		}, {
+			readOnlyProperties: [
+				CodexSessionConfigKey.ApprovalPolicy,
+				CodexSessionConfigKey.SandboxMode,
+				CodexSessionConfigKey.WebSearchMode,
+			].sort(),
+			readOnlyValues: {
+				[CodexSessionConfigKey.ApprovalPolicy]: 'on-request',
+				[CodexSessionConfigKey.SandboxMode]: 'read-only',
+				[CodexSessionConfigKey.WebSearchMode]: 'disabled',
+			},
+			workspaceWriteProperties: [
+				CodexSessionConfigKey.ApprovalPolicy,
+				CodexSessionConfigKey.NetworkAccessEnabled,
+				CodexSessionConfigKey.SandboxMode,
+				CodexSessionConfigKey.WebSearchMode,
+			].sort(),
+			workspaceWriteValues: {
+				additionalDirectories: undefined,
+				networkAccessEnabled: false,
+			},
 		});
 	});
 });

@@ -1086,6 +1086,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
+	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 
 	/**
 	 * Lazy session-state subscriptions used to seed {@link _runningSessionConfigs}
@@ -1537,9 +1538,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		// Update local cache optimistically
+		const nextValues = { ...runningConfig.values, [property]: normalizedValue };
 		this._runningSessionConfigs.set(sessionId, {
 			...runningConfig,
-			values: { ...runningConfig.values, [property]: normalizedValue },
+			values: nextValues,
 		});
 		this._onDidChangeSessionConfig.fire(sessionId);
 
@@ -1550,6 +1552,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 			const action = { type: ActionType.SessionConfigChanged as const, config: { [property]: normalizedValue } };
 			connection.dispatch(sessionUri.toString(), action);
+			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
 		}
 	}
 
@@ -1600,6 +1603,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				replace: true,
 			};
 			connection.dispatch(sessionUri.toString(), action);
+			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
+		}
+	}
+
+	private async _resolveRunningSessionConfig(sessionId: string, cached: AgentHostSessionAdapter, values: Record<string, unknown>): Promise<void> {
+		const connection = this.connection;
+		if (!connection) {
+			return;
+		}
+		const seq = (this._runningSessionConfigResolveSeq.get(sessionId) ?? 0) + 1;
+		this._runningSessionConfigResolveSeq.set(sessionId, seq);
+		try {
+			const resolved = await connection.resolveSessionConfig({
+				provider: cached.agentProvider,
+				workingDirectory: cached.workspace.get()?.folders[0]?.root,
+				config: values,
+			});
+			if (this._runningSessionConfigResolveSeq.get(sessionId) !== seq) {
+				return;
+			}
+			this._runningSessionConfigs.set(sessionId, resolved);
+			this._onDidChangeSessionConfig.fire(sessionId);
+		} catch (err) {
+			this._logService.warn(`[${this.id}] Failed to re-resolve session config for ${sessionId}: ${err}`);
 		}
 	}
 
@@ -1784,6 +1811,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			await connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(sessionId);
+			this._runningSessionConfigResolveSeq.delete(sessionId);
 			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
 		}
 	}
@@ -2143,11 +2171,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (Object.keys(stateConfig.schema.properties).length === 0) {
 			return;
 		}
-		const seeded: ResolveSessionConfigResult = {
-			schema: { type: 'object', properties: { ...stateConfig.schema.properties } },
-			values: { ...stateConfig.values },
-		};
 		const existing = this._runningSessionConfigs.get(sessionId);
+		let seeded: ResolveSessionConfigResult;
+		if (existing && this._runningSessionConfigResolveSeq.has(sessionId)) {
+			const values = { ...existing.values };
+			for (const key of Object.keys(existing.schema.properties)) {
+				if (Object.hasOwn(stateConfig.values, key)) {
+					values[key] = stateConfig.values[key];
+				}
+			}
+			seeded = {
+				schema: { type: 'object', properties: { ...existing.schema.properties } },
+				values,
+			};
+		} else {
+			seeded = {
+				schema: {
+					type: 'object',
+					properties: {
+						...(existing?.schema.properties ?? {}),
+						...stateConfig.schema.properties,
+					},
+				},
+				values: {
+					...(existing?.values ?? {}),
+					...stateConfig.values,
+				},
+			};
+		}
 		if (existing && resolvedConfigsEqual(existing, seeded)) {
 			return;
 		}
@@ -2223,6 +2274,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 					this._sessionCache.delete(key);
 					this._runningSessionConfigs.delete(cached.sessionId);
+					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
 					removed.push(cached);
 				}
 			}
@@ -2367,6 +2419,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached) {
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(cached.sessionId);
+			this._runningSessionConfigResolveSeq.delete(cached.sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(cached.sessionId);
 			this._sessionStateSubscriptions.deleteAndDispose(cached.sessionId);
 			this._lastSessionStates.delete(cached.sessionId);

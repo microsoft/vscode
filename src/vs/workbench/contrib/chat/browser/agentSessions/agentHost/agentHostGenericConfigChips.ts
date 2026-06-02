@@ -34,18 +34,6 @@ function toBackendSessionUri(sessionResource: URI): URI | undefined {
 	return URI.from({ scheme: provider, path: `/${rawId}` });
 }
 
-const CHIP_ORDER = new Map<string, number>([
-	['codex.sandboxMode', 0],
-	['codex.approvalPolicy', 1],
-	['codex.webSearchMode', 2],
-	['codex.additionalDirectories', 4],
-	['codex.networkAccessEnabled', 5],
-]);
-
-const MODEL_PICKER_CONFIG_PROPERTIES = new Set<string>([
-	'codex.modelReasoningEffort',
-]);
-
 /**
  * Direct-render chip lane for agent-host session-config properties that are
  * advertised by the agent's schema but are NOT handled by a dedicated
@@ -187,14 +175,6 @@ export class AgentHostGenericConfigChips extends Disposable {
 		return undefined;
 	}
 
-	private _orderedEntries(entries: readonly [string, SessionConfigPropertySchema][]): readonly [string, SessionConfigPropertySchema][] {
-		return [...entries].sort(([a], [b]) => {
-			const aRank = CHIP_ORDER.get(a) ?? Number.MAX_SAFE_INTEGER;
-			const bRank = CHIP_ORDER.get(b) ?? Number.MAX_SAFE_INTEGER;
-			return aRank === bRank ? 0 : aRank - bRank;
-		});
-	}
-
 	private _sync(): void {
 		if (!this._container) {
 			return;
@@ -202,10 +182,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const entries = this._readSchemaProperties();
 		const desired = new Set<string>();
 		if (entries) {
-			for (const [property, schema] of this._orderedEntries(entries)) {
-				if (MODEL_PICKER_CONFIG_PROPERTIES.has(property)) {
-					continue;
-				}
+			for (const [property, schema] of entries) {
 				if (isClaimedByDedicatedPicker(property, schema)) {
 					continue;
 				}

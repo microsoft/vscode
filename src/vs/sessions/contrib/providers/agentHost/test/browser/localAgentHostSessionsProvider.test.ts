@@ -1782,6 +1782,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('running config state seeding preserves already-resolved schema properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('seed-schema', { summary: 'Schema Preserve Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Schema Preserve Session');
+		assert.ok(session);
+
+		const fullState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'seed-schema').toString(), provider: 'copilotcli', title: 'Schema Preserve Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+						'codex.networkAccessEnabled': { type: 'boolean', title: 'Network', default: false, sessionMutable: true },
+					},
+				},
+				values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+			},
+		};
+		agentHost.setSessionState('seed-schema', 'copilotcli', fullState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.schema.properties['codex.networkAccessEnabled'] !== undefined);
+
+		agentHost.setSessionState('seed-schema', 'copilotcli', {
+			...fullState,
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+					},
+				},
+				values: { 'codex.sandboxMode': 'workspace-write' },
+			},
+		});
+
+		assert.deepStrictEqual({
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			properties: ['codex.networkAccessEnabled', 'codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+		});
+	}));
+
 	test('removing a session disposes its session-state subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('seed-2', { summary: 'Sub Session' }));
 		const provider = createProvider(disposables, agentHost);
@@ -1939,6 +1987,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 				replace: true,
 			},
 			latestValues: { autoApprove: 'default', isolation: 'folder' },
+		});
+	}));
+
+	test('running session config write re-resolves schema-dependent properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('schema-write', { summary: 'Schema Write Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Schema Write Session');
+		assert.ok(session);
+
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+					'codex.networkAccessEnabled': { type: 'boolean', title: 'Network', default: false, sessionMutable: true },
+				},
+			},
+			values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+		};
+		const fakeState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'schema-write').toString(), provider: 'copilotcli', title: 'Schema Write Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		agentHost.setSessionState('schema-write', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values['codex.sandboxMode'] === 'workspace-write');
+
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+				},
+			},
+			values: { 'codex.sandboxMode': 'read-only' },
+		};
+
+		await provider.setSessionConfigValue(session!.sessionId, 'codex.sandboxMode', 'read-only');
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.schema.properties['codex.networkAccessEnabled'] === undefined);
+
+		assert.deepStrictEqual({
+			resolveConfig: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			resolveConfig: { 'codex.sandboxMode': 'read-only', 'codex.networkAccessEnabled': false },
+			properties: ['codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'read-only' },
+		});
+
+		agentHost.setSessionState('schema-write', 'copilotcli', {
+			...fakeState,
+			config: {
+				...config,
+				values: { 'codex.sandboxMode': 'read-only', 'codex.networkAccessEnabled': true },
+			},
+		});
+
+		assert.deepStrictEqual({
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			properties: ['codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'read-only' },
 		});
 	}));
 

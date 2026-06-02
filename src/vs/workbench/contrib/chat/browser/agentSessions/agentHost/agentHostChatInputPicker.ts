@@ -92,8 +92,15 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		description: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: item.value === currentValue ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
+}
+
+function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
+	if (typeof currentValue === 'boolean') {
+		return currentValue === (itemValue === 'true');
+	}
+	return itemValue === currentValue;
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -334,7 +341,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		// adjust creation-time-only properties (e.g. isolation, branch).
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const isStartedSession = !!sessionResource && !isUntitledChatSession(sessionResource);
-		if (!ctx || !this._isPickable(ctx.schema) || this._isHiddenByDependency() || (isStartedSession && ctx.schema.sessionMutable === false)) {
+		if (!ctx || (isStartedSession && ctx.schema.sessionMutable === false)) {
 			this._container.style.display = 'none';
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
@@ -380,57 +387,11 @@ export class AgentHostChatInputPicker extends Disposable {
 			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
 	}
 
-	private _isPickable(schema: SessionConfigPropertySchema): boolean {
-		if (schema.type === 'boolean') {
-			return true;
-		}
-		if (schema.type === 'array') {
-			return !!schema.enumDynamic && schema.items?.type === 'string';
-		}
-		if (schema.type !== 'string') {
-			return false;
-		}
-		return !!schema.enumDynamic || (Array.isArray(schema.enum) && schema.enum.length > 0);
-	}
-
-	private _isHiddenByDependency(): boolean {
-		if (this._property !== 'codex.additionalDirectories' && this._property !== 'codex.networkAccessEnabled') {
-			return false;
-		}
-		const sandbox = this._readSiblingValue('codex.sandboxMode');
-		return sandbox !== undefined && sandbox !== 'workspace-write';
-	}
-
-	private _readSiblingValue(property: string): unknown {
-		const sessionResource = this._widget.viewModel?.sessionResource;
-		if (this._subRef.value) {
-			const state = this._subRef.value.sub.value;
-			if (state && !(state instanceof Error)) {
-				const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
-				const schema = (overlay?.schema ?? state.config?.schema)?.properties[property];
-				return overlay?.values?.[property]
-					?? state.config?.values?.[property]
-					?? schema?.default;
-			}
-		}
-		if (this._initialResolved && sessionResource && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
-			const schema = this._initialResolved.result.schema.properties[property];
-			return this._initialResolved.result.values?.[property] ?? schema?.default;
-		}
-		return undefined;
-	}
-
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (schema.type === 'boolean') {
 			return value === true
 				? localize('agentHostChatInputPicker.boolean.onLabel', "On")
 				: localize('agentHostChatInputPicker.boolean.offLabel', "Off");
-		}
-		if (schema.type === 'array') {
-			const count = Array.isArray(value) ? value.length : 0;
-			return count === 0
-				? localize('agentHostChatInputPicker.array.none', "None")
-				: localize('agentHostChatInputPicker.array.count', "{0} Selected", count);
 		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
@@ -594,11 +555,13 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _readCurrentValues(): Record<string, unknown> | undefined {
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			return state.config?.values;
+			return { ...(state.config?.values ?? {}), ...(overlay?.values ?? {}) };
 		}
-		return this._initialResolved?.result.values;
+		return overlay?.values ?? this._initialResolved?.result.values;
 	}
 
 	private async _setValue(backendSession: URI, value: string): Promise<void> {
@@ -606,13 +569,13 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (!sessionResource) {
 			return;
 		}
+
 		const ctx = this._readContext();
-		const nextValue: unknown = ctx?.schema.type === 'boolean'
+		const normalizedValue = ctx?.schema.type === 'boolean'
 			? value === 'true'
-			: ctx?.schema.type === 'array'
-				? [...(Array.isArray(ctx.value) ? ctx.value.filter((entry): entry is string => typeof entry === 'string') : []), value]
-				: normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
-		const partial = { [this._property]: nextValue };
+			: normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
+		const partial = { [this._property]: normalizedValue };
+		const nextConfig = { ...(this._readCurrentValues() ?? {}), ...partial };
 
 		if (isUntitledChatSession(sessionResource)) {
 			// Route through the provisional service so the workbench-owned
@@ -639,6 +602,12 @@ export class AgentHostChatInputPicker extends Disposable {
 			type: ActionType.SessionConfigChanged,
 			config: partial,
 		});
+		void this._provisional.refreshResolvedConfig(
+			sessionResource,
+			backendSession.scheme,
+			this._readWorkingDirectory(),
+			nextConfig,
+		);
 	}
 }
 

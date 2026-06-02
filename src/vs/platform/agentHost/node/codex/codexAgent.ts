@@ -147,6 +147,18 @@ const codexSessionConfigSchema = createSchema({
 	[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
 });
 
+const codexVisibleSessionConfigSchema = createSchema({
+	[CodexSessionConfigKey.ApprovalPolicy]: codexSessionConfigSchema.definition[CodexSessionConfigKey.ApprovalPolicy],
+	[CodexSessionConfigKey.SandboxMode]: codexSessionConfigSchema.definition[CodexSessionConfigKey.SandboxMode],
+	[CodexSessionConfigKey.WebSearchMode]: codexSessionConfigSchema.definition[CodexSessionConfigKey.WebSearchMode],
+	[SessionConfigKey.Permissions]: platformSessionSchema.definition[SessionConfigKey.Permissions],
+});
+
+const codexWorkspaceWriteSessionConfigSchema = createSchema({
+	...codexVisibleSessionConfigSchema.definition,
+	[CodexSessionConfigKey.NetworkAccessEnabled]: codexSessionConfigSchema.definition[CodexSessionConfigKey.NetworkAccessEnabled],
+});
+
 interface ICodexSessionConfigDefaults {
 	readonly [CodexSessionConfigKey.ApprovalPolicy]: CodexApprovalPolicy;
 	readonly [CodexSessionConfigKey.SandboxMode]: SandboxMode;
@@ -1385,7 +1397,19 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		const values = codexSessionConfigSchema.validateOrDefault(params.config, codexSessionConfigDefaults);
-		return Promise.resolve({ values: { ...values }, schema: codexSessionConfigSchema.toProtocol() });
+		const isWorkspaceWrite = values[CodexSessionConfigKey.SandboxMode] === 'workspace-write';
+		const schema = isWorkspaceWrite
+			? codexWorkspaceWriteSessionConfigSchema.toProtocol()
+			: codexVisibleSessionConfigSchema.toProtocol();
+		const resolvedValues: Record<string, unknown> = {
+			[CodexSessionConfigKey.ApprovalPolicy]: values[CodexSessionConfigKey.ApprovalPolicy],
+			[CodexSessionConfigKey.SandboxMode]: values[CodexSessionConfigKey.SandboxMode],
+			[CodexSessionConfigKey.WebSearchMode]: values[CodexSessionConfigKey.WebSearchMode],
+		};
+		if (isWorkspaceWrite) {
+			resolvedValues[CodexSessionConfigKey.NetworkAccessEnabled] = values[CodexSessionConfigKey.NetworkAccessEnabled];
+		}
+		return Promise.resolve({ values: resolvedValues, schema });
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
