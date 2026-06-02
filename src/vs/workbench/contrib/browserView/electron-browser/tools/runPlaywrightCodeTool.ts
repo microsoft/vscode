@@ -89,7 +89,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
-		// Resume waiting for a deferred execution.
+		// Resume waiting for a deferred execution
 		if (params.deferredResultId) {
 			try {
 				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId, params.timeoutMs ?? 5_000);
@@ -107,7 +107,8 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 		try {
 			result = await this.playwrightService.invokeFunction(sessionId, params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
 		} catch (e) {
-			return errorResult(`Code execution failed: ${e instanceof Error ? e.message : String(e)}`);
+			const message = e instanceof Error ? e.message : String(e);
+			return errorResult(`Code execution failed: ${message}`);
 		}
 
 		return invokeFunctionResultToToolResult(result, params.code.trim());
