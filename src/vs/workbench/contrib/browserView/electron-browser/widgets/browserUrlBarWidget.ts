@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -466,6 +466,15 @@ export class BrowserUrlBarWidget extends Disposable {
 			cts: MutableDisposable<CancellationTokenSource>;
 		};
 		const providerStates = new Map<IBrowserUrlSuggestionProvider, ProviderState>();
+		// Register the cancellation hook before the per-provider MutableDisposables
+		// so it runs first on picker close. `CancellationTokenSource.dispose()`
+		// only releases internal state — it does NOT cancel — so without this,
+		// in-flight provider requests would keep running after the picker is gone.
+		disposables.add(toDisposable(() => {
+			for (const state of providerStates.values()) {
+				state.cts.value?.cancel();
+			}
+		}));
 		for (const provider of this._suggestionProviders) {
 			providerStates.set(provider, {
 				suggestions: [],
