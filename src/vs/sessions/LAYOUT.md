@@ -126,7 +126,6 @@ Key invariants:
 - **Sticky vs non-sticky.** The visibility model marks each slot as sticky (user-pinned) or non-sticky. Non-sticky slots are recycled when a new session opens; sticky slots are preserved. The empty slot is always non-sticky. This lets the user pin a session to keep it visible while still flowing through other sessions in the remaining slots.
 - **Slot reuse on reconcile.** `SessionsPart.updateVisibleSessions` grows or shrinks its internal pool of `SessionView`s to match the visible count, then rebinds each surviving slot to its session by position via `SessionView.openSession(session)`. Slots are never destroyed and recreated for an existing session — only added at the right or popped from the right when the count changes.
 - **Focus promotes to active.** Focus-in or pointer-down on a non-placeholder session view promotes that session to active (via `onDidFocusSession` → `ISessionsManagementService.setActive`).
-- **Programmatic focus lands in chat input.** `ISessionsPartService.focusSession(session)` reveals the matching session view and moves focus into its chat input (or the new-session input when `session` is `undefined`). If the target view has not been rebound yet, `SessionsPart` records the focus request and applies it immediately after the next visible-session reconciliation.
 - **Maximize.** When two or more non-placeholder views are visible, the active view can be maximized within the part's internal grid; the part exposes `toggleMaximizeSession(sessionId)`.
 
 ### 4.3 Mobile / Phone

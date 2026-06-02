@@ -35,7 +35,6 @@ import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipa
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorAreaFocusContext } from '../../../../workbench/common/contextkeys.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -47,10 +46,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 2,
-				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
-				// editor area so the standard editor commands (new untitled file,
-				// expand line selection) handle the shortcut instead.
-				when: EditorAreaFocusContext.negate(),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
 				mac: {
