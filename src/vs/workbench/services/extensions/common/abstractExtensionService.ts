@@ -41,6 +41,7 @@ import { parseExtensionDevOptions } from './extensionDevOptions.js';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker } from './extensionHostKind.js';
 import { ExtensionHostManager } from './extensionHostManager.js';
 import { IExtensionHostManager } from './extensionHostManagers.js';
+import { ExtensionHostExitReason } from './extensionHostProtocol.js';
 import { IResolveAuthorityErrorResult } from './extensionHostProxy.js';
 import { IExtensionManifestPropertiesService } from './extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
@@ -847,7 +848,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHost, initialActivationEvents);
 		const disposableStore = new DisposableStore();
-		disposableStore.add(processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal)));
+		disposableStore.add(processManager.onDidExit(([code, signal, reason]) => this._onExtensionHostCrashOrExit(processManager, code, signal, reason)));
 		disposableStore.add(processManager.onDidChangeResponsiveState((responsiveState) => {
 			this._logService.info(`Extension host (${processManager.friendyName}) is ${responsiveState === ResponsiveState.Responsive ? 'responsive' : 'unresponsive'}.`);
 			this._onDidChangeResponsiveChange.fire({
@@ -869,19 +870,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 	}
 
-	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
+	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null, reason: ExtensionHostExitReason | null): void {
 
 		// Unexpected termination
 		const isExtensionDevHost = parseExtensionDevOptions(this._environmentService).isExtensionDevHost;
 		if (!isExtensionDevHost) {
-			this._onExtensionHostCrashed(extensionHost, code, signal);
+			this._onExtensionHostCrashed(extensionHost, code, signal, reason);
 			return;
 		}
 
 		this._onExtensionHostExit(code);
 	}
 
-	protected _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
+	protected _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null, reason: ExtensionHostExitReason | null): void {
 		console.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly. Code: ${code}, Signal: ${signal}`);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this._doStopExtensionHosts();

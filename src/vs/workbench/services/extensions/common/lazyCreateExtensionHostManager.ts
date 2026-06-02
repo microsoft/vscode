@@ -14,7 +14,7 @@ import { RemoteAuthorityResolverErrorCode } from '../../../../platform/remote/co
 import { ExtensionHostKind } from './extensionHostKind.js';
 import { ExtensionHostManager, friendlyExtHostName } from './extensionHostManager.js';
 import { IExtensionHostManager } from './extensionHostManagers.js';
-import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
+import { ExtensionHostExitReason, IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
 import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, IInternalExtensionService } from './extensions.js';
@@ -25,7 +25,7 @@ import { ResponsiveState } from './rpcProtocol.js';
  */
 export class LazyCreateExtensionHostManager extends Disposable implements IExtensionHostManager {
 
-	public readonly onDidExit: Event<[number, string | null]>;
+	public readonly onDidExit: Event<[number, string | null, ExtensionHostExitReason | null]>;
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 

@@ -32,7 +32,7 @@ import { IWorkspaceContextService, WorkbenchState, isUntitledWorkspace } from '.
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IShellEnvironmentService } from '../../environment/electron-browser/shellEnvironmentService.js';
 import { MessagePortExtHostConnection, writeExtHostConnection } from '../common/extensionHostEnv.js';
-import { createMessageOfType, IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
+import { createMessageOfType, ExtensionHostExitReason, IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalProcessRunningLocation } from '../common/extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo } from '../common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -98,8 +98,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	public readonly remoteAuthority = null;
 	public extensions: ExtensionHostExtensions | null = null;
 
-	private readonly _onExit: Emitter<[number, string]> = this._register(new Emitter<[number, string]>());
-	public readonly onExit: Event<[number, string]> = this._onExit.event;
+	private readonly _onExit: Emitter<[number, string | null, ExtensionHostExitReason | null]> = this._register(new Emitter<[number, string | null, ExtensionHostExitReason | null]>());
+	public readonly onExit: Event<[number, string | null, ExtensionHostExitReason | null]> = this._onExit.event;
 
 	private readonly _onDidSetInspectPort = this._register(new Emitter<void>());
 
@@ -112,6 +112,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	// State
 	private _terminating: boolean;
 	private _mainProcessHandlesExtHostShutdown: boolean;
+	private _exitReason: ExtensionHostExitReason | null;
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _inspectListener: IExtensionInspectInfo | null;
@@ -148,6 +149,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		this._terminating = false;
 		this._mainProcessHandlesExtHostShutdown = false;
+		this._exitReason = null;
 
 		this._inspectListener = null;
 		this._extensionHostProcess = null;
@@ -219,6 +221,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	private async _start(): Promise<IMessagePassingProtocol> {
+		this._exitReason = null;
+
 		const [extensionHostCreationResult, portNumber, processEnv] = await Promise.all([
 			this._extensionHostStarter.createExtensionHost(),
 			this._tryFindDebugPort(),
@@ -287,6 +291,11 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		type Output = { data: string; format: string[] };
 		const onStdout = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStdout));
 		const onStderr = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStderr));
+		this._register(onStderr.event(output => {
+			if (isExtensionHostOutOfMemoryError(output)) {
+				this._exitReason = ExtensionHostExitReason.OutOfMemory;
+			}
+		}));
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -569,7 +578,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			return;
 		}
 
-		this._onExit.fire([code, signal]);
+		this._onExit.fire([code, signal, this._exitReason]);
 	}
 
 	private _handleProcessOutputStream(stream: Event<string>) {
@@ -637,4 +646,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			event.join(timeout(100 /* wait a bit for IPC to get delivered */), { id: 'join.extensionDevelopment', label: nls.localize('join.extensionDevelopment', "Terminating extension debug session") });
 		}
 	}
+}
+
+function isExtensionHostOutOfMemoryError(output: string): boolean {
+	return output.includes('JavaScript heap out of memory') || output.includes('Reached heap limit Allocation failed');
 }

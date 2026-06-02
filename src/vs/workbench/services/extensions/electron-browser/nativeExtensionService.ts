@@ -44,7 +44,7 @@ import { ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescrip
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from '../common/extensionHostKind.js';
 import { IExtensionHostManager } from '../common/extensionHostManagers.js';
-import { ExtensionHostExitCode } from '../common/extensionHostProtocol.js';
+import { ExtensionHostExitCode, ExtensionHostExitReason } from '../common/extensionHostProtocol.js';
 import { IExtensionManifestPropertiesService } from '../common/extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
 import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from '../common/extensionRunningLocationTracker.js';
@@ -146,7 +146,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		return this._extensionScanner.scannedExtensions;
 	}
 
-	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
+	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null, reason: ExtensionHostExitReason | null): void {
 
 		const activatedExtensions: ExtensionIdentifier[] = [];
 		const extensionsStatus = this.getExtensionsStatus();
@@ -157,7 +157,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			}
 		}
 
-		super._onExtensionHostCrashed(extensionHost, code, signal);
+		super._onExtensionHostCrashed(extensionHost, code, signal, reason);
 
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			if (code === ExtensionHostExitCode.VersionMismatch) {
@@ -178,7 +178,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			}
 
 			this._logExtensionHostCrash(extensionHost);
-			this._sendExtensionHostCrashTelemetry(code, signal, activatedExtensions);
+			this._sendExtensionHostCrashTelemetry(code, signal, reason, activatedExtensions);
 
 			this._localCrashTracker.registerCrash();
 
@@ -227,7 +227,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		}
 	}
 
-	private _sendExtensionHostCrashTelemetry(code: number, signal: string | null, activatedExtensions: ExtensionIdentifier[]): void {
+	private _sendExtensionHostCrashTelemetry(code: number, signal: string | null, reason: ExtensionHostExitReason | null, activatedExtensions: ExtensionIdentifier[]): void {
 		type ExtensionHostCrashClassification = {
 			owner: 'alexdima';
 			comment: 'The extension host has terminated unexpectedly';
@@ -245,6 +245,10 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			signal,
 			extensionIds: activatedExtensions.map(e => e.value)
 		});
+
+		if (reason === ExtensionHostExitReason.OutOfMemory) {
+			return;
+		}
 
 		for (const extensionId of activatedExtensions) {
 			type ExtensionHostCrashExtensionClassification = {

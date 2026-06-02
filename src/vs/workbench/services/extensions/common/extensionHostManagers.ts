@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ExtensionHostKind } from './extensionHostKind.js';
-import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
+import { ExtensionHostExitReason, IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
 import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionInspectInfo } from './extensions.js';
@@ -18,7 +18,7 @@ export interface IExtensionHostManager {
 	readonly kind: ExtensionHostKind;
 	readonly startup: ExtensionHostStartup;
 	readonly friendyName: string;
-	readonly onDidExit: Event<[number, string | null]>;
+	readonly onDidExit: Event<[number, string | null, ExtensionHostExitReason | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
 	disconnect(): Promise<void>;
 	dispose(): void;

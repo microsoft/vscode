@@ -31,7 +31,7 @@ import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWor
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
-import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
+import { ExtensionHostExitCode, ExtensionHostExitReason, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from '../common/extensions.js';
 
@@ -49,8 +49,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	public readonly remoteAuthority = null;
 	public extensions: ExtensionHostExtensions | null = null;
 
-	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
-	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
+	private readonly _onDidExit = this._register(new Emitter<[number, string | null, ExtensionHostExitReason | null]>());
+	public readonly onExit: Event<[number, string | null, ExtensionHostExitReason | null]> = this._onDidExit.event;
 
 	private _isTerminating: boolean;
 	private _protocolPromise: Promise<IMessagePassingProtocol> | null;
@@ -163,7 +163,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			barrierHasError = true;
 			onUnexpectedError(barrierError);
 			clearTimeout(startTimeout);
-			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, barrierError.message]);
+			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, barrierError.message, null]);
 			barrier.open();
 		};
 
@@ -234,7 +234,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
-				this._onDidExit.fire([77, 'UNKNOWN data received']);
+				this._onDidExit.fire([77, 'UNKNOWN data received', null]);
 				return;
 			}
 			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));

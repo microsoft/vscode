@@ -25,7 +25,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { parseExtensionDevOptions } from './extensionDevOptions.js';
-import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from './extensionHostProtocol.js';
+import { ExtensionHostExitReason, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from './extensionHostProtocol.js';
 import { RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from './extensions.js';
 
@@ -51,8 +51,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	public readonly startup = ExtensionHostStartup.EagerAutoStart;
 	public extensions: ExtensionHostExtensions | null = null;
 
-	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
-	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
+	private _onExit: Emitter<[number, string | null, ExtensionHostExitReason | null]> = this._register(new Emitter<[number, string | null, ExtensionHostExitReason | null]>());
+	public readonly onExit: Event<[number, string | null, ExtensionHostExitReason | null]> = this._onExit.event;
 
 	private _protocol: PersistentProtocol | null;
 	private _hasLostConnection: boolean;
@@ -200,7 +200,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			return;
 		}
 
-		this._onExit.fire([0, reconnectionToken]);
+		this._onExit.fire([0, reconnectionToken, null]);
 	}
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {

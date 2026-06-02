@@ -14,7 +14,7 @@ import { ApiProposalName } from '../../../../platform/extensions/common/extensio
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IV8Profile } from '../../../../platform/profiling/common/profiling.js';
 import { ExtensionHostKind } from './extensionHostKind.js';
-import { IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from './extensionHostProtocol.js';
+import { ExtensionHostExitReason, IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from './extensionHostProtocol.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
 import { IExtensionPoint } from './extensionsRegistry.js';
 
@@ -130,7 +130,7 @@ export interface IExtensionHost {
 	 * **NOTE**: this will reflect extensions correctly only after `start()` resolves.
 	 */
 	readonly extensions: ExtensionHostExtensions | null;
-	readonly onExit: Event<[number, string | null]>;
+	readonly onExit: Event<[number, string | null, ExtensionHostExitReason | null]>;
 
 	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): IExtensionInspectInfo | undefined;

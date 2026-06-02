@@ -24,7 +24,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from './extHostCustomers.js';
 import { ExtensionHostKind, extensionHostKindToString } from './extensionHostKind.js';
 import { IExtensionHostManager } from './extensionHostManagers.js';
-import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
+import { ExtensionHostExitReason, IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
 import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, IInternalExtensionService } from './extensions.js';
@@ -57,7 +57,7 @@ type ExtensionHostStartupEvent = {
 
 export class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
-	public readonly onDidExit: Event<[number, string | null]>;
+	public readonly onDidExit: Event<[number, string | null, ExtensionHostExitReason | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
