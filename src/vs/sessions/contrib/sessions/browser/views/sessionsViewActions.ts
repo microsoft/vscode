@@ -760,6 +760,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		for (let i = 0; i < sessions.length - 1; i++) {
 			const session = sessions[i];
@@ -770,7 +771,14 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			}
 		}
 
-		await openSessionToTheSide(sessionsManagementService, sessions[sessions.length - 1]);
+		const lastRequested = sessions[sessions.length - 1];
+		await openSessionToTheSide(sessionsManagementService, lastRequested);
+
+		const visibleAfterOpen = sessionsManagementService.visibleSessions.get();
+		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
+		if (opened) {
+			sessionsPartService.focusSession(opened);
+		}
 	}
 });
 
