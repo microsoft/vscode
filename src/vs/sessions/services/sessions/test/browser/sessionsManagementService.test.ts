@@ -21,6 +21,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
@@ -187,6 +188,9 @@ function createSessionsManagementService(session: ISession, disposables: ReturnT
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IAgentSessionsService, agentSessionsService);
 	instantiationService.stub(IProgressService, new TestProgressService());
+	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+		override readonly onDidSubmitRequest = Event.None;
+	});
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	return { service, chatWidgetService, agentSessionsService };
@@ -232,6 +236,9 @@ suite('SessionsManagementService', () => {
 		instantiationService.stub(IChatWidgetService, chatWidgetService);
 		instantiationService.stub(IAgentSessionsService, agentSessionsService);
 		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 
@@ -282,6 +289,9 @@ suite('SessionsManagementService', () => {
 		instantiationService.stub(IChatWidgetService, chatWidgetService);
 		instantiationService.stub(IAgentSessionsService, agentSessionsService);
 		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 

@@ -19,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
@@ -362,6 +363,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ICopilotCLIModels private readonly _copilotCLIModels: ICopilotCLIModels,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
 		super();
 		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
@@ -961,6 +963,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private getSandboxConfig(): SessionOptions['sandboxConfig'] {
+		// Team-internal ExP gate: when disabled, sandbox is force-off regardless of user setting.
+		if (!this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AgentSandboxEnabled, this._experimentationService)) {
+			return undefined;
+		}
 		const sandboxSettingId = process.platform === 'win32' ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled';
 		const rawSandboxSetting = this.configurationService.getNonExtensionConfig<unknown>(sandboxSettingId);
 		const sandboxSetting = typeof rawSandboxSetting === 'string'
@@ -1627,9 +1633,15 @@ export function buildSandboxConfigForCLI(
 	// mirror the terminal sandbox runtime: when an allow- or block-list is set we open outbound so
 	// the host filter is actually enforced (the SDK strips host lists when outbound is off). A
 	// deny-list-only configuration still permits non-denied domains.
+	//
+	// macOS Seatbelt has no per-host filter — the runtime strips both lists and would silently
+	// degrade `allowOutbound: true` to "allow all outbound". To avoid surprising the user with
+	// unrestricted access when they explicitly configured host rules, fail closed on darwin: keep
+	// outbound off and drop the unenforceable lists.
 	const allowAllNetwork = sandboxSetting === 'allowNetwork';
-	const allowedHosts = !allowAllNetwork && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
-	const blockedHosts = !allowAllNetwork && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
+	const hostListsEnforceable = platform !== 'darwin';
+	const allowedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
+	const blockedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
 	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,

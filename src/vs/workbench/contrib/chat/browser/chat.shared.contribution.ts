@@ -11,7 +11,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -1101,12 +1101,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
 			default: '',
-		},
-		[AgentHostIpcLoggingSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.ipcLogging', "When enabled, logs all IPC traffic for each agent host to a dedicated output channel."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostAhpJsonlLoggingSettingId]: {
 			type: 'boolean',

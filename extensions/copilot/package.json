@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.51.0",
+  "version": "0.52.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.123.0",
+    "vscode": "^1.124.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -3440,6 +3440,24 @@
               "onExp"
             ],
             "markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
+          },
+          "github.copilot.chat.claudeAgent.useSdkExtension": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "preview",
+              "onExp"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeAgent.useSdkExtension%"
+          },
+          "github.copilot.chat.claudeAgent.sdkExtensionInstallTimeout": {
+            "type": "number",
+            "default": 120000,
+            "minimum": 1000,
+            "tags": [
+              "preview"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeAgent.sdkExtensionInstallTimeout%"
           },
           "github.copilot.chat.copilotDebugCommand.enabled": {
             "type": "boolean",
@@ -6885,6 +6903,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260429",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",

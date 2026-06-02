@@ -802,6 +802,7 @@ export namespace ConfigKey {
 		export const InlineChatUseCodeMapper = defineTeamInternalSetting<boolean>('chat.advanced.inlineChat.useCodeMapper', ConfigType.Simple, false);
 		export const EnablePromptRendererTracing = defineTeamInternalSetting<boolean>('chat.advanced.promptRenderer.trace', ConfigType.Simple, false);
 		// Backed by Experiments
+		export const AgentSandboxEnabled = defineTeamInternalSetting<boolean>('chat.advanced.agent.sandbox.enabled', ConfigType.ExperimentBased, false);
 		export const DebugCollectFetcherTelemetry = defineTeamInternalSetting<boolean>('chat.advanced.debug.collectFetcherTelemetry', ConfigType.ExperimentBased, true);
 		export const DebugShowNetworkStatus = defineTeamInternalSetting<boolean>('chat.advanced.debug.showNetworkStatus', ConfigType.ExperimentBased, false);
 		export const GeminiFunctionCallingMode = defineTeamInternalSetting<'auto' | 'none' | 'required' | 'validated' | undefined>('chat.advanced.gemini.functionCallingMode', ConfigType.ExperimentBased, 'validated');
@@ -1023,6 +1024,8 @@ export namespace ConfigKey {
 	export const ClaudeAgentEnabled = defineSetting<boolean>('chat.claudeAgent.enabled', ConfigType.Simple, true);
 	export const ClaudeAgentAllowDangerouslySkipPermissions = defineSetting<boolean>('chat.claudeAgent.allowDangerouslySkipPermissions', ConfigType.Simple, false);
 	export const ClaudeAgentAllowAutoPermissions = defineSetting<boolean>('chat.claudeAgent.allowAutoPermissions', ConfigType.ExperimentBased, false);
+	export const ClaudeAgentUseSdkExtension = defineSetting<boolean>('chat.claudeAgent.useSdkExtension', ConfigType.ExperimentBased, false);
+	export const ClaudeAgentSdkExtensionInstallTimeout = defineSetting<number>('chat.claudeAgent.sdkExtensionInstallTimeout', ConfigType.Simple, 120_000);
 	export const InlineEditsEnabled = defineSetting<boolean>('nextEditSuggestions.enabled', ConfigType.ExperimentBased, true);
 	export const InlineEditsEnableDiagnosticsProvider = defineSetting<boolean>('nextEditSuggestions.fixes', ConfigType.ExperimentBased, true);
 	export const InlineEditsAllowWhitespaceOnlyChanges = defineSetting<boolean>('nextEditSuggestions.allowWhitespaceOnlyChanges', ConfigType.ExperimentBased, true);

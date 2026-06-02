@@ -480,6 +480,71 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	suite('restart on startup config change', () => {
+
+		class StopCountingClient extends TestCopilotClient {
+			stopCount = 0;
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				this.stopCount++;
+				return super.stop();
+			}
+		}
+
+		test('restarts the idle client when the rubber duck config changes', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// Force the client to start so a subsequent config change has something to restart.
+				await agent.listSessions();
+
+				configurationService.updateRootConfig({ [AgentHostConfigKey.RubberDuck]: true });
+				await Promise.resolve();
+
+				assert.strictEqual(client.stopCount, 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts and disposes active sessions when the config changes', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				let disposed = false;
+				const sessions = (agent as unknown as { _sessions: { set(k: string, v: { dispose(): void }): void } })._sessions;
+				sessions.set('active', { dispose() { disposed = true; } });
+
+				configurationService.updateRootConfig({ [AgentHostConfigKey.RubberDuck]: true });
+				await Promise.resolve();
+
+				assert.strictEqual(client.stopCount, 1);
+				assert.strictEqual(disposed, true);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not restart when an unrelated config key changes', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				configurationService.updateRootConfig({ [AgentHostConfigKey.DisableCustomTerminalTool]: true });
+				await Promise.resolve();
+
+				assert.strictEqual(client.stopCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
 	test('models include billing multiplier metadata when SDK provides it', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{

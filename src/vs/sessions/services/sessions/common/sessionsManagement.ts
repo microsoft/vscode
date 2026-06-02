@@ -59,6 +59,7 @@ export interface ISendRequestSentEvent {
 	readonly session: ISession;
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
+	readonly isNewChat: boolean;
 	readonly options: ISendRequestOptions;
 }
 
@@ -210,6 +211,13 @@ export interface ISessionsManagementService {
 	 * (new-session) slot if it is currently visible.
 	 */
 	closeSession(session: ISession | undefined): void;
+
+	/**
+	 * Close all sessions currently shown in the grid. Removes every visible
+	 * session in a single pass and lands on the new-session view. No-op when no
+	 * session is currently visible.
+	 */
+	closeAllSessions(): void;
 
 	setActive(session: IActiveSession | undefined): void;
 
