@@ -85,6 +85,15 @@ export class SessionsPart extends Part {
 	 */
 	private static readonly SESSION_VIEW_FADE_IN_MS = 200;
 
+	/**
+	 * Extra delay (ms) added to the `activating` suppression beyond the deferred
+	 * focus so the suppression class is still present at the moment `focus()` runs
+	 * and the focus border lands. Without this buffer both timers would fire on the
+	 * same tick and — because the suppression is armed first — its removal would
+	 * run before the focus, briefly re-introducing the border flash.
+	 */
+	private static readonly ACTIVATING_FOCUS_BUFFER_MS = 16;
+
 	/** Holds the pending deferred auto-focus of the active session's chat input. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
 
@@ -294,7 +303,7 @@ export class SessionsPart extends Part {
 		view.element.classList.add('activating');
 		this._pendingActivating.value = disposableTimeout(
 			() => view.element.classList.remove('activating'),
-			SessionsPart.SESSION_VIEW_FADE_IN_MS
+			SessionsPart.SESSION_VIEW_FADE_IN_MS + SessionsPart.ACTIVATING_FOCUS_BUFFER_MS
 		);
 	}
 
