@@ -226,8 +226,12 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 	// harness writes `status:<code>` (or `error:<msg>`) to `document.title`,
 	// which we observe via `tab.title`. The harness file itself is created
 	// at test time so it doesn't pollute the shared test workspace.
+	//
+	// Skipped in remote workspaces: the test workspace lives on the remote
+	// machine, so the locally-pushed trust list doesn't include its
+	// folders and the harness page itself would be blocked.
 
-	suite('trusted file:// loading', () => {
+	(vscode.env.remoteName ? suite.skip : suite)('trusted file:// loading', () => {
 		const HARNESS_NAME = 'trust-harness.html';
 		const HARNESS_CONTENT = `<!DOCTYPE html>
 <html>
