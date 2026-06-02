@@ -6,7 +6,7 @@
 import type { SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEnvService } from '../../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../../platform/log/common/logService';
@@ -54,6 +54,7 @@ describe('CopilotCLISDK Authentication', () => {
 
 	afterEach(() => {
 		disposables.clear();
+		delete process.env['COPILOT_API_URL'];
 	});
 
 	it('should skip token validation when proxy URL is configured', async () => {
@@ -102,6 +103,9 @@ describe('CopilotCLISDK Authentication', () => {
 		} as unknown as IConfigurationService;
 
 		const mockAuthService = {
+			async getCopilotToken() {
+				return { token: '', endpoints: undefined };
+			},
 			async getGitHubSession() {
 				getGitHubSessionCalled = true;
 				return {
@@ -139,6 +143,9 @@ describe('CopilotCLISDK Authentication', () => {
 		} as unknown as IConfigurationService;
 
 		const mockAuthService = {
+			async getCopilotToken() {
+				return { token: '', endpoints: undefined };
+			},
 			async getGitHubSession() {
 				return undefined;
 			}
@@ -159,4 +166,215 @@ describe('CopilotCLISDK Authentication', () => {
 		expect(authInfo.token).toBe('');
 		expect(authInfo.host).toBe('https://github.com');
 	});
+
+	it('should use Copilot JWT token and GHE host for GitHub Enterprise auth', async () => {
+		const mockConfigService = {
+			getConfig(key: unknown) {
+				if (key === ConfigKey.Shared.AuthProvider) {
+					return AuthProviderId.GitHubEnterprise;
+				}
+				return undefined;
+			},
+			getNonExtensionConfig(key: unknown) {
+				if (key === 'github-enterprise.uri') {
+					return 'https://github.example.com';
+				}
+				return undefined;
+			}
+		} as unknown as IConfigurationService;
+
+		const mockAuthService = {
+			async getCopilotToken() {
+				return {
+					token: 'copilot-jwt-token-for-ghe',
+					endpoints: { api: 'https://copilot-proxy.example.com' }
+				};
+			},
+			async getGitHubSession() {
+				return { accessToken: 'should-not-be-used' };
+			}
+		} as unknown as IAuthenticationService;
+
+		const sdk = new TestCopilotCLISDK(
+			createMockExtensionContext(),
+			createMockEnvService(),
+			logService,
+			instantiationService,
+			mockAuthService,
+			mockConfigService
+		);
+
+		const authInfo = await sdk.getAuthInfo() as TokenAuthInfo;
+
+		expect(authInfo.type).toBe('token');
+		expect(authInfo.token).toBe('copilot-jwt-token-for-ghe');
+		expect(authInfo.host).toBe('https://github.example.com');
+		expect(authInfo.copilotUser?.endpoints?.api).toBe('https://copilot-proxy.example.com');
+	});
+
+	it('should use Copilot token API endpoint over derived URL for GHE', async () => {
+		const mockConfigService = {
+			getConfig(key: unknown) {
+				if (key === ConfigKey.Shared.AuthProvider) {
+					return AuthProviderId.GitHubEnterprise;
+				}
+				return undefined;
+			},
+			getNonExtensionConfig(key: unknown) {
+				if (key === 'github-enterprise.uri') {
+					return 'https://github.example.com';
+				}
+				return undefined;
+			}
+		} as unknown as IConfigurationService;
+
+		const mockAuthService = {
+			async getCopilotToken() {
+				return {
+					token: 'ghe-jwt',
+					endpoints: { api: 'https://custom-copilot-api.example.com' }
+				};
+			},
+			async getGitHubSession() {
+				return { accessToken: 'oauth-token' };
+			}
+		} as unknown as IAuthenticationService;
+
+		const sdk = new TestCopilotCLISDK(
+			createMockExtensionContext(),
+			createMockEnvService(),
+			logService,
+			instantiationService,
+			mockAuthService,
+			mockConfigService
+		);
+
+		const authInfo = await sdk.getAuthInfo() as TokenAuthInfo;
+
+		// Should prefer the token endpoint over the derived copilot-api.{host} URL
+		expect(authInfo.copilotUser?.endpoints?.api).toBe('https://custom-copilot-api.example.com');
+	});
+
+	it('should fall back to derived API URL when Copilot token has no endpoints', async () => {
+		const mockConfigService = {
+			getConfig(key: unknown) {
+				if (key === ConfigKey.Shared.AuthProvider) {
+					return AuthProviderId.GitHubEnterprise;
+				}
+				return undefined;
+			},
+			getNonExtensionConfig(key: unknown) {
+				if (key === 'github-enterprise.uri') {
+					return 'https://github.example.com';
+				}
+				return undefined;
+			}
+		} as unknown as IConfigurationService;
+
+		const mockAuthService = {
+			async getCopilotToken() {
+				return {
+					token: 'ghe-jwt',
+					endpoints: undefined
+				};
+			},
+			async getGitHubSession() {
+				return { accessToken: 'oauth-token' };
+			}
+		} as unknown as IAuthenticationService;
+
+		const sdk = new TestCopilotCLISDK(
+			createMockExtensionContext(),
+			createMockEnvService(),
+			logService,
+			instantiationService,
+			mockAuthService,
+			mockConfigService
+		);
+
+		const authInfo = await sdk.getAuthInfo() as TokenAuthInfo;
+
+		// Should fall back to derived URL: copilot-api.{authority}
+		expect(authInfo.copilotUser?.endpoints?.api).toBe('https://copilot-api.github.example.com/');
+	});
+
+	it('should fall back to OAuth token for GHE when Copilot token is unavailable', async () => {
+		const mockConfigService = {
+			getConfig(key: unknown) {
+				if (key === ConfigKey.Shared.AuthProvider) {
+					return AuthProviderId.GitHubEnterprise;
+				}
+				return undefined;
+			},
+			getNonExtensionConfig(key: unknown) {
+				if (key === 'github-enterprise.uri') {
+					return 'https://github.example.com';
+				}
+				return undefined;
+			}
+		} as unknown as IConfigurationService;
+
+		const mockAuthService = {
+			async getCopilotToken() {
+				throw new Error('Token minting failed');
+			},
+			async getGitHubSession() {
+				return { accessToken: 'ghe-oauth-fallback' };
+			}
+		} as unknown as IAuthenticationService;
+
+		const sdk = new TestCopilotCLISDK(
+			createMockExtensionContext(),
+			createMockEnvService(),
+			logService,
+			instantiationService,
+			mockAuthService,
+			mockConfigService
+		);
+
+		const authInfo = await sdk.getAuthInfo() as TokenAuthInfo;
+
+		// When getCopilotToken() throws, should fall back to OAuth
+		expect(authInfo.token).toBe('ghe-oauth-fallback');
+		expect(authInfo.host).toBe('https://github.example.com');
+	});
+
+	it('should use proxy URL in proxy mode', async () => {
+		const mockConfigService = {
+			getConfig(key: unknown) {
+				if (key === ConfigKey.Shared.DebugOverrideProxyUrl) {
+					return 'https://proxy.example.com';
+				}
+				if (key === ConfigKey.Shared.AuthProvider) {
+					return AuthProviderId.GitHubEnterprise;
+				}
+				return undefined;
+			},
+			getNonExtensionConfig(key: unknown) {
+				if (key === 'github-enterprise.uri') {
+					return 'https://github.example.com';
+				}
+				return undefined;
+			}
+		} as unknown as IConfigurationService;
+
+		const mockAuthService = {} as unknown as IAuthenticationService;
+
+		const sdk = new TestCopilotCLISDK(
+			createMockExtensionContext(),
+			createMockEnvService(),
+			logService,
+			instantiationService,
+			mockAuthService,
+			mockConfigService
+		);
+
+		const authInfo = await sdk.getAuthInfo() as HmacAuthInfo;
+
+		expect(authInfo.type).toBe('hmac');
+		// In proxy mode, host is always 'https://github.com' per SDK type constraint
+		expect(authInfo.host).toBe('https://github.com');
+		expect(authInfo.copilotUser?.endpoints?.api).toBe('https://proxy.example.com');
+	});
 });
+

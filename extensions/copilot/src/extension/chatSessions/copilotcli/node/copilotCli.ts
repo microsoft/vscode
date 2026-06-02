@@ -8,8 +8,8 @@ import * as l10n from '@vscode/l10n';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
-import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { authProviderId, IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -31,6 +31,7 @@ import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
 const COPILOT_CLI_REQUEST_MAP_KEY = 'github.copilot.cli.requestMap';
+const GITHUB_ENTERPRISE_URI_CONFIG = 'github-enterprise.uri';
 // Store last used Agent for a Session.
 const COPILOT_CLI_SESSION_AGENTS_MEMENTO_KEY = 'github.copilot.cli.sessionAgents';
 /**
@@ -580,14 +581,45 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		await fs.writeFile(successfulPlaceholder, 'Shims created successfully');
 	}
 
+	/**
+	 * Resolves the GitHub host URL for authentication.
+	 * Returns the configured GitHub Enterprise URI or defaults to 'https://github.com'.
+	 */
+	private resolveGitHubHost(): string {
+		if (authProviderId(this.configurationService) === AuthProviderId.GitHubEnterprise) {
+			const gheUri = this.configurationService.getNonExtensionConfig<string>(GITHUB_ENTERPRISE_URI_CONFIG);
+			if (gheUri) {
+				const parsed = URI.parse(gheUri.trim());
+				return `${parsed.scheme}://${parsed.authority}`;
+			}
+		}
+		return 'https://github.com';
+	}
+
+	/**
+	 * Resolves the Copilot API URL for GitHub Enterprise deployments.
+	 * Returns undefined for non-GHE configurations.
+	 */
+	private resolveCopilotApiUrl(): string | undefined {
+		if (authProviderId(this.configurationService) === AuthProviderId.GitHubEnterprise) {
+			const gheUri = this.configurationService.getNonExtensionConfig<string>(GITHUB_ENTERPRISE_URI_CONFIG);
+			if (gheUri) {
+				const url = URI.parse(gheUri);
+				return URI.from({ scheme: url.scheme || 'https', authority: `copilot-api.${url.authority}` }).toString(true);
+			}
+		}
+		return undefined;
+	}
+
 	public async getAuthInfo(): Promise<NonNullable<SessionOptions['authInfo']>> {
 		// Check if proxy URL is configured - if so, skip client-side token validation
 		// as the proxy will handle authentication server-side.
 		// matching the auth info set during session creation in copilotcliSessionService.
 		const overrideProxyUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl);
+		const host = this.resolveGitHubHost();
+		const authProvider = authProviderId(this.configurationService);
 
 		if (overrideProxyUrl) {
-			this.logService.info('[CopilotCLISession] Proxy URL configured, skipping client-side token validation');
 			return {
 				type: 'hmac',
 				hmac: 'empty',
@@ -605,11 +637,43 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			};
 		}
 
-		const copilotToken = await this.authentService.getGitHubSession('any', { silent: true });
+		const isGHE = authProvider === AuthProviderId.GitHubEnterprise;
+
+		// For GHE, resolve the Copilot API URL from the Copilot token's endpoints
+		// rather than guessing the URL pattern. The token exchange response contains
+		// the actual GHES-aware API URL.
+		let copilotToken: { token: string; endpoints?: { api?: string } } | undefined;
+		let copilotApiUrl: string | undefined;
+		if (isGHE) {
+			try {
+				copilotToken = await this.authentService.getCopilotToken();
+			} catch {
+				// Token minting failed — fall through to OAuth
+			}
+			copilotApiUrl = copilotToken?.endpoints?.api || this.resolveCopilotApiUrl();
+			process.env['COPILOT_API_URL'] = copilotApiUrl ?? '';
+		} else {
+			delete process.env['COPILOT_API_URL'];
+		}
+
+		// For GHE, the Copilot API requires the Copilot JWT token (from the token
+		// exchange) rather than the raw GitHub OAuth token. The JWT carries model
+		// entitlements that the completions endpoint validates.
+		const authToken = isGHE && copilotToken?.token
+			? copilotToken.token
+			: (await this.authentService.getGitHubSession('any', { silent: true }))?.accessToken ?? '';
+
 		return {
 			type: 'token',
-			token: copilotToken?.accessToken ?? '',
-			host: 'https://github.com'
+			token: authToken,
+			host,
+			...(copilotApiUrl ? {
+				copilotUser: {
+					endpoints: {
+						api: copilotApiUrl
+					}
+				}
+			} : {})
 		};
 	}
 }
