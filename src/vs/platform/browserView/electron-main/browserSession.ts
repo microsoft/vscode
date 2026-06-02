@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
+import { normalize } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
-import { FileAccess } from '../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { localize } from '../../../nls.js';
 
 // Same as webviews, minus clipboard-read
 const allowedPermissions = new Set([
@@ -177,6 +181,19 @@ export class BrowserSession {
 		}
 	}
 
+	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
+	/**
+	 * Set trusted file roots for all browser sessions.
+	 */
+	static setTrustedFileRoots(roots: readonly string[]): void {
+		BrowserSession._trustedFileRoots.clear();
+		for (const root of roots) {
+			if (root) {
+				BrowserSession._trustedFileRoots.set(normalize(root), true);
+			}
+		}
+	}
+
 	// #endregion
 
 	// #region Instance
@@ -231,6 +248,13 @@ export class BrowserSession {
 		this.electronSession.registerPreloadScript({
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
+		});
+		this.electronSession.protocol.handle(Schemas.file, request => {
+			const filePath = normalize(URI.parse(request.url).fsPath);
+			if (!BrowserSession._trustedFileRoots.findSubstr(filePath)) {
+				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
+			}
+			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
 		});
 	}
 

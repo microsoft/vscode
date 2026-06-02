@@ -149,6 +149,40 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Management service fires onDidStartSession(committedSession)
    → isNewChatSession context → false
 ```
+Follow-up messages to an existing chat go through
+`SessionsManagementService.sendRequest(session, chat, options)`. This always
+makes the sent chat the active chat.
+
+`sendNewChatRequest(session, options)` accepts a `background` flag: a background
+new-session send returns the agents window to a fresh new-session view (via
+`openNewSessionView`) **before** creating and sending the session, and skips the
+visible-slot swap (`updateResourceOfSession`/`updateSession`) that the foreground
+path uses. This keeps the composer in view the whole time — the started session is
+never momentarily shown in the chat view — and it just appears in the sessions
+list once the provider commits it.
+
+Background sends are **fire-and-forget** at the management layer: the composer is
+allowed to reset and reseed immediately while the provider commit continues
+asynchronously. Providers are therefore required to support multiple concurrent
+new sessions. If that async commit fails, the management service calls
+`deleteNewSession(sessionId)` to dispose the stranded draft because it is no
+longer referenced by `_pendingNewSession`.
+
+`background` lives on the management-layer `ISendRequestOptions` (which extends
+the provider's send-request options). Providers do not interpret the flag; it is
+purely a management/UI concern. In the new-session composer the gesture is
+**Alt+Enter** (or **Alt-click** the Send button); plain Enter / click sends in
+the foreground. The background gesture is only offered for the new-session
+composer, not when sending a new chat within an existing session.
+
+For callers outside the new-session composer,
+`createAndSendNewChatRequest(folderUri, options, createOptions?)` creates a fresh
+session for the folder and sends the request in one call, **without** touching
+the pending/active session or navigating the current view — the started session
+just appears in the sessions list once the provider commits it. It shares the
+underlying commit helper with the composer's background send; if the send fails
+it disposes the stranded draft via `deleteNewSession` and rejects so the caller
+can react.
 
 ### Session Change Propagation
 

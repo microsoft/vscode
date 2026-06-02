@@ -1093,9 +1093,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let fired = 0;
 		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
 
-		// Trigger disposal of the first NewSession by creating a second one
-		// (the MutableDisposable holding `_newSession` disposes the previous).
+		// Trigger disposal of the first NewSession explicitly. Providers no
+		// longer dispose drafts implicitly when a new one is created, so the
+		// management layer (modeled here) disposes the abandoned draft.
 		provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 
 		assert.deepStrictEqual(provider.getCustomAgents(first.sessionId), []);
@@ -1306,9 +1308,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstRawId = first.resource.path.substring(1);
 		const firstBackendUri = AgentSession.uri(sessionTypeId, firstRawId);
 
-		// Switch workspace: should dispose the first backend session and
-		// release its subscription before creating the second.
+		// Switch workspace: the management layer disposes the abandoned draft
+		// (providers no longer do so implicitly), which disposes the first
+		// backend session and releases its subscription.
 		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 		const secondRawId = second.resource.path.substring(1);
 		const secondBackendUri = AgentSession.uri(sessionTypeId, secondRawId);
@@ -1367,8 +1371,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('workspace switch mid-createSession does not open a stale subscription', async () => {
 		// Models the race where the user switches workspaces while the eager
 		// `createSession` for the previous workspace is still in flight on
-		// the wire. Once that create eventually resolves, we must not open
-		// a subscription for it — it has already been disposed.
+		// the wire. Providers now track multiple new sessions, so abandoning
+		// the previous draft is explicit: the management layer calls
+		// `deleteNewSession` on workspace switch. Once the parked create
+		// eventually resolves, we must not open a subscription for it — it has
+		// already been disposed.
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
 
@@ -1381,9 +1388,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		// Switch workspace while the first createSession is still parked.
-		// Disposing the first NewSession should clear its backend URI
-		// before the second eager-create runs.
 		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		// Abandon the first draft (what the management layer does on a
+		// workspace switch). Disposing the first NewSession clears its backend
+		// URI before the second eager-create runs.
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 
 		// Now release the first createSession. The async IIFE in
