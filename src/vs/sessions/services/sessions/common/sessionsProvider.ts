@@ -52,6 +52,15 @@ export interface ISessionsProvider {
 	readonly icon: ThemeIcon;
 
 	/**
+	 * Sort order that determines the precedence of this provider's session
+	 * types relative to other providers. Lower values are surfaced first;
+	 * providers with equal order keep their registration order. The default is
+	 * `0`. A provider may change this dynamically (e.g. based on a setting) and
+	 * fire `onDidChangeSessionTypes` to have consumers re-evaluate the order.
+	 */
+	readonly order: number;
+
+	/**
 	 * Session types supported by this provider. The provider is expected to update this list and fire `onDidChangeSessionTypes`
 	 */
 	readonly sessionTypes: readonly ISessionType[];

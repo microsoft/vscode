@@ -1049,6 +1049,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
+	get order(): number { return 0; }
+
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
 
