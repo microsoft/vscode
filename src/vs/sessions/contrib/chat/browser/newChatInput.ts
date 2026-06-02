@@ -68,6 +68,16 @@ interface IDraftState {
 }
 
 /**
+ * Options passed to the {@link NewChatInputWidget}'s `sendRequest` callback when
+ * the user submits the input.
+ */
+export interface INewChatInputSendRequest {
+	readonly query: string;
+	readonly attachments?: IChatRequestVariableEntry[];
+	readonly background?: boolean;
+}
+
+/**
  * Randomized, friendly placeholders shown in the new-session chat input
  * to add a bit of personality. One is picked per widget instance, avoiding
  * an immediate repeat of the previous pick.
@@ -146,12 +156,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	constructor(
 		private readonly options: {
 			getContextFolderUri: () => URI | undefined;
-			sendRequest: (query: string, attachments?: IChatRequestVariableEntry[]) => Promise<void>;
+			sendRequest: (request: INewChatInputSendRequest) => Promise<void>;
 			canSendRequest: IObservable<boolean>;
 			loading: IObservable<boolean>;
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
+			supportsBackground?: boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -365,10 +376,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				e.stopPropagation();
 				this._send();
 			}
-			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
+			// Alt+Enter — send in the background without navigating into the session
+			if (this.options.supportsBackground && e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._send();
+				this._send(true);
 			}
 			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
@@ -464,11 +476,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
 		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
 			secondary: true,
-			title: localize('send', "Send"),
+			title: this.options.supportsBackground
+				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+				: localize('send', "Send"),
 			ariaLabel: localize('send', "Send"),
 		}));
 		sendButton.icon = Codicon.arrowUp;
-		this._register(sendButton.onDidClick(() => this._send()));
+		// Hold Alt while clicking Send to start the session in the background.
+		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---
@@ -532,7 +547,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Send ---
 
 
-	private async _send(): Promise<void> {
+	private async _send(background = false): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim() ?? '';
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		if ((!query && !hasSendableAttachment) || this._sending) {
@@ -561,7 +576,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateInputLoadingState();
 
 		try {
-			await this.options.sendRequest(request, attachedContext);
+			await this.options.sendRequest({ query: request, attachments: attachedContext, background });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {

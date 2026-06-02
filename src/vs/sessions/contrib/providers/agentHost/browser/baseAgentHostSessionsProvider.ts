@@ -1095,17 +1095,38 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _pendingSession: ISession | undefined;
 
 	/**
-	 * The at-most-one in-flight new session — the session being composed in
-	 * the new-chat view before the first message is sent. See
+	 * In-flight new sessions — sessions being composed in the new-chat view
+	 * before their first message is sent, keyed by `sessionId`. See
 	 * {@link NewSession} for the encapsulated state and lifecycle.
 	 *
-	 * Held as a {@link MutableDisposable} so reassigning or clearing the
-	 * field automatically disposes the previous instance, and the field is
-	 * cleaned up when the provider itself is disposed.
+	 * Held as a {@link DisposableMap} so multiple new sessions can be tracked
+	 * concurrently (e.g. while one is sending in the background and the composer
+	 * re-seeds a fresh one). Entries are disposed individually when sent
+	 * ({@link deleteAndDispose}/{@link deleteAndLeak}) or abandoned (via
+	 * {@link deleteNewSession}), and all remaining entries are cleaned up when
+	 * the provider itself is disposed.
 	 */
-	private readonly _newSessionRef = this._register(new MutableDisposable<NewSession>());
-	protected get _newSession(): NewSession | undefined { return this._newSessionRef.value; }
-	protected set _newSession(value: NewSession | undefined) { this._newSessionRef.value = value; }
+	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
+
+	/** The in-flight new session with the given id, if any. */
+	protected _getNewSession(sessionId: string): NewSession | undefined {
+		return this._newSessions.get(sessionId);
+	}
+
+	/**
+	 * Dispose every in-flight new session, firing each one's `disposeSession`
+	 * sentinel so the eagerly-created backend records are freed. Used when the
+	 * connection drops and the composed-but-unsent drafts can no longer commit.
+	 */
+	protected _disposeAllNewSessions(): void {
+		this._newSessions.clearAndDisposeAll();
+	}
+
+	deleteNewSession(sessionId: string): void {
+		if (this._newSessions.has(sessionId)) {
+			this._newSessions.deleteAndDispose(sessionId);
+		}
+	}
 
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
@@ -1310,8 +1331,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getSessionByResource(resource: URI): ISession | undefined {
-		if (this._newSession?.session.resource.toString() === resource.toString()) {
-			return this._newSession.session;
+		for (const newSession of this._newSessions.values()) {
+			if (newSession.session.resource.toString() === resource.toString()) {
+				return newSession.session;
+			}
 		}
 
 		if (this._pendingSession?.resource.toString() === resource.toString()) {
@@ -1354,12 +1377,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
 
-		// Tear down any previous in-flight new session (workspace switch
-		// or back-to-back create). The MutableDisposable setter below
-		// disposes the previous instance, which fires `disposeSession`
-		// against the eagerly created agent-host record so it's freed
-		// immediately rather than waiting for the server-side
-		// empty-session GC.
+		// Tear-down of superseded drafts is handled by the management layer
+		// (it calls `deleteNewSession` on the previous pending session). Each
+		// new session is tracked independently in `_newSessions` so several can
+		// be in flight at once (e.g. one sending in the background while the
+		// composer re-seeds a fresh draft).
 		const connection = this.connection;
 		const newSession = new NewSession({
 			workspace,
@@ -1378,7 +1400,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				? this._activeClientService.getActiveClient(this.resourceSchemeForProvider(sessionType.id), connection.clientId)
 				: undefined,
 		});
-		this._newSession = newSession;
+		this._newSessions.set(newSession.sessionId, newSession);
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
 
 		// Kick off the initial config resolve and the eager backend session
@@ -1412,7 +1434,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		session.setLoading(true);
 		const applied = await session.resolveConfig(connection);
 		// Bail if a newer call superseded us — its own pulse will take over.
-		if (!applied || this._newSession !== session) {
+		if (!applied || this._newSessions.get(session.sessionId) !== session) {
 			return;
 		}
 		const config = session.getConfig();
@@ -1475,8 +1497,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// that weren't created in this window. Each query bumps the idle timer
 		// so the subscription stays alive while the picker (or any other UI
 		// surface) is repeatedly reading the running config.
-		if (this._newSession?.sessionId === sessionId) {
-			return this._newSession.getConfig();
+		const newSession = this._getNewSession(sessionId);
+		if (newSession) {
+			return newSession.getConfig();
 		}
 		this._keepSessionStateAlive(sessionId);
 		return this._runningSessionConfigs.get(sessionId);
@@ -1489,8 +1512,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * interactive when the user has to fill in required values.
 	 */
 	isSessionConfigResolving(sessionId: string): IObservable<boolean> {
-		return this._newSession?.sessionId === sessionId
-			? this._newSession.isResolvingConfig
+		const newSession = this._getNewSession(sessionId);
+		return newSession
+			? newSession.isResolvingConfig
 			: constObservable(false);
 	}
 
@@ -1515,7 +1539,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// resolving flag and `loading` *before* firing the change event
 		// so the first picker re-render already observes the in-flight
 		// state.
-		const newSession = this._newSession?.sessionId === sessionId ? this._newSession : undefined;
+		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			// Defense-in-depth: pickers render disabled during a resolve,
 			// but keyboard dropdown and mobile sheet paths bypass that.
@@ -1610,7 +1634,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async getSessionConfigCompletions(sessionId: string, property: string, query?: string) {
-		const newSession = this._newSession?.sessionId === sessionId ? this._newSession : undefined;
+		const newSession = this._getNewSession(sessionId);
 		const connection = this.connection;
 		if (!newSession || !connection) {
 			return [];
@@ -1620,13 +1644,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
-		return this._newSession?.sessionId === sessionId ? this._newSession.getConfigValues() : undefined;
+		return this._getNewSession(sessionId)?.getConfigValues();
 	}
 
 	clearSessionConfig(sessionId: string): void {
-		if (this._newSession?.sessionId === sessionId) {
-			// Setter on the MutableDisposable handles disposal of the old value.
-			this._newSession = undefined;
+		if (this._newSessions.has(sessionId)) {
+			this._newSessions.deleteAndDispose(sessionId);
 		}
 	}
 
@@ -1694,8 +1717,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Model selection ------------------------------------------------------
 
 	setModel(sessionId: string, modelId: string): void {
-		if (this._newSession?.sessionId === sessionId) {
-			this._newSession.setSelectedModelId(modelId);
+		const newSession = this._getNewSession(sessionId);
+		if (newSession) {
+			newSession.setSelectedModelId(modelId);
 			return;
 		}
 
@@ -1715,8 +1739,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setAgent(sessionId: string, agent: ISessionAgentRef | undefined): void {
-		if (this._newSession?.sessionId === sessionId) {
-			this._newSession.setSelectedAgent(agent);
+		const newSession = this._getNewSession(sessionId);
+		if (newSession) {
+			newSession.setSelectedAgent(agent);
 			// The selection is forwarded to the host at first-message time
 			// via `sendOptions.agentHostSessionAgent` (see `sendRequest`),
 			// mirroring how `userSelectedModelId` flows.
@@ -1817,8 +1842,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 
-		const newSession = this._newSession;
-		if (!newSession || newSession.sessionId !== chatId) {
+		const newSession = this._getNewSession(chatId);
+		if (!newSession) {
 			throw new Error(`Session '${chatId}' not found or not a new session`);
 		}
 
@@ -1828,8 +1853,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
-		const newSession = this._newSession;
-		if (!newSession || newSession.sessionId !== chatId) {
+		const newSession = this._getNewSession(chatId);
+		if (!newSession) {
 			throw new Error(`Session '${chatId}' not found or not a new session`);
 		}
 
@@ -1928,8 +1953,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// acquired its own subscription (chat widget was opened
 				// earlier), so the wire-level refcount stays positive.
 				newSession.graduate();
-				if (this._newSession === newSession) {
-					this._newSession = undefined;
+				if (this._newSessions.get(newSession.sessionId) === newSession) {
+					this._newSessions.deleteAndDispose(newSession.sessionId);
 				}
 				// Clear the pending session before firing the replace event so
 				// that any synchronous listener calling getSessions() sees only
@@ -1951,8 +1976,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// the provisional session if it remains; we lean on the GC rather
 		// than risking a double-dispose race on transient failures.
 		newSession.graduate();
-		if (this._newSession === newSession) {
-			this._newSession = undefined;
+		if (this._newSessions.get(newSession.sessionId) === newSession) {
+			this._newSessions.deleteAndDispose(newSession.sessionId);
 		}
 		return skeleton;
 	}
