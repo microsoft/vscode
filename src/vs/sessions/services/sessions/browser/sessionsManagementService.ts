@@ -16,9 +16,9 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsNavigation } from './sessionNavigation.js';
@@ -300,7 +300,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidChangeSessions.fire(e);
 		const currentActive = this._visibility.activeSession.get();
 
-		// Clear stale pending session if the provider removed it
+		// Clear stale pending session if the provider removed it. The provider
+		// already disposed it, so just drop the pointer (do not dispose again).
 		if (e.removed.length && this._pendingNewSession) {
 			if (e.removed.some(r => r.sessionId === this._pendingNewSession!.sessionId)) {
 				this._pendingNewSession = undefined;
@@ -458,14 +459,37 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 	}
 
-	unsetNewSession(): void {
+	/**
+	 * Delete the currently pending (composed-but-not-sent) new session.
+	 *
+	 * Providers track new sessions themselves and no longer dispose them
+	 * implicitly when a newer one is created, so abandoning a pending session
+	 * must explicitly dispose it through its own provider to release the
+	 * eagerly-acquired backend session.
+	 *
+	 * This is only for abandonment. When a pending session is graduating (being
+	 * sent) or was already removed by its provider, just clear
+	 * {@link _pendingNewSession} directly so the session is left intact.
+	 */
+	private _deletePendingNewSession(): void {
+		const pending = this._pendingNewSession;
 		this._pendingNewSession = undefined;
+		if (pending) {
+			this._getProvider(pending)?.deleteNewSession(pending.sessionId);
+		}
+	}
+
+	unsetNewSession(): void {
+		this._deletePendingNewSession();
 		this.setActiveSession(undefined);
 	}
 
-	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
-		this._startOpenSession();
-
+	/**
+	 * Resolve the provider and session type to use for a new session in the
+	 * given folder, applying the same selection rules as
+	 * {@link createNewSession}. Throws when no provider/type can be resolved.
+	 */
+	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 
@@ -502,20 +526,60 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new Error(`No session types available for provider '${provider.id}'`);
 			}
 		}
+		return { provider, sessionTypeId };
+	}
 
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
+		this._startOpenSession();
+
+		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
+
+		const previousPending = this._pendingNewSession;
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 		this._pendingNewSession = session;
 		this.setActiveSession(session);
+
+		// Providers no longer dispose the previous new session implicitly, so
+		// dispose the one this composer just replaced. Use its own provider
+		// because switching workspace can switch providers. Done after a
+		// successful create so a throw above leaves the previous one intact.
+		if (previousPending && previousPending.sessionId !== session.sessionId) {
+			this._getProvider(previousPending)?.deleteNewSession(previousPending.sessionId);
+		}
 		return session;
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
+		// The session is graduating into the list (being sent),
+		// so the provider keeps owning it — just drop the pointer, do not delete.
 		this._pendingNewSession = undefined;
 		this._isNewChatSessionContext.set(false);
 
-		// Notify listeners that a send is starting. Listeners (e.g., telemetry)
-		// can use this to prewarm caches whose result is consumed when
-		// `onDidSendRequest` fires below.
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+
+		if (options.background) {
+			// Restore the new-session view synchronously so the composer stays
+			// put, then run the send fire-and-forget so the composer can reset
+			// and reseed immediately while the request commits. If the commit
+			// fails, the graduating draft is stranded (no longer in
+			// `_pendingNewSession`), so dispose it through its provider to
+			// release the eager backend session. Safe no-op if the provider
+			// already graduated/removed it.
+			this.openNewSessionView();
+			this._sendNewChatRequestInBackground(provider, session, options).catch(e => {
+				provider.deleteNewSession(session.sessionId);
+				this.logService.error('[SessionsManagement] Failed to send background request:', e);
+			});
+			return;
+		}
+
+		// Foreground send: notify listeners that a send is starting. Listeners
+		// (e.g., telemetry) can use this to prewarm caches whose result is
+		// consumed when `onDidSendRequest` fires below. The background path
+		// fires this from within `_sendNewChatRequestInBackground`.
 		this._onWillSendRequest.fire(session);
 
 		const setActiveChatToLast = () => {
@@ -536,11 +600,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		});
 
 		try {
-			const provider = this._getProvider(session);
-			if (!provider) {
-				throw new Error(`Sessions provider '${session.providerId}' not found`);
-			}
-
 			// Ask the provider to create the new chat; open its widget before sending
 			const chat = await provider.createNewChat(session.sessionId, options.query);
 			// Swap in a transient session whose resource is the new chat
@@ -569,8 +628,68 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	/**
+	 * Create a new session for the given folder and send a chat request to it,
+	 * without navigating into the started session. The started session appears
+	 * in the sessions list once the provider commits it, while the user's
+	 * current view is left untouched.
+	 *
+	 * Unlike {@link sendNewChatRequest} with `background`, this does not go
+	 * through the new-session composer: it creates a fresh session purely for
+	 * this request and never sets it as pending/active. Intended for callers
+	 * outside the composer that want to kick off a session programmatically.
+	 *
+	 * If the send fails, the stranded draft is disposed through its provider and
+	 * the error is rethrown so the caller can react.
+	 */
+	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void> {
+		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
+		const session = provider.createNewSession(folderUri, sessionTypeId);
+
+		try {
+			await this._sendNewChatRequestInBackground(provider, session, options);
+		} catch (e) {
+			// The send never committed, so the draft is stranded. Dispose it
+			// through its provider to release the eager backend session before
+			// rethrowing. Safe no-op if the provider already removed it.
+			provider.deleteNewSession(session.sessionId);
+			throw e;
+		}
+	}
+
+	/**
+	 * Commit a new-session request: fire {@link _onWillSendRequest}, create the
+	 * new chat via the provider, send the request, and—on success—fire
+	 * {@link _onDidStartSession} and {@link _onDidSendRequest}. The started
+	 * session is never swapped into the visible chat slot, so it simply appears
+	 * in the sessions list once the provider commits it.
+	 *
+	 * Owns the full will/did send lifecycle so callers do not fire the paired
+	 * events themselves. Errors are propagated to the caller; this method does
+	 * not clean up the stranded draft, so callers own any view handling and the
+	 * error handling (e.g. disposing the stranded draft via
+	 * {@link ISessionsProvider.deleteNewSession}).
+	 *
+	 * Providers are multi-new-session aware, so the graduating session and a
+	 * concurrently reseeded composer draft coexist without conflict.
+	 */
+	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<void> {
+		// Notify listeners (e.g., telemetry) that a send is starting so they can
+		// prewarm caches whose result is consumed when `onDidSendRequest` fires.
+		this._onWillSendRequest.fire(session);
+		const chat = await provider.createNewChat(session.sessionId, options.query);
+		const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._onDidStartSession.fire(updatedSession);
+		this._onDidSendRequest.fire({ session: updatedSession, chat: session.mainChat.get(), isNewSession: true, isNewChat: true, options });
+	}
+
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		this._pendingNewSession = undefined;
+		// Sending into an existing session abandons any pending composer, so
+		// dispose it to release its eager backend session.
+		this._deletePendingNewSession();
 
 		// Notify listeners that a send is starting. Listeners (e.g., telemetry)
 		// can use this to prewarm caches whose result is consumed when
@@ -680,7 +799,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const wasActive = activeSessionId === sessionId;
 
 		if (sessionId === undefined || this._pendingNewSession?.sessionId === sessionId) {
-			this._pendingNewSession = undefined;
+			this._deletePendingNewSession();
 		}
 
 		this._visibility.removeMany([sessionId]);

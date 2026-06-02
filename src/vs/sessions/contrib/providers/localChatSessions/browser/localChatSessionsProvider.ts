@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -415,7 +415,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	/** Fires when the set of chats in a group changes (chat added or removed). */
 	private readonly _onDidChangeGroupMembership = this._register(new Emitter<{ readonly groupKey: string }>());
 
-	private readonly _currentNewSession = this._register(new MutableDisposable<LocalSession>());
+	private readonly _newSessions = this._register(new DisposableMap<string, LocalSession>());
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -712,13 +712,20 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 		const session = this.instantiationService.createInstance(LocalSession, undefined, workspace, this.id);
 		session.setPermissionLevel(this._defaultPermissionLevel());
-		this._currentNewSession.value = session;
+		this._newSessions.set(session.sessionId, session);
 		return this._toISession(session);
 	}
 
+	deleteNewSession(sessionId: string): void {
+		if (this._newSessions.has(sessionId)) {
+			this._newSessions.deleteAndDispose(sessionId);
+		}
+	}
+
 	setModel(sessionId: string, modelId: string): void {
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			this._currentNewSession.value.setModelId(modelId);
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			newSession.setModelId(modelId);
 		}
 	}
 
@@ -763,8 +770,8 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 
 		this._sessionGroupCache.delete(primary.sessionId);
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			this._currentNewSession.clear();
+		if (this._newSessions.has(sessionId)) {
+			this._newSessions.deleteAndDispose(sessionId);
 		}
 		this._onDidChangeSessions.fire({ added: [], removed: [groupISession], changed: [] });
 	}
@@ -820,8 +827,9 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	}
 
 	async createNewChat(sessionId: string, _prompt?: string): Promise<IChat> {
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			const session = this._currentNewSession.value;
+		const currentNewSession = this._newSessions.get(sessionId);
+		if (currentNewSession) {
+			const session = currentNewSession;
 			const chat = buildChat(session);
 			session.mainChat.set(chat, undefined);
 			return chat;
@@ -864,8 +872,8 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		// First chat of a brand-new session.
-		const newSession = this._currentNewSession.value;
-		if (newSession && newSession.sessionId === sessionId) {
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
 			if (chatResource.toString() !== newSession.resource.toString()) {
 				throw new Error(`Chat resource ${chatResource.toString()} does not match session resource ${newSession.resource.toString()}`);
 			}
@@ -895,7 +903,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 		const result = await this._dispatchSend(newSession, chatResource, options);
 		if (result.kind === 'rejected') {
-			this._currentNewSession.clearAndLeak();
+			this._newSessions.deleteAndLeak(newSession.sessionId);
 			this._sessionGroupCache.delete(newSession.sessionId);
 			this._onDidChangeSessions.fire({ added: [], removed: [newISession], changed: [] });
 			newSession.dispose();
@@ -905,7 +913,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// Put the new session into the cache and persist its URI.
 		this._sessionCache.set(newSession.resource.toString(), newSession);
 		this._addStoredSession(newSession);
-		this._currentNewSession.clearAndLeak();
+		this._newSessions.deleteAndLeak(newSession.sessionId);
 
 		// Track response completion to update session status and persist title
 		if (result.kind === 'sent') {
@@ -1060,8 +1068,9 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	}
 
 	private _findSession(sessionId: string): LocalSession | undefined {
-		if (this._currentNewSession.value?.sessionId === sessionId) {
-			return this._currentNewSession.value;
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			return newSession;
 		}
 		for (const session of this._sessionCache.values()) {
 			if (session.sessionId === sessionId) {
@@ -1076,8 +1085,10 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		if (cached) {
 			return cached;
 		}
-		if (this._currentNewSession.value?.resource.toString() === resource.toString()) {
-			return this._currentNewSession.value;
+		for (const session of this._newSessions.values()) {
+			if (session.resource.toString() === resource.toString()) {
+				return session;
+			}
 		}
 		return undefined;
 	}
