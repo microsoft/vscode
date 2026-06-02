@@ -396,6 +396,7 @@ class PlaywrightSession extends Disposable {
 			codeLineCount: fnDef.split('\n').length,
 			pageMethodsCalled: new Map<string, number>(),
 			wasDeferred: false,
+			logged: false,
 		};
 
 		if (timeoutMs !== undefined) {
@@ -488,8 +489,10 @@ class PlaywrightSession extends Disposable {
 		// Attach settlement logging once, on the initiating call. `deferred.p`
 		// settles when the real page work finishes regardless of how many times the
 		// result is deferred and resumed - or whether it is ever resumed at all - so
-		// the execution is logged exactly once even if the caller walks away from a
-		// deferred result.
+		// a deferred execution is still logged when it eventually settles, even if
+		// the caller walks away from the deferred result. `_logExecution` is
+		// idempotent, so this is a no-op when the synchronous outcome path below
+		// already logged a non-deferred completion.
 		if (existingDeferredId === undefined && logCtx) {
 			deferred.p.then(() => this._logExecution(logCtx, true), () => this._logExecution(logCtx, false));
 		}
@@ -522,6 +525,14 @@ class PlaywrightSession extends Disposable {
 			const cleanup = disposableTimeout(() => this._deferredResults.deleteAndDispose(deferredResultId!), DEFERRED_RESULT_CLEANUP_MS);
 			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, logCtx, dispose: () => cleanup.dispose() });
 			this.logService.info(`[PlaywrightSession] Execution interrupted, deferred as ${deferredResultId}`);
+		} else if (logCtx) {
+			// The execution completed or failed within the timeout. Log the
+			// definitive outcome now rather than relying on the settlement promise,
+			// which never settles if the page work threw before `settleWith` ran
+			// (e.g. the page could not be resolved). `_logExecution` is idempotent,
+			// so a redundant settlement-promise callback for the same execution is
+			// a no-op.
+			this._logExecution(logCtx, !error);
 		}
 
 		const summary = await this._getSummary(pageId);
@@ -531,8 +542,15 @@ class PlaywrightSession extends Disposable {
 	/**
 	 * Emit completion telemetry for a single {@link invokeFunction} call. Called
 	 * exactly once per execution, when the underlying page work settles.
+	 * Idempotent: only the first call for a given context emits an event, so it
+	 * can be invoked from both the synchronous outcome path and the deferred
+	 * settlement-promise callback without double-counting.
 	 */
 	private _logExecution(ctx: IExecutionLogContext, success: boolean): void {
+		if (ctx.logged) {
+			return;
+		}
+		ctx.logged = true;
 		const entries = [...ctx.pageMethodsCalled.entries()];
 		const total = entries.reduce((sum, [, count]) => sum + count, 0);
 		this.telemetryService.publicLog2<RunPlaywrightCodeEvent, RunPlaywrightCodeClassification>(
@@ -729,6 +747,8 @@ interface IExecutionLogContext {
 	readonly pageMethodsCalled: Map<string, number>;
 	/** Set once the execution is interrupted and deferred at least once. */
 	wasDeferred: boolean;
+	/** Guards against double-logging; set by {@link PlaywrightSession._logExecution}. */
+	logged: boolean;
 }
 
 type RunPlaywrightCodeEvent = {
