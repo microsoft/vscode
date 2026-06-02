@@ -431,8 +431,7 @@ class PlaywrightSession extends Disposable {
 			try {
 				fn = await this._compileFunction(fnDef);
 			} catch (err: unknown) {
-				// Return compile/syntax errors as { error, summary } like other
-				// execution failures rather than throwing to callers.
+				// Surface compile/syntax errors as { error, summary }, like other execution failures.
 				this._logExecution(logCtx, false);
 				const summary = await this._getSummary(pageId);
 				return { error: err instanceof Error ? err.message : String(err), summary };
@@ -443,9 +442,7 @@ class PlaywrightSession extends Disposable {
 
 		let result, error;
 		try {
-			// Compile inside the error-handled path so syntax/compile errors are
-			// returned as { error, summary } like other execution failures rather
-			// than thrown to callers.
+			// Compile inside the try so syntax/compile errors surface as { error, summary }.
 			const fn = await this._compileFunction(fnDef);
 			result = await this._runAgainstPage(pageId, async (page) => fn(createPageApiProxy(page, logCtx.pageMethodsCalled), args));
 		} catch (err: unknown) {
@@ -516,13 +513,11 @@ class PlaywrightSession extends Disposable {
 	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string, logCtx?: IExecutionLogContext): Promise<IInvokeFunctionResult> {
 		const deferred = new DeferredPromise();
 
-		// Attach settlement logging once, on the initiating call. `deferred.p`
-		// settles when the real page work finishes regardless of how many times the
-		// result is deferred and resumed - or whether it is ever resumed at all - so
-		// a deferred execution is still logged when it eventually settles, even if
-		// the caller walks away from the deferred result. `_logExecution` is
-		// idempotent, so this is a no-op when the synchronous outcome path below
-		// already logged a non-deferred completion.
+		// Attach settlement logging once, on the initiating call: `deferred.p` settles
+		// when the page work finishes no matter how many times the result is deferred,
+		// resumed, or abandoned, so a deferred run is still logged once it settles.
+		// `_logExecution` is idempotent, so this is a no-op if the synchronous path
+		// below already logged a non-deferred completion.
 		if (existingDeferredId === undefined && logCtx) {
 			deferred.p.then(() => this._logExecution(logCtx, true), () => this._logExecution(logCtx, false));
 		}
@@ -556,12 +551,9 @@ class PlaywrightSession extends Disposable {
 			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, logCtx, dispose: () => cleanup.dispose() });
 			this.logService.info(`[PlaywrightSession] Execution interrupted, deferred as ${deferredResultId}`);
 		} else if (logCtx) {
-			// The execution completed or failed within the timeout. Log the
-			// definitive outcome now rather than relying on the settlement promise,
-			// which never settles if the page work threw before `settleWith` ran
-			// (e.g. the page could not be resolved). `_logExecution` is idempotent,
-			// so a redundant settlement-promise callback for the same execution is
-			// a no-op.
+			// Completed or failed within the timeout: log the outcome now rather than
+			// relying on the settlement promise, which never settles if the page work
+			// threw before `settleWith` ran (e.g. the page could not be resolved).
 			this._logExecution(logCtx, !error);
 		}
 
@@ -570,11 +562,9 @@ class PlaywrightSession extends Disposable {
 	}
 
 	/**
-	 * Emit completion telemetry for a single {@link invokeFunction} call. Called
-	 * exactly once per execution, when the underlying page work settles.
-	 * Idempotent: only the first call for a given context emits an event, so it
-	 * can be invoked from both the synchronous outcome path and the deferred
-	 * settlement-promise callback without double-counting.
+	 * Emit completion telemetry for a single {@link invokeFunction} call, once the
+	 * page work settles. Idempotent: only the first call for a given context emits,
+	 * so the synchronous and settlement-promise paths can both call it safely.
 	 */
 	private _logExecution(ctx: IExecutionLogContext, success: boolean): void {
 		if (ctx.logged) {
@@ -835,20 +825,16 @@ const PAGE_PROXY_IGNORED_PROPS = new Set<string>([
 const PAGE_PROXY_MAX_DEPTH = 3;
 
 /**
- * Wrap a Playwright `page` so that every function call routed through the
- * proxy increments a counter in {@link methodCalls}, keyed by the dotted path
- * from `page` (e.g. `click`, `evaluate`, `keyboard.press`, `mouse.move`).
+ * Wrap a Playwright `page` so every call through the proxy increments a counter
+ * in {@link methodCalls}, keyed by the dotted path from `page` (e.g. `click`,
+ * `keyboard.press`). Object properties are proxied recursively (capped at
+ * {@link PAGE_PROXY_MAX_DEPTH}) so calls on namespaces like `keyboard` and
+ * `mouse` are visible; symbol keys, `_`-prefixed internals, and
+ * {@link PAGE_PROXY_IGNORED_PROPS} are skipped to avoid noise.
  *
- * Non-function object properties are themselves proxied recursively so that
- * downstream calls on namespaces such as `keyboard`, `mouse`, and `request`
- * are visible. Recursion is capped at {@link PAGE_PROXY_MAX_DEPTH} levels.
- *
- * Method wrappers and nested proxies are cached per property so repeated reads
- * return the same value, preserving Playwright's object identity (e.g.
- * `page.keyboard === page.keyboard` and `page.click === page.click`).
- *
- * Symbol keys, `_`-prefixed internals, and a small denylist of JS protocol
- * properties are ignored to avoid recording noise.
+ * Wrappers and nested proxies are cached per property so repeated reads return
+ * the same value, preserving Playwright's object identity (e.g.
+ * `page.keyboard === page.keyboard`).
  */
 function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string, number>, prefix: string = '', depth: number = 0): T {
 	if (depth >= PAGE_PROXY_MAX_DEPTH) {
