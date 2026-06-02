@@ -172,7 +172,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.ok(persisted, 'should persist the root config change');
 			} finally {
-				rmSync(tempDir.fsPath, { recursive: true, force: true });
+				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
 		});
 	});
