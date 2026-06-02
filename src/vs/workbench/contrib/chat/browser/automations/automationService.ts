@@ -65,6 +65,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	private readonly _automations: ISettableObservable<readonly IAutomation[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
+	private readonly _now: () => Date;
 
 	readonly automations: IObservable<readonly IAutomation[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -74,6 +75,10 @@ export class AutomationService extends Disposable implements IAutomationService 
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+
+		// Test seam: production always uses the system clock. Tests can
+		// override after construction via `setClockForTesting`.
+		this._now = () => new Date();
 
 		const initial = this.readLedger();
 		this._automations = observableValue<readonly IAutomation[]>(this, initial.automations);
@@ -92,6 +97,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 		}));
 	}
 
+	/** Test-only: swap in a deterministic clock used by create/update. */
+	setClockForTesting(now: () => Date): void {
+		(this as unknown as { _now: () => Date })._now = now;
+	}
+
 	getAutomation(id: string): IAutomation | undefined {
 		return this._automations.get().find(a => a.id === id);
 	}
@@ -101,7 +111,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
-		const now = new Date();
+		const now = this._now();
 		const nowIso = now.toISOString();
 		const nextRun = computeNextRunAt(options.schedule, now);
 		const automation: IAutomation = Object.freeze({
@@ -133,11 +143,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 		const enabledChanged = patch.enabled !== undefined;
 		const updated: IAutomation = Object.freeze({
 			...merged,
-			updatedAt: new Date().toISOString(),
+			updatedAt: this._now().toISOString(),
 			// Recompute next-run whenever the schedule changes, or when an
 			// automation is re-enabled (so we don't sit on a stale value).
 			nextRunAt: (scheduleChanged || (enabledChanged && merged.enabled))
-				? computeNextRunAt(merged.schedule, new Date())?.toISOString()
+				? computeNextRunAt(merged.schedule, this._now())?.toISOString()
 				: merged.nextRunAt,
 		});
 		const next = this._automations.get().map(a => a.id === id ? updated : a);
@@ -162,7 +172,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			automationId,
 			status: 'pending',
 			trigger,
-			startedAt: new Date().toISOString(),
+			startedAt: this._now().toISOString(),
 			leaderWindowId,
 		});
 		const nextRuns = [run, ...this._runs.get()];
@@ -193,7 +203,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	async markStaleRunsFailed(reason: string): Promise<void> {
 		let changed = false;
-		const completedAt = new Date().toISOString();
+		const completedAt = this._now().toISOString();
 		const nextRuns = this._runs.get().map(r => {
 			if (r.status === 'pending' || r.status === 'running') {
 				changed = true;
@@ -204,6 +214,22 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (changed) {
 			this.commit(this._automations.get(), nextRuns);
 		}
+	}
+
+	async advanceNextRunAt(id: string, now: Date = this._now()): Promise<IAutomation | undefined> {
+		const current = this.getAutomation(id);
+		if (!current) {
+			return undefined;
+		}
+		const updated: IAutomation = Object.freeze({
+			...current,
+			lastRunAt: now.toISOString(),
+			nextRunAt: computeNextRunAt(current.schedule, now)?.toISOString(),
+			updatedAt: now.toISOString(),
+		});
+		const next = this._automations.get().map(a => a.id === id ? updated : a);
+		this.commit(next, this._runs.get());
+		return updated;
 	}
 
 	//#region Persistence
