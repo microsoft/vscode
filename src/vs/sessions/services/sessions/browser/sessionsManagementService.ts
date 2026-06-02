@@ -622,7 +622,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			this._onDidStartSession.fire(updatedSession);
 
-			this._onDidSendRequest.fire({ session: updatedSession, chat: session.mainChat.get(), isNewSession: true, isNewChat: true, options });
+			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
 			chatsListener.dispose();
 		}
@@ -678,12 +678,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// prewarm caches whose result is consumed when `onDidSendRequest` fires.
 		this._onWillSendRequest.fire(session);
 		const chat = await provider.createNewChat(session.sessionId, options.query);
-		const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+
+		// Suppress the `chatService.onDidSubmitRequest` mirror for this send so
+		// `_onDidSendRequest` is not fired twice for providers that dispatch
+		// through `chatService.sendRequest` (see the mirror in the constructor).
+		const chatResourceKey = chat.resource.toString();
+		this._pendingSendChatResources.add(chatResourceKey);
+		let updatedSession: ISession;
+		try {
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		} finally {
+			this._pendingSendChatResources.delete(chatResourceKey);
+		}
 		if (this._store.isDisposed) {
 			return;
 		}
 		this._onDidStartSession.fire(updatedSession);
-		this._onDidSendRequest.fire({ session: updatedSession, chat: session.mainChat.get(), isNewSession: true, isNewChat: true, options });
+		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
