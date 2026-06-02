@@ -946,6 +946,8 @@
 		"--mobile-diff-tok-string",
 		"--mobile-diff-tok-keyword",
 		"--mobile-diff-tok-number",
+		"--session-view-background",
+		"--session-view-foreground",
 		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
 		"--chat-smooth-delay",

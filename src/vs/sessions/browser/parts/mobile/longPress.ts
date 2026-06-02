@@ -14,6 +14,9 @@ const DEFAULT_HOLD_TIME_MS = 500;
 /** Default pointer movement, in CSS pixels, that cancels a pending long-press. */
 const DEFAULT_MOVE_THRESHOLD_PX = 6;
 
+/** Hard timeout for dropping a pending click suppressor if no click follows. */
+const CLICK_SUPPRESSOR_TIMEOUT_MS = 1000;
+
 /**
  * Options for {@link installLongPress}.
  */
@@ -68,8 +71,8 @@ export interface IInstallLongPressOptions {
  * `preventDefault`+`stopPropagation`'d so the underlying element's
  * tap handler doesn't also run (e.g., long-pressing a chat row
  * shouldn't also open the session like a tap does). A
- * next-animation-frame fallback removes the click suppressor in case
- * no click ever follows (e.g., the user lifted off-screen).
+ * release-aware fallback removes the click suppressor in case no
+ * click ever follows (e.g., the user lifted off-screen).
  *
  * If an `IWorkbenchLayoutService` is supplied via
  * `options.layoutService`, the gesture self-gates on phone layout:
@@ -110,6 +113,7 @@ export function installLongPress(
 	let startX = 0;
 	let startY = 0;
 	let timerId: number | undefined;
+	let clickSuppressor: DisposableStore | undefined;
 	const targetWindow = dom.getWindow(element);
 
 	const cancelTimer = () => {
@@ -122,6 +126,11 @@ export function installLongPress(
 	const reset = () => {
 		cancelTimer();
 		pointerId = undefined;
+	};
+
+	const clearClickSuppressor = () => {
+		clickSuppressor?.dispose();
+		clickSuppressor = undefined;
 	};
 
 	store.add(dom.addDisposableListener(element, dom.EventType.POINTER_DOWN, (e: PointerEvent) => {
@@ -150,6 +159,10 @@ export function installLongPress(
 			pointerId = undefined;
 			handler(e);
 			if (suppressSyntheticClick) {
+				clearClickSuppressor();
+				const suppressorStore = new DisposableStore();
+				clickSuppressor = suppressorStore;
+
 				// Swallow the next click in capture phase so the
 				// underlying element's tap handler doesn't also
 				// run. `addEventListener` (not
@@ -158,12 +171,24 @@ export function installLongPress(
 				const swallow = (clickEvent: MouseEvent) => {
 					clickEvent.preventDefault();
 					clickEvent.stopPropagation();
-					element.removeEventListener('click', swallow, true);
+					clearClickSuppressor();
 				};
 				element.addEventListener('click', swallow, true);
-				// Drop the suppressor on the next frame in case no
-				// click ever follows (e.g. lifted off-screen).
-				targetWindow.setTimeout(() => element.removeEventListener('click', swallow, true), 0);
+				suppressorStore.add({ dispose: () => element.removeEventListener('click', swallow, true) });
+
+				// Keep suppression alive through pointerup so the
+				// release-generated click can still be swallowed.
+				suppressorStore.add(dom.addDisposableListener(element, dom.EventType.POINTER_UP, (pointerEvent: PointerEvent) => {
+					if (pointerEvent.pointerId !== e.pointerId) {
+						return;
+					}
+					targetWindow.setTimeout(() => clearClickSuppressor(), 0);
+				}, true));
+				suppressorStore.add(dom.addDisposableListener(element, 'pointercancel', () => clearClickSuppressor(), true));
+
+				// Fallback in case neither click nor pointercancel arrives.
+				const suppressorTimeout = targetWindow.setTimeout(() => clearClickSuppressor(), CLICK_SUPPRESSOR_TIMEOUT_MS);
+				suppressorStore.add({ dispose: () => targetWindow.clearTimeout(suppressorTimeout) });
 			}
 		}, holdTimeMs);
 	}));
@@ -193,6 +218,7 @@ export function installLongPress(
 	store.add(dom.addDisposableListener(element, 'pointercancel', end));
 
 	store.add({ dispose: cancelTimer });
+	store.add({ dispose: clearClickSuppressor });
 
 	return store;
 }
