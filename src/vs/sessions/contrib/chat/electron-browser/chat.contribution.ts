@@ -18,7 +18,7 @@ import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessio
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { IPreferredSessionType, writeStoredSessionTypePref } from '../browser/sessionTypePicker.js';
+import { writeStoredSessionTypePref } from '../browser/sessionTypePicker.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
@@ -58,7 +58,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			// session or initial query is being restored, our seed wins.
 			const preferredOnly = !!preferredSessionType && !sessionResource && !initialQuery;
 
-			const openIntent = this.handleOpenIntent(folderUri, initialQuery, sessionResource)
+			this.handleOpenIntent(folderUri, initialQuery, sessionResource)
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 
 			if (preferredOnly) {
@@ -67,34 +67,13 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 				// reactivating a prior session), then drop the active session
 				// so the session-type picker re-reads the freshly stored
 				// preference from storage.
-				openIntent.then(() => {
-					const expectedSessionId = this.sessionsManagementService.activeSession.get()?.sessionId;
-					return this.lifecycleService.when(LifecyclePhase.Eventually).then(() =>
-						this.unsetPreferredOnlyNewSession(expectedSessionId, preferredSessionType)
-					);
-				})
+				this.lifecycleService.when(LifecyclePhase.Eventually)
+					.then(() => this.sessionsManagementService.unsetNewSession())
 					.catch(err => this.logService.error('[AgentsHandoff] preferred-only unsetNewSession failed', err));
 			}
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
-	}
-
-	private unsetPreferredOnlyNewSession(expectedSessionId: string | undefined, preferredSessionType: IPreferredSessionType | undefined): void {
-		const active = this.sessionsManagementService.activeSession.get();
-		if (active?.sessionId !== expectedSessionId) {
-			this.logService.info('[AgentsHandoff] skipped preferred-only unsetNewSession because active session changed');
-			return;
-		}
-		if (active && active.status.get() !== SessionStatus.Untitled) {
-			this.logService.info('[AgentsHandoff] skipped preferred-only unsetNewSession because active session is no longer untitled');
-			return;
-		}
-		if (active && preferredSessionType && active.sessionType === preferredSessionType.sessionTypeId && (!preferredSessionType.providerId || active.providerId === preferredSessionType.providerId)) {
-			this.logService.info('[AgentsHandoff] skipped preferred-only unsetNewSession because active session already matches preferred type');
-			return;
-		}
-		this.sessionsManagementService.unsetNewSession();
 	}
 
 	private async handleOpenIntent(folderUri: URI | undefined, initialQuery: string | undefined, sessionResource: URI | undefined): Promise<void> {
