@@ -13,6 +13,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
@@ -94,6 +95,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	private readonly _navigation: SessionsNavigation;
 
+	/**
+	 * Chat resources for which this service has just kicked off a
+	 * `provider.sendRequest` and will emit `_onDidSendRequest` manually after
+	 * the provider call resolves. Used to suppress the duplicate event that
+	 * would otherwise arrive via {@link IChatService.onDidSubmitRequest},
+	 * which fires synchronously inside the same provider call.
+	 */
+	private readonly _pendingSendChatResources = new Set<string>();
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -102,6 +112,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -150,6 +161,32 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._handleActiveSessionContextKeys(activeSession);
 			if (activeSession) {
 				reader.store.add(this._activeSessionListeners(activeSession));
+			}
+		}));
+
+		// Mirror follow-up chat requests (sent from within an existing chat
+		// widget, not through our own send paths) onto `_onDidSendRequest` so
+		// downstream listeners (e.g., telemetry) can observe every user
+		// request for a session, not just those initiated from the sessions
+		// UI. Sends originating from {@link sendRequest} and
+		// {@link sendNewChatRequest} are deduplicated via
+		// {@link _pendingSendChatResources}.
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message }) => {
+			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
+				return;
+			}
+			for (const session of this.getSessions()) {
+				const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatSessionResource));
+				if (chat) {
+					this._onDidSendRequest.fire({
+						session,
+						chat,
+						isNewSession: false,
+						isNewChat: false,
+						options: { query: message?.text ?? '' },
+					});
+					return;
+				}
 			}
 		}));
 	}
@@ -247,16 +284,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private onDidReplaceSession(from: ISession, to: ISession): void {
-		// Rewrite the id in the visibility model so the same grid slot is
-		// reused for the replaced session.
-		const wasActive = this._visibility.activeSession.get()?.sessionId === from.sessionId;
-		this._visibility.replaceId(from.sessionId, to.sessionId);
+		this._visibility.updateSession(from, to);
 
-		if (wasActive) {
-			this.setActiveSession(to, /* force */ true);
-		} else {
-			this._visibility.refresh();
-		}
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
@@ -292,7 +321,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
 			const fallback = this._visibility.activeSession.get();
-			if (fallback) {
+			if (fallback && this.getSession(fallback.resource)) {
 				this.openSession(fallback.resource);
 			} else {
 				this.openNewSessionView();
@@ -519,7 +548,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// be sent before the provider hands us the final session.
 			const tmpSession = this._visibility.updateResourceOfSession(session, chat.resource);
 
-			const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			const chatResourceKey = chat.resource.toString();
+			this._pendingSendChatResources.add(chatResourceKey);
+			let updatedSession: ISession;
+			try {
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			} finally {
+				this._pendingSendChatResources.delete(chatResourceKey);
+			}
 			if (updatedSession.sessionId !== session.sessionId) {
 				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 				this._visibility.updateSession(tmpSession, updatedSession);
@@ -527,7 +563,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			this._onDidStartSession.fire(updatedSession);
 
-			this._onDidSendRequest.fire({ session: updatedSession, chat: session.mainChat.get(), isNewSession: true, options });
+			this._onDidSendRequest.fire({ session: updatedSession, chat: session.mainChat.get(), isNewSession: true, isNewChat: true, options });
 		} finally {
 			chatsListener.dispose();
 		}
@@ -549,13 +585,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
-		const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		const chatResourceKey = chat.resource.toString();
+		this._pendingSendChatResources.add(chatResourceKey);
+		let updatedSession: ISession;
+		try {
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		} finally {
+			this._pendingSendChatResources.delete(chatResourceKey);
+		}
 		if (updatedSession.sessionId !== session.sessionId) {
 			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 			this._visibility.updateSession(session, updatedSession);
 		}
 
-		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, options });
+		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 
 	openNewSessionView(): void {
@@ -652,6 +695,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (fallback === undefined) {
 			this.openNewSessionView();
 		}
+	}
+
+	closeAllSessions(): void {
+		const ids = this._visibility.visibleSessions.get()
+			.filter((s): s is IActiveSession => !!s)
+			.map(s => s.sessionId);
+		if (ids.length === 0) {
+			return;
+		}
+
+		this._pendingNewSession = undefined;
+
+		// Remove every visible session in a single pass; the visibility model
+		// clears the active session, which drives the grid back to the
+		// new-session view via the part's reconciliation.
+		this._visibility.removeMany(ids);
 	}
 
 	private _restoreInitialChat(session: ISession): IChat {

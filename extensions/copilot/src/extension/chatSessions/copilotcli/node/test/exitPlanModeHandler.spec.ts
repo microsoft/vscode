@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
 import type { CancellationToken, ChatParticipantToolToken, TextDocumentChangeEvent } from 'vscode';
@@ -17,6 +16,7 @@ import { LanguageModelTextPart } from '../../../../../vscodeTypes';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { ICopilotTool } from '../../../../tools/common/toolsRegistry';
 import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '../../../../tools/common/toolsService';
+import { Session } from '../../common/utils';
 import { handleExitPlanMode, type ExitPlanModeEventData, type ExitPlanModeResponse } from '../exitPlanModeHandler';
 
 // ---------- helpers / mocks ----------

@@ -22,6 +22,8 @@ export const enum AgentHostConfigKey {
 	DefaultShell = 'defaultShell',
 	/** When true, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override. */
 	DisableCustomTerminalTool = 'disableCustomTerminalTool',
+	/** When true, Copilot SDK sessions enable the rubber duck critic subagent. */
+	RubberDuck = 'rubberDuck',
 }
 
 /**
@@ -72,6 +74,12 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.disableCustomTerminalTool.title', "Use SDK Terminal Tool"),
 		description: localize('agentHost.config.disableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override."),
+		default: false,
+	}),
+	[AgentHostConfigKey.RubberDuck]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
+		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
 		default: false,
 	}),
 });
