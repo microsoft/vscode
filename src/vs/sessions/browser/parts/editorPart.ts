@@ -28,15 +28,16 @@ export class MainEditorPart extends MainEditorPartBase {
 		// MARGIN_BOTTOM applies only when the panel is visible (paired with the panel's
 		// 5px top margin to center the sash). When the panel is hidden the card fills its
 		// cell; the workbench grid's 10px bottom gutter provides the visible gap.
-		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ||
-			this.layoutService.isVisible(Parts.SESSIONS_PART)
-			? 0
-			: MainEditorPart.MARGIN_LEFT;
+		// MARGIN_RIGHT drops to 0 when the auxiliary bar is hidden so the editor fills
+		// the remaining horizontal space (CSS `.noauxiliarybar` override mirrors this).
+		const marginRight = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+			? MainEditorPart.MARGIN_RIGHT
+			: 0;
 		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
 			? MainEditorPart.MARGIN_BOTTOM
 			: 0;
 
-		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - 2 /* border width */;
+		const adjustedWidth = width - marginRight - MainEditorPart.MARGIN_LEFT - 2 /* border width */;
 		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - marginBottom - 2 /* border width */;
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);

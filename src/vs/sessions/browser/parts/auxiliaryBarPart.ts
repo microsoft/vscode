@@ -295,20 +295,17 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const borderTotal = 2; // 1px border on each side
 
 		// The right gutter is provided by the workbench grid (see Workbench.layout).
-		// The bottom margin is 5px when the panel is visible (paired with the panel's
-		// 5px top margin to center the sash) and 0 when the panel is hidden (so the card
-		// fills its cell; the workbench grid's 10px bottom gutter provides the visible gap).
-		// When the editor is visible, padding-left: 5px keeps the inner content position
-		// invariant (matching the editor-hidden state where margin-left: 5px applies instead).
-		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-		const marginLeft = editorVisible ? 0 : AuxiliaryBarPart.MARGIN_LEFT;
-		const paddingLeft = editorVisible ? AuxiliaryBarPart.MARGIN_LEFT : 0;
+		// 5px left margin pairs with the editor part's 5px right margin so the
+		// two parts read as visually decoupled cards. The bottom margin is 5px
+		// when the panel is visible (paired with the panel's 5px top margin to
+		// center the sash) and 0 when the panel is hidden (so the card fills its
+		// cell; the workbench grid's 10px bottom gutter provides the visible gap).
 		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
 			? AuxiliaryBarPart.MARGIN_BOTTOM
 			: 0;
 
 		super.layout(
-			width - marginLeft - borderTotal - paddingLeft,
+			width - AuxiliaryBarPart.MARGIN_LEFT - borderTotal,
 			height - AuxiliaryBarPart.MARGIN_TOP - marginBottom - borderTotal,
 			top, left
 		);
