@@ -13,6 +13,7 @@ import { AgentSignal } from '../../common/agentService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
  * Per-message router. Awaits file-edit observation for `type: 'user'`
@@ -22,7 +23,10 @@ import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessi
  *
  * Owns the per-session {@link ClaudeFileEditObserver} (Phase 8) and
  * {@link ClaudeMapperState} (Phase 7) — both are private to the
- * message-handling pipeline and have no other consumers.
+ * message-handling pipeline and have no other consumers. Phase 12
+ * subagent correlation state lives on {@link IClaudeSubagentResolver}
+ * (host-singleton, keyed by parent session URI), which the router
+ * forwards into every mapper invocation.
  */
 export class ClaudeSdkMessageRouter extends Disposable {
 
@@ -32,16 +36,25 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	private readonly _editObserver: ClaudeFileEditObserver;
 	private readonly _mapperState = new ClaudeMapperState();
 
+	private _clientId: string | undefined;
+
 	constructor(
 		private readonly _sessionUri: URI,
 		dbRef: IReference<ISessionDatabase>,
+		private readonly _subagents: SubagentRegistry,
+		clientId: string | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._clientId = clientId;
 		this._editObserver = this._register(
 			instantiationService.createInstance(ClaudeFileEditObserver, _sessionUri.toString(), dbRef),
 		);
+	}
+
+	setClientId(clientId: string | undefined): void {
+		this._clientId = clientId;
 	}
 
 	async handle(message: SDKMessage, turnId: string | undefined): Promise<void> {
@@ -60,6 +73,8 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				turnId,
 				this._mapperState,
 				this._logService,
+				this._subagents,
+				this._clientId,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

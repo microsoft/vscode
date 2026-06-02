@@ -9,11 +9,11 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, modelSupportsExtendedCacheTtl } from '../../../networking/common/anthropic';
+import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl, modelSupportsMemory } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, AnthropicMessagesProcessor, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
 import { HeadersImpl, Response } from '../../../networking/common/fetcherService';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
@@ -528,7 +528,7 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches 1M context Opus variants and rejects everything else', function () {
+	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
@@ -538,7 +538,10 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-opus-4.6': modelSupportsExtendedCacheTtl('claude-opus-4.6'),
 			'claude-opus-4.7': modelSupportsExtendedCacheTtl('claude-opus-4.7'),
 			'claude-opus-4.5': modelSupportsExtendedCacheTtl('claude-opus-4.5'),
+			'claude-sonnet-4.6': modelSupportsExtendedCacheTtl('claude-sonnet-4.6'),
 			'claude-sonnet-4.5': modelSupportsExtendedCacheTtl('claude-sonnet-4.5'),
+			'claude-opus-4-1': modelSupportsExtendedCacheTtl('claude-opus-4-1'),
+			'claude-sonnet-4': modelSupportsExtendedCacheTtl('claude-sonnet-4'),
 			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
@@ -547,12 +550,45 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-opus-4.7-1m-internal': true,
 			'claude-opus-4-7-1m-internal': true,
 			'CLAUDE-OPUS-4.6-1M': true,
-			'claude-opus-4.6': false,
-			'claude-opus-4.7': false,
-			'claude-opus-4.5': false,
-			'claude-sonnet-4.5': false,
-			'claude-haiku-4-5': false,
+			'claude-opus-4.6': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.5': true,
+			'claude-sonnet-4.6': true,
+			'claude-sonnet-4.5': true,
+			'claude-opus-4-1': false,
+			'claude-sonnet-4': false,
+			'claude-haiku-4-5': true,
 			'gpt-5': false,
+		});
+	});
+
+	test('matches via endpoint.family when the model id is unknown', function () {
+		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
+		expect({
+			'preview-id + family=claude-opus-4.7': modelSupportsExtendedCacheTtl(fake('claude-opus-4.7', 'preview-opus-internal')),
+			'preview-id + family=claude-sonnet-4.5': modelSupportsExtendedCacheTtl(fake('claude-sonnet-4.5', 'preview-sonnet-internal')),
+			'preview-id + family=claude-opus-4 (unsupported)': modelSupportsExtendedCacheTtl(fake('claude-opus-4', 'preview-opus-old')),
+			'preview-id + family=mystery': modelSupportsExtendedCacheTtl(fake('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.7': true,
+			'preview-id + family=claude-sonnet-4.5': true,
+			'preview-id + family=claude-opus-4 (unsupported)': false,
+			'preview-id + family=mystery': false,
+		});
+	});
+});
+
+suite('modelSupportsMemory', function () {
+	test('matches via endpoint.family when the model id is unknown', function () {
+		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
+		expect({
+			'preview-id + family=claude-opus-4.6': modelSupportsMemory(fake('claude-opus-4.6', 'preview-opus-internal')),
+			'preview-id + family=claude-haiku-4-5': modelSupportsMemory(fake('claude-haiku-4-5', 'preview-haiku-internal')),
+			'preview-id + family=mystery': modelSupportsMemory(fake('mystery-family', 'preview-anything')),
+		}).toEqual({
+			'preview-id + family=claude-opus-4.6': true,
+			'preview-id + family=claude-haiku-4-5': true,
+			'preview-id + family=mystery': false,
 		});
 	});
 });
@@ -585,9 +621,24 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
 	});
 
-	test('returns true for eligible model + config + Agent location + non-subagent', function () {
+	test('composes all four gates: returns true only when model + config + Agent location + non-subagent all align', function () {
+		// Positive composition + negative on each axis. If a future refactor short-circuits
+		// before reading any single gate (e.g. drops the config check), one of these flips.
 		enableConfig();
-		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(true);
+		const probe = (model: string, location: ChatLocation | undefined, sub: boolean) =>
+			isExtendedCacheTtlEnabled(model, configurationService, experimentationService, location, sub);
+
+		expect({
+			allPass: probe(ELIGIBLE_MODEL, ChatLocation.Agent, false),
+			badModel: probe('gpt-5', ChatLocation.Agent, false),
+			badLocation: probe(ELIGIBLE_MODEL, ChatLocation.Panel, false),
+			subagent: probe(ELIGIBLE_MODEL, ChatLocation.Agent, true),
+		}).toEqual({
+			allPass: true,
+			badModel: false,
+			badLocation: false,
+			subagent: false,
+		});
 	});
 
 	test('returns false when location is undefined', function () {
@@ -604,19 +655,11 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, true)).toBe(false);
 	});
 
-	test('returns false for non-1M Claude variants even when all other gates pass', function () {
+	test('delegates model gate to modelSupportsExtendedCacheTtl', function () {
+		// Full model boundaries are covered by the `modelSupportsExtendedCacheTtl` suite.
+		// Here we only verify the delegation is wired up.
 		enableConfig();
-		expect({
-			'claude-opus-4-6': isExtendedCacheTtlEnabled('claude-opus-4-6', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-opus-4.7': isExtendedCacheTtlEnabled('claude-opus-4.7', configurationService, experimentationService, ChatLocation.Agent, false),
-			'claude-sonnet-4-5': isExtendedCacheTtlEnabled('claude-sonnet-4-5', configurationService, experimentationService, ChatLocation.Agent, false),
-			'gpt-5': isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false),
-		}).toEqual({
-			'claude-opus-4-6': false,
-			'claude-opus-4.7': false,
-			'claude-sonnet-4-5': false,
-			'gpt-5': false,
-		});
+		expect(isExtendedCacheTtlEnabled('gpt-5', configurationService, experimentationService, ChatLocation.Agent, false)).toBe(false);
 	});
 
 	test('returns false for non-Agent chat locations', function () {
@@ -642,6 +685,38 @@ suite('isExtendedCacheTtlEnabled', function () {
 			MessagesProxy: false,
 			ResponsesProxy: false,
 		});
+	});
+});
+
+suite('isExtendedCacheTtlMessagesEnabled', function () {
+
+	let disposables: DisposableStore;
+	let configurationService: InMemoryConfigurationService;
+	let experimentationService: IExperimentationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		const accessor = services.createTestingAccessor();
+		configurationService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		experimentationService = accessor.get(IExperimentationService);
+	});
+
+	test('parent on/off x sub on/off matrix', function () {
+		// [parentEnabled, sub, expected]
+		const cases: ReadonlyArray<readonly [boolean, boolean, boolean]> = [
+			[false, false, false],
+			[true, false, false],
+			[false, true, false],
+			[true, true, true],
+		];
+		const actual = cases.map(([parent, sub]) => {
+			configurationService.setConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtlMessages, sub);
+			return [parent, sub, isExtendedCacheTtlMessagesEnabled(parent, configurationService, experimentationService)] as const;
+		});
+		// Only "both on" produces true — sub is a strict sub-toggle of parent.
+		// Model/location/subagent gates are inherited via the parent and covered in its suite.
+		expect(actual).toEqual(cases);
 	});
 });
 
@@ -803,6 +878,34 @@ suite('addMessagesApiCacheControl', function () {
 		];
 		addMessagesApiCacheControl({ messages: iterB });
 		expect(ccPositions({ messages: iterB })).toEqual(['messages[3].block[0]', 'messages[4].block[0]']);
+	});
+
+	test('propagates cacheTtl to the emitted cache_control blocks', function () {
+		const makeMessages = (): MessageParam[] => [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
+		];
+
+		const collect = (messages: MessageParam[]): unknown[] => {
+			const out: unknown[] = [];
+			messages.forEach(m => Array.isArray(m.content) && m.content.forEach(b => {
+				if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+					out.push(b.cache_control);
+				}
+			}));
+			return out;
+		};
+
+		const withTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withTtl }, '1h');
+
+		const withoutTtl = makeMessages();
+		addMessagesApiCacheControl({ messages: withoutTtl });
+
+		expect({ withTtl: collect(withTtl), withoutTtl: collect(withoutTtl) }).toEqual({
+			withTtl: [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }],
+			withoutTtl: [{ type: 'ephemeral' }, { type: 'ephemeral' }],
+		});
 	});
 });
 
@@ -1301,6 +1404,142 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].usage?.prompt_tokens_details?.cached_tokens).toBe(30);
 	});
 
+	test('surfaces 1h/5m cache_creation split when present', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache_ttl',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 25,
+				cache_read_input_tokens: 0,
+				cache_creation: {
+					ephemeral_1h_input_tokens: 17,
+					ephemeral_5m_input_tokens: 8,
+				},
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		const details = results[0].usage?.prompt_tokens_details;
+		expect(details?.cache_creation_input_tokens).toBe(25);
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(17);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(8);
+	});
+
+	test('omits 1h/5m split fields when Anthropic does not report them', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache_no_split',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 20,
+				cache_read_input_tokens: 30,
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		const details = results[0].usage?.prompt_tokens_details;
+		expect(details?.cache_creation_input_tokens).toBe(20);
+		expect(details?.anthropic_cache_creation).toBeUndefined();
+	});
+
+	test('surfaces thinking_tokens as completion_tokens_details.reasoning_tokens', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'thought' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 10,
+				output_tokens: 1140,
+				output_tokens_details: { thinking_tokens: 580 },
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens).toBe(1140);
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(580);
+	});
+
+	test('reasoning_tokens defaults to 0 when output_tokens_details is absent', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_no_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no thinking' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 50 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(0);
+	});
+
 	test('rejects on malformed JSON', async () => {
 		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
@@ -1450,5 +1689,162 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 		}
 		expect(results).toHaveLength(1);
 		expect(results[0].message.content).toHaveLength(1);
+	});
+});
+
+suite('AnthropicMessagesProcessor streaming cache_creation', () => {
+	function makeProcessor(): AnthropicMessagesProcessor {
+		return new AnthropicMessagesProcessor(
+			TelemetryData.createAndMarkAsIssued(),
+			'req-1',
+			'gh-req-1',
+			'',
+			new TestLogService(),
+			new NullTelemetryService(),
+		);
+	}
+
+	test('message_start cache_creation survives a message_delta that omits the breakdown', () => {
+		// Production happy path: Anthropic only emits the cache_creation breakdown
+		// in message_start. message_delta updates other usage fields but typically
+		// has no cache_creation. The ?? fallback in the processor must preserve
+		// the values seen in message_start — including 0 (a common control-arm
+		// value) which would be wiped out by a `||` regression.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 0,
+					cache_creation_input_tokens: 12336,
+					cache_read_input_tokens: 391352,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 12336,
+					},
+				},
+			},
+		}, noop);
+
+		// message_delta with usage but no cache_creation breakdown — mirrors
+		// what every observed backend (Anthropic 1P, Bedrock, Vertex) emits in
+		// the final delta of a stream.
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 42,
+				input_tokens: 5,
+				cache_creation_input_tokens: 12336,
+				cache_read_input_tokens: 391352,
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion).toBeDefined();
+
+		const details = completion!.usage?.prompt_tokens_details;
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(0);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(12336);
+	});
+
+	test('message_delta cache_creation overrides message_start values', () => {
+		// Defensive: if a backend ever did emit the breakdown in message_delta,
+		// the later values should win (matches the existing overwrite pattern
+		// for cache_creation_input_tokens / cache_read_input_tokens).
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_stream_override',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 0,
+					cache_creation_input_tokens: 10000,
+					cache_read_input_tokens: 0,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 10000,
+					},
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 10,
+				input_tokens: 5,
+				cache_creation_input_tokens: 15000,
+				cache_read_input_tokens: 0,
+				cache_creation: {
+					ephemeral_1h_input_tokens: 5000,
+					ephemeral_5m_input_tokens: 10000,
+				},
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		const details = completion!.usage?.prompt_tokens_details;
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(5000);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(10000);
+	});
+
+	test('streaming thinking_tokens from message_delta surfaces as reasoning_tokens', () => {
+		// Anthropic typically reports thinking_tokens in the final message_delta
+		// (after the cumulative output_tokens count is known). Matches the
+		// observed payload shape from CAPI/Anthropic 1P/Bedrock/Vertex.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_thinking_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 1,
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 2024,
+				input_tokens: 5,
+				output_tokens_details: { thinking_tokens: 639 },
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion!.usage?.completion_tokens).toBe(2024);
+		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
 	});
 });

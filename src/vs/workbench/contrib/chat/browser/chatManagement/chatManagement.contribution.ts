@@ -156,6 +156,10 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			}
 		}));
 
+		const openLanguageModelsJsonWhen = ContextKeyExpr.and(
+			CONTEXT_MODELS_EDITOR,
+			LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION
+		);
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -163,7 +167,19 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					title: localize2('openLanguageModelsJson', "Open Language Models (JSON)"),
 					category: CHAT_CATEGORY,
 					precondition: LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION,
+					icon: languageModelsOpenSettingsIcon,
 					f1: true,
+					menu: [{
+						id: MenuId.EditorTitle,
+						when: openLanguageModelsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}, {
+						id: MenuId.ModalEditorEditorTitle,
+						when: openLanguageModelsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}]
 				});
 			}
 
@@ -190,22 +206,6 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 				icon: languageModelsOpenSettingsIcon
 			},
 			when: openModelsManagementEditorWhen,
-			group: 'navigation',
-			order: 1
-		});
-
-		const openLanguageModelsJsonWhen = ContextKeyExpr.and(
-			CONTEXT_MODELS_EDITOR,
-			LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION
-		);
-
-		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-			command: {
-				id: 'workbench.action.openLanguageModelsJson',
-				title: localize2('openLanguageModelsJson', "Open Language Models (JSON)"),
-				icon: languageModelsOpenSettingsIcon
-			},
-			when: openLanguageModelsJsonWhen,
 			group: 'navigation',
 			order: 1
 		});

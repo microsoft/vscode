@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
-import { TerminalClaimKind, TerminalContentPart } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalContentPart, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTerminalManager, formatTerminalText, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
@@ -75,7 +75,6 @@ class TestTerminalDataHandler {
 			this.tracker.detectionAvailableEmitted = true;
 			this.dispatched.push({
 				type: ActionType.TerminalCommandDetectionAvailable,
-				terminal: this.uri,
 			});
 		}
 
@@ -105,7 +104,6 @@ class TestTerminalDataHandler {
 
 				this.dispatched.push({
 					type: ActionType.TerminalCommandExecuted,
-					terminal: this.uri,
 					commandId,
 					commandLine,
 					timestamp,
@@ -135,7 +133,6 @@ class TestTerminalDataHandler {
 
 				this.dispatched.push({
 					type: ActionType.TerminalCommandFinished,
-					terminal: this.uri,
 					commandId: finishedCommandId,
 					exitCode: event.exitCode,
 					durationMs,
@@ -147,7 +144,6 @@ class TestTerminalDataHandler {
 					this.cwd = event.value;
 					this.dispatched.push({
 						type: ActionType.TerminalCwdChanged,
-						terminal: this.uri,
 						cwd: event.value,
 					});
 				}
@@ -207,6 +203,8 @@ class TestPty implements IPty {
 }
 
 class TestAgentHostTerminalManager extends AgentHostTerminalManager {
+	spawnOptions: IPtyForkOptions | IWindowsPtyForkOptions | undefined;
+
 	constructor(
 		stateManager: AgentHostStateManager,
 		logService: NullLogService,
@@ -218,6 +216,7 @@ class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 	}
 
 	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
+		this.spawnOptions = options;
 		this._pty.cols = options.cols ?? this._pty.cols;
 		this._pty.rows = options.rows ?? this._pty.rows;
 		return this._pty;
@@ -271,7 +270,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			terminal: 'agenthost-terminal://test/command-input',
+			channel: 'agenthost-terminal://test/command-input',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -296,7 +295,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			terminal: 'agenthost-terminal://test/bracketed-paste',
+			channel: 'agenthost-terminal://test/bracketed-paste',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -321,7 +320,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			terminal: 'agenthost-terminal://test/bracketed-paste-disabled',
+			channel: 'agenthost-terminal://test/bracketed-paste-disabled',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -337,6 +336,58 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
 	});
 
+	test('sets zsh agent fixups only for session zsh terminals', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+
+		async function createTestTerminal(
+			id: string,
+			shell: string,
+			claim: TerminalClaim,
+			options?: { preventShellHistory?: boolean; nonInteractive?: boolean }
+		): Promise<TestAgentHostTerminalManager> {
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+			const createTerminal = manager.createTerminal({
+				channel: `agenthost-terminal://test/${id}`,
+				claim,
+				cwd: process.cwd(),
+				cols: 80,
+				rows: 24,
+			}, { shell, ...options });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await createTerminal;
+			return manager;
+		}
+
+		const zshSessionManager = await createTestTerminal('zsh-session-fixups', '/bin/zsh', {
+			kind: TerminalClaimKind.Session,
+			session: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+		}, { preventShellHistory: true });
+		assert.strictEqual(zshSessionManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, '1');
+		assert.strictEqual(zshSessionManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, '1');
+
+		const zshClientManager = await createTestTerminal('zsh-client', '/bin/zsh', {
+			kind: TerminalClaimKind.Client,
+			clientId: 'test-client',
+		});
+		assert.strictEqual(zshClientManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, undefined);
+
+		const bashSessionManager = await createTestTerminal('bash-session-history', '/bin/bash', {
+			kind: TerminalClaimKind.Session,
+			session: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-2',
+		}, { preventShellHistory: true, nonInteractive: true });
+		assert.strictEqual(bashSessionManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, undefined);
+		assert.strictEqual(bashSessionManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, '1');
+	});
+
 	test('writes headless DSR responses back to the PTY', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -346,7 +397,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			terminal: 'agenthost-terminal://test/dsr',
+			channel: 'agenthost-terminal://test/dsr',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -371,7 +422,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const uri = 'agenthost-terminal://test/alt-buffer';
 
 		const createTerminal = manager.createTerminal({
-			terminal: uri,
+			channel: uri,
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -400,7 +451,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const uri = 'agenthost-terminal://test/alt-buffer-disposed';
 
 		const createTerminal = manager.createTerminal({
-			terminal: uri,
+			channel: uri,
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,

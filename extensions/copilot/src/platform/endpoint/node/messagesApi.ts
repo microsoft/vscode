@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platfo
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
+import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
@@ -66,6 +66,13 @@ interface AnthropicStreamEvent {
 			output_tokens: number;
 			cache_creation_input_tokens?: number;
 			cache_read_input_tokens?: number;
+			cache_creation?: {
+				ephemeral_1h_input_tokens?: number;
+				ephemeral_5m_input_tokens?: number;
+			};
+			output_tokens_details?: {
+				thinking_tokens?: number;
+			};
 		};
 	};
 	index?: number;
@@ -92,6 +99,13 @@ interface AnthropicStreamEvent {
 		input_tokens?: number;
 		cache_creation_input_tokens?: number;
 		cache_read_input_tokens?: number;
+		cache_creation?: {
+			ephemeral_1h_input_tokens?: number;
+			ephemeral_5m_input_tokens?: number;
+		};
+		output_tokens_details?: {
+			thinking_tokens?: number;
+		};
 	};
 	copilot_usage?: {
 		total_nano_aiu: number;
@@ -183,14 +197,19 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// context is short-lived. The three subagent call sites (search loop,
 	// execution loop, Task-tool-spawned agent) all set
 	// `interactionTypeOverride: 'conversation-subagent'`, which is also the
-	// source of truth for the `X-Interaction-Type` wire header. The rolling
-	// breakpoints on messages always use the default 5m TTL.
+	// source of truth for the `X-Interaction-Type` wire header.
+	//
+	// The rolling message breakpoints default to the 5m TTL and only upgrade to
+	// 1h when the `extendedTtlMessages` sub-toggle is on (which itself requires
+	// the parent `extendedTtl` to be on — see `isExtendedCacheTtlMessagesEnabled`).
 	const isSubagent = options.interactionTypeOverride === 'conversation-subagent';
 	const useExtendedCacheTtl = isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
 	const cacheTtl = useExtendedCacheTtl ? '1h' : undefined;
+	const useExtendedCacheTtlMessages = isExtendedCacheTtlMessagesEnabled(useExtendedCacheTtl, configurationService, experimentationService);
+	const messageCacheTtl = useExtendedCacheTtlMessages ? '1h' : undefined;
 
 	clearAllCacheControl(messagesResult);
-	addMessagesApiCacheControl(messagesResult);
+	addMessagesApiCacheControl(messagesResult, messageCacheTtl);
 	addToolsAndSystemCacheControl(finalTools, messagesResult, cacheTtl);
 
 	// Guard: The Anthropic Messages API requires the conversation to end with a user message.
@@ -512,7 +531,7 @@ export function clearAllCacheControl(
 export function addToolsAndSystemCacheControl(
 	tools: AnthropicMessagesTool[],
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
-	cacheTtl?: '5m' | '1h',
+	cacheTtl?: '1h',
 ): void {
 	const cacheControl = cacheTtl
 		? { type: 'ephemeral' as const, ttl: cacheTtl }
@@ -547,26 +566,27 @@ export function addToolsAndSystemCacheControl(
  */
 export function addMessagesApiCacheControl(
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	cacheTtl?: '1h',
 ): void {
 	const messages = messagesResult.messages;
 	let marked = 0;
 	for (let i = messages.length - 1; i >= 0 && marked < 2; i--) {
 		const msg = messages[i];
 		if (Array.isArray(msg.content) && msg.content.some(b => typeof b === 'object' && contentBlockSupportsCacheControl(b))) {
-			markLastCacheableBlock(msg);
+			markLastCacheableBlock(msg, cacheTtl);
 			marked++;
 		}
 	}
 }
 
-function markLastCacheableBlock(msg: MessageParam): void {
+function markLastCacheableBlock(msg: MessageParam, cacheTtl?: '1h'): void {
 	if (!Array.isArray(msg.content)) {
 		return;
 	}
 	for (let j = msg.content.length - 1; j >= 0; j--) {
 		const block = msg.content[j];
 		if (typeof block === 'object' && contentBlockSupportsCacheControl(block)) {
-			block.cache_control = { type: 'ephemeral' };
+			block.cache_control = cacheTtl ? { type: 'ephemeral', ttl: cacheTtl } : { type: 'ephemeral' };
 			return;
 		}
 	}
@@ -660,7 +680,16 @@ interface AnthropicCompletionState {
 	readonly inputTokens: number;
 	readonly outputTokens: number;
 	readonly cacheCreationTokens: number;
+	readonly cacheCreation1hTokens: number | undefined;
+	readonly cacheCreation5mTokens: number | undefined;
 	readonly cacheReadTokens: number;
+	/**
+	 * Anthropic-reported thinking (reasoning) tokens, a subset of
+	 * `output_tokens`. Surfaced as `completion_tokens_details.reasoning_tokens`
+	 * to match the OpenAI/CAPI naming used elsewhere in telemetry. Undefined
+	 * when the server did not include `output_tokens_details`.
+	 */
+	readonly thinkingTokens: number | undefined;
 	readonly requestId: string;
 	readonly ghRequestId: string;
 	readonly serverExperiments: string;
@@ -718,9 +747,17 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 			prompt_tokens_details: {
 				cached_tokens: state.cacheReadTokens,
 				cache_creation_input_tokens: state.cacheCreationTokens,
+				...(state.cacheCreation1hTokens !== undefined || state.cacheCreation5mTokens !== undefined
+					? {
+						anthropic_cache_creation: {
+							...(state.cacheCreation1hTokens !== undefined ? { ephemeral_1h_input_tokens: state.cacheCreation1hTokens } : {}),
+							...(state.cacheCreation5mTokens !== undefined ? { ephemeral_5m_input_tokens: state.cacheCreation5mTokens } : {}),
+						},
+					}
+					: {}),
 			},
 			completion_tokens_details: {
-				reasoning_tokens: 0,
+				reasoning_tokens: state.thinkingTokens ?? 0,
 				accepted_prediction_tokens: 0,
 				rejected_prediction_tokens: 0,
 			},
@@ -770,6 +807,13 @@ type AnthropicNonStreamingResponse =
 			output_tokens: number;
 			cache_creation_input_tokens?: number;
 			cache_read_input_tokens?: number;
+			cache_creation?: {
+				ephemeral_1h_input_tokens?: number;
+				ephemeral_5m_input_tokens?: number;
+			};
+			output_tokens_details?: {
+				thinking_tokens?: number;
+			};
 		};
 	}
 	| {
@@ -902,7 +946,10 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			inputTokens: usage?.input_tokens ?? 0,
 			outputTokens: usage?.output_tokens ?? 0,
 			cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
+			cacheCreation1hTokens: usage?.cache_creation?.ephemeral_1h_input_tokens,
+			cacheCreation5mTokens: usage?.cache_creation?.ephemeral_5m_input_tokens,
 			cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
+			thinkingTokens: usage?.output_tokens_details?.thinking_tokens,
 			requestId,
 			ghRequestId,
 			serverExperiments,
@@ -950,7 +997,10 @@ export class AnthropicMessagesProcessor {
 	private inputTokens: number = 0;
 	private outputTokens: number = 0;
 	private cacheCreationTokens: number = 0;
+	private cacheCreation1hTokens: number | undefined;
+	private cacheCreation5mTokens: number | undefined;
 	private cacheReadTokens: number = 0;
+	private thinkingTokens: number | undefined;
 	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
@@ -1030,7 +1080,10 @@ export class AnthropicMessagesProcessor {
 					this.inputTokens = chunk.message.usage.input_tokens ?? 0;
 					this.outputTokens = chunk.message.usage.output_tokens ?? 0;
 					this.cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
+					this.cacheCreation1hTokens = chunk.message.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
+					this.cacheCreation5mTokens = chunk.message.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
+					this.thinkingTokens = chunk.message.usage.output_tokens_details?.thinking_tokens ?? this.thinkingTokens;
 				}
 				return;
 			case 'content_block_start':
@@ -1140,7 +1193,10 @@ export class AnthropicMessagesProcessor {
 					this.outputTokens = chunk.usage.output_tokens;
 					this.inputTokens = chunk.usage.input_tokens ?? this.inputTokens;
 					this.cacheCreationTokens = chunk.usage.cache_creation_input_tokens ?? this.cacheCreationTokens;
+					this.cacheCreation1hTokens = chunk.usage.cache_creation?.ephemeral_1h_input_tokens ?? this.cacheCreation1hTokens;
+					this.cacheCreation5mTokens = chunk.usage.cache_creation?.ephemeral_5m_input_tokens ?? this.cacheCreation5mTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
+					this.thinkingTokens = chunk.usage.output_tokens_details?.thinking_tokens ?? this.thinkingTokens;
 				}
 				if (chunk.copilot_usage && typeof chunk.copilot_usage.total_nano_aiu === 'number') {
 					this.copilotUsage = chunk.copilot_usage;
@@ -1233,7 +1289,10 @@ export class AnthropicMessagesProcessor {
 					inputTokens: this.inputTokens,
 					outputTokens: this.outputTokens,
 					cacheCreationTokens: this.cacheCreationTokens,
+					cacheCreation1hTokens: this.cacheCreation1hTokens,
+					cacheCreation5mTokens: this.cacheCreation5mTokens,
 					cacheReadTokens: this.cacheReadTokens,
+					thinkingTokens: this.thinkingTokens,
 					requestId: this.requestId,
 					ghRequestId: this.ghRequestId,
 					serverExperiments: this.serverExperiments,

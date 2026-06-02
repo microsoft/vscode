@@ -11,13 +11,17 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IChatSessionProviderOptionItem, IChatSessionProviderOptionModelMetadata, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getModelHoverContent } from '../../../../../workbench/contrib/chat/browser/widget/input/chatModelPicker.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, RemoteNewSession } from './copilotChatSessionsProvider.js';
+import { INewChatModelPickerService } from '../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 
 const FILTER_THRESHOLD = 10;
@@ -26,6 +30,8 @@ interface IModelItem {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 }
 
 /**
@@ -57,8 +63,12 @@ export class CloudModelPicker extends Disposable {
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+		this._register(this.newChatModelPickerService.registerModelPicker(() => this._showPicker()));
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
@@ -137,6 +147,8 @@ export class CloudModelPicker extends Disposable {
 				id: item.id,
 				name: item.name,
 				description: item.description,
+				tooltip: item.tooltip,
+				modelMetadata: item.modelMetadata,
 			}));
 
 			// Select the session's current value, or the default, or the first
@@ -200,7 +212,50 @@ export class CloudModelPicker extends Disposable {
 			label: model.name,
 			group: { title: '', icon: this._selectedModel?.id === model.id ? Codicon.check : Codicon.blank },
 			item: model,
+			hover: this._buildModelHover(model),
 		}));
+	}
+
+	private _buildModelHover(model: IModelItem): IActionListItemHover | undefined {
+		if (model.modelMetadata) {
+			const isUBB = !!this.chatEntitlementService.quotas.usageBasedBilling;
+			const syntheticModel = {
+				identifier: model.id,
+				metadata: {
+					extension: new ExtensionIdentifier(''),
+					name: model.modelMetadata.name,
+					id: model.modelMetadata.id,
+					vendor: model.modelMetadata.vendor ?? '',
+					version: model.modelMetadata.version ?? '',
+					family: model.modelMetadata.family ?? '',
+					tooltip: model.modelMetadata.tooltip,
+					pricing: model.modelMetadata.pricing,
+					multiplierNumeric: model.modelMetadata.multiplierNumeric,
+					inputCost: model.modelMetadata.inputCost,
+					outputCost: model.modelMetadata.outputCost,
+					cacheCost: model.modelMetadata.cacheCost,
+					longContextInputCost: model.modelMetadata.longContextInputCost,
+					longContextOutputCost: model.modelMetadata.longContextOutputCost,
+					longContextCacheCost: model.modelMetadata.longContextCacheCost,
+					priceCategory: model.modelMetadata.priceCategory,
+					maxInputTokens: model.modelMetadata.maxInputTokens ?? 0,
+					maxOutputTokens: model.modelMetadata.maxOutputTokens ?? 0,
+					capabilities: model.modelMetadata.capabilities ? {
+						vision: model.modelMetadata.capabilities.vision,
+						toolCalling: model.modelMetadata.capabilities.toolCalling,
+					} : undefined,
+					isDefaultForLocation: {},
+				},
+			};
+			const hover = getModelHoverContent(syntheticModel, this.openerService, isUBB);
+			if (hover) {
+				return { content: hover.element, disposable: hover.disposable };
+			}
+		}
+		if (model.tooltip) {
+			return { content: model.tooltip };
+		}
+		return undefined;
 	}
 
 	private _selectModel(item: IModelItem): void {
@@ -224,7 +279,6 @@ export class CloudModelPicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = localize('modelPicker.triggerAriaLabel', "Pick Model, {0}", label);
 

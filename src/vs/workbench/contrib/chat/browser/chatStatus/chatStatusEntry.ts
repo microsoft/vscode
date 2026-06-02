@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../../services/statusbar/browser/statusbar.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -32,12 +32,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
-	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key]);
+	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
 	private readonly entryAnchor = h('span');
+	private readonly dashboardTooltip: IStatusbarEntry['tooltip'];
 
 	private runningSessionsCount: number;
 
@@ -54,6 +55,25 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		super();
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
+
+		this.dashboardTooltip = {
+			element: (token: CancellationToken) => {
+				const store = new DisposableStore();
+				store.add(token.onCancellationRequested(() => {
+					store.dispose();
+				}));
+				const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
+
+				// todo@connor4312/@benibenj: workaround for #257923
+				store.add(disposableWindowInterval(mainWindow, () => {
+					if (!elem.isConnected) {
+						store.dispose();
+					}
+				}, 2000));
+
+				return elem;
+			}
+		};
 
 		this.update();
 
@@ -139,7 +159,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const quotas = this.chatEntitlementService.quotas;
 			const chatQuotaExceeded = quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = quotas.completions?.percentRemaining === 0;
-			const isPooledQuotaDepleted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false && !(quotas.additionalUsageEnabled ?? false);
+			const isPooledQuotaDepleted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
@@ -157,7 +177,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				}
 			}
 
-			// Signed out
+			// Signed out — keep showing Sign-in affordance even when BYOK models are present
+			// so air-gapped users can still authenticate to unlock the full Copilot experience.
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 				return this.getSetupEntryProps();
 			}
@@ -168,7 +189,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
+					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions limit reached");
 				} else {
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}
@@ -207,24 +228,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			showInAllWindows: true,
 			kind,
 			content: this.entryAnchor,
-			tooltip: {
-				element: (token: CancellationToken) => {
-					const store = new DisposableStore();
-					store.add(token.onCancellationRequested(() => {
-						store.dispose();
-					}));
-					const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
-
-					// todo@connor4312/@benibenj: workaround for #257923
-					store.add(disposableWindowInterval(mainWindow, () => {
-						if (!elem.isConnected) {
-							store.dispose();
-						}
-					}, 2000));
-
-					return elem;
-				}
-			}
+			tooltip: this.dashboardTooltip
 		} satisfies IStatusbarEntry;
 
 		return baseResult;

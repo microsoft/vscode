@@ -12,7 +12,6 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -28,11 +27,12 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import type { IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const FILTER_THRESHOLD = 10;
@@ -74,12 +74,24 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined): IActionListItem<IConfigPickerItem>[] {
+function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+}
+
+function normalizeConfigValue(property: string, value: string, policyRestricted: boolean): string {
+	if (property === SessionConfigKey.AutoApprove && policyRestricted && (value === 'autoApprove' || value === 'autopilot')) {
+		return 'default';
+	}
+	return value;
+}
+
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
 		description: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
+		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
 		item: { ...item, label: item.value === currentValue ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
 }
@@ -154,8 +166,6 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
-	SessionConfigKey.Branch,
-	SessionConfigKey.Isolation,
 	SessionConfigKey.AutoApprove,
 	SessionConfigKey.Permissions,
 	ClaudeSessionConfigKey.PermissionMode,
@@ -198,24 +208,19 @@ export class AgentHostChatInputPicker extends Disposable {
 	constructor(
 		private readonly _widget: IChatWidget,
 		private readonly _property: string,
-		private readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
-		const opts = this._pickerOptions;
-		if (opts) {
-			this._register(autorun(reader => {
-				opts.hideChevrons.read(reader);
-				this._renderChip();
-			}));
-		}
+		this._register(this._widget.onDidChangeViewModel(() => {
+			this._reattach();
+		}));
 		this._register(this._provisional.onDidChange((sessionResource: URI) => {
 			const current = this._widget.viewModel?.sessionResource;
 			if (current && current.toString() === sessionResource.toString()) {
@@ -357,8 +362,6 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
-		const compact = this._pickerOptions?.hideChevrons.get() ?? false;
-
 		const icon = getConfigIcon(this._property, value);
 		if (icon) {
 			dom.append(trigger, renderIcon(icon));
@@ -370,16 +373,11 @@ export class AgentHostChatInputPicker extends Disposable {
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
 		const label = this._labelFor(schema, value);
-		if (!compact) {
-			const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
-			labelSpan.textContent = label;
-		}
+		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
+		labelSpan.textContent = label;
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly && !compact) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 	}
 
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
@@ -401,11 +399,20 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!state || state instanceof Error) {
 				return undefined;
 			}
-			const schema = state.config?.schema.properties[this._property];
+			// Prefer the workbench-side re-resolved config so dependent
+			// properties (e.g. branch.readOnly when isolation flips) refresh
+			// without waiting for a protocol-level schema-update channel. Use
+			// overlay.values too: `validateOrDefault` may clamp stale values
+			// or inject derived defaults the chip should display.
+			const overlay = this._provisional.getResolvedConfig(sessionResource);
+			const schemaSource = overlay?.schema ?? state.config?.schema;
+			const schema = schemaSource?.properties[this._property];
 			if (!schema) {
 				return undefined;
 			}
-			const value = state.config?.values?.[this._property] ?? schema.default;
+			const value = overlay?.values?.[this._property]
+				?? state.config?.values?.[this._property]
+				?? schema.default;
 			return { backendSession: this._subRef.value.backendSession, schema, value };
 		}
 
@@ -439,7 +446,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 		const currentValue = ctx.value;
-		const actionItems = toActionItems(this._property, items, currentValue);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
+		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted);
 		if (this._property === ClaudeSessionConfigKey.PermissionMode || this._property === SessionConfigKey.AutoApprove) {
 			actionItems.push({
 				kind: ActionListItemKind.Action,
@@ -464,7 +472,7 @@ export class AgentHostChatInputPicker extends Disposable {
 					if (!refreshed) {
 						return [];
 					}
-					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value);
+					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService));
 				})
 				: undefined,
 			onHide: () => trigger.focus(),
@@ -542,27 +550,33 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		let dispatchTarget = backendSession;
+		const normalizedValue = normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
+		const partial = { [this._property]: normalizedValue };
+
 		if (isUntitledChatSession(sessionResource)) {
+			// Route through the provisional service so the workbench-owned
+			// config cache is updated synchronously. `tryRebind` reads from
+			// that cache, so a Send racing with this dispatch picks up the
+			// new value without waiting for the agent to echo it back.
 			const provider = backendSession.scheme;
-			const created = await this._provisional.getOrCreate(
+			const created = await this._provisional.applyConfigChange(
 				sessionResource,
 				provider,
 				this._readWorkingDirectory(),
+				partial,
 			);
 			if (!created) {
 				return;
 			}
-			dispatchTarget = created;
 			if (!this._subRef.value || this._subRef.value.backendSession.toString() !== created.toString()) {
 				this._reattach();
 			}
+			return;
 		}
 
-		this._agentHostService.dispatch({
+		this._agentHostService.dispatch(backendSession.toString(), {
 			type: ActionType.SessionConfigChanged,
-			session: dispatchTarget.toString(),
-			config: { [this._property]: value },
+			config: partial,
 		});
 	}
 }

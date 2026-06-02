@@ -41,11 +41,11 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 		try {
 			return await super.getChatEndpoint(requestOrFamilyOrModel);
 		} catch (error) {
-			// In scenario automation, some model families (e.g. copilot-fast → gpt-4o-mini) may
-			// not be available via the capi proxy. Fall back to copilot-base.
+			// In scenario automation, some model families (e.g. copilot-utility-small → gpt-4o-mini) may
+			// not be available via the capi proxy. Fall back to copilot-utility.
 			if (typeof requestOrFamilyOrModel === 'string') {
-				this._logService.trace(`ScenarioAutomation: failed to resolve model family '${requestOrFamilyOrModel}', falling back to copilot-base`);
-				return super.getChatEndpoint('copilot-base');
+				this._logService.trace(`ScenarioAutomation: failed to resolve model family '${requestOrFamilyOrModel}', falling back to copilot-utility`);
+				return super.getChatEndpoint('copilot-utility');
 			}
 			throw error;
 		}

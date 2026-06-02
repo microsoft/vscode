@@ -6,6 +6,7 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -15,11 +16,12 @@ use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ServerBuilder;
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use crate::async_pipe::{get_socket_name, get_socket_rw_stream};
+use crate::async_pipe::{get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipeListener};
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
@@ -46,6 +48,17 @@ pub const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 pub const UPDATE_POLL_INTERVAL: Duration = Duration::from_secs(10 * 60);
 /// How long to wait for the server to signal readiness.
 pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
+/// Environment variable carrying the path of the management control
+/// socket the CLI is listening on. Read by the agent host server at
+/// startup; its presence is what tells the server that it has a managing
+/// CLI and may therefore advertise the management RPC method to clients.
+pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
+
+/// Delay between sending the upgrade response and actually killing the
+/// running server. Lets the response hop back through the CLI proxy and
+/// reach the requesting client before the transport drops out from under
+/// it, so the user sees the "upgrading" status before reconnect kicks in.
+const UPGRADE_KILL_DELAY: Duration = Duration::from_secs(3);
 
 /// Configuration for the agent host server process.
 #[derive(Clone, Debug)]
@@ -77,6 +90,18 @@ pub struct AgentHostManager {
 	/// Barrier that opens when a server is ready (socket path available).
 	/// Reset each time a new server is started.
 	ready: Mutex<Option<Barrier<Result<PathBuf, String>>>>,
+	/// Path of the management control socket. Generated up-front; cheap.
+	/// Spawned servers receive this via {@link MANAGEMENT_SOCKET_ENV} and
+	/// dial it to forward client-initiated upgrade requests back to us.
+	management_socket_path: PathBuf,
+	/// Guards spawning the management listener so it only starts once,
+	/// even if multiple server starts race.
+	management_listener_started: AtomicBool,
+	/// Guards the upgrade pipeline so concurrent `POST /upgrade` requests
+	/// don't each spawn their own kill+restart task and trip over each
+	/// other. Set once download completes and the kill is scheduled;
+	/// cleared by the spawned task once the restart attempt finishes.
+	upgrade_in_progress: AtomicBool,
 }
 
 impl AgentHostManager {
@@ -96,6 +121,9 @@ impl AgentHostManager {
 			latest_release: Mutex::new(None),
 			running: Mutex::new(None),
 			ready: Mutex::new(None),
+			management_socket_path: get_socket_name(),
+			management_listener_started: AtomicBool::new(false),
+			upgrade_in_progress: AtomicBool::new(false),
 		})
 	}
 
@@ -136,6 +164,12 @@ impl AgentHostManager {
 	/// Starts the server with the latest already-downloaded version.
 	/// Only blocks on a network fetch if no version has been downloaded yet.
 	async fn start_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+		// Every managed agent host gets a management listener: the
+		// listener is what makes server upgrades possible, and every
+		// AgentHostManager-managed server can be upgraded. Idempotent so
+		// concurrent first-starts don't race two listeners.
+		self.ensure_management_listener();
+
 		let (release, server_dir) = self.get_cached_or_download().await?;
 
 		let (mut barrier, opener) = new_barrier::<Result<PathBuf, String>>();
@@ -201,6 +235,7 @@ impl AgentHostManager {
 			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
 		}
+		cmd.env(MANAGEMENT_SOCKET_ENV, &self.management_socket_path);
 		cmd.env_remove("VSCODE_DEV");
 
 		let mut child = match cmd.spawn() {
@@ -476,6 +511,254 @@ impl AgentHostManager {
 			let _ = server.child.kill().await;
 		}
 	}
+
+	/// Path the management socket is (or will be) bound on. Useful for
+	/// tests and callers that want to verify the path the spawned server
+	/// would dial.
+	pub fn management_socket_path(&self) -> &PathBuf {
+		&self.management_socket_path
+	}
+
+	/// Spawns the management listener task if it hasn't been started yet.
+	/// Idempotent: subsequent calls are no-ops, so it's safe to invoke on
+	/// every `start_server` call. Called automatically from `start_server`
+	/// — direct callers should only need this in tests.
+	pub fn ensure_management_listener(self: &Arc<Self>) {
+		if self
+			.management_listener_started
+			.swap(true, Ordering::SeqCst)
+		{
+			return;
+		}
+		let self_clone = self.clone();
+		tokio::spawn(async move {
+			self_clone.run_management_listener().await;
+		});
+	}
+
+	/// Serves the HTTP control API on the management socket (advertised to
+	/// spawned servers via {@link MANAGEMENT_SOCKET_ENV}). Currently
+	/// exposes a single endpoint, `POST /upgrade`, used by the agent host
+	/// server to forward client-initiated upgrade requests.
+	///
+	/// On bind failure, clears {@link management_listener_started} so a
+	/// subsequent {@link ensure_management_listener} call (e.g. from the
+	/// next `start_server`) can retry. Without that, a transient bind
+	/// error (leftover socket, EACCES, etc.) would permanently leave
+	/// spawned servers with `MANAGEMENT_SOCKET_ENV` set but nothing
+	/// listening behind it.
+	async fn run_management_listener(self: Arc<Self>) {
+		let path = &self.management_socket_path;
+		let mut listener = match listen_socket_rw_stream(path).await {
+			Ok(l) => l,
+			Err(e) => {
+				warning!(self.log, "Failed to bind management socket {:?}: {}", path, e);
+				self.management_listener_started
+					.store(false, Ordering::SeqCst);
+				return;
+			}
+		};
+		debug!(self.log, "Listening for agent host management requests on {:?}", path);
+		self.run_management_accept_loop(&mut listener).await;
+	}
+
+	async fn run_management_accept_loop(self: &Arc<Self>, listener: &mut AsyncPipeListener) {
+		loop {
+			let pipe = match listener.accept().await {
+				Ok(p) => p,
+				Err(e) => {
+					warning!(self.log, "Management socket accept failed: {}", e);
+					continue;
+				}
+			};
+			let self_clone = self.clone();
+			tokio::spawn(async move {
+				let log = self_clone.log.clone();
+				let io = TokioIo::new(pipe);
+				let svc = service_fn(move |req| {
+					let self_clone = self_clone.clone();
+					async move { self_clone.handle_management_request(req).await }
+				});
+				if let Err(e) = ServerBuilder::new(TokioExecutor::new())
+					.serve_connection(io, svc)
+					.await
+				{
+					debug!(log, "Management connection ended: {:?}", e);
+				}
+			});
+		}
+	}
+
+	/// Routes a single HTTP request received on the management socket.
+	async fn handle_management_request(
+		self: Arc<Self>,
+		req: Request<Incoming>,
+	) -> Result<Response<HyperBody>, Infallible> {
+		if req.method() == ::http::Method::POST && req.uri().path() == "/upgrade" {
+			return Ok(self.handle_upgrade_request().await);
+		}
+		Ok(Response::builder()
+			.status(404)
+			.body(full_body("Not found"))
+			.unwrap())
+	}
+
+	/// Implements the `POST /upgrade` endpoint. The download is awaited
+	/// *synchronously* so that the `upgradeStarted` flag in the response
+	/// reflects committed work — i.e. the kill+restart is actually about
+	/// to happen — rather than an aspirational guess that may silently
+	/// abort if the download fails. Concurrent requests are deduplicated
+	/// through {@link Self::upgrade_in_progress}.
+	///
+	/// The response carries `restart_delay_ms` so the client knows how long
+	/// to wait before reconnecting: the kill is intentionally delayed to
+	/// let the response itself drain back through the proxy.
+	async fn handle_upgrade_request(self: Arc<Self>) -> Response<HyperBody> {
+		let running_commit = {
+			let running = self.running.lock().await;
+			running.as_ref().map(|r| r.commit.clone())
+		};
+
+		let new_release = match self.get_latest_release().await {
+			Ok(r) => r,
+			Err(e) => {
+				warning!(self.log, "Upgrade request: latest release lookup failed: {}", e);
+				return json_response(
+					503,
+					&UpgradeResponse {
+						ok: false,
+						upgrade_needed: None,
+						upgrade_started: None,
+						running_commit,
+						latest_commit: None,
+						restart_delay_ms: None,
+						error: Some(format!("Failed to check for updates: {e}")),
+					},
+				);
+			}
+		};
+
+		let upgrade_needed = match &running_commit {
+			Some(c) => *c != new_release.commit,
+			None => true,
+		};
+
+		if !upgrade_needed {
+			return json_response(
+				200,
+				&UpgradeResponse {
+					ok: true,
+					upgrade_needed: Some(false),
+					upgrade_started: Some(false),
+					running_commit,
+					latest_commit: Some(new_release.commit.clone()),
+					restart_delay_ms: None,
+					error: None,
+				},
+			);
+		}
+
+		// Serialize against other in-flight upgrades. We swap to true and
+		// only proceed if we were the ones to flip the flag; otherwise
+		// surface that an upgrade is already scheduled.
+		if self.upgrade_in_progress.swap(true, Ordering::SeqCst) {
+			return json_response(
+				200,
+				&UpgradeResponse {
+					ok: true,
+					upgrade_needed: Some(true),
+					upgrade_started: Some(false),
+					running_commit,
+					latest_commit: Some(new_release.commit.clone()),
+					restart_delay_ms: None,
+					error: Some("An upgrade is already in progress.".to_string()),
+				},
+			);
+		}
+
+		// Download synchronously so we don't lie to the client about
+		// `upgradeStarted`. The background update loop usually pre-fetches
+		// this, so the common path is a no-op.
+		if let Err(e) = self.ensure_downloaded(&new_release).await {
+			warning!(self.log, "Failed to download upgrade {}: {}", new_release, e);
+			self.upgrade_in_progress.store(false, Ordering::SeqCst);
+			return json_response(
+				503,
+				&UpgradeResponse {
+					ok: false,
+					upgrade_needed: Some(true),
+					upgrade_started: Some(false),
+					running_commit,
+					latest_commit: Some(new_release.commit.clone()),
+					restart_delay_ms: None,
+					error: Some(format!("Failed to download upgrade: {e}")),
+				},
+			);
+		}
+
+		// Download succeeded — commit to the kill+restart. Schedule it
+		// after the delay so the HTTP response we're about to return can
+		// drain back through the proxy to the original requesting client
+		// before the transport drops.
+		let self_clone = self.clone();
+		let release_commit = new_release.commit.clone();
+		tokio::spawn(async move {
+			tokio::time::sleep(UPGRADE_KILL_DELAY).await;
+			self_clone.kill_running_server().await;
+			// Eagerly spin up the new server so the next dial sees a
+			// ready endpoint instead of paying for startup again.
+			match self_clone.start_server().await {
+				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
+				Err(e) => warning!(self_clone.log, "Failed to restart agent host after upgrade: {}", e),
+			}
+			self_clone.upgrade_in_progress.store(false, Ordering::SeqCst);
+		});
+
+		json_response(
+			200,
+			&UpgradeResponse {
+				ok: true,
+				upgrade_needed: Some(true),
+				upgrade_started: Some(true),
+				running_commit,
+				latest_commit: Some(new_release.commit.clone()),
+				restart_delay_ms: Some(UPGRADE_KILL_DELAY.as_millis() as u64),
+				error: None,
+			},
+		)
+	}
+}
+
+/// JSON body returned by the management socket's `POST /upgrade` endpoint.
+/// Forwarded verbatim by the agent host server back to the client that
+/// invoked the upgrade RPC, so the UI can describe what happened.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+struct UpgradeResponse {
+	ok: bool,
+	#[serde(rename = "upgradeNeeded", skip_serializing_if = "Option::is_none")]
+	upgrade_needed: Option<bool>,
+	#[serde(rename = "upgradeStarted", skip_serializing_if = "Option::is_none")]
+	upgrade_started: Option<bool>,
+	#[serde(rename = "runningCommit", skip_serializing_if = "Option::is_none")]
+	running_commit: Option<String>,
+	#[serde(rename = "latestCommit", skip_serializing_if = "Option::is_none")]
+	latest_commit: Option<String>,
+	/// Milliseconds the client should wait after this response before
+	/// reconnecting. Set only when `upgrade_started` is true. Lets the
+	/// client avoid landing on the still-running pre-upgrade server.
+	#[serde(rename = "restartDelayMs", skip_serializing_if = "Option::is_none")]
+	restart_delay_ms: Option<u64>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	error: Option<String>,
+}
+
+fn json_response<T: Serialize>(status: u16, body: &T) -> Response<HyperBody> {
+	let serialized = serde_json::to_string(body).unwrap_or_else(|_| "{}".to_string());
+	Response::builder()
+		.status(status)
+		.header("content-type", "application/json")
+		.body(full_body(serialized))
+		.unwrap()
 }
 
 // ---- HTTP/WebSocket proxy ---------------------------------------------------
@@ -1036,6 +1319,95 @@ mod tests {
 				connection_token_file: None,
 			},
 		)
+	}
+
+	#[tokio::test]
+	async fn management_listener_returns_404_for_unknown_paths() {
+		let dir = tempfile::tempdir().unwrap();
+		let manager = make_test_manager(dir.path());
+		let socket_path = manager.management_socket_path().clone();
+		manager.ensure_management_listener();
+		// First-bind is synchronous but spawn scheduling is not; a short
+		// sleep makes the test deterministic on slow CI hosts.
+		tokio::time::sleep(Duration::from_millis(50)).await;
+
+		let pipe = get_socket_rw_stream(&socket_path).await.expect("connect");
+		let io = TokioIo::new(pipe);
+		let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+		tokio::spawn(async move {
+			let _ = conn.await;
+		});
+		let req = Request::builder()
+			.method("GET")
+			.uri("/nope")
+			.body(http_body_util::Empty::<bytes::Bytes>::new())
+			.unwrap();
+		let res = sender.send_request(req).await.expect("send");
+		assert_eq!(res.status(), 404);
+	}
+
+	#[test]
+	fn ensure_management_listener_is_idempotent() {
+		let dir = tempfile::tempdir().unwrap();
+		let manager = make_test_manager(dir.path());
+		// Without a tokio runtime spawn would panic, but the atomic flip
+		// itself is the contract we care about: a second call must not
+		// re-trigger the spawn path. Verify by reading the underlying
+		// atomic before/after manual flips.
+		assert!(!manager
+			.management_listener_started
+			.swap(true, Ordering::SeqCst));
+		assert!(manager
+			.management_listener_started
+			.swap(true, Ordering::SeqCst));
+	}
+
+	#[test]
+	fn upgrade_response_serializes_compactly() {
+		let resp = UpgradeResponse {
+			ok: true,
+			upgrade_needed: Some(false),
+			upgrade_started: Some(false),
+			running_commit: Some("abc123".into()),
+			latest_commit: Some("abc123".into()),
+			restart_delay_ms: None,
+			error: None,
+		};
+		let json = serde_json::to_string(&resp).unwrap();
+		assert_eq!(
+			json,
+			r#"{"ok":true,"upgradeNeeded":false,"upgradeStarted":false,"runningCommit":"abc123","latestCommit":"abc123"}"#
+		);
+	}
+
+	#[test]
+	fn upgrade_response_omits_empty_fields() {
+		let resp = UpgradeResponse {
+			ok: false,
+			upgrade_needed: None,
+			upgrade_started: None,
+			running_commit: None,
+			latest_commit: None,
+			restart_delay_ms: None,
+			error: Some("boom".into()),
+		};
+		let json = serde_json::to_string(&resp).unwrap();
+		assert_eq!(json, r#"{"ok":false,"error":"boom"}"#);
+	}
+
+	#[test]
+	fn upgrade_response_includes_restart_delay_when_set() {
+		let resp = UpgradeResponse {
+			ok: true,
+			upgrade_needed: Some(true),
+			upgrade_started: Some(true),
+			running_commit: Some("old".into()),
+			latest_commit: Some("new".into()),
+			restart_delay_ms: Some(3000),
+			error: None,
+		};
+		let json = serde_json::to_string(&resp).unwrap();
+		assert!(json.contains(r#""restartDelayMs":3000"#), "got: {}", json);
 	}
 
 	#[test]

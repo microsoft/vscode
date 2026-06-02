@@ -229,6 +229,19 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				isTrusted: undefined,
 			});
 		}
+		if (terminalData.requestAllowNetwork) {
+			const reasonText = (terminalData.requestAllowNetworkReason && terminalData.requestAllowNetworkReason.trim())
+				|| localize('chat.terminal.allowNetwork.defaultReason', "The model did not provide a reason for requesting unrestricted network access in the sandbox.");
+			const inline = new MarkdownString(undefined, { supportThemeIcons: true });
+			inline.appendMarkdown(`$(${Codicon.info.id}) `);
+			inline.appendText(reasonText);
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.unrestrictedNetwork', "Unrestricted network access:"),
+				hoverBody: escapeMarkdownSyntaxTokens(reasonText),
+				isTrusted: undefined,
+			});
+		}
 		if (disclaimer) {
 			const inline = typeof disclaimer === 'string' ? new MarkdownString(disclaimer) : disclaimer;
 			// For the hover, drop the leading `$(info) ` icon prefix that the
@@ -508,11 +521,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			widget.setAssessment(cached);
 		} else {
 			widget.setLoading();
-			const cts = this._register(new CancellationTokenSource());
+			const cts = new CancellationTokenSource();
+			this._register(toDisposable(() => cts.dispose(true)));
 			(async () => {
 				try {
 					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
-					if (cts.token.isCancellationRequested) {
+					if (cts.token.isCancellationRequested || widget.isDisposed) {
 						return;
 					}
 					if (!result) {
@@ -521,7 +535,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 					widget.setAssessment(result);
 				} catch {
-					widget.setHidden();
+					if (!widget.isDisposed) {
+						widget.setHidden();
+					}
 				}
 			})();
 		}
