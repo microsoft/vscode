@@ -261,13 +261,14 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._logService.error(err);
 		});
 
-		// Invalidate all proxies
-		this._extHostContext.dispose();
-
+		// Keep RPC alive while deactivating so extension state writes can still flush.
 		const extensionsDeactivated = this._deactivateAll();
+		const deactivationTimeout = timeout(5000);
 
 		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
-		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+		Promise.race([deactivationTimeout, extensionsDeactivated]).finally(() => {
+			deactivationTimeout.cancel();
+			this._extHostContext.dispose();
 			if (this._hostUtils.pid) {
 				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
 			} else {
