@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.124.0",
-  "distro": "a3cfd833a1e920be078f82f96b69776d2de2149a",
+  "distro": "31bfc4c2834d5d34dcfb8dfe445e13ba25a92f54",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -140,6 +140,7 @@
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
+    "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.13",
     "open": "^10.1.2",
     "playwright-core": "1.59.1",

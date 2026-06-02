@@ -321,6 +321,40 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	}
 
+	async updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void> {
+		this._perWindowTrustedRoots.set(windowId, roots);
+		this._ensureWindowCloseSubscription(windowId);
+		this._recomputeTrustedFileRoots();
+	}
+
+	private readonly _perWindowTrustedRoots = new Map<number, readonly string[]>();
+	private readonly _windowCloseSubscriptions = this._register(new DisposableMap<number>());
+	private _ensureWindowCloseSubscription(windowId: number): void {
+		if (this._windowCloseSubscriptions.has(windowId)) {
+			return;
+		}
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (!window) {
+			return;
+		}
+		const onWindowGone = Event.any(window.onDidClose, window.onDidDestroy);
+		this._windowCloseSubscriptions.set(windowId, Event.once(onWindowGone)(() => {
+			this._windowCloseSubscriptions.deleteAndDispose(windowId);
+			if (this._perWindowTrustedRoots.delete(windowId)) {
+				this._recomputeTrustedFileRoots();
+			}
+		}));
+	}
+	private _recomputeTrustedFileRoots(): void {
+		const roots = new Set<string>();
+		for (const contribution of this._perWindowTrustedRoots.values()) {
+			for (const root of contribution) {
+				roots.add(root);
+			}
+		}
+		BrowserSession.setTrustedFileRoots([...roots]);
+	}
+
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
 		this._keybindings = keybindings;
 	}

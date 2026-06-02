@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AutoModeSessionManager as SDKAutoModeSessionManager, AutoModeSessionResult, internal, LocalSession, LocalSessionMetadata, Session, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { AutoModeSessionResult, internal, LocalSessionMetadata, AutoModeSessionManager as SDKAutoModeSessionManager, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
 import type { ChatCustomAgent, ChatRequest, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
@@ -41,17 +43,15 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
-import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
-import { SessionIdForCLI } from '../common/utils';
+import { LocalSession, Session, SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
 import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from './mcpHandler';
-import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
@@ -778,17 +778,19 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					}
 				}));
 			}
-			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession));
+			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession.sessionId));
 			await Promise.all(promises);
 
 			if (sessionOptions.copilotUrl) {
-				sdkSession.setAuthInfo({
-					type: 'hmac',
-					hmac: 'empty',
-					host: 'https://github.com',
-					copilotUser: {
-						endpoints: {
-							api: sessionOptions.copilotUrl
+				sdkSession.updateOptions({
+					authInfo: {
+						type: 'hmac',
+						hmac: 'empty',
+						host: 'https://github.com',
+						copilotUser: {
+							endpoints: {
+								api: sessionOptions.copilotUrl
+							}
 						}
 					}
 				});
@@ -1014,7 +1016,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
 				}
-				await sessionManager.loadDeferredRepoHooks(sdkSession);
+				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
 				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 				session.object.add(mcpGateway);
 				return session;
@@ -1296,7 +1298,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager): RefCountedSession {
-		sdkSession.setPermissionsRequired(true);
+		sdkSession.permissions.setRequired({ required: true });
 		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, []);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
