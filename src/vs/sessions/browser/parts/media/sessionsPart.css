@@ -193,7 +193,7 @@
 
 .monaco-workbench .part.sessionspart .session-view:not(.is-active) .new-chat-input-area:focus-within,
 .monaco-workbench .part.sessionspart .session-view.activating .new-chat-input-area:focus-within {
-	border-color: var(--vscode-agentsChatInput-border);
+	border-color: var(--vscode-agentsChatInput-border) !important;
 }
 
 /* The Monaco editor inside the chat input paints its own focus outline (see
