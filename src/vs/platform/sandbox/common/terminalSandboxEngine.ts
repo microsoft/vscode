@@ -20,7 +20,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
-import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from './terminalSandboxService.js';
+import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck } from './terminalSandboxService.js';
 
 interface ITerminalSandboxFileSystemSetting {
 	denyRead?: string[];
@@ -66,7 +66,7 @@ export interface ITerminalSandboxEngineHost {
 	 * suitable location exists, in which case sandboxing is disabled.
 	 */
 	getSandboxTempDir(): Promise<URI | undefined>;
-	/** Path added to `allowRead` for the engine's workspace/session storage area. */
+	/** Path added to `allowRead` and `allowWrite` for the engine's workspace/session storage area. */
 	getWorkspaceStorageReadRoot(): Promise<URI | undefined>;
 	/** Roots that must be writable inside the sandbox (workspace folders / session cwds). */
 	getWriteRoots(): readonly URI[];
@@ -315,21 +315,11 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
-			const missingDependencies = await this.getMissingSandboxDependencies();
-			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
-				return {
-					enabled: true,
-					sandboxConfigPath,
-					failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
-					remediations: this._getBubblewrapRemediations(),
-					detail: this._sandboxDependencyStatus.bubblewrapError,
-				};
-			}
 			return {
 				enabled: true,
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
-				missingDependencies,
+				missingDependencies: await this.getMissingSandboxDependencies(),
 			};
 		}
 
@@ -398,7 +388,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		if (!forceRefresh && this._sandboxDependencyStatus) {
-			return this._sandboxDependencyStatus.bubblewrapInstalled && this._sandboxDependencyStatus.bubblewrapUsable && this._sandboxDependencyStatus.socatInstalled;
+			return this._sandboxDependencyStatus.bubblewrapInstalled && this._sandboxDependencyStatus.socatInstalled;
 		}
 
 		const status = await this._host.checkSandboxDependencies();
@@ -406,20 +396,12 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (status && !status.bubblewrapInstalled) {
 			this._logService.warn('TerminalSandboxEngine: bubblewrap (bwrap) is not installed');
-		} else if (status && !status.bubblewrapUsable) {
-			this._logService.warn('TerminalSandboxEngine: bubblewrap (bwrap) is installed but failed its capability check', status.bubblewrapError);
 		}
 		if (status && !status.socatInstalled) {
 			this._logService.warn('TerminalSandboxEngine: socat is not installed');
 		}
 
-		return status ? status.bubblewrapInstalled && status.bubblewrapUsable && status.socatInstalled : true;
-	}
-
-	private _getBubblewrapRemediations(): readonly TerminalSandboxPreCheckRemediation[] | undefined {
-		return this._sandboxDependencyStatus?.supportsUbuntuAppArmorRemediation
-			? [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]
-			: undefined;
+		return status ? status.bubblewrapInstalled && status.socatInstalled : true;
 	}
 
 	private _quoteShellArgument(value: string): string {
@@ -615,19 +597,19 @@ export class TerminalSandboxEngine extends Disposable {
 			const filesystemPolicy = await this._getWindowsMxcFilesystemPolicy();
 			const env = await this._getWindowsMxcEnvironment();
 			allowWritePaths = await this._resolveFileSystemPaths([
-				...this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
+				...await this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
 				...filesystemPolicy.readwritePaths
 			]);
 			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
-			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowWritePaths = await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(macFileSystemSetting.denyRead));
 			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
 		} else if (this._os === OperatingSystem.Linux) {
-			allowWritePaths = await this._resolveFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+			allowWritePaths = await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome(linuxFileSystemSetting.denyRead));
 			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
@@ -745,9 +727,9 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 	}
 
-	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined, commandRuntimeAllowWrite: string[] = []): string[] {
+	private async _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined, commandRuntimeAllowWrite: string[] = []): Promise<string[]> {
 		const writeRootPaths = this._host.getWriteRoots().map(folder => this._getUriPath(folder));
-		return [...new Set([...writeRootPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? []), ...commandRuntimeAllowWrite])];
+		return [...new Set([...writeRootPaths, ...this._defaultWritePaths, ...await this._getWorkspaceStorageReadPaths(), ...(configuredAllowWrite ?? []), ...commandRuntimeAllowWrite])];
 	}
 
 	private _updateDenyReadPathsWithHome(configuredDenyRead: string[] | undefined): string[] {

@@ -61,6 +61,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
+
+		this._register(this.windowsMainService.onDidDestroyWindow(window => {
+			if (this._perWindowTrustedRoots.delete(window.id)) {
+				this._recomputeTrustedFileRoots();
+			}
+		}));
 	}
 
 	async getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState> {
@@ -323,6 +329,22 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		for (const [, view] of this.browserViews) {
 			view.inspector.setTheme(theme);
 		}
+	}
+
+	async updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void> {
+		this._perWindowTrustedRoots.set(windowId, roots);
+		this._recomputeTrustedFileRoots();
+	}
+
+	private readonly _perWindowTrustedRoots = new Map<number, readonly string[]>();
+	private _recomputeTrustedFileRoots(): void {
+		const roots = new Set<string>();
+		for (const contribution of this._perWindowTrustedRoots.values()) {
+			for (const root of contribution) {
+				roots.add(root);
+			}
+		}
+		BrowserSession.setTrustedFileRoots([...roots]);
 	}
 
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
