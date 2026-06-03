@@ -242,7 +242,8 @@
 
 /* Project picker in inline title row */
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label,
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label {
 	height: auto;
 	padding: 4px;
 	font-size: 18px;
@@ -255,13 +256,15 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label:hover {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label:hover,
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label,
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 18px;
 }
 
@@ -272,7 +275,8 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-chevron {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-chevron,
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label .sessions-chat-dropdown-chevron {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;

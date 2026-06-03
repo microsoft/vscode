@@ -11,17 +11,22 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { NewSessionKind, NewSessionKindPicker } from './newSessionKindPicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 
 // #region --- New Chat Widget ---
 
@@ -29,6 +34,7 @@ export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
+	private readonly _kindPicker: NewSessionKindPicker;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Tracks an in-flight wait for a provider's session types to become available. */
@@ -49,6 +55,8 @@ export class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
+		@IAutomationService private readonly automationService: IAutomationService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
@@ -57,6 +65,7 @@ export class NewChatWidget extends Disposable {
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
+		this._kindPicker = this._register(this.instantiationService.createInstance(NewSessionKindPicker));
 		this._register(this._pendingSessionTypeWait);
 
 		const canSendRequest = derived(reader => {
@@ -225,22 +234,41 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
+		const store = new DisposableStore();
 		const pickersRow = dom.append(container, dom.$('.session-workspace-picker'));
-		const pickersLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label'));
-		pickersLabel.textContent = this._workspacePicker.selectedFolderUri
-			? localize('newSessionIn', "New session in")
-			: localize('newSessionChooseWorkspace', "Start by picking a");
+		store.add({ dispose: () => pickersRow.remove() });
 
+		// Sentence: "New <kind> in <workspace> with <session type>".
+		// When no folder is yet selected we collapse to "Start by picking a"
+		// + workspace picker so the user knows where to begin; the kind
+		// picker only makes sense once a workspace exists.
+		const newLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-new-label'));
+		const kindSlot = dom.append(pickersRow, dom.$('.session-workspace-picker-kind-slot'));
+		const inLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-in-label'));
+
+		this._kindPicker.render(kindSlot);
 		this._workspacePicker.render(pickersRow);
+
 		const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
 		withLabel.textContent = localize('newSessionWith', "with");
 		this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
-		return this._workspacePicker.onDidSelectWorkspace(() => {
-			const folderUri = this._workspacePicker.selectedFolderUri;
-			pickersLabel.textContent = folderUri
-				? localize('newSessionIn', "New session in")
-				: localize('newSessionChooseWorkspace', "Start by picking a");
-		});
+
+		const refreshLabel = () => {
+			if (this._workspacePicker.selectedFolderUri) {
+				newLabel.textContent = localize('newSessionPrefix', "New");
+				inLabel.textContent = localize('newSessionInfix', "in");
+				kindSlot.style.display = '';
+				inLabel.style.display = '';
+			} else {
+				newLabel.textContent = localize('newSessionChooseWorkspace', "Start by picking a");
+				kindSlot.style.display = 'none';
+				inLabel.style.display = 'none';
+			}
+		};
+		refreshLabel();
+
+		store.add(this._workspacePicker.onDidSelectWorkspace(() => refreshLabel()));
+		return store;
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
@@ -337,6 +365,16 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 
+		// When the kind picker is set to "Automation", the send button
+		// registers the prompt as a new scheduled task instead of starting a
+		// chat. The in-flight draft session is left in place so the user can
+		// flip back to "Session" and send a chat immediately without
+		// re-picking a workspace.
+		if (this._kindPicker.kind === NewSessionKind.Automation) {
+			await this._registerAsAutomation(session, query);
+			return;
+		}
+
 		// Capture the composer's workspace/session-type selection before the
 		// send: a background send consumes the in-flight new session and resets
 		// the new-session view, so we re-seed a fresh pending session afterwards
@@ -359,6 +397,65 @@ export class NewChatWidget extends Disposable {
 		if (background && reseedFolderUri) {
 			this._createNewSession(reseedFolderUri, reseedPick);
 		}
+	}
+
+	/**
+	 * Registers the current draft prompt as a new automation. We capture
+	 * the composer's workspace, provider, session type, model, and mode so
+	 * the scheduler later replays the same configuration; permission level
+	 * is not currently surfaced on `ISession` so it falls back to the
+	 * provider default. Schedule defaults to daily at 9am — the user can
+	 * tweak everything from the Automations editor.
+	 */
+	private async _registerAsAutomation(session: ISession, query: string): Promise<void> {
+		const folderUri = session.workspace.get()?.folders[0]?.root ?? this._workspacePicker.selectedFolderUri;
+		if (!folderUri) {
+			this._workspacePicker.showPicker();
+			return;
+		}
+
+		const name = this._deriveAutomationName(query);
+		const schedule: IAutomationSchedule = {
+			interval: 'daily',
+			scheduleHour: 9,
+			scheduleMinute: 0,
+			scheduleDay: 1,
+		};
+
+		try {
+			await this.automationService.createAutomation({
+				name,
+				prompt: query,
+				schedule,
+				folderUri,
+				providerId: session.providerId,
+				sessionTypeId: session.sessionType,
+				modelId: session.modelId.get(),
+				mode: session.mode.get()?.id,
+				enabled: true,
+			});
+			this.notificationService.info(localize('newSessionKind.registered', "Registered \u201C{0}\u201D as a new automated task.", name));
+		} catch (e) {
+			this.logService.error('Failed to register automation:', e);
+			this.notificationService.error(localize('newSessionKind.registerFailed', "Could not register automation: {0}", e instanceof Error ? e.message : String(e)));
+			// Rethrow so `NewChatInputWidget._submit` keeps the prompt text
+			// in the editor for the user to retry instead of clearing it.
+			throw e;
+		}
+	}
+
+	/**
+	 * Derives a short, human-readable name for a new automation from its
+	 * prompt. Uses the first non-empty line, trimmed and capped at 60
+	 * characters, falling back to a generic label when the prompt has no
+	 * usable text.
+	 */
+	private _deriveAutomationName(prompt: string): string {
+		const firstLine = prompt.split(/\r?\n/).map(s => s.trim()).find(s => s.length > 0) ?? '';
+		if (!firstLine) {
+			return localize('newSessionKind.untitledAutomation', "Untitled automation");
+		}
+		return firstLine.length <= 60 ? firstLine : firstLine.slice(0, 57) + '\u2026';
 	}
 
 	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
