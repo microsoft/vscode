@@ -1432,7 +1432,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let sessionPermissionLevel: string | undefined = undefined;
 		let sdkSessionId: string | undefined = undefined;
 		let activeSession: ICopilotCLISession | undefined;
-		let notifySessionChange = false;
+		let notifySessionChange = true;
 		try {
 
 			const initialOptions = chatSessionContext?.initialSessionOptions;
