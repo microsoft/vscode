@@ -97,9 +97,15 @@ Notes:
 
 The cascade seeds `docsInPrompt` with the active document, and the
 `recentlyViewedDocuments` step adds the documents it includes. `neighborFiles`
-reads this set to avoid duplicating files already present. This dependency is
+reads this set to avoid duplicating files already present, and then `appendNeighborFileSnippets`
+adds each included neighbor document to the set as well. This dependency is
 why `validateGlobalBudget` rejects orderings where `neighborFiles` precedes
 `recentlyViewedDocuments`.
+
+The accumulated `docsInPrompt` is then passed to `getEditDiffHistory`, so any
+later changes to which documents are present can affect diff selection when
+`diffHistory.onlyForDocsInPrompt` is enabled (the diff step only emits entries
+whose document is in `docsInPrompt`).
 
 ### Output
 
@@ -119,16 +125,20 @@ rest of `getUserPrompt` is identical:
 
 ## Guarantees and limits
 
-With `totalTokens = T` and shares `s_i`:
+With `totalTokens = T` and shares `s_i` (assumed non-negative; negative shares
+would be clamped to 0 by `max(0, floor(…))` in the budget computation, so the
+floor guarantee below would not hold for them):
 
 - **Per-part floor**: part at index `i` always receives at least `floor(T * s_i)`
   tokens, regardless of what earlier parts do.
-- **Per-part ceiling**: part at index `i` can receive at most
-  `floor(T * (s_0 + s_1 + … + s_i))` — its own share plus everything donated by
-  earlier parts.
-- **Pool ceiling**: total cascade-managed tokens ≤ `T` (minus per-step `floor`
-  rounding). `currentFile` and lint live outside this budget and add to the
-  final prompt size.
+- **Per-part ceiling**: part at index `i` can receive at most the running
+  floored sum `floor(…floor(floor(T * s_0) + T * s_1) + … + T * s_i)` — its own
+  share plus everything donated by earlier parts, with `floor` applied at every
+  step. Note this is generally smaller than `floor(T * (s_0 + … + s_i))`.
+- **Pool ceiling**: total cascade-managed tokens ≤ the ceiling of the last part
+  (always ≤ `T`, and typically strictly less due to per-step `floor` rounding).
+  `currentFile` and lint live outside this budget and add to the final prompt
+  size.
 - **No back-flow**: surplus at the last part is wasted.
 - **No intra-part fairness**: a single large item inside one part can consume
   that part's entire allocation; the cascade only addresses cross-part donation.
@@ -144,7 +154,7 @@ loudly is preferable to silent under/over-allocation.
 | `order` has no duplicate parts | `globalBudget.order contains duplicate part 'X'` |
 | Every part in `order` has a numeric `shares[part]` | `globalBudget.shares is missing entry for 'X'` |
 | If both present, `recentlyViewedDocuments` precedes `neighborFiles` | `globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'` |
-| Sum of `shares[part]` for parts in `order` ≈ 1 (epsilon `1e-3`) | `globalBudget.shares across order must sum to ~1, got <sum>` |
+| Sum of `shares[part]` for parts in `order` ≈ 1 (epsilon `1e-3`) | `globalBudget.shares across order must sum to ~1, got ${sharesSum}` |
 
 ## Wiring
 
@@ -242,22 +252,26 @@ forward.
 
 ### Effective caps when both `languageContext` and `neighborFiles` are off
 
-With `DEFAULT_ORDER` and pool `T`:
+With `DEFAULT_ORDER` and pool `T`, applying the per-step floor at every donation
+step (let `C_rv = floor(floor(T·2/6) + T·2/6)` be the effective cap on
+recently-viewed):
 
 | Part | Effective cap |
 |---|---|
 | `languageContext` | 0 (consumed) |
-| `recentlyViewedDocuments` | `T · 4/6` (own 2/6 + langCtx's 2/6) |
+| `recentlyViewedDocuments` | `C_rv` (own 2/6 + langCtx's 2/6, with per-step `floor`) |
 | `neighborFiles` | 0 (consumed) |
-| `diffHistory` | `T − consumed_rv` (own 1/6 + neighbors' 1/6 + recently-viewed's leftover) |
+| `diffHistory` | `floor(floor((C_rv − consumed_rv) + T·1/6) + T·1/6)` (own 1/6 + neighbors' 1/6 + recently-viewed's leftover, with per-step `floor`) |
 
-At `T = 5000`:
+At `T = 5000` (so `C_rv = floor(1666 + 1666.666…) = 3332` and the total
+cascade pool ceiling is `floor(floor(3332 + 833.333…) + 833.333…) = 4998`,
+not `5000`, because of per-step flooring):
 
 | `recentlyViewedDocuments` consumed | `diffHistory` cap |
 |---|---|
 | 3332 (fills cap) | 1666 |
-| 1500 | 3500 |
-| 0 | 5000 (whole pool) |
+| 1500 | 3498 |
+| 0 | 4998 (whole cascade pool) |
 
 Worked example with both enabled parts hungry at `T = 5000`:
 
