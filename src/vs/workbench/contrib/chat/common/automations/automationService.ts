@@ -13,12 +13,15 @@ export const IAutomationService = createDecorator<IAutomationService>('automatio
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
  * `nextRunAt`.
+ *
+ * `folderUri` is required — every automation must target a specific
+ * workspace folder so the spawned session has project context.
  */
 export interface ICreateAutomationOptions {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
-	readonly folderUri?: URI;
+	readonly folderUri: URI;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly enabled?: boolean;
@@ -26,13 +29,15 @@ export interface ICreateAutomationOptions {
 
 /**
  * Patch for `updateAutomation`. Fields not present are left unchanged.
- * Pass `null` for `folderUri`, `modelId`, or `mode` to clear them.
+ * Pass `null` for `modelId` or `mode` to clear them. `folderUri` cannot
+ * be cleared — pass a new URI to change which folder the automation runs
+ * in.
  */
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
-	readonly folderUri?: URI | null;
+	readonly folderUri?: URI;
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly enabled?: boolean;

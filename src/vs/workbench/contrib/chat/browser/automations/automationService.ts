@@ -36,7 +36,7 @@ interface ISerializedAutomation {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomation['schedule'];
-	readonly folderUri?: UriComponents;
+	readonly folderUri: UriComponents;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly enabled: boolean;
@@ -111,6 +111,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
+		if (!options.folderUri) {
+			throw new Error('Automation requires a folderUri.');
+		}
 		const now = this._now();
 		const nowIso = now.toISOString();
 		const nextRun = computeNextRunAt(options.schedule, now);
@@ -266,8 +269,18 @@ export class AutomationService extends Disposable implements IAutomationService 
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
 				return EMPTY_LEDGER;
 			}
-			const automations = (parsed.automations ?? []).map(deserializeAutomation);
-			const runs = (parsed.runs ?? []).map(r => Object.freeze({ ...r }));
+			const automations: IAutomation[] = [];
+			for (const entry of parsed.automations ?? []) {
+				if (!entry?.folderUri) {
+					this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} without a folderUri.`);
+					continue;
+				}
+				automations.push(deserializeAutomation(entry));
+			}
+			const validIds = new Set(automations.map(a => a.id));
+			const runs = (parsed.runs ?? [])
+				.filter(r => validIds.has(r.automationId))
+				.map(r => Object.freeze({ ...r }));
 			return { automations, runs };
 		} catch (err) {
 			this.logService.error('[AutomationService] Failed to parse automations ledger; resetting.', err);
@@ -284,7 +297,7 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 		name: a.name,
 		prompt: a.prompt,
 		schedule: a.schedule,
-		folderUri: a.folderUri?.toJSON() as UriComponents | undefined,
+		folderUri: a.folderUri.toJSON() as UriComponents,
 		modelId: a.modelId,
 		mode: a.mode,
 		enabled: a.enabled,
@@ -301,7 +314,7 @@ function deserializeAutomation(s: ISerializedAutomation): IAutomation {
 		name: s.name,
 		prompt: s.prompt,
 		schedule: s.schedule,
-		folderUri: s.folderUri ? URI.revive(s.folderUri) : undefined,
+		folderUri: URI.revive(s.folderUri),
 		modelId: s.modelId,
 		mode: s.mode,
 		enabled: s.enabled,
@@ -318,7 +331,7 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 		name: patch.name ?? current.name,
 		prompt: patch.prompt ?? current.prompt,
 		schedule: patch.schedule ?? current.schedule,
-		folderUri: patch.folderUri === null ? undefined : (patch.folderUri ?? current.folderUri),
+		folderUri: patch.folderUri ?? current.folderUri,
 		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
 		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
 		enabled: patch.enabled ?? current.enabled,

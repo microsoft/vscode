@@ -64,7 +64,7 @@ export class AutomationsAccessibilityHelpProvider extends Disposable implements 
 
 		// What you see
 		lines.push(nls.localize('automations.help.layoutHeader', 'Layout:'));
-		lines.push(nls.localize('automations.help.layoutDesc', 'The Automations section shows a list of all your automations. Each row displays the automation\u2019s name, schedule (Manual, Hourly, Daily at a time, or Weekly on a day at a time), the next scheduled run, and a preview of the prompt. Row action buttons follow on the right.'));
+		lines.push(nls.localize('automations.help.layoutDesc', 'The Automations section shows a list of all your automations. Each row displays the automation\u2019s name, schedule (Manual, Hourly, Daily at a time, or Weekly on a day at a time), the workspace folder it targets, the next scheduled run, and a preview of the prompt. Row action buttons follow on the right.'));
 		lines.push('');
 
 		// Row actions
@@ -78,8 +78,8 @@ export class AutomationsAccessibilityHelpProvider extends Disposable implements 
 
 		// Creating and editing
 		lines.push(nls.localize('automations.help.dialogHeader', 'Create/Edit Dialog:'));
-		lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), and Time and Day-of-Week fields that appear when relevant. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
-		lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until both Name and Prompt are non-empty. Activate Cancel or press Escape to dismiss without saving.'));
+		lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, and a Workspace folder selector. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
+		lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Workspace folder are all set. The New button is disabled when no folder or workspace is open; open a folder first. Activate Cancel or press Escape to dismiss without saving.'));
 		lines.push('');
 
 		// History expansion

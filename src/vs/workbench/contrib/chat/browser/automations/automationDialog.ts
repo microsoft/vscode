@@ -75,6 +75,10 @@ export async function showAutomationDialog(
 	const initial = options.existing;
 	const isEdit = !!initial;
 
+	const initialFolder = initial?.folderUri
+		?? options.folders.find(f => f.uri.toString() === initial?.folderUri?.toString())?.uri
+		?? options.folders[0]?.uri;
+
 	const state: IFormState = {
 		name: initial?.name ?? '',
 		prompt: initial?.prompt ?? '',
@@ -82,13 +86,13 @@ export async function showAutomationDialog(
 		hour: initial?.schedule.scheduleHour ?? 9,
 		minute: initial?.schedule.scheduleMinute ?? 0,
 		day: initial?.schedule.scheduleDay ?? 1,
-		folderUri: initial?.folderUri ?? options.folders[0]?.uri,
+		folderUri: initialFolder,
 		modelId: initial?.modelId,
 		mode: initial?.mode,
 		enabled: initial?.enabled ?? true,
 	};
 
-	const validation: IValidationState = { nameError: undefined, promptError: undefined };
+	const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined };
 
 	let saveButton: IButton | undefined;
 	let revalidate: () => void = () => { /* assigned below */ };
@@ -136,7 +140,10 @@ export async function showAutomationDialog(
 		// Re-validate one last time in case the user submitted with
 		// invalid state via Enter.
 		revalidate();
-		if (validation.nameError || validation.promptError) {
+		if (validation.nameError || validation.promptError || validation.folderError) {
+			return undefined;
+		}
+		if (!state.folderUri) {
 			return undefined;
 		}
 
@@ -152,7 +159,7 @@ export async function showAutomationDialog(
 				name: state.name,
 				prompt: state.prompt,
 				schedule,
-				folderUri: state.folderUri ?? null,
+				folderUri: state.folderUri,
 				modelId: state.modelId ?? null,
 				mode: state.mode ?? null,
 				enabled: state.enabled,
@@ -191,6 +198,7 @@ interface IFormState {
 interface IValidationState {
 	nameError: string | undefined;
 	promptError: string | undefined;
+	folderError: string | undefined;
 }
 
 function renderForm(
@@ -275,10 +283,13 @@ function renderForm(
 		applyIntervalVisibility();
 	}));
 
-	// --- Folder ---
-	if (options.folders.length > 0) {
-		const folderRow = DOM.append(form, $('.automation-form-row'));
-		DOM.append(folderRow, $('label.automation-form-label', { for: 'automation-folder' }, localize('automation.form.folder', "Folder")));
+	// --- Folder (required) ---
+	const folderRow = DOM.append(form, $('.automation-form-row'));
+	DOM.append(folderRow, $('label.automation-form-label', { for: 'automation-folder' }, localize('automation.form.folder', "Workspace folder")));
+	if (options.folders.length === 0) {
+		DOM.append(folderRow, $('.automation-form-empty', undefined, localize('automation.form.noFolders', "Open a folder or workspace before creating an automation.")));
+		state.folderUri = undefined;
+	} else {
 		const folderSelect = DOM.append(folderRow, $('select.automation-form-select', { id: 'automation-folder' })) as HTMLSelectElement;
 		for (const folder of options.folders) {
 			const optEl = DOM.append(folderSelect, $('option', { value: folder.uri.toString() }, folder.label)) as HTMLOptionElement;
@@ -286,9 +297,31 @@ function renderForm(
 				optEl.selected = true;
 			}
 		}
+		// If the currently selected folder is not present (e.g. editing
+		// an automation pointing at a folder that is no longer open),
+		// surface it as a disabled option so the user sees what is
+		// stored and can choose to switch.
+		const hasMatch = state.folderUri && options.folders.some(f => f.uri.toString() === state.folderUri!.toString());
+		if (state.folderUri && !hasMatch) {
+			const stored = state.folderUri;
+			const optEl = DOM.append(folderSelect, $('option', { value: stored.toString() }, localize('automation.form.folderNotOpen', "{0} (folder not currently open)", stored.toString()))) as HTMLOptionElement;
+			optEl.selected = true;
+		} else if (!state.folderUri) {
+			state.folderUri = options.folders[0].uri;
+			folderSelect.value = state.folderUri.toString();
+		}
+		const folderError = DOM.append(folderRow, $('.automation-form-error'));
 		disposables.add(DOM.addStandardDisposableListener(folderSelect, 'change', () => {
 			const match = options.folders.find(f => f.uri.toString() === folderSelect.value);
-			state.folderUri = match?.uri;
+			if (match) {
+				state.folderUri = match.uri;
+			} else {
+				// User picked the stored-but-not-open entry; keep the
+				// existing URI.
+				state.folderUri = URI.parse(folderSelect.value);
+			}
+			revalidate();
+			folderError.textContent = validation.folderError ?? '';
 		}));
 	}
 
@@ -322,8 +355,11 @@ function updateSaveButtonState(
 	validation.promptError = state.prompt.trim() === ''
 		? localize('automation.form.promptRequired', "Prompt is required.")
 		: undefined;
+	validation.folderError = !state.folderUri
+		? localize('automation.form.folderRequired', "Workspace folder is required.")
+		: undefined;
 
-	const valid = !validation.nameError && !validation.promptError;
+	const valid = !validation.nameError && !validation.promptError && !validation.folderError;
 	if (saveButton) {
 		saveButton.enabled = valid;
 	}
