@@ -200,6 +200,98 @@ suite('AutomationsListWidget', () => {
 
 		assert.strictEqual(captured, 1);
 	});
+
+	test('history panel is hidden by default and toggled by the history button', async () => {
+		const { widget, service } = setup();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+
+		assert.strictEqual(widget.element.querySelectorAll('.automations-row-history').length, 0);
+
+		// Buttons: Run, Toggle, Edit, Delete, History (5th).
+		const buttons = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
+		const historyButton = buttons[4] as HTMLButtonElement;
+		assert.strictEqual(historyButton.getAttribute('aria-expanded'), 'false');
+
+		historyButton.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const panels = widget.element.querySelectorAll('.automations-row-history');
+		assert.strictEqual(panels.length, 1);
+		assert.strictEqual(panels[0].getAttribute('id'), `automation-history-${a.id}`);
+
+		// Re-collect buttons after re-render.
+		const buttonsAfter = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
+		assert.strictEqual((buttonsAfter[4] as HTMLButtonElement).getAttribute('aria-expanded'), 'true');
+
+		// Collapse again.
+		(buttonsAfter[4] as HTMLButtonElement).click();
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.strictEqual(widget.element.querySelectorAll('.automations-row-history').length, 0);
+	});
+
+	test('history panel renders empty-state when there are no runs', async () => {
+		const { widget, service } = setup();
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+
+		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
+		historyButton.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const empty = widget.element.querySelector('.automations-history-empty');
+		assert.ok(empty, 'expected history empty-state');
+		assert.match(empty.textContent ?? '', /No runs yet/);
+	});
+
+	test('history panel renders run rows with status and trigger', async () => {
+		const { widget, service } = setup();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+
+		// Record three runs in different states.
+		const r1 = await service.recordRunStart(a.id, 'schedule', 1);
+		await service.updateRun(r1.id, { status: 'completed', completedAt: new Date().toISOString() });
+
+		const r2 = await service.recordRunStart(a.id, 'manual', 1);
+		await service.updateRun(r2.id, { status: 'failed', errorMessage: 'boom', completedAt: new Date().toISOString() });
+
+		await service.recordRunStart(a.id, 'catch_up', 1);
+
+		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
+		historyButton.click();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const rows = widget.element.querySelectorAll('.automations-history-row');
+		assert.strictEqual(rows.length, 3);
+
+		// Newest-first: catch_up pending, manual failed, schedule completed.
+		const statuses = Array.from(rows).map(r => r.getAttribute('data-run-status'));
+		assert.deepStrictEqual(statuses, ['pending', 'failed', 'completed']);
+
+		// The failed row surfaces the error message.
+		const err = widget.element.querySelector('.automations-history-row-error');
+		assert.ok(err, 'expected error message in failed-run row');
+		assert.strictEqual(err.textContent, 'boom');
+	});
+
+	test('history panel re-renders when run state changes after a run is added', async () => {
+		const { widget, service } = setup();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+
+		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
+		historyButton.click();
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.strictEqual(widget.element.querySelectorAll('.automations-history-row').length, 0);
+
+		await service.recordRunStart(a.id, 'schedule', 1);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.strictEqual(widget.element.querySelectorAll('.automations-history-row').length, 1);
+	});
 });
 
 // Placeholder reference to avoid unused-import lint on Emitter if our
