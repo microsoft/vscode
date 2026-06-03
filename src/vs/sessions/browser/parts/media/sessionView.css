@@ -62,8 +62,9 @@
 
 /* Fully desaturate the in-flight chat-input border beam in inactive sessions so
  * it matches the muted treatment of the rest of the inactive input controls.
- * Setting the HSL saturation channel to 0 drops the accent to a neutral gray of
- * the same lightness, so the beam still reads but no longer competes for attention. */
+ * Relative color syntax zeroes the saturation channel while preserving hue and
+ * lightness — unlike mixing toward a fixed gray, this keeps the accent's
+ * lightness intact so high-contrast themes (white/black accents) still read. */
 .session-view:not(.is-active) .interactive-session .chat-input-container.working {
 	--chat-input-working-border-color1: hsl(from var(--vscode-chat-inputWorkingBorderColor1) h 0% l);
 }
