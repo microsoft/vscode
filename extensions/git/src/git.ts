@@ -205,14 +205,9 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	log?: boolean;
 	cancellationToken?: CancellationToken;
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
-	onStderr?: (data: string) => void;
 }
 
-async function exec(
-	child: cp.ChildProcess,
-	cancellationToken?: CancellationToken,
-	onStderr?: (data: string) => void
-): Promise<IExecutionResult<Buffer>> {
+async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
 		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
 	}
@@ -245,10 +240,7 @@ async function exec(
 		}),
 	new Promise<string>(c => {
 		const buffers: Buffer[] = [];
-		on(child.stderr!, 'data', (b: Buffer) => {
-			buffers.push(b);
-			onStderr?.(b.toString('utf8'));
-		});
+		on(child.stderr!, 'data', (b: Buffer) => buffers.push(b));
 		once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 	})
 	]) as Promise<[number, Buffer, string]>;
@@ -647,7 +639,7 @@ export class Git {
 		}
 
 		try {
-			bufferResult = await exec(child, options.cancellationToken, options.onStderr);
+			bufferResult = await exec(child, options.cancellationToken);
 		} catch (ex) {
 			throw ex;
 		} finally {
