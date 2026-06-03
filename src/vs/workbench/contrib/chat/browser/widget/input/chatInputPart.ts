@@ -1147,7 +1147,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// [AUTORUN-REG] Log the moment the model->view autorun is registered, so we can see
 		// whether widget.viewModel still points at the OUTGOING session at registration time
 		// (which would cause the very first run to be flagged stale and skipped).
-		logChangesToStateModel(this._inputModel, `[AUTORUN-REG] registering model->view autorun for ${forSessionResource.toString()}, widgetSession=${this._currentSessionKey}, widgetViewModelSession=${this._widget?.viewModel?.model.sessionResource?.toString()}, isStaleAtRegistration=${!!this._widget?.viewModel?.model.sessionResource && !isEqual(this._widget.viewModel.model.sessionResource, forSessionResource)}, model.state.selectedModel=${model.state.get()?.selectedModel?.identifier}, _currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, undefined, undefined, this.logService);
+		const widgetViewModelSession = this._widget?.viewModel?.model.sessionResource;
+		const isStaleAtRegistration = !!widgetViewModelSession && !isEqual(widgetViewModelSession, forSessionResource);
+		logChangesToStateModel(this._inputModel, `[AUTORUN-REG] registering model->view autorun for ${forSessionResource.toString()}, widgetSession=${this._currentSessionKey}, widgetViewModelSession=${widgetViewModelSession?.toString()}, isStaleAtRegistration=${isStaleAtRegistration}, model.state.selectedModel=${model.state.get()?.selectedModel?.identifier}, _currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, undefined, undefined, this.logService);
 
 		// Observe changes from model and sync to view
 		this._modelSyncDisposables.add(autorun(reader => {
