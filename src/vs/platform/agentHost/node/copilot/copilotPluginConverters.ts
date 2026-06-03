@@ -92,20 +92,12 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 			const description = md?.getStringValue('description');
 			const tools = md?.getStringArrayValue('tools');
 			const prompt = md?.body ?? raw;
-			let model: string | undefined = undefined;
-			try {
-				model = md?.getStringValue('model') ?? undefined;
-			} catch {
-				// Ignore invalid model field; the SDK will apply its own default
+			let model: string | undefined = md?.getStringValue('model') ?? undefined;
+			const models = md?.getStringArrayValue('model') ?? undefined;
+			if (!model && models && Array.isArray(models) && models.length > 0) {
+				model = models[0];
 			}
-			try {
-				const models = md?.getStringArrayValue('model') ?? undefined;
-				if (models && Array.isArray(models) && models.length > 0) {
-					model = models[0];
-				}
-			} catch {
-				// Ignore invalid model field; the SDK will apply its own default
-			}
+
 			configs.push({
 				name,
 				...(description ? { description } : {}),
