@@ -1166,7 +1166,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const isStaleSession =
 				!!this._inputModelSessionResource && !isEqual(this._inputModelSessionResource, forSessionResource);
 			if (isStaleSession) {
-				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource?.toString()}, ${this._inputModelSessionResource?.toString()} is old)`;
+				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource?.toString()}, ${this._inputModelSessionResource?.toString()}, ${forSessionResource.toString()} is old)`;
 			}
 			// Untracked read: we only want a snapshot for the log, not a dependency
 			// that would re-trigger this autorun.
