@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -259,7 +259,7 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
 	});
 
-	test('restoreLastActiveSession waits for session to appear via onDidChangeSessions', async () => {
+	test('restoreVisibleSessions waits for session to appear via onDidChangeSessions', async () => {
 		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
 
@@ -300,7 +300,7 @@ suite('SessionsManagementService', () => {
 
 		// At this point the provider does not yet know about the session
 		// (mimicking an agent host provider whose cache has not loaded yet).
-		const restorePromise = service.restoreLastActiveSession();
+		const restorePromise = service.restoreVisibleSessions();
 		await Promise.resolve();
 		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), []);
 
@@ -312,6 +312,274 @@ suite('SessionsManagementService', () => {
 
 		await restorePromise;
 		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), [targetSession.resource.toString()]);
+	});
+
+	test('ROUNDTRIP: opened session is retained across save + restore', async () => {
+		const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-x'), status: constObservable(1) };
+		const session = stubSession({
+			sessionId: 'x',
+			providerId: 'test',
+			status: constObservable(1),
+			chats: constObservable([createdChat]),
+			mainChat: constObservable(createdChat),
+		});
+
+		const provider = new TestSessionsProvider(session);
+		const storage = disposables.add(new InMemoryStorageService());
+
+		const makeService = () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, storage);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+			instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+			instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+			instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+			instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
+			instantiationService.stub(IProgressService, new TestProgressService());
+			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+				override readonly onDidSubmitRequest = Event.None;
+			});
+			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+		};
+
+		// First window: open the session, then simulate shutdown (flush storage).
+		const first = makeService();
+		await first.openSession(session.resource);
+		assert.strictEqual(first.activeSession.get()?.sessionId, 'x');
+		await storage.flush();
+
+		// Second window: restore from persisted state.
+		const second = makeService();
+		await second.restoreVisibleSessions();
+
+		assert.deepStrictEqual({
+			visible: second.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: second.activeSession.get()?.sessionId ?? null,
+		}, {
+			visible: ['x'],
+			active: 'x',
+		});
+	});
+
+	test('RACE: a new session created during restore does not drop the restored session', async () => {
+		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
+		const newSession = stubSession({ sessionId: 'fresh', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+
+		let sessions: ISession[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			constructor() { super(targetSession); }
+			override getSessions(): ISession[] { return sessions; }
+			override createNewSession(): ISession { return newSession; }
+			override resolveWorkspace(): ISessionWorkspace { return { folders: [], isVirtualWorkspace: false } as unknown as ISessionWorkspace; }
+		};
+
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([{ sessionResource: targetSession.resource.toString(), visibleOrder: 0, isActive: true }]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+		instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// Restore starts but the provider has not yet surfaced the session.
+		const restorePromise = service.restoreVisibleSessions();
+		await Promise.resolve();
+
+		// The new-chat widget eagerly creates a session for the restored
+		// workspace folder while restore is still waiting for its session.
+		service.createNewSession(URI.parse('file:///folder'));
+
+		// The provider now surfaces the persisted session.
+		sessions = [targetSession];
+		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
+		await restorePromise;
+
+		assert.deepStrictEqual({
+			hasTarget: service.visibleSessions.get().some(s => s?.sessionId === 'target'),
+			active: service.activeSession.get()?.sessionId ?? null,
+		}, {
+			hasTarget: true,
+			active: 'target',
+		});
+	});
+
+	test('restoreVisibleSessions restores the grid order, sticky and active state', async () => {
+		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
+		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
+		const sessionC = stubSession({ sessionId: 'c', providerId: 'test' });
+		const sessions = [sessionA, sessionB, sessionC];
+
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(sessionA); }
+			override getSessions(): ISession[] { return sessions; }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const storage = disposables.add(new InMemoryStorageService());
+		// Persisted grid: [A (sticky), B (active), C]
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: true, isActive: false },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true },
+				{ sessionResource: sessionC.resource.toString(), visibleOrder: 2, isSticky: false, isActive: false },
+			]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+		instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		await service.restoreVisibleSessions();
+
+		assert.deepStrictEqual({
+			visible: service.visibleSessions.get().map(s => s?.sessionId ?? null),
+			sticky: service.visibleSessions.get().map(s => s?.sticky.get() ?? false),
+			active: service.activeSession.get()?.sessionId,
+		}, {
+			visible: ['a', 'b', 'c'],
+			sticky: [true, false, false],
+			active: 'b',
+		});
+	});
+
+	test('restoreVisibleSessions restores an active new-session slot alongside pinned sessions', async () => {
+		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
+		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
+		const sessions = [sessionA, sessionB];
+
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(sessionA); }
+			override getSessions(): ISession[] { return sessions; }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const storage = disposables.add(new InMemoryStorageService());
+		// Persisted grid: [A (sticky), B] with the empty new-session slot active.
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: true, isActive: false },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: false },
+			]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+		storage.store('agentSessions.newSessionSlotActive', true, 1 /* StorageScope.WORKSPACE */, 1 /* StorageTarget.MACHINE */);
+
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+		instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		await service.restoreVisibleSessions();
+
+		assert.deepStrictEqual({
+			visible: service.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: service.activeSession.get()?.sessionId ?? null,
+		}, {
+			visible: ['a', 'b', null],
+			active: null,
+		});
+	});
+
+	test('restoreVisibleSessions lays out the grid atomically without intermediate single-session states', async () => {
+		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
+		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
+		const sessions = [sessionA, sessionB];
+
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(sessionA); }
+			override getSessions(): ISession[] { return sessions; }
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const storage = disposables.add(new InMemoryStorageService());
+		// Persisted grid: [A, B (active)] — the active session is NOT the
+		// left-most one, which used to surface B alone before A was inserted.
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([
+				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: false, isActive: false },
+				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: true },
+			]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+		instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// Record every grid state published while restoring.
+		const states: (string | null)[][] = [];
+		disposables.add(autorun(reader => {
+			states.push(service.visibleSessions.read(reader).map(s => s?.sessionId ?? null));
+		}));
+
+		await service.restoreVisibleSessions();
+
+		// The grid must never go through a state showing only the active
+		// session 'b' on its own — that intermediate layout is the flicker.
+		const showedActiveAlone = states.some(s => s.length === 1 && s[0] === 'b');
+
+		assert.deepStrictEqual({
+			showedActiveAlone,
+			final: service.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: service.activeSession.get()?.sessionId,
+		}, {
+			showedActiveAlone: false,
+			final: ['a', 'b'],
+			active: 'b',
+		});
 	});
 
 	test('sendNewChatRequest with background returns to the new-session view', async () => {

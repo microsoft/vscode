@@ -249,11 +249,12 @@ export interface ISessionsManagementService {
 	openChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/**
-	 * Restore the last active session from persisted state.
-	 * Waits until the session provider is available and then opens the session.
-	 * Falls back to the new-session view if the session is not found.
+	 * Restore the sessions that were visible in the grid from persisted state.
+	 * Restores their order, sticky (pinned) state and the active session,
+	 * waiting until each session's provider makes it available. Falls back to
+	 * the new-session view when nothing can be restored.
 	 */
-	restoreLastActiveSession(): Promise<void>;
+	restoreVisibleSessions(): Promise<void>;
 
 	/**
 	 * Switch to the new-session view.
