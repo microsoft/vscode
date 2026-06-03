@@ -15,7 +15,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_OTLP_ENDPOINT_KEY, COPILOT_STRICT_MARKETPLACES_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -1087,6 +1087,91 @@ configurationRegistry.registerConfiguration({
 					description: {
 						key: 'chat.plugins.strictMarketplaces.policy',
 						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."),
+					}
+				},
+			},
+		},
+		[ChatConfiguration.OtelEnabled]: {
+			// Policy-only delivery slot for the enterprise-managed OpenTelemetry
+			// kill switch (via the `ChatOtelEnabled` policy). The user-facing
+			// setting lives in the Copilot extension's `package.json` as
+			// `github.copilot.chat.otel.enabled`; the Copilot extension reads
+			// this slot's effective value (the policy value when set,
+			// `undefined` otherwise — no default is registered so that consumers
+			// can detect "no policy in effect") and evaluates it as the
+			// top-precedence layer in `resolveOTelConfig`.
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.otel.enabled', "Enterprise-managed kill switch for OpenTelemetry emission from Copilot Chat. When set, overrides env vars and user settings."),
+			policy: {
+				name: 'ChatOtelEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.123',
+				value: (policyData) => policyData.managedSettings?.[COPILOT_OTEL_ENABLED_KEY],
+				managedSettings: {
+					[COPILOT_OTEL_ENABLED_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.otel.enabled.policy',
+						value: nls.localize('chat.otel.enabled.policy', "Force OpenTelemetry emission from Copilot Chat on or off, overriding env vars and user settings."),
+					}
+				},
+			},
+		},
+		[ChatConfiguration.OtelOtlpEndpoint]: {
+			// Policy-only delivery slot for the enterprise-managed OTLP
+			// collector endpoint (via the `ChatOtelEndpoint` policy). Consumed
+			// by the Copilot extension as the top-precedence layer for the
+			// OTLP endpoint, above env vars and the user setting. No default
+			// is registered so consumers can detect "no policy in effect".
+			type: 'string',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.otel.otlpEndpoint', "Enterprise-managed OTLP collector endpoint URL for Copilot Chat telemetry. When set, overrides env vars and user settings."),
+			policy: {
+				name: 'ChatOtelEndpoint',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.123',
+				value: (policyData) => policyData.managedSettings?.[COPILOT_OTEL_OTLP_ENDPOINT_KEY],
+				managedSettings: {
+					[COPILOT_OTEL_OTLP_ENDPOINT_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.otel.otlpEndpoint.policy',
+						value: nls.localize('chat.otel.otlpEndpoint.policy', "OTLP collector endpoint URL for Copilot Chat telemetry, overriding env vars and user settings."),
+					}
+				},
+			},
+		},
+		[ChatConfiguration.OtelCaptureContent]: {
+			// Policy-only delivery slot for enterprise-managed control over
+			// whether OpenTelemetry capture includes message content
+			// (prompts/responses/tool definitions). Consumed by the Copilot
+			// extension as the top-precedence layer above env vars and the
+			// user setting. No default is registered so consumers can detect
+			// "no policy in effect".
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.otel.captureContent', "Enterprise-managed control over OpenTelemetry message-content capture (prompts, responses, tool definitions) from Copilot Chat. When set, overrides env vars and user settings."),
+			policy: {
+				name: 'ChatOtelCaptureContent',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.123',
+				value: (policyData) => policyData.managedSettings?.[COPILOT_OTEL_CAPTURE_CONTENT_KEY],
+				managedSettings: {
+					[COPILOT_OTEL_CAPTURE_CONTENT_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.otel.captureContent.policy',
+						value: nls.localize('chat.otel.captureContent.policy', "Force OpenTelemetry message-content capture (prompts, responses, tool definitions) from Copilot Chat on or off, overriding env vars and user settings."),
 					}
 				},
 			},

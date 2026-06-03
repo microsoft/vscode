@@ -31,6 +31,17 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: readonly IStrictMarketplaceSource[];
+	/**
+	 * Enterprise-managed OpenTelemetry policy block. Each sub-field is
+	 * individually optional so admins can pin only the dimensions they care
+	 * about (e.g. just `endpoint`, leaving `enabled` / `captureContent` to
+	 * env/setting precedence).
+	 */
+	readonly telemetry?: {
+		readonly enabled?: boolean;
+		readonly otlpEndpoint?: string;
+		readonly captureContent?: boolean;
+	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
 }

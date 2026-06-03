@@ -112,6 +112,24 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('flattens telemetry block into dot-path managed settings', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			telemetry: { enabled: true, otlpEndpoint: 'https://collector.example.com:4318', captureContent: false },
+		}), {
+			managedSettings: {
+				'telemetry.enabled': true,
+				'telemetry.otlpEndpoint': 'https://collector.example.com:4318',
+				'telemetry.captureContent': false,
+			},
+		});
+
+		assert.deepStrictEqual(adaptManagedSettings({ telemetry: { enabled: false } }), {
+			managedSettings: {
+				'telemetry.enabled': false,
+			},
+		});
+	});
+
 	test('resilience: unknown scalar keys flatten into the bag alongside structured keys', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },

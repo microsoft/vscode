@@ -10,6 +10,7 @@ import { join, win32 } from '../../../util/vs/base/common/path';
 import { isWindows } from '../../../util/vs/base/common/platform';
 import { removeAnsiEscapeCodes } from '../../../util/vs/base/common/strings';
 import { ILogService } from '../../log/common/logService';
+import { sanitizeOTelEnv } from '../../otel/common/agentOTelEnv';
 import { HookCommandResultKind, IHookCommandResult, IHookExecutor } from '../common/hookExecutor';
 import { IHooksOutputChannel } from '../common/hooksOutputChannel';
 
@@ -48,7 +49,12 @@ export class NodeHookExecutor implements IHookExecutor {
 
 	private _spawn(hook: ChatHookCommand, input: unknown, token: CancellationToken): Promise<IHookCommandResult> {
 		const cwd = hook.cwd ? uriToFsPath(hook.cwd) : homedir();
-		const env = { ...process.env, ...hook.env };
+		// Strip OTel-related env vars before composing the subprocess env so the
+		// extension's OpenTelemetry config doesn't leak into user-defined hook
+		// commands (which can be arbitrary shell programs). `hook.env`
+		// overrides are still honored — users who explicitly want OTel
+		// forwarded to a specific hook can set the relevant vars there.
+		const env = { ...sanitizeOTelEnv(process.env), ...hook.env };
 		const { command, args, shell, env: shellEnv } = getShellCommand(hook.command);
 
 		const child = spawn(command, args, {

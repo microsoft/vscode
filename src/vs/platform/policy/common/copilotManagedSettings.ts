@@ -32,6 +32,15 @@ export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 /** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 
+/** Managed-settings key for the Copilot Chat OTel kill switch. */
+export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
+
+/** Managed-settings key for the Copilot Chat OTel OTLP collector endpoint. */
+export const COPILOT_OTEL_OTLP_ENDPOINT_KEY = 'telemetry.otlpEndpoint';
+
+/** Managed-settings key for the Copilot Chat OTel content capture flag. */
+export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
+
 export const ICopilotManagedSettingsService = createDecorator<ICopilotManagedSettingsService>('copilotManagedSettingsService');
 
 export interface ICopilotManagedSettingsService {
