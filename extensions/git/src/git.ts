@@ -383,7 +383,6 @@ function sanitizeRelativePath(path: string): string {
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
 const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
-const SSH_SECURITY_KEY_CONFIRMATION_REGEX = /Confirm user presence for key|Touch your security key/i;
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -636,28 +635,29 @@ export class Git {
 		const startExec = Date.now();
 		let bufferResult: IExecutionResult<Buffer>;
 
-		let didShowSecurityKeyConfirmationNotification = false;
+		const isRemoteOperation = ['fetch', 'push', 'pull'].includes(args[0]);
+
+		let securityKeyAuthenticationHintTimer: NodeJS.Timeout | undefined;
+		if (isRemoteOperation) {
+			securityKeyAuthenticationHintTimer = setTimeout(() => {
+				void window.showInformationMessage(
+					l10n.t('Git may be waiting for SSH authentication. If you use a security key, touch it to continue.')
+				);
+			}, 3000);
+		}
 
 		try {
-			bufferResult = await exec(child, options.cancellationToken, stderr => {
-			if (
-				!didShowSecurityKeyConfirmationNotification &&
-				SSH_SECURITY_KEY_CONFIRMATION_REGEX.test(stderr)
-			) {
-				didShowSecurityKeyConfirmationNotification = true;
-				void window.showInformationMessage(
-					l10n.t('Git is waiting for security key confirmation. Touch your security key to continue.')
-				);
-			}
-
-			options.onStderr?.(stderr);
-			});
-		} catch (ex)  {
+			bufferResult = await exec(child, options.cancellationToken, options.onStderr);
+		} catch (ex) {
 			if (ex instanceof CancellationError) {
 				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
 			}
 
 			throw ex;
+		} finally {
+			if (securityKeyAuthenticationHintTimer) {
+				clearTimeout(securityKeyAuthenticationHintTimer);
+			}
 		}
 
 		if (options.log !== false) {
