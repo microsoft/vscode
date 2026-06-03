@@ -36,6 +36,11 @@
 		color: unset;
 	}
 
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .codicon,
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .monaco-pixel-spinner {
+		color: var(--vscode-list-activeSelectionForeground) !important;
+	}
+
 	.monaco-list:not(:focus) .monaco-list-row.selected .session-details-row {
 		color: var(--vscode-descriptionForeground);
 	}
@@ -113,7 +118,7 @@
 
 		> .codicon {
 			flex-shrink: 0;
-			font-size: var(--vscode-codiconFontSize-compact, 12px);
+			font-size: var(--vscode-codiconFontSize, 16px);
 			height: 16px;
 			display: flex;
 			align-items: center;

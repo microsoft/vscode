@@ -86,7 +86,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this._nextSeq++;
 	}
 
+	/**
+	 * Number of upcoming `listSessions()` calls that should reject, used to
+	 * simulate the agent throwing `AHP_AUTH_REQUIRED` (or a transient offline
+	 * error) before its token is effective server-side. Decremented per call.
+	 */
+	public failListSessionsCount = 0;
+	public listSessionsCallCount = 0;
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
+		this.listSessionsCallCount++;
+		if (this.failListSessionsCount > 0) {
+			this.failListSessionsCount--;
+			throw new Error('AHP_AUTH_REQUIRED');
+		}
 		return [...this._sessions.values()];
 	}
 
@@ -606,6 +618,87 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('recovers an empty list when the initial listSessions fails, without needing a new session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Fresh launch: the agent throws on the first listSessions() (e.g.
+		// AHP_AUTH_REQUIRED before its token is effective, or a transient
+		// offline error). The sessions really exist on the host.
+		agentHost.failListSessionsCount = 1;
+		agentHost.addSession(createSession('heal-1', { summary: 'First' }));
+		agentHost.addSession(createSession('heal-2', { summary: 'Second' }));
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		// The eager refresh fires and fails; nothing is cached yet.
+		await timeout(0);
+		assert.strictEqual(changes.length, 0, 'no event should fire after a failed initial refresh');
+		assert.strictEqual(provider.getSessions().length, 0, 'cache stays empty after a failed initial refresh');
+
+		// The backoff retry (min 1s) fires on its own — no SessionTurnComplete
+		// or sessionAdded needed — and the list self-heals.
+		await timeout(1_100);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			added: changes[0]?.added.map(s => s.title.get()).sort(),
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			added: ['First', 'Second'],
+			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('a successful empty listSessions arms no retry', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// No sessions on the host: listSessions() succeeds with []. This is a
+		// valid result, not a failure — the cache should be marked initialized
+		// and no background retry should be scheduled.
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		await timeout(0);
+		const callsAfterEagerLoad = agentHost.listSessionsCallCount;
+		assert.strictEqual(callsAfterEagerLoad, 1, 'exactly one eager listSessions call');
+
+		// Advance well past the max backoff window; no retry should fire.
+		await timeout(60_000);
+
+		assert.strictEqual(agentHost.listSessionsCallCount, callsAfterEagerLoad, 'no retry should be scheduled after a successful empty list');
+		assert.strictEqual(changes.length, 0, 'no change event for an empty list');
+		assert.strictEqual(provider.getSessions().length, 0);
+	}));
+
+	test('retries with backoff until listSessions succeeds', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// First two attempts fail, third succeeds. Verifies the retry keeps
+		// re-arming rather than giving up after a single failed attempt.
+		agentHost.failListSessionsCount = 2;
+		agentHost.addSession(createSession('backoff-1', { summary: 'Only' }));
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		await timeout(0);
+		assert.strictEqual(provider.getSessions().length, 0, 'empty after first failure');
+
+		// First retry (~1s) — still failing.
+		await timeout(1_100);
+		assert.strictEqual(provider.getSessions().length, 0, 'empty after second failure');
+
+		// Second retry (~2s backoff) — now succeeds.
+		await timeout(2_200);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			cachedTitles: ['Only'],
+		});
+	}));
+
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const projectUri = URI.file('/home/user/vscode');
 		const workingDirectory = URI.file('/tmp/copilot-worktrees/vscode-feature');
@@ -1000,9 +1093,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let fired = 0;
 		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
 
-		// Trigger disposal of the first NewSession by creating a second one
-		// (the MutableDisposable holding `_newSession` disposes the previous).
+		// Trigger disposal of the first NewSession explicitly. Providers no
+		// longer dispose drafts implicitly when a new one is created, so the
+		// management layer (modeled here) disposes the abandoned draft.
 		provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 
 		assert.deepStrictEqual(provider.getCustomAgents(first.sessionId), []);
@@ -1213,9 +1308,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstRawId = first.resource.path.substring(1);
 		const firstBackendUri = AgentSession.uri(sessionTypeId, firstRawId);
 
-		// Switch workspace: should dispose the first backend session and
-		// release its subscription before creating the second.
+		// Switch workspace: the management layer disposes the abandoned draft
+		// (providers no longer do so implicitly), which disposes the first
+		// backend session and releases its subscription.
 		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 		const secondRawId = second.resource.path.substring(1);
 		const secondBackendUri = AgentSession.uri(sessionTypeId, secondRawId);
@@ -1274,8 +1371,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('workspace switch mid-createSession does not open a stale subscription', async () => {
 		// Models the race where the user switches workspaces while the eager
 		// `createSession` for the previous workspace is still in flight on
-		// the wire. Once that create eventually resolves, we must not open
-		// a subscription for it — it has already been disposed.
+		// the wire. Providers now track multiple new sessions, so abandoning
+		// the previous draft is explicit: the management layer calls
+		// `deleteNewSession` on workspace switch. Once the parked create
+		// eventually resolves, we must not open a subscription for it — it has
+		// already been disposed.
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
 
@@ -1288,9 +1388,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		// Switch workspace while the first createSession is still parked.
-		// Disposing the first NewSession should clear its backend URI
-		// before the second eager-create runs.
 		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		// Abandon the first draft (what the management layer does on a
+		// workspace switch). Disposing the first NewSession clears its backend
+		// URI before the second eager-create runs.
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 
 		// Now release the first createSession. The async IIFE in
@@ -1529,20 +1631,84 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.loading.get(), false);
 	});
 
-	test('new session loading reflects authenticationPending until config resolves', async () => {
+	test('new session defers backend startup until authentication settles', async () => {
 		agentHost.setAuthenticationPending(true);
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		// Wait for the resolved config (the mock returns `values.isolation: 'worktree'`)
-		// so that the per-session loading flag has been turned off.
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
-		// Even though config has resolved (per-session loading is false), the
-		// auth-pending flag keeps the session in the loading state.
-		assert.strictEqual(session.loading.get(), true);
+		await timeout(0);
+
+		// While auth is pending, config/backend work is intentionally deferred.
+		// Providers such as Codex reject those calls with AuthRequired before the
+		// first auth pass settles.
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 0,
+			resolveRequests: 0,
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
 
 		agentHost.setAuthenticationPending(false);
-		assert.strictEqual(session.loading.get(), false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: false,
+			createdSessions: 1,
+			resolveRequests: 1,
+			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+		});
+	});
+
+	test('new session stays loading after authentication settles when required config is missing', async () => {
+		agentHost.setAuthenticationPending(true);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 0,
+			resolveRequests: 0,
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
+
+		agentHost.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 1,
+			resolveRequests: 1,
+			config: {
+				schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+				values: {},
+			},
+		});
 	});
 
 	// ---- sendRequest -------
@@ -1622,6 +1788,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			properties: ['autoApprove', 'isolation'],
 			values: { autoApprove: 'default', isolation: 'worktree' },
+		});
+	}));
+
+	test('running config state seeding preserves already-resolved schema properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('seed-schema', { summary: 'Schema Preserve Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Schema Preserve Session');
+		assert.ok(session);
+
+		const fullState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'seed-schema').toString(), provider: 'copilotcli', title: 'Schema Preserve Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+						'codex.networkAccessEnabled': { type: 'boolean', title: 'Network', default: false, sessionMutable: true },
+					},
+				},
+				values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+			},
+		};
+		agentHost.setSessionState('seed-schema', 'copilotcli', fullState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.schema.properties['codex.networkAccessEnabled'] !== undefined);
+
+		agentHost.setSessionState('seed-schema', 'copilotcli', {
+			...fullState,
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+					},
+				},
+				values: { 'codex.sandboxMode': 'workspace-write' },
+			},
+		});
+
+		assert.deepStrictEqual({
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			properties: ['codex.networkAccessEnabled', 'codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
 		});
 	}));
 
@@ -1785,6 +1999,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('running session config write re-resolves schema-dependent properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('schema-write', { summary: 'Schema Write Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Schema Write Session');
+		assert.ok(session);
+
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+					'codex.networkAccessEnabled': { type: 'boolean', title: 'Network', default: false, sessionMutable: true },
+				},
+			},
+			values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+		};
+		const fakeState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'schema-write').toString(), provider: 'copilotcli', title: 'Schema Write Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		agentHost.setSessionState('schema-write', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values['codex.sandboxMode'] === 'workspace-write');
+
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+				},
+			},
+			values: { 'codex.sandboxMode': 'read-only' },
+		};
+
+		await provider.setSessionConfigValue(session!.sessionId, 'codex.sandboxMode', 'read-only');
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.schema.properties['codex.networkAccessEnabled'] === undefined);
+
+		assert.deepStrictEqual({
+			resolveConfig: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			resolveConfig: { 'codex.sandboxMode': 'read-only', 'codex.networkAccessEnabled': false },
+			properties: ['codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'read-only' },
+		});
+
+		agentHost.setSessionState('schema-write', 'copilotcli', {
+			...fakeState,
+			config: {
+				...config,
+				values: { 'codex.sandboxMode': 'read-only', 'codex.networkAccessEnabled': true },
+			},
+		});
+
+		assert.deepStrictEqual({
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			properties: ['codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'read-only' },
+		});
+	}));
+
 	test('replaceSessionConfig is a no-op when nothing editable actually changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('rep-2', { summary: 'No-op Session' }));
 		const provider = createProvider(disposables, agentHost);
@@ -1919,11 +2200,12 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeActive(rawId: string, sessionType: string = 'copilotcli'): IActiveSession {
+	function makeActive(rawId: string, sessionType: string = 'copilotcli', status: SessionStatus = SessionStatus.Completed): IActiveSession {
 		return {
 			// providerId: 'unused',
 			sessionType,
 			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
+			status: constObservable(status),
 		} as unknown as IActiveSession;
 	}
 
@@ -2003,6 +2285,15 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			0,
 			'no branch changeset subscription should open while a different session is active',
 		);
+	});
+
+	test('does NOT subscribe to uncommitted changes for an untitled active session', () => {
+		createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-new', 'copilotcli', SessionStatus.Untitled), undefined);
+
+		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
+		assert.deepStrictEqual(subKeys, [], 'new-session composer should not restore the backend session just to refresh changes');
 	});
 
 	test('releases the subscription when no session is active', () => {

@@ -172,7 +172,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.ok(persisted, 'should persist the root config change');
 			} finally {
-				rmSync(tempDir.fsPath, { recursive: true, force: true });
+				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
 		});
 	});
@@ -302,6 +302,29 @@ suite('AgentService (node dispatcher)', () => {
 
 			const snapshot = await fileService.readFile(URI.parse(rewritten.uri));
 			assert.strictEqual(snapshot.value.toString(), 'hello world');
+		});
+
+		test('passes through existing file:// Resource attachments unchanged (#319314)', async () => {
+			const { svc, agent, session } = await setup();
+			// Register a file-scheme provider so the attachment URI resolves to
+			// an existing file on the agent host side.
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileUri = URI.from({ scheme: Schemas.file, path: '/host/source.txt' });
+			await fileService.writeFile(fileUri, VSBuffer.fromString('on host'));
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: fileUri.toString(),
+				label: 'source.txt',
+				displayKind: 'document',
+			}]);
+
+			assert.deepStrictEqual(agent.sendMessageCalls[0].attachments, [{
+				type: MessageAttachmentKind.Resource,
+				uri: fileUri.toString(),
+				label: 'source.txt',
+				displayKind: 'document',
+			}]);
 		});
 
 		test('preserves selection range on Resource rewrite', async () => {

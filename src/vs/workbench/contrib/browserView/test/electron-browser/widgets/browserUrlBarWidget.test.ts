@@ -18,6 +18,7 @@ import {
 	IQuickPickItem,
 	IQuickPickItemButtonEvent,
 	IQuickPickSeparator,
+	IQuickPickSeparatorButtonEvent,
 	QuickInputHideReason,
 } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { BrowserEditorContribution, IBrowserUrlPickerActionProvider, IBrowserUrlSuggestionProvider } from '../../../electron-browser/browserEditor.js';
@@ -47,6 +48,8 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 	readonly onDidTriggerButton = this._onDidTriggerButton.event;
 	private readonly _onDidTriggerItemButton = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
 	readonly onDidTriggerItemButton = this._onDidTriggerItemButton.event;
+	private readonly _onDidTriggerSeparatorButton = this._register(new Emitter<IQuickPickSeparatorButtonEvent>());
+	readonly onDidTriggerSeparatorButton = this._onDidTriggerSeparatorButton.event;
 	private readonly _onDidAccept = this._register(new Emitter<IQuickPickDidAcceptEvent>());
 	readonly onDidAccept = this._onDidAccept.event;
 	private readonly _onDidHide = this._register(new Emitter<{ reason: QuickInputHideReason }>());
@@ -77,6 +80,10 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 
 	triggerItemButton(item: T, button: IQuickInputButton): void {
 		this._onDidTriggerItemButton.fire({ item, button });
+	}
+
+	triggerSeparatorButton(separator: IQuickPickSeparator, button: IQuickInputButton): void {
+		this._onDidTriggerSeparatorButton.fire({ separator, button });
 	}
 }
 

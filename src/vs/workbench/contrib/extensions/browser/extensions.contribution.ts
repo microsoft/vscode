@@ -23,8 +23,7 @@ import { Action2, IAction2Options, IMenuItem, MenuId, MenuRegistry, registerActi
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -138,38 +137,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
-				type: 'string',
-				enum: ['on', 'delayed', 'off'],
+				type: ['boolean', 'string'],
+				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
-					localize('on', "On"),
-					localize('delayed', "Delayed"),
-					localize('off', "Off"),
+					localize('all', "All Extensions"),
+					localize('enabled', "Only Enabled Extensions"),
+					localize('none', "None"),
 				],
 				enumDescriptions: [
-					localize('extensions.autoUpdate.on', 'Enabled extensions are updated automatically.'),
-					localize('extensions.autoUpdate.delayed', 'Enabled extensions are updated automatically, but only 6 hours after a new version has been published.'),
-					localize('extensions.autoUpdate.off', 'Extensions are not updated automatically.'),
+					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
+					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions.'),
+					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
 				],
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
-				default: 'on',
+				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices'],
-				policy: {
-					name: 'ExtensionsAutoUpdate',
-					category: PolicyCategory.Extensions,
-					minimumVersion: '1.122',
-					localization: {
-						description: {
-							key: 'extensions.autoUpdate',
-							value: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
-						},
-						enumDescriptions: [
-							{ key: 'extensions.autoUpdate.on', value: localize('extensions.autoUpdate.on', 'Enabled extensions are updated automatically.') },
-							{ key: 'extensions.autoUpdate.delayed', value: localize('extensions.autoUpdate.delayed', 'Enabled extensions are updated automatically, but only 6 hours after a new version has been published.') },
-							{ key: 'extensions.autoUpdate.off', value: localize('extensions.autoUpdate.off', 'Extensions are not updated automatically.') },
-						]
-					}
-				},
+				tags: ['usesOnlineServices']
 			},
 			'extensions.autoCheckUpdates': {
 				type: 'boolean',
@@ -565,11 +548,10 @@ const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFi
 const CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPublicRepositorySigned', false);
 const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPrivateRepositorySigned', false);
 const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
-const CONTEXT_EXTENSIONS_AUTO_UPDATE_POLICY = new RawContextKey<boolean>('extensionsAutoUpdatePolicy', false);
 
-async function runAction(action: IAction): Promise<void> {
+async function runAction<T = void>(action: IAction): Promise<T> {
 	try {
-		await action.run();
+		return await action.run() as T;
 	} finally {
 		if (isDisposable(action)) {
 			action.dispose();
@@ -584,8 +566,6 @@ type IExtensionActionOptions = IAction2Options & {
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
-	private readonly autoUpdatePolicyContext: IContextKey<boolean>;
-
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -599,7 +579,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		const hasLocalServerContext = CONTEXT_HAS_LOCAL_SERVER.bindTo(contextKeyService);
@@ -619,14 +598,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.updateExtensionGalleryStatusContexts();
 		this._register(extensionGalleryManifestService.onDidChangeExtensionGalleryManifestStatus(() => this.updateExtensionGalleryStatusContexts()));
-
-		this.autoUpdatePolicyContext = CONTEXT_EXTENSIONS_AUTO_UPDATE_POLICY.bindTo(contextKeyService);
-		this.updateAutoUpdatePolicyContext();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				this.updateAutoUpdatePolicyContext();
-			}
-		}));
 		extensionGalleryManifestService.getExtensionGalleryManifest()
 			.then(extensionGalleryManifest => {
 				this.updateGalleryCapabilitiesContexts(extensionGalleryManifest);
@@ -635,10 +606,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerGlobalActions();
 		this.registerContextMenuActions();
 		this.registerQuickAccessProvider();
-	}
-
-	private updateAutoUpdatePolicyContext(): void {
-		this.autoUpdatePolicyContext.set(this.configurationService.inspect(AutoUpdateConfigurationKey).policyValue !== undefined);
 	}
 
 	private async updateExtensionGalleryStatusContexts(): Promise<void> {
@@ -767,8 +734,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		const notPolicyControlledCondition = CONTEXT_EXTENSIONS_AUTO_UPDATE_POLICY.toNegated();
-		const enableAutoUpdateWhenCondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'), notPolicyControlledCondition);
+		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false);
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
 			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
@@ -785,7 +751,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateForAllExtensions(true)
 		});
 
-		const disableAutoUpdateWhenCondition = ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'off'), notPolicyControlledCondition);
+		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, false);
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
 			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
@@ -1397,7 +1363,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1418,7 +1384,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1439,7 +1405,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetProductIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1480,7 +1446,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdateForExtensionAction.ID,
 			title: ToggleAutoUpdateForExtensionAction.LABEL,
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -1498,7 +1464,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1507,7 +1473,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdatesForPublisherAction.ID,
 			title: { value: ToggleAutoUpdatesForPublisherAction.LABEL, original: 'Auto Update (Publisher)' },
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'),
+			precondition: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -1521,7 +1487,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1543,7 +1509,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1565,7 +1531,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1585,7 +1551,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				const action = instantiationService.createInstance(ClearLanguageAction);
 				action.extension = extension;
-				return action.run();
+				return runAction(action);
 			}
 		});
 
@@ -1606,7 +1572,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1630,7 +1596,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						isMachineScoped: true,
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1654,7 +1620,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						preRelease: true
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1673,7 +1639,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					return instantiationService.createInstance(InstallAnotherVersionAction, extension, false).run();
+					return runAction(instantiationService.createInstance(InstallAnotherVersionAction, extension, false));
 				}
 			}
 		});
@@ -2136,11 +2102,16 @@ Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.Co
 	.registerConfigurationMigrations([{
 		key: AutoUpdateConfigurationKey,
 		migrateFn: (value, accessor) => {
-			if (value === true || value === 'all' || value === 'onlyEnabledExtensions') {
-				return { value: 'on' };
+			if (value === 'onlySelectedExtensions') {
+				return { value: false };
 			}
-			if (value === false || value === 'none' || value === 'onlySelectedExtensions') {
-				return { value: 'off' };
+			// Migrate insiders values ('on' | 'delayed' | 'off') that were
+			// rolled out with the delayed auto-update mode back to booleans.
+			if (value === 'on' || value === 'delayed') {
+				return { value: true };
+			}
+			if (value === 'off') {
+				return { value: false };
 			}
 			return [];
 		}
