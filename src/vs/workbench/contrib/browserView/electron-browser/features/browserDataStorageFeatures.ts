@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
@@ -14,11 +14,10 @@ import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '
 import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
 import type { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
-const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
+export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 
 class BrowserEditorStorageScopeContribution extends BrowserEditorContribution {
 	private readonly _storageScopeContext: IContextKey<string>;
@@ -31,11 +30,11 @@ class BrowserEditorStorageScopeContribution extends BrowserEditorContribution {
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, _store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, _store: DisposableStore): void {
 		this._storageScopeContext.set(model.storageScope);
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._storageScopeContext.reset();
 	}
 }
@@ -54,7 +53,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -79,7 +78,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
@@ -105,7 +104,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
@@ -114,7 +113,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.clearStorage();
+			await browserEditor.model?.clearStorage();
 		}
 	}
 }

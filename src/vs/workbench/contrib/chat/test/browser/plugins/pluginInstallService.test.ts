@@ -284,6 +284,12 @@ suite('PluginInstallService', () => {
 				}
 				return undefined;
 			},
+			inspect: (key: string) => {
+				if (key === ChatConfiguration.PluginMarketplaces) {
+					return { userValue: state.configuredMarketplaces, defaultValue: undefined, policyValue: undefined };
+				}
+				return { userValue: undefined, defaultValue: undefined, policyValue: undefined };
+			},
 			updateValue: async (key: string, value: unknown) => {
 				if (key === ChatConfiguration.PluginMarketplaces) {
 					state.updatedMarketplaces = value as string[];

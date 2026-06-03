@@ -5,6 +5,8 @@
 
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -396,6 +398,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			if (focused) {
 				this.refetchDefaultAccount();
 			}
+		}));
+
+		this._register(addDisposableListener(mainWindow, 'online', () => {
+			this.logService.debug('[DefaultAccount] Network is online, refreshing default account');
+			this.updateDefaultAccount({ forceRefresh: true }).catch(error => {
+				this.logService.error('[DefaultAccount] Failed to refresh default account after network came online', getErrorMessage(error));
+			});
+		}));
+	}
 		}));
 
 		this._register(addDisposableListener(mainWindow, 'online', () => {

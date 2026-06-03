@@ -103,11 +103,13 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants.
 
-Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for newly created sessions, after the session reports a concrete `gitRepository.workTreeUri`. Restored sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning; untitled placeholders are deferred until they become committed worktree sessions.
+Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
 
 ### Session Types
 
 An **`ISessionType`** identifies an agent backend (e.g., `'copilot-cli'`, `'copilot-cloud'`). Each provider declares which session types it supports and can dynamically update the list via `onDidChangeSessionTypes`. The management service exposes `getAllSessionTypes()` for UI pickers.
+
+Session types are surfaced ordered by each provider's `order` property (lower first; ties keep registration order). The default `order` is `0`, so the Copilot Chat sessions provider keeps precedence by default. The local agent host provider sets its `order` reactively from the experimental `chat.agentHost.defaultSessionsProvider` setting (default `false`, gated behind `chat.agentHost.enabled`): when enabled it returns a negative order so its session types sort before all other providers; otherwise it sorts after the defaults. The provider fires `onDidChangeSessionTypes` when the setting toggles so the management service re-collects and re-sorts. The sort itself lives in `SessionsManagementService._getOrderedProviders()` and applies to both `getAllSessionTypes()` and `getSessionTypesForFolder()` — the orchestration layer stays provider-agnostic (it sorts purely by `order`, with no knowledge of specific provider ids).
 
 ### Changesets
 
@@ -141,14 +143,48 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Calls provider.createNewChat(sessionId)
    → Provider creates the backend chat model and returns an IChat
    → Management service opens the chat widget with that chat's resource
+  → ChatView locks the embedded ChatWidget to the contributed chat session type
+    (for example agent-host-codex) before setting the model, so follow-up turns
+    keep routing to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
+   → Management service fires onDidStartSession(committedSession)
    → isNewChatSession context → false
-
-Agent-host providers seed new-session config from the last values picked in the
-session-config UI (stored in profile storage), while `chat.permissions.default`
-takes precedence for `autoApprove` (with policy-safe normalization).
 ```
+Follow-up messages to an existing chat go through
+`SessionsManagementService.sendRequest(session, chat, options)`. This always
+makes the sent chat the active chat.
+
+`sendNewChatRequest(session, options)` accepts a `background` flag: a background
+new-session send returns the agents window to a fresh new-session view (via
+`openNewSessionView`) **before** creating and sending the session, and skips the
+visible-slot swap (`updateResourceOfSession`/`updateSession`) that the foreground
+path uses. This keeps the composer in view the whole time — the started session is
+never momentarily shown in the chat view — and it just appears in the sessions
+list once the provider commits it.
+
+Background sends are **fire-and-forget** at the management layer: the composer is
+allowed to reset and reseed immediately while the provider commit continues
+asynchronously. Providers are therefore required to support multiple concurrent
+new sessions. If that async commit fails, the management service calls
+`deleteNewSession(sessionId)` to dispose the stranded draft because it is no
+longer referenced by `_pendingNewSession`.
+
+`background` lives on the management-layer `ISendRequestOptions` (which extends
+the provider's send-request options). Providers do not interpret the flag; it is
+purely a management/UI concern. In the new-session composer the gesture is
+**Alt+Enter** (or **Alt-click** the Send button); plain Enter / click sends in
+the foreground. The background gesture is only offered for the new-session
+composer, not when sending a new chat within an existing session.
+
+For callers outside the new-session composer,
+`createAndSendNewChatRequest(folderUri, options, createOptions?)` creates a fresh
+session for the folder and sends the request in one call, **without** touching
+the pending/active session or navigating the current view — the started session
+just appears in the sessions list once the provider commits it. It shares the
+underlying commit helper with the composer's background send; if the send fails
+it disposes the stranded draft via `deleteNewSession` and rejects so the caller
+can react.
 
 ### Session Change Propagation
 

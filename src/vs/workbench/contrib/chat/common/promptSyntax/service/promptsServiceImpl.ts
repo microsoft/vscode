@@ -85,6 +85,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedInstructions: CachedPromise<IInstructionDiscoveryInfo>;
 
 	/**
+	 * Synchronous mirror of the names exposed by {@link getPromptSlashCommands},
+	 * maintained for {@link hasPromptSlashCommand} so callers (e.g. the chat request
+	 * parser) can disambiguate `<cmd>:<sub>` vs bare `<cmd>` without an async hop.
+	 */
+	private readonly knownPromptSlashCommandNames = new Set<string>();
+
+	/**
 	 * Cache for parsed prompt files keyed by URI.
 	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
 	 */
@@ -495,6 +502,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public isValidSlashCommandName(command: string): boolean {
 		return command.match(/^[\p{L}\d_\-\.:]+$/u) !== null;
+	}
+
+	public hasPromptSlashCommand(name: string): boolean {
+		if (!this.knownPromptSlashCommandsHydrationStarted) {
+			this.knownPromptSlashCommandsHydrationStarted = true;
+			this.refreshKnownPromptSlashCommandNames();
+			this._register(this.onDidChangeSlashCommands(() => this.refreshKnownPromptSlashCommandNames()));
+		}
+		return this.knownPromptSlashCommandNames.has(name);
+	}
+
+	private knownPromptSlashCommandsHydrationStarted = false;
+
+	private refreshKnownPromptSlashCommandNames(): void {
+		this.getPromptSlashCommands(CancellationToken.None).then(commands => {
+			this.knownPromptSlashCommandNames.clear();
+			for (const cmd of commands) {
+				this.knownPromptSlashCommandNames.add(cmd.name);
+			}
+		}, () => { /* discovery failures already logged; sync cache stays as-is */ });
 	}
 
 	public async resolvePromptSlashCommand(name: string, sessionType: string | undefined, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {

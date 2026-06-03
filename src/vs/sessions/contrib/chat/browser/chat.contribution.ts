@@ -10,6 +10,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
@@ -34,6 +35,7 @@ import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipa
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorAreaFocusContext } from '../../../../workbench/common/contextkeys.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -45,6 +47,10 @@ class NewChatInSessionsWindowAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 2,
+				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
+				// editor area so the standard editor commands (new untitled file,
+				// expand line selection) handle the shortcut instead.
+				when: EditorAreaFocusContext.negate(),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
 				mac: {
@@ -57,7 +63,9 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 		sessionsManagementService.openNewSessionView();
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 }
 
@@ -89,7 +97,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentHost.runWorktreeCreatedTasks', "Whether to automatically run tasks tagged with `\"runOptions\": { \"runOn\": \"worktreeCreated\" }` when a new agent host session worktree is created. Manual `Run Task` invocations are unaffected."),
 		},
