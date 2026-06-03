@@ -12,7 +12,7 @@ import which from 'which';
 import { EventEmitter } from 'events';
 import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
-import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace, window, l10n } from 'vscode';
 import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
 import { RefType, ForcePushMode, GitErrorCodes, Status } from './api/git.constants';
 import * as byline from 'byline';
@@ -205,9 +205,14 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	log?: boolean;
 	cancellationToken?: CancellationToken;
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
+	onStderr?: (data: string) => void;
 }
 
-async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
+async function exec(
+	child: cp.ChildProcess,
+	cancellationToken?: CancellationToken,
+	onStderr?: (data: string) => void
+): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
 		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
 	}
@@ -238,11 +243,14 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 			on(child.stdout!, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stdout!, 'close', () => c(Buffer.concat(buffers)));
 		}),
-		new Promise<string>(c => {
-			const buffers: Buffer[] = [];
-			on(child.stderr!, 'data', (b: Buffer) => buffers.push(b));
-			once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
-		})
+	new Promise<string>(c => {
+		const buffers: Buffer[] = [];
+		on(child.stderr!, 'data', (b: Buffer) => {
+			buffers.push(b);
+			onStderr?.(b.toString('utf8'));
+		});
+		once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
+	})
 	]) as Promise<[number, Buffer, string]>;
 
 	if (cancellationToken) {
@@ -375,6 +383,7 @@ function sanitizeRelativePath(path: string): string {
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
 const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
+const SSH_SECURITY_KEY_CONFIRMATION_REGEX = /Confirm user presence for key|Touch your security key/i;
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -627,9 +636,23 @@ export class Git {
 		const startExec = Date.now();
 		let bufferResult: IExecutionResult<Buffer>;
 
+		let didShowSecurityKeyConfirmationNotification = false;
+
 		try {
-			bufferResult = await exec(child, options.cancellationToken);
-		} catch (ex) {
+			bufferResult = await exec(child, options.cancellationToken, stderr => {
+			if (
+				!didShowSecurityKeyConfirmationNotification &&
+				SSH_SECURITY_KEY_CONFIRMATION_REGEX.test(stderr)
+			) {
+				didShowSecurityKeyConfirmationNotification = true;
+				void window.showInformationMessage(
+					l10n.t('Git is waiting for security key confirmation. Touch your security key to continue.')
+				);
+			}
+
+			options.onStderr?.(stderr);
+			});
+		} catch (ex)  {
 			if (ex instanceof CancellationError) {
 				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
 			}
