@@ -315,8 +315,12 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 		return undefined;
 	}
 
-	const turn = Number(telemetryProperties.turnIndex);
-	return Number.isFinite(turn) ? turn : undefined;
+	if (!/^\d+$/.test(telemetryProperties.turnIndex)) {
+		return undefined;
+	}
+
+	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
+	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {

@@ -313,7 +313,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					requestId,
 				}, {
 					totalTokenMax: model.maxInputTokens ?? -1,
-					turn: telemetryTurn,
+					...(telemetryTurn !== undefined ? { turn: telemetryTurn } : {}),
 					tokenCountMax: model.maxOutputTokens ?? -1,
 					promptTokenCount: result.usage?.prompt_tokens,
 					promptCacheTokenCount: result.usage?.prompt_tokens_details?.cached_tokens,
