@@ -55,10 +55,7 @@
 	pointer-events: none;
 }
 
-/* Fade out the placeholder text (rendered as an editor decoration inside the
- * chat editor) for inactive sessions. */
-.session-view:not(.is-active) .interactive-session .chat-editor-container {
-	opacity: 0.4;
+/* Fade the chat input editor (including placeholder/draft text) for inactive sessions. */
 }
 
 /* Desaturate the send button so it reads as muted while still discoverable. */
