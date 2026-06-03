@@ -211,6 +211,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		interface ILastKnownVersion {
 			readonly version: string;
 			readonly commit: string | undefined;
+			readonly gitVersion?: string; // test-workbench_change
 			readonly timestamp: number;
 		}
 
@@ -227,12 +228,18 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		const to: ILastKnownVersion = {
 			version: this.productService.version,
 			commit: this.productService.commit,
+			gitVersion: this.productService.gitVersion, // test-workbench_change
 			timestamp: Date.now(),
 		};
 
-		if (from?.commit === to.commit) {
+		// test-workbench_change start
+		const hasGitVersionChanged = from?.gitVersion && to.gitVersion && from.gitVersion !== to.gitVersion;
+		const hasCommitChanged = from?.commit !== to.commit;
+
+		if (!hasCommitChanged && !hasGitVersionChanged) {
 			return;
 		}
+		// test-workbench_change end
 
 		this.applicationStorageMainService.store(LAST_KNOWN_VERSION_STORAGE_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
@@ -243,9 +250,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		type VersionChangeEvent = {
 			fromVersion: string | undefined;
 			fromCommit: string | undefined;
+			fromGitVersion: string | undefined; // test-workbench_change
 			fromVersionTime: number | undefined;
 			toVersion: string;
 			toCommit: string | undefined;
+			toGitVersion: string | undefined; // test-workbench_change
 			timeToUpdateMs: number | undefined;
 			updateMode: string | undefined;
 		};
@@ -255,9 +264,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			comment: 'Fired when VS Code detects a version change on startup.';
 			fromVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous version of VS Code.' };
 			fromCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the previous version.' };
+			fromGitVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous gitVersion of TSCode.' }; // test-workbench_change
 			fromVersionTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Timestamp when the previous version was first detected.' };
 			toVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current version of VS Code.' };
 			toCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the current version.' };
+			toGitVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current gitVersion of TSCode.' }; // test-workbench_change
 			timeToUpdateMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds between the previous version install and this version install.' };
 			updateMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update mode configured by the user.' };
 		};
@@ -265,9 +276,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.telemetryService.publicLog2<VersionChangeEvent, VersionChangeClassification>('update:versionChanged', {
 			fromVersion: from.version,
 			fromCommit: from.commit,
+			fromGitVersion: from.gitVersion, // test-workbench_change
 			fromVersionTime: from.timestamp,
 			toVersion: to.version,
 			toCommit: to.commit,
+			toGitVersion: to.gitVersion, // test-workbench_change
 			timeToUpdateMs: to.timestamp - from.timestamp,
 			updateMode: this.configurationService.getValue<string>('update.mode'),
 		});

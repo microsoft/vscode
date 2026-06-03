@@ -152,7 +152,7 @@ function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
 
 export class ProductContribution implements IWorkbenchContribution {
 
-	private static readonly KEY = 'releaseNotes/lastVersion';
+	private static readonly KEY = 'releaseNotes/tscodeLastVersion';   // test-workbench_change change from 'update/lastKnownVersion' to 'releaseNotes/lastVersion' for tscode version update
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -174,17 +174,17 @@ export class ProductContribution implements IWorkbenchContribution {
 			}
 
 			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
-			const currentVersion = tryParseVersion(productService.version);
+			const currentVersion = tryParseVersion(productService.gitVersion ?? productService.version);  // test-workbench_change
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
 			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version, false)
+			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && currentVersion && (!lastVersion || isMajorMinorUpdate(lastVersion, currentVersion))) {
+				showReleaseNotesInEditor(instantiationService, productService.gitVersion ?? productService.version, false)  // test-workbench_change
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
-							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
+							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.gitVersion ?? productService.version), // test-workbench_change
 							[{
 								label: nls.localize('releaseNotes', "Release Notes"),
 								run: () => {
@@ -197,7 +197,7 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			storageService.store(ProductContribution.KEY, productService.gitVersion ?? productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);  // test-workbench_change
 		});
 	}
 }
