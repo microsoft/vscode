@@ -9,7 +9,7 @@ import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, AUTOPILOT_DONT_SHOW_AGAIN_KEY } from './chatPermissionStorageKeys.js';
+import { AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, AUTOPILOT_DONT_SHOW_AGAIN_KEY, CODEX_SANDBOX_DONT_SHOW_AGAIN_KEY } from './chatPermissionStorageKeys.js';
 import { ChatConfiguration, ChatPermissionLevel } from './constants.js';
 
 /**
@@ -122,5 +122,90 @@ export async function maybeConfirmElevatedPermissionLevel(
 		storageService.store(key, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 	shownWarnings.add(level);
+	return true;
+}
+
+/**
+ * In-memory record of whether the Codex `danger-full-access` sandbox warning
+ * has already been accepted in this VS Code session. Checked alongside the
+ * persisted "Don't show again" storage value so the warning isn't repeated
+ * within a session even when the user didn't tick the checkbox.
+ *
+ * Per-renderer; the `StorageScope.PROFILE` storage entry is what synchronizes
+ * the dismissed state across windows (workbench and Agents).
+ */
+let shownCodexSandboxFullAccessWarning = false;
+
+/**
+ * Test/dev helper that clears the in-process suppression flag so that the
+ * Codex sandbox warning is shown again within this session.
+ */
+export function resetShownCodexSandboxWarnings(): void {
+	shownCodexSandboxFullAccessWarning = false;
+}
+
+/**
+ * If `sandboxMode` is the dangerous Codex `danger-full-access` value and the
+ * warning hasn't already been confirmed in this session or persistently
+ * dismissed, show the corresponding warning dialog. Returns:
+ *
+ * - `true` if the value is not `danger-full-access`, has already been
+ *   confirmed, or the user accepts the dialog. In these cases the caller
+ *   should proceed to apply the value.
+ * - `false` if the user cancels the dialog. The caller should abort the
+ *   sandbox-mode change.
+ *
+ * When the user ticks "Don't show again", the choice is persisted in
+ * `StorageScope.PROFILE`, which is shared across the workbench and Agents
+ * windows so a dismissal in one applies to the other.
+ */
+export async function maybeConfirmCodexSandboxLevel(
+	sandboxMode: string,
+	dialogService: IDialogService,
+	storageService: IStorageService,
+): Promise<boolean> {
+	if (sandboxMode !== 'danger-full-access') {
+		return true;
+	}
+	if (shownCodexSandboxFullAccessWarning) {
+		return true;
+	}
+	if (storageService.getBoolean(CODEX_SANDBOX_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE, false)) {
+		return true;
+	}
+
+	const result = await dialogService.prompt({
+		type: Severity.Warning,
+		message: localize('permissions.codexSandbox.dangerFullAccess.warning.title', "Enable Full Access (Dangerous)?"),
+		buttons: [
+			{
+				label: localize('permissions.codexSandbox.dangerFullAccess.warning.confirm', "Enable"),
+				run: () => true,
+			},
+			{
+				label: localize('permissions.codexSandbox.dangerFullAccess.warning.cancel', "Cancel"),
+				run: () => false,
+			},
+		],
+		checkbox: {
+			label: localize('permissions.warning.dontShowAgain', "Don't show again"),
+			checked: false,
+		},
+		custom: {
+			icon: Codicon.warning,
+			markdownDetails: [{
+				markdown: new MarkdownString(
+					localize('permissions.codexSandbox.dangerFullAccess.warning.detail', "Full Access removes sandbox restrictions: tool calls can read, write, and reach the network anywhere on your system. This bypasses the workspace boundary that normally protects files and resources outside the workspace."),
+				),
+			}],
+		},
+	});
+	if (result.result !== true) {
+		return false;
+	}
+	if (result.checkboxChecked) {
+		storageService.store(CODEX_SANDBOX_DONT_SHOW_AGAIN_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+	}
+	shownCodexSandboxFullAccessWarning = true;
 	return true;
 }
