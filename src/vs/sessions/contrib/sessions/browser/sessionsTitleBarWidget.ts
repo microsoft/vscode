@@ -34,8 +34,6 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { buildSessionHoverContent } from './sessionHoverContent.js';
 
-const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
-
 /**
  * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
@@ -96,13 +94,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
-
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(titleBarContextKeys)) {
-				this._lastRenderState = undefined;
-				this._render();
-			}
-		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -136,19 +127,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._isRendering = true;
 
 		try {
-			const isNewChatSession = this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key);
-			this._container.classList.toggle('agent-sessions-titlebar-hidden', !!isNewChatSession);
-			if (isNewChatSession) {
-				this._dynamicDisposables.clear();
-				this._container.setAttribute('aria-hidden', 'true');
-				this._container.removeAttribute('role');
-				this._container.removeAttribute('aria-label');
-				this._container.tabIndex = -1;
-				return;
-			}
-
 			const icon = this._getActiveSessionIcon();
-			const sessionTitle = this._getSessionTitle();
+			const sessionTitle = this._getSessionTitle() ?? localize('newSession', "New Session");
 			const workspaceLabel = this._getRepositoryLabel();
 
 			// Build a render-state key from all displayed data
