@@ -4017,6 +4017,34 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
 	}
 }
 
+export class LanguageModelUsagePart implements vscode.LanguageModelUsagePart {
+	readonly promptTokens: number;
+	readonly completionTokens: number;
+	readonly totalTokens: number;
+	readonly cachedInputTokens: number | undefined;
+
+	constructor(promptTokens: number, completionTokens: number, totalTokens: number, cachedInputTokens?: number) {
+		this.promptTokens = promptTokens;
+		this.completionTokens = completionTokens;
+		this.totalTokens = totalTokens;
+		this.cachedInputTokens = cachedInputTokens;
+	}
+
+	static fromOpenAICompatible(usage: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		total_tokens?: number;
+		prompt_tokens_details?: { cached_tokens?: number };
+	}): LanguageModelUsagePart {
+		const promptTokens = Math.max(0, usage.prompt_tokens);
+		const completionTokens = Math.max(0, usage.completion_tokens);
+		const totalTokens = Math.max(0, usage.total_tokens ?? promptTokens + completionTokens);
+		const cached = usage.prompt_tokens_details?.cached_tokens;
+		const cachedInputTokens = cached !== undefined ? Math.max(0, cached) : undefined;
+		return new LanguageModelUsagePart(promptTokens, completionTokens, totalTokens, cachedInputTokens);
+	}
+}
+
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;

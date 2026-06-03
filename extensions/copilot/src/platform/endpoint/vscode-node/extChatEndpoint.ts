@@ -227,6 +227,8 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						numToolsCalled++;
 						await streamRecorder.callback(text, 0, { text: '', copilotToolCalls: functionCalls });
 					}
+				} else if (chunk instanceof vscode.LanguageModelUsagePart) {
+					reportedUsage = apiUsageFromLanguageModelUsagePart(chunk);
 				} else if (chunk instanceof vscode.LanguageModelDataPart) {
 					if (chunk.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
 						const decoded = decodeStatefulMarker(chunk.data);
@@ -237,19 +239,9 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						try {
 							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;
-							if (isApiUsage(parsed)) {
-								// Clamp sentinel negative values that some BYOK providers emit
-								// when the API hasn't reported a count yet (e.g. -1).
-								reportedUsage = {
-									...parsed,
-									prompt_tokens: Math.max(0, parsed.prompt_tokens),
-									completion_tokens: Math.max(0, parsed.completion_tokens),
-									total_tokens: Math.max(0, parsed.total_tokens),
-									prompt_tokens_details: {
-										...parsed.prompt_tokens_details,
-										cached_tokens: Math.max(0, parsed.prompt_tokens_details?.cached_tokens ?? 0)
-									}
-								};
+							const normalized = normalizeApiUsage(parsed);
+							if (normalized) {
+								reportedUsage = normalized;
 							}
 						} catch {
 							// ignore malformed usage payload
@@ -321,6 +313,37 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 
 	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
 	return Number.isSafeInteger(turn) ? turn : undefined;
+}
+
+function normalizeApiUsage(parsed: APIUsage): APIUsage | undefined {
+	if (!isApiUsage(parsed)) {
+		return undefined;
+	}
+	// Clamp sentinel negative values that some BYOK providers emit
+	// when the API hasn't reported a count yet (e.g. -1).
+	return {
+		...parsed,
+		prompt_tokens: Math.max(0, parsed.prompt_tokens),
+		completion_tokens: Math.max(0, parsed.completion_tokens),
+		total_tokens: Math.max(0, parsed.total_tokens),
+		prompt_tokens_details: {
+			...parsed.prompt_tokens_details,
+			cached_tokens: Math.max(0, parsed.prompt_tokens_details?.cached_tokens ?? 0)
+		}
+	};
+}
+
+function apiUsageFromLanguageModelUsagePart(usage: vscode.LanguageModelUsagePart): APIUsage {
+	const cached = usage.cachedInputTokens;
+	return {
+		prompt_tokens: Math.max(0, usage.promptTokens),
+		completion_tokens: Math.max(0, usage.completionTokens),
+		total_tokens: Math.max(0, usage.totalTokens),
+		...(cached !== undefined
+			? { prompt_tokens_details: { cached_tokens: Math.max(0, cached) } }
+			: {}),
+	};
+}
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {

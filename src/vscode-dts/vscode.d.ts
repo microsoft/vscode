@@ -20221,7 +20221,7 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | unknown>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelUsagePart | unknown>;
 
 		/**
 		 * This is equivalent to filtering everything except for text parts from a {@link LanguageModelChatResponse.stream}.
@@ -20669,7 +20669,7 @@ declare module 'vscode' {
 	/**
 	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
 	 */
-	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelUsagePart;
 
 	/**
 	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
@@ -20698,6 +20698,11 @@ declare module 'vscode' {
 		/**
 		 * Returns the response for a chat request, passing the results to the progress callback.
 		 * The {@linkcode LanguageModelChatProvider} must emit the response parts to the progress callback as they are received from the language model.
+		 *
+		 * When the model backend reports token usage (for example in a final OpenAI-compatible streaming chunk),
+		 * the provider should emit a single {@link LanguageModelUsagePart} after the text stream completes.
+		 * This enables the chat UI to display context window usage for extension-contributed models.
+		 *
 		 * @param model The language model to use
 		 * @param messages The messages to include in the request
 		 * @param options Options for the request
@@ -21009,6 +21014,66 @@ declare module 'vscode' {
 		 * @param content A list of tool result content parts
 		 */
 		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
+	}
+
+	/**
+	 * Token usage reported by a {@linkcode LanguageModelChatProvider} for a completed chat request.
+	 */
+	export class LanguageModelUsagePart {
+		/**
+		 * Number of tokens in the prompt (input).
+		 */
+		readonly promptTokens: number;
+
+		/**
+		 * Number of tokens in the generated completion (output).
+		 */
+		readonly completionTokens: number;
+
+		/**
+		 * Total tokens for the request (prompt + completion).
+		 */
+		readonly totalTokens: number;
+
+		/**
+		 * Optional count of prompt tokens served from cache, when reported by the backend.
+		 */
+		readonly cachedInputTokens?: number;
+
+		/**
+		 * @param promptTokens Number of prompt tokens
+		 * @param completionTokens Number of completion tokens
+		 * @param totalTokens Total tokens (defaults to prompt + completion when omitted in factories)
+		 * @param cachedInputTokens Optional cached prompt tokens
+		 */
+		constructor(promptTokens: number, completionTokens: number, totalTokens: number, cachedInputTokens?: number);
+
+		/**
+		 * Create a usage part from an OpenAI-compatible `usage` object (chat completions or streaming final chunk).
+		 */
+		static fromOpenAICompatible(usage: {
+			/**
+			 * Number of tokens in the prompt (input).
+			 */
+			prompt_tokens: number;
+			/**
+			 * Number of tokens in the generated completion (output).
+			 */
+			completion_tokens: number;
+			/**
+			 * Total tokens for the request (prompt + completion).
+			 */
+			total_tokens?: number;
+			/**
+			 * Optional prompt token details from the backend.
+			 */
+			prompt_tokens_details?: {
+				/**
+				 * Optional count of prompt tokens served from cache.
+				 */
+				cached_tokens?: number;
+			};
+		}): LanguageModelUsagePart;
 	}
 
 	/**

@@ -98,7 +98,7 @@ declare module 'vscode' {
 		readonly editTools?: string[];
 	}
 
-	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
+	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart | LanguageModelUsagePart;
 
 	/**
 	 * A [JSON Schema](https://json-schema.org) describing configuration options for a language model.

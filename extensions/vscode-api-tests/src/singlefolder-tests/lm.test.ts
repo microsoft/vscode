@@ -181,6 +181,69 @@ suite('lm', function () {
 		}
 	});
 
+	test('lm usage part is streamed and omitted from text', async function () {
+
+		const defer = new DeferredPromise<void>();
+
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-usage-vendor', {
+			async provideLanguageModelChatInformation(_options, _token) {
+				return [{ ...testProviderOptions, id: 'test-lm-usage' }];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, progress, _token) {
+				progress.report(new vscode.LanguageModelTextPart('Hi'));
+				progress.report(new vscode.LanguageModelUsagePart(100, 50, 150, 10));
+				return defer.complete();
+			},
+			async provideTokenCount(_model, _text, _token) {
+				return 1;
+			},
+		}));
+
+		const models = await vscode.lm.selectChatModels({ id: 'test-lm-usage' });
+		assert.strictEqual(models.length, 1);
+
+		const request = await models[0].sendRequest([vscode.LanguageModelChatMessage.User('Hello')]);
+
+		let responseText = '';
+		const textDone = (async () => {
+			for await (const chunk of request.text) {
+				responseText += chunk;
+			}
+		})();
+
+		const streamParts: vscode.LanguageModelResponsePart[] = [];
+		const streamDone = (async () => {
+			for await (const chunk of request.stream) {
+				if (chunk instanceof vscode.LanguageModelTextPart
+					|| chunk instanceof vscode.LanguageModelUsagePart
+					|| chunk instanceof vscode.LanguageModelToolCallPart
+					|| chunk instanceof vscode.LanguageModelDataPart) {
+					streamParts.push(chunk);
+				}
+			}
+		})();
+
+		await Promise.all([textDone, streamDone]);
+
+		assert.strictEqual(responseText, 'Hi');
+		const usageParts = streamParts.filter((part): part is vscode.LanguageModelUsagePart => part instanceof vscode.LanguageModelUsagePart);
+		assert.strictEqual(usageParts.length, 1);
+		assert.strictEqual(usageParts[0].promptTokens, 100);
+		assert.strictEqual(usageParts[0].completionTokens, 50);
+		assert.strictEqual(usageParts[0].totalTokens, 150);
+		assert.strictEqual(usageParts[0].cachedInputTokens, 10);
+
+		const fromOpenAI = vscode.LanguageModelUsagePart.fromOpenAICompatible({
+			prompt_tokens: 200,
+			completion_tokens: 80,
+			total_tokens: 280,
+			prompt_tokens_details: { cached_tokens: 5 },
+		});
+		assert.strictEqual(fromOpenAI.promptTokens, 200);
+		assert.strictEqual(fromOpenAI.completionTokens, 80);
+		assert.strictEqual(fromOpenAI.cachedInputTokens, 5);
+	});
+
 	test('LanguageModelError instance is not thrown to extensions#235322 (ASYNC)', async function () {
 
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {

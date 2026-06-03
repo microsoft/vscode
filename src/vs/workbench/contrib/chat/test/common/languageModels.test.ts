@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, IChatResponseUsagePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -129,6 +129,62 @@ suite('LanguageModels', function () {
 
 		const result2 = await languageModels.selectLanguageModels({ vendor: 'test-vendor', family: 'FAKE' });
 		assert.deepStrictEqual(result2.length, 0);
+	});
+
+	test('sendChatRequest streams usage parts from provider', async function () {
+
+		store.add(languageModels.registerLanguageModelProvider('usage-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Usage Model',
+					vendor: 'usage-vendor',
+					family: 'usage-family',
+					version: '1',
+					id: 'usage-lm',
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isDefaultForLocation: {}
+				} satisfies ILanguageModelChatMetadata,
+				identifier: 'usage-lm',
+			}],
+			sendChatRequest: async () => {
+				const stream = new AsyncIterableSource<IChatResponsePart>();
+				stream.emitOne({ type: 'text', value: 'ok' });
+				stream.emitOne({ type: 'usage', promptTokens: 42, completionTokens: 7, totalTokens: 49 });
+				stream.resolve();
+				return {
+					stream: stream.asyncIterable,
+					result: Promise.resolve(undefined),
+				};
+			},
+			provideTokenCount: async () => 0,
+		}));
+
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'usage-vendor', displayName: 'Usage Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		const models = await languageModels.selectLanguageModels({ id: 'usage-lm' });
+		assert.strictEqual(models.length, 1);
+
+		const request = await languageModels.sendChatRequest(models[0], nullExtensionDescription.identifier, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }], {}, CancellationToken.None);
+
+		const parts: IChatResponsePart[] = [];
+		for await (const part of request.stream) {
+			if (Array.isArray(part)) {
+				parts.push(...part);
+			} else {
+				parts.push(part);
+			}
+		}
+		await request.result;
+
+		const usage = parts.find((p): p is IChatResponseUsagePart => p.type === 'usage');
+		assert.ok(usage);
+		assert.strictEqual(usage.promptTokens, 42);
+		assert.strictEqual(usage.completionTokens, 7);
 	});
 
 	test('sendChatRequest returns a response-stream', async function () {
