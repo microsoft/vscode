@@ -136,7 +136,7 @@ registerAction2(class GoBackAction extends Action2 {
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
@@ -176,7 +176,7 @@ registerAction2(class GoForwardAction extends Action2 {
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),

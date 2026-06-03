@@ -31,9 +31,8 @@ import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { buildSessionHoverContent, getSessionDiffStats } from './sessionHoverContent.js';
+import { buildSessionHoverContent } from './sessionHoverContent.js';
 
 const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -75,13 +74,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session or its data changes
+		// Re-render when the active session's title or workspace changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsManagementService.activeSession.read(reader);
 			if (sessionData) {
-				sessionData.status.read(reader);
+				sessionData.title.read(reader);
 				sessionData.workspace.read(reader);
-				sessionData.changes.read(reader);
 			}
 			this._lastRenderState = undefined;
 			this._render();
@@ -150,12 +148,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}
 
 			const icon = this._getActiveSessionIcon();
-			const repoLabel = this._getRepositoryLabel();
-			const repoBranchLabel = this._getRepositoryBranchLabel();
-			const diffStats = this._getDiffStats();
+			const sessionTitle = this._getSessionTitle();
+			const workspaceLabel = this._getRepositoryLabel();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}|${diffStats ? `${diffStats.insertions}/${diffStats.deletions}` : ''}`;
+			const renderState = `${icon?.id ?? ''}|${sessionTitle ?? ''}|${workspaceLabel ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -173,10 +170,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;
 
-			// Session pill: icon + folder together
+			// Session pill: icon + title + workspace together
 			const sessionPill = $('div.agent-sessions-titlebar-pill');
 
-			// Center group: icon + folder
+			// Center group: icon + title + workspace name
 			const centerGroup = $('div.agent-sessions-titlebar-center');
 
 			// Kind icon at the beginning
@@ -185,38 +182,21 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				centerGroup.appendChild(iconEl);
 			}
 
-			// Folder shown next to the icon
-			if (repoLabel) {
-				const detailsEl = $('div.agent-sessions-titlebar-details');
+			// Session title shown next to the icon
+			if (sessionTitle) {
+				const titleEl = $('div.agent-sessions-titlebar-title');
+				titleEl.textContent = sessionTitle;
+				centerGroup.appendChild(titleEl);
+			}
 
-				const repoEl = $('div.agent-sessions-titlebar-repo');
-				repoEl.textContent = repoLabel;
-				detailsEl.appendChild(repoEl);
+			// Workspace name shown after the session title
+			if (workspaceLabel) {
+				const separatorEl = $('div.agent-sessions-titlebar-separator');
+				centerGroup.appendChild(separatorEl);
 
-				if (repoBranchLabel) {
-					const separatorEl = $('div.agent-sessions-titlebar-separator');
-					detailsEl.appendChild(separatorEl);
-
-					const branchEl = $('div.agent-sessions-titlebar-branch');
-					branchEl.append(...renderLabelWithIcons(`$(git-branch) ${repoBranchLabel}`));
-					detailsEl.appendChild(branchEl);
-				}
-
-				if (diffStats) {
-					const separatorEl = $('div.agent-sessions-titlebar-separator');
-					detailsEl.appendChild(separatorEl);
-
-					const diffEl = $('div.agent-sessions-titlebar-diff');
-					const addedEl = $('span.agent-sessions-titlebar-diff-added');
-					addedEl.textContent = `+${diffStats.insertions}`;
-					diffEl.appendChild(addedEl);
-					const removedEl = $('span.agent-sessions-titlebar-diff-removed');
-					removedEl.textContent = `-${diffStats.deletions}`;
-					diffEl.appendChild(removedEl);
-					detailsEl.appendChild(diffEl);
-				}
-
-				centerGroup.appendChild(detailsEl);
+				const workspaceEl = $('div.agent-sessions-titlebar-workspace');
+				workspaceEl.textContent = workspaceLabel;
+				centerGroup.appendChild(workspaceEl);
 			}
 
 			sessionPill.appendChild(centerGroup);
@@ -283,6 +263,14 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
+	 * Get the display title for the active session.
+	 */
+	private _getSessionTitle(): string | undefined {
+		const sessionData = this.sessionsManagementService.activeSession.get();
+		return sessionData?.title.get()?.trim() || undefined;
+	}
+
+	/**
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
@@ -294,23 +282,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}
 		}
 		return undefined;
-	}
-
-	/**
-	 * Get the branch label for the active session.
-	 */
-	private _getRepositoryBranchLabel(): string | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		return sessionData?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
-	}
-
-	/**
-	 * Get the aggregated insertions/deletions for the active session, or
-	 * undefined when there are no changes.
-	 */
-	private _getDiffStats(): { insertions: number; deletions: number } | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		return sessionData ? getSessionDiffStats(sessionData) : undefined;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
