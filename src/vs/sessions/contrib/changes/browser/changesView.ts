@@ -1111,31 +1111,17 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private async _openSingleFileDiffEditor(item: IChangesFileItem, sideBySide: boolean, preserveFocus: boolean, pinned: boolean): Promise<void> {
-		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+		const { uri, originalUri, isDeletion } = item;
 		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
-		const labels = getChangesEditorLabels(item.uri, this.labelService);
+		const labels = getChangesEditorLabels(uri, this.labelService);
 
-		if (isDeletion && originalUri) {
-			await this.editorService.openEditor({
-				resource: originalUri,
-				...labels,
-				options: { preserveFocus, pinned }
-			}, group);
-			return;
-		}
-
-		if (originalUri) {
-			await this.editorService.openEditor({
-				original: { resource: originalUri },
-				modified: { resource: modifiedFileUri },
-				...labels,
-				options: { preserveFocus, pinned }
-			}, group);
-			return;
-		}
-
+		// Always open a diff editor. Added files (no original) and deleted files
+		// (no modified) are shown as a diff against an empty side, matching the
+		// "Open Changes" action.
+		const modifiedUri = isDeletion ? undefined : uri;
 		await this.editorService.openEditor({
-			resource: modifiedFileUri,
+			original: { resource: originalUri },
+			modified: { resource: modifiedUri },
 			...labels,
 			options: { preserveFocus, pinned }
 		}, group);

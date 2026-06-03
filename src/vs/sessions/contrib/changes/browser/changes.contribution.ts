@@ -67,6 +67,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING]: {
 			type: 'boolean',
+			tags: ['preview'],
 			description: localize('sessions.changes.openSingleFileDiff', "Controls whether clicking a file in the Changes view opens a single file diff editor instead of the multi file diff editor."),
 			default: false,
 		},

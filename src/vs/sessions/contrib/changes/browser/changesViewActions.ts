@@ -162,7 +162,8 @@ class OpenFileAction extends Action2 {
 						ChangesContextKeys.ChangeKind.isEqualTo('file'),
 						openSingleFileDiffEnabled)
 				},
-				// Default behavior: the alt action opens the single file diff.
+				// Default behavior: the alt action ("Open Changes") opens a diff
+				// editor for the selected change(s).
 				{
 					id: MenuId.AgentsChangeInlineToolbar,
 					group: 'navigation',
