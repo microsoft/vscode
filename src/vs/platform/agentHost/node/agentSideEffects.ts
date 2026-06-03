@@ -9,6 +9,7 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -33,6 +34,7 @@ import {
 	type ToolResultContent
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { parseRenameCommand } from './agentHostRenameCommand.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -701,6 +703,15 @@ export class AgentSideEffects extends Disposable {
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
 
+				// `/rename [title]` is a generic, agent-agnostic slash command:
+				// it is intercepted here and redirected to a title change rather
+				// than forwarded to the agent SDK. Mirrors the per-agent text-side
+				// dispatch (`parseLeadingSlashCommand` in CopilotAgentSession), but
+				// applies to every session type.
+				if (this._tryHandleRenameCommand(channel, action.turnId, action.message.text)) {
+					break;
+				}
+
 				// On the very first turn, immediately set the session title to the
 				// user's message so the UI shows a meaningful title right away
 				// while waiting for the AI-generated title. Only apply when the
@@ -873,6 +884,55 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
+	 * Handles the generic `/rename [title]` slash command. When `text` is a
+	 * rename command it is redirected to a {@link ActionType.SessionTitleChanged}
+	 * action (when a non-empty title is supplied) and the just-started turn is
+	 * immediately completed, so the command is never forwarded to the agent SDK.
+	 *
+	 * @returns `true` when the message was a rename command and was handled here
+	 * (the caller MUST NOT forward it to the agent), `false` otherwise.
+	 */
+	private _tryHandleRenameCommand(channel: ProtocolURI, turnId: string, text: string): boolean {
+		const title = parseRenameCommand(text);
+		if (title === undefined) {
+			return false;
+		}
+		if (title.length > 0) {
+			this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionTitleChanged,
+				title,
+			});
+			// Server-dispatched actions bypass `handleAction`, so persist the
+			// new title here directly (the client-dispatched rename path relies
+			// on the `SessionTitleChanged` case in `handleAction` instead).
+			this._persistSessionFlag(channel, 'customTitle', title);
+			// Acknowledge the rename with a brief response so the turn has
+			// visible content in the transcript.
+			this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionResponsePart,
+				turnId,
+				part: {
+					kind: ResponsePartKind.Markdown,
+					id: generateUuid(),
+					content: localize('agentHostRename.renamed', "Renamed: {0}", title),
+				},
+			});
+		}
+		// Close out the turn that the reducer opened for this message so the
+		// session returns to idle instead of waiting on an agent response.
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.SessionTurnComplete,
+			turnId,
+		});
+		// This turn was completed via a direct server dispatch rather than
+		// `_runTurnCompleteSideEffects`, so drain any messages queued behind
+		// the rename ourselves; otherwise they would stall until the next
+		// unrelated state change re-triggers consumption.
+		this._tryConsumeNextQueuedMessage(channel);
+		return true;
+	}
+
+	/**
 	 * Persists a session metadata key/value pair to the session database.
 	 * Used for fields the host needs to remember across restarts (custom
 	 * title, isRead/isArchived flags, merged config values).
@@ -947,6 +1007,12 @@ export class AgentSideEffects extends Disposable {
 			message: msg.message,
 			queuedMessageId: msg.id,
 		});
+
+		// `/rename` is intercepted generically (see the SessionTurnStarted
+		// handler) and must not reach the agent SDK even when queued.
+		if (this._tryHandleRenameCommand(session, turnId, msg.message.text)) {
+			return;
+		}
 
 		// Send the message to the agent backend
 		const agent = this._options.getAgent(session);

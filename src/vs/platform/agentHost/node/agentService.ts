@@ -44,6 +44,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
@@ -248,6 +249,14 @@ export class AgentService extends Disposable implements IAgentService {
 		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
 			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
+		));
+		// Built-in generic provider: offers the `/rename` slash command for any
+		// session that already has history. Execution is handled server-side in
+		// AgentSideEffects (redirected to a SessionTitleChanged action).
+		this._register(this._completions.registerProvider(
+			new AgentHostRenameCompletionProvider(
+				session => (this._stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+			),
 		));
 
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
