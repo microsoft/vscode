@@ -24,7 +24,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IAutomation } from '../../common/automations/automation.js';
+import { IAutomation, IAutomationRun, AutomationRunStatus, AutomationRunTrigger } from '../../common/automations/automation.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { IFolderChoice, showAutomationDialog } from '../automations/automationDialog.js';
@@ -63,6 +63,10 @@ export class AutomationsListWidget extends Disposable {
 	// Now button so the user cannot double-fire from the UI.
 	private readonly runInFlight = new Set<string>();
 
+	// Per-automation expansion state for the inline run-history panel.
+	// Survives re-renders so the panel stays open when other rows change.
+	private readonly expandedRows = new Set<string>();
+
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
@@ -84,6 +88,9 @@ export class AutomationsListWidget extends Disposable {
 
 		this._register(autorun(reader => {
 			const items = this.automationService.automations.read(reader);
+			// Also track the runs observable so a run state change
+			// re-renders the (possibly expanded) history panels.
+			this.automationService.runs.read(reader);
 			this.renderList(items);
 			this._onDidChangeItemCount.fire(items.length);
 		}));
@@ -136,7 +143,8 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private renderRow(automation: IAutomation): void {
-		const row = DOM.append(this.listEl, $('.automations-row', { role: 'listitem', 'data-automation-id': automation.id }));
+		const rowWrapper = DOM.append(this.listEl, $('.automations-row-wrapper', { 'data-automation-id': automation.id }));
+		const row = DOM.append(rowWrapper, $('.automations-row', { role: 'listitem' }));
 
 		// Left: name + meta
 		const main = DOM.append(row, $('.automations-row-main'));
@@ -173,6 +181,96 @@ export class AutomationsListWidget extends Disposable {
 		this.renderToggleAction(actions, automation);
 		this.renderEditAction(actions, automation);
 		this.renderDeleteAction(actions, automation);
+		this.renderHistoryAction(actions, automation, rowWrapper);
+
+		if (this.expandedRows.has(automation.id)) {
+			this.renderHistoryPanel(rowWrapper, automation);
+		}
+	}
+
+	private renderHistoryAction(container: HTMLElement, automation: IAutomation, rowWrapper: HTMLElement): void {
+		const expanded = this.expandedRows.has(automation.id);
+		const icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+		const tooltip = expanded
+			? localize('hideHistory', "Hide history")
+			: localize('showHistory', "Show history");
+		const button = this.createIconButton(container, icon, tooltip, false);
+		button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+		button.setAttribute('aria-controls', `automation-history-${automation.id}`);
+		this.rowDisposables.add(DOM.addStandardDisposableListener(button, 'click', () => {
+			if (this.expandedRows.has(automation.id)) {
+				this.expandedRows.delete(automation.id);
+			} else {
+				this.expandedRows.add(automation.id);
+			}
+			// Trigger a re-render via the latest snapshot.
+			this.renderList(this.automationService.automations.get());
+		}));
+	}
+
+	private renderHistoryPanel(rowWrapper: HTMLElement, automation: IAutomation): void {
+		const panel = DOM.append(rowWrapper, $('.automations-row-history', {
+			id: `automation-history-${automation.id}`,
+			role: 'region',
+			'aria-label': localize('historyAriaLabel', "Run history for {0}", automation.name),
+		}));
+
+		const runs = this.automationService.runsFor(automation.id).get();
+		if (runs.length === 0) {
+			const empty = DOM.append(panel, $('.automations-history-empty'));
+			empty.textContent = localize('noRunsYet', "No runs yet.");
+			return;
+		}
+
+		const heading = DOM.append(panel, $('h4.automations-history-heading'));
+		heading.textContent = localize('runHistory', "Run history");
+
+		const runsList = DOM.append(panel, $('ul.automations-history-list'));
+		// Show the most recent 20 runs to keep the panel bounded.
+		const visibleRuns = runs.slice(0, 20);
+		for (const run of visibleRuns) {
+			this.renderRunRow(runsList, run);
+		}
+		if (runs.length > visibleRuns.length) {
+			const more = DOM.append(panel, $('.automations-history-more'));
+			more.textContent = localize('historyMore', "{0} more run(s) not shown.", runs.length - visibleRuns.length);
+		}
+	}
+
+	private renderRunRow(container: HTMLElement, run: IAutomationRun): void {
+		const li = DOM.append(container, $('li.automations-history-row', {
+			'data-run-id': run.id,
+			'data-run-status': run.status,
+		}));
+
+		const statusIcon = DOM.append(li, $(`span.automations-history-status.codicon.codicon-${runStatusIconId(run.status)}`));
+		statusIcon.setAttribute('aria-hidden', 'true');
+
+		const text = DOM.append(li, $('.automations-history-row-text'));
+		const first = DOM.append(text, $('.automations-history-row-first'));
+		const statusLabel = DOM.append(first, $('span.automations-history-row-status'));
+		statusLabel.textContent = runStatusLabel(run.status);
+		const sep = DOM.append(first, $('span.automations-history-row-sep'));
+		sep.textContent = '·';
+		const trig = DOM.append(first, $('span.automations-history-row-trigger'));
+		trig.textContent = runTriggerLabel(run.trigger);
+		const sep2 = DOM.append(first, $('span.automations-history-row-sep'));
+		sep2.textContent = '·';
+		const started = DOM.append(first, $('span.automations-history-row-started'));
+		started.textContent = localize('runStarted', "Started {0}", formatRelativeTimeOrIso(run.startedAt));
+		const dur = formatRunDuration(run);
+		if (dur) {
+			const sep3 = DOM.append(first, $('span.automations-history-row-sep'));
+			sep3.textContent = '·';
+			const durEl = DOM.append(first, $('span.automations-history-row-duration'));
+			durEl.textContent = dur;
+		}
+
+		if (run.errorMessage) {
+			const err = DOM.append(text, $('.automations-history-row-error'));
+			err.textContent = run.errorMessage;
+			err.setAttribute('role', 'alert');
+		}
 	}
 
 	private renderRunNowAction(container: HTMLElement, automation: IAutomation): void {
@@ -413,5 +511,52 @@ function truncate(s: string, max: number): string {
 		return single;
 	}
 	return single.slice(0, Math.max(0, max - 1)) + '\u2026';
+}
+
+function runStatusIconId(status: AutomationRunStatus): string {
+	switch (status) {
+		case 'pending': return 'circle-outline';
+		case 'running': return 'sync~spin';
+		case 'completed': return 'check';
+		case 'failed': return 'error';
+	}
+}
+
+function runStatusLabel(status: AutomationRunStatus): string {
+	switch (status) {
+		case 'pending': return localize('runStatusPending', "Pending");
+		case 'running': return localize('runStatusRunning', "Running");
+		case 'completed': return localize('runStatusCompleted', "Completed");
+		case 'failed': return localize('runStatusFailed', "Failed");
+	}
+}
+
+function runTriggerLabel(trigger: AutomationRunTrigger): string {
+	switch (trigger) {
+		case 'schedule': return localize('runTriggerSchedule', "Scheduled");
+		case 'manual': return localize('runTriggerManual', "Manual");
+		case 'catch_up': return localize('runTriggerCatchUp', "Catch-up");
+	}
+}
+
+function formatRunDuration(run: IAutomationRun): string | undefined {
+	if (!run.completedAt) {
+		return undefined;
+	}
+	const startMs = Date.parse(run.startedAt);
+	const endMs = Date.parse(run.completedAt);
+	if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+		return undefined;
+	}
+	const ms = Math.max(0, endMs - startMs);
+	if (ms < 1000) {
+		return localize('runDurationMs', "{0} ms", ms);
+	}
+	if (ms < 60_000) {
+		return localize('runDurationSec', "{0} s", (ms / 1000).toFixed(1));
+	}
+	const mins = Math.floor(ms / 60_000);
+	const secs = Math.floor((ms % 60_000) / 1000);
+	return localize('runDurationMinSec', "{0} min {1} s", mins, secs);
 }
 

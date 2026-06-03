@@ -1721,6 +1721,123 @@ pane is first mounted. View switches inside the modal are not animated. */
 	cursor: default;
 }
 
+/* Run history (inline) */
+.automations-list-widget .automations-row-wrapper {
+	display: flex;
+	flex-direction: column;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.automations-list-widget .automations-row-wrapper .automations-row {
+	border-bottom: none;
+}
+
+.automations-list-widget .automations-row-history {
+	padding: 4px 24px 12px 48px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	background-color: var(--vscode-editorWidget-background, transparent);
+}
+
+.automations-list-widget .automations-history-heading {
+	font-size: 11px;
+	font-weight: 600;
+	margin: 4px 0;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-list-widget .automations-history-empty {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.automations-list-widget .automations-history-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.automations-list-widget .automations-history-row {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 8px;
+	font-size: 12px;
+	padding: 2px 0;
+}
+
+.automations-list-widget .automations-history-status {
+	flex: 0 0 auto;
+	width: 16px;
+	height: 16px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.automations-list-widget .automations-history-row[data-run-status="completed"] .automations-history-status {
+	color: var(--vscode-testing-iconPassed, var(--vscode-icon-foreground));
+}
+
+.automations-list-widget .automations-history-row[data-run-status="failed"] .automations-history-status {
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
+}
+
+.automations-list-widget .automations-history-row[data-run-status="running"] .automations-history-status {
+	color: var(--vscode-charts-blue, var(--vscode-icon-foreground));
+}
+
+.automations-list-widget .automations-history-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-history-row-first {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 6px;
+	color: var(--vscode-foreground);
+}
+
+.automations-list-widget .automations-history-row-status {
+	font-weight: 600;
+}
+
+.automations-list-widget .automations-history-row-sep {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.6;
+}
+
+.automations-list-widget .automations-history-row-trigger,
+.automations-list-widget .automations-history-row-started,
+.automations-list-widget .automations-history-row-duration {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-list-widget .automations-history-row-error {
+	color: var(--vscode-errorForeground);
+	font-size: 11px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.automations-list-widget .automations-history-more {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
 /* Dialog */
 .automation-dialog .dialog-body .dialog-message-container,
 .automation-dialog .dialog-body .dialog-message-detail {
