@@ -197,6 +197,11 @@ export interface CreatedPullRequest {
 	url: string;
 }
 
+export interface CreatedIssue {
+	number: number;
+	url: string;
+}
+
 interface GitHubContentResponse {
 	content?: string;
 	encoding?: string;
@@ -297,6 +302,16 @@ export interface IOctoKitService {
 	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
 	 */
 	createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest>;
+
+	/**
+	 * Posts a Issue.
+	 * @param owner The repository owner
+	 * @param repo The repository name
+	 * @param title The title of the issue
+	 * @param body The body of the issue
+	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
+	 */
+	createIssue(owner: string, repo: string, title: string, body: string, authOptions: AuthOptions): Promise<CreatedIssue>;
 
 	/**
 	 * Gets all open Copilot sessions.
@@ -555,6 +570,22 @@ export class BaseOctoKitService {
 
 		if (!response?.html_url || typeof response.number !== 'number') {
 			throw new Error(`Failed to create pull request for ${owner}/${repo}`);
+		}
+
+		return {
+			url: response.html_url,
+			number: response.number,
+		};
+	}
+
+	protected async createIssueWithToken(owner: string, repo: string, title: string, body: string, token: string): Promise<CreatedIssue> {
+		const response = await this._makeGHAPIRequest(`repos/${owner}/${repo}/issues`, 'POST', token, {
+			title,
+			body,
+		});
+
+		if (!response?.html_url || typeof response.number !== 'number') {
+			throw new Error(`Failed to Post an Issue for ${owner}/${repo}`);
 		}
 
 		return {
