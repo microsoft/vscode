@@ -358,6 +358,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+		if (!pending) {
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}
 	}
 
 	/**

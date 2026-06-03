@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
+import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { localize } from '../../../nls.js';
 
@@ -199,6 +200,7 @@ export class BrowserSession {
 	// #region Instance
 
 	private readonly _trust: BrowserSessionTrust;
+	private readonly _history: BrowserSessionHistory;
 
 	private constructor(
 		/**
@@ -213,6 +215,7 @@ export class BrowserSession {
 		readonly storageScope: BrowserViewStorageScope,
 	) {
 		this._trust = new BrowserSessionTrust(this);
+		this._history = new BrowserSessionHistory(this);
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
@@ -225,14 +228,20 @@ export class BrowserSession {
 		return this._trust;
 	}
 
+	/** Public history interface for consumers that record visits. */
+	get history(): IBrowserSessionHistory {
+		return this._history;
+	}
+
 	/**
 	 * Connect application storage to this session so that preferences
-	 * (trusted certificates, permissions, etc.) are persisted across
-	 * restarts. Restores any previously-saved data on first call;
-	 * subsequent calls are no-ops.
+	 * (trusted certificates, history, etc.) are persisted across restarts.
+	 * Restores any previously-saved data on first call; subsequent calls
+	 * are no-ops.
 	 */
 	connectStorage(storage: IApplicationStorageMainService): void {
 		this._trust.connectStorage(storage);
+		this._history.connectStorage(storage);
 	}
 
 	/**
@@ -259,10 +268,11 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Clear all session data including trust state and all browsing data.
+	 * Clear all session data including trust state, history, and all browsing data.
 	 */
 	async clearData(): Promise<void> {
 		await this._trust.clear();
+		this._history.delete();
 		await this.electronSession.clearData();
 	}
 

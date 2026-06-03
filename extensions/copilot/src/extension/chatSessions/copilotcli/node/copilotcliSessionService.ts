@@ -257,6 +257,7 @@ export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
 	model?: string;
 	reasoningEffort?: string;
+	contextTier?: 'default' | 'long_context';
 	workspace: IWorkspaceInfo;
 	agent?: SweCustomAgent;
 	debugTargetSessionIds?: readonly string[];
@@ -954,6 +955,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;
+		}
+		if (options.contextTier) {
+			allOptions.contextTier = options.contextTier;
 		}
 
 		const sandboxConfig = this.getSandboxConfig();

@@ -109,6 +109,8 @@ Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side o
 
 An **`ISessionType`** identifies an agent backend (e.g., `'copilot-cli'`, `'copilot-cloud'`). Each provider declares which session types it supports and can dynamically update the list via `onDidChangeSessionTypes`. The management service exposes `getAllSessionTypes()` for UI pickers.
 
+Session types are surfaced ordered by each provider's `order` property (lower first; ties keep registration order). The default `order` is `0`, so the Copilot Chat sessions provider keeps precedence by default. The local agent host provider sets its `order` reactively from the experimental `chat.agentHost.defaultSessionsProvider` setting (default `false`, gated behind `chat.agentHost.enabled`): when enabled it returns a negative order so its session types sort before all other providers; otherwise it sorts after the defaults. The provider fires `onDidChangeSessionTypes` when the setting toggles so the management service re-collects and re-sorts. The sort itself lives in `SessionsManagementService._getOrderedProviders()` and applies to both `getAllSessionTypes()` and `getSessionTypesForFolder()` — the orchestration layer stays provider-agnostic (it sorts purely by `order`, with no knowledge of specific provider ids).
+
 ### Changesets
 
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
@@ -141,14 +143,13 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Calls provider.createNewChat(sessionId)
    → Provider creates the backend chat model and returns an IChat
    → Management service opens the chat widget with that chat's resource
+  → ChatView locks the embedded ChatWidget to the contributed chat session type
+    (for example agent-host-codex) before setting the model, so follow-up turns
+    keep routing to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management service fires onDidStartSession(committedSession)
    → isNewChatSession context → false
-
-Agent-host providers seed new-session config from the last values picked in the
-session-config UI (stored in profile storage), while `chat.permissions.default`
-takes precedence for `autoApprove` (with policy-safe normalization).
 ```
 Follow-up messages to an existing chat go through
 `SessionsManagementService.sendRequest(session, chat, options)`. This always
