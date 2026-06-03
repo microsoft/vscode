@@ -18,6 +18,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { CodexSessionConfigKey, narrowApprovalPolicy, narrowSandboxMode } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -25,12 +26,15 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { maybeConfirmCodexSandboxLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -62,6 +66,17 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		if (value === 'autoApprove') {
 			return Codicon.warning;
 		}
+		return Codicon.shield;
+	}
+	if (property === CodexSessionConfigKey.SandboxMode) {
+		switch (value) {
+			case 'read-only': return Codicon.shield;
+			case 'workspace-write': return Codicon.edit;
+			case 'danger-full-access': return Codicon.warning;
+		}
+		return Codicon.shield;
+	}
+	if (property === CodexSessionConfigKey.ApprovalPolicy) {
 		return Codicon.shield;
 	}
 	return undefined;
@@ -141,6 +156,34 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 }
 
 /**
+ * Returns `true` when a `codex.sandboxMode` schema uses the Codex
+ * protocol's well-known value set and includes `workspace-write`.
+ */
+export function isWellKnownCodexSandboxSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes('workspace-write')) {
+		return false;
+	}
+	return schema.enum.every(value => narrowSandboxMode(value) !== undefined);
+}
+
+/**
+ * Returns `true` when a `codex.approvalPolicy` schema uses the Codex
+ * protocol's well-known value set and includes `on-request`.
+ */
+export function isWellKnownCodexApprovalPolicySchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes('on-request')) {
+		return false;
+	}
+	return schema.enum.every(value => narrowApprovalPolicy(value) !== undefined);
+}
+
+/**
  * The set of well-known session-config property names that are either handled
  * by dedicated UI or intentionally hidden from the workbench chat-input chip
  * lane. The generic-fallback chip lane filters these out so unknown properties
@@ -156,6 +199,8 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
 	ClaudeSessionConfigKey.PermissionMode,
+	CodexSessionConfigKey.SandboxMode,
+	CodexSessionConfigKey.ApprovalPolicy,
 ]);
 
 /**
@@ -163,14 +208,20 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
  * generic-fallback chip lane. This includes properties rendered by dedicated
  * chip widgets and properties intentionally hidden from workbench chat.
  *
- * For most well-known keys this is purely a property-name check. AutoApprove is
- * special: only well-known schema shapes are claimed by the dedicated picker;
- * non-conforming schemas (e.g. Claude's approval mode) fall through to the
- * generic lane.
+ * For most well-known keys this is purely a property-name check. AutoApprove
+ * and the Codex sandbox/approval-policy keys are special: only well-known
+ * schema shapes are claimed by the dedicated picker; non-conforming schemas
+ * (e.g. Claude's approval mode) fall through to the generic lane.
  */
 export function isClaimedByDedicatedPicker(property: string, schema: SessionConfigPropertySchema): boolean {
 	if (property === SessionConfigKey.AutoApprove) {
 		return isWellKnownAutoApproveSchema(schema);
+	}
+	if (property === CodexSessionConfigKey.SandboxMode) {
+		return isWellKnownCodexSandboxSchema(schema);
+	}
+	if (property === CodexSessionConfigKey.ApprovalPolicy) {
+		return isWellKnownCodexApprovalPolicySchema(schema);
 	}
 	return WELL_KNOWN_PICKER_PROPERTIES.has(property);
 }
@@ -201,6 +252,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -334,6 +387,19 @@ export class AgentHostChatInputPicker extends Disposable {
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
 		}
+		// Same pattern for the Codex sandbox + approval-policy chips: only
+		// claim the property when the schema matches Codex's protocol shape,
+		// otherwise fall back to the generic lane.
+		if (this._property === CodexSessionConfigKey.SandboxMode && !isWellKnownCodexSandboxSchema(ctx.schema)) {
+			this._container.style.display = 'none';
+			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
+			return;
+		}
+		if (this._property === CodexSessionConfigKey.ApprovalPolicy && !isWellKnownCodexApprovalPolicySchema(ctx.schema)) {
+			this._container.style.display = 'none';
+			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
+			return;
+		}
 		this._container.style.display = '';
 		this._container.classList.remove('agent-host-chat-input-picker-host-hidden');
 
@@ -357,6 +423,12 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (this._property === SessionConfigKey.AutoApprove) {
 			trigger.classList.toggle('warning', value === 'autopilot');
 			trigger.classList.toggle('info', value === 'autoApprove');
+		}
+		// Codex `danger-full-access` is the only sandbox mode that warrants
+		// a warning treatment on the chip — read-only and workspace-write
+		// stay in the default themed palette.
+		if (this._property === CodexSessionConfigKey.SandboxMode) {
+			trigger.classList.toggle('warning', value === 'danger-full-access');
 		}
 		const label = this._labelFor(schema, value);
 		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
@@ -449,11 +521,29 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
-			onSelect: item => {
+			onSelect: async item => {
 				this._actionWidgetService.hide();
 				if (item.value === LEARN_MORE_VALUE) {
 					void this._openerService.open(URI.parse(PERMISSION_MODE_LEARN_MORE_URL));
 					return;
+				}
+				// Gate escalation to Codex's `danger-full-access` sandbox
+				// behind the shared warning dialog. Skipped when the
+				// session is already in that mode (re-selecting the same
+				// value should be a no-op anyway).
+				if (
+					this._property === CodexSessionConfigKey.SandboxMode
+					&& item.value === 'danger-full-access'
+					&& currentValue !== 'danger-full-access'
+				) {
+					const confirmed = await maybeConfirmCodexSandboxLevel(
+						item.value,
+						this._dialogService,
+						this._storageService,
+					);
+					if (!confirmed) {
+						return;
+					}
 				}
 				void this._setValue(ctx.backendSession, item.value);
 			},

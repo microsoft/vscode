@@ -18,6 +18,8 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
  *   0.6  OpenWorkspacePickerAction
  *   0.7  OpenAgentHostModePickerAction        (NEW — Mode)
  *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
+ *   0.81 OpenAgentHostCodexSandboxPickerAction (NEW — Codex Sandbox)
+ *   0.82 OpenAgentHostCodexApprovalPolicyPickerAction (NEW — Codex Approval Policy)
  *   0.9  OpenAgentHostPermissionModePickerAction (NEW — Claude Approvals)
  *   1    OpenPermissionPickerAction           (Default Approvals)
  */
@@ -60,6 +62,44 @@ export class OpenAgentHostAutoApprovePickerAction extends Action2 {
 	override async run(): Promise<void> { /* the action view item handles interaction */ }
 }
 
+export class OpenAgentHostCodexSandboxPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAgentHostCodexSandboxPicker';
+	constructor() {
+		super({
+			id: OpenAgentHostCodexSandboxPickerAction.ID,
+			title: localize2('agentHost.codexSandboxPicker', "Sandbox"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0.81,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* the action view item handles interaction */ }
+}
+
+export class OpenAgentHostCodexApprovalPolicyPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAgentHostCodexApprovalPolicyPicker';
+	constructor() {
+		super({
+			id: OpenAgentHostCodexApprovalPolicyPickerAction.ID,
+			title: localize2('agentHost.codexApprovalPolicyPicker', "Approval Policy"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0.82,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* the action view item handles interaction */ }
+}
+
 export class OpenAgentHostPermissionModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openAgentHostPermissionModePicker';
 	constructor() {
@@ -81,4 +121,6 @@ export class OpenAgentHostPermissionModePickerAction extends Action2 {
 
 registerAction2(OpenAgentHostModePickerAction);
 registerAction2(OpenAgentHostAutoApprovePickerAction);
+registerAction2(OpenAgentHostCodexSandboxPickerAction);
+registerAction2(OpenAgentHostCodexApprovalPolicyPickerAction);
 registerAction2(OpenAgentHostPermissionModePickerAction);
