@@ -6177,12 +6177,12 @@
       "chatSessions/item/context": [
         {
           "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code",
+          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
           "group": "1_edit@4"
         },
         {
           "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli",
+          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
           "group": "1_edit@4"
         }
       ],
@@ -6996,11 +6996,9 @@
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",
     "@vscode/tree-sitter-wasm": "0.0.5-php.2",
     "@vscode/webview-ui-toolkit": "^1.3.1",
-    "@xterm/headless": "^5.5.0",
     "ajv": "^8.18.0",
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
-    "diff": "^8.0.3",
     "dompurify": "^3.4.1",
     "express": "^5.2.1",
     "ignore": "^7.0.5",

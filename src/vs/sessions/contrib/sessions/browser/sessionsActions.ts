@@ -46,6 +46,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const sessions = sessionsManagementService.getSessions()
 			.filter(s => !s.isArchived.get())
@@ -102,6 +103,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 					sessionsManagementService.openSession(selected.session.resource);
 				} else {
 					sessionsManagementService.openNewSessionView();
+					sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 				}
 			}
 			picker.hide();
@@ -297,7 +299,10 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsManagementService).openNewChatInSession(session);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		await sessionsManagementService.openNewChatInSession(session);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 });
 

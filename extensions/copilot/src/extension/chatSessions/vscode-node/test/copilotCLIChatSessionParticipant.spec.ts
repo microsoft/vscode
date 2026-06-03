@@ -254,7 +254,7 @@ async function waitForScheduledUntitledSwap(): Promise<void> {
 }
 
 class TestCopilotCLISession extends CopilotCLISession {
-	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
+	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
 	public readonly attachedStreams: vscode.ChatResponseStream[] = [];
 	public permissionLevel: string | undefined;
 	public static nextHandleRequestResult: Promise<void> | undefined;
@@ -264,7 +264,7 @@ class TestCopilotCLISession extends CopilotCLISession {
 	override get status(): vscode.ChatSessionStatus | undefined {
 		return TestCopilotCLISession.statusOverride;
 	}
-	override handleRequest(request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput, attachments: Attachment[], model: { model: string; reasoningEffort?: string } | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: vscode.CancellationToken): Promise<void> {
+	override handleRequest(request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput, attachments: Attachment[], model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: vscode.CancellationToken): Promise<void> {
 		this.requests.push({ input, attachments, model, authInfo, token });
 		if (TestCopilotCLISession.handleRequestHook) {
 			return TestCopilotCLISession.handleRequestHook(request, input);
