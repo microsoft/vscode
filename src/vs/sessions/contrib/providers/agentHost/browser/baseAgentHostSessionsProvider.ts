@@ -1243,7 +1243,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected abstract resourceSchemeForProvider(provider: string): string;
 
-	/** Format the human-readable label for a session type entry (e.g. `Copilot [Local]`). */
+	/** Format the human-readable label for a session type entry (e.g. `Copilot CLI`). */
 	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
 
 	/**
