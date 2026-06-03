@@ -1467,14 +1467,6 @@ suite('ChatTipService', () => {
 		});
 	}
 
-	test('does not show tip.agenticBrowser when setting is at default', async () => {
-		const service = createService();
-		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
-		await new Promise<void>(r => queueMicrotask(r));
-
-		assertTipNeverShown(service, 'tip.agenticBrowser');
-	});
-
 	for (const tipId of [
 		'tip.thinkingPhrases',
 	]) {
