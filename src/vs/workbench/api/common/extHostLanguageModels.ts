@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -358,10 +358,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		Promise.resolve(value).then(() => {
 			sendNow();
-			const wasCancelled = cts.token.isCancellationRequested;
 			cts.dispose();
 			this._pendingCancelTokens.delete(requestId);
-			this._proxy.$reportResponseDone(requestId, wasCancelled ? transformErrorForSerialization(new CancellationError()) : undefined);
+			this._proxy.$reportResponseDone(requestId, undefined);
 		}, err => {
 			sendNow();
 			cts.dispose();
