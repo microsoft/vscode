@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { ExitPlanModeRequest, ExitPlanModeResult, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -34,7 +34,7 @@ import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type Tool
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
+import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
@@ -270,6 +270,7 @@ export type SessionWrapperFactory = (callbacks: {
 	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
 	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
 	readonly onElicitationRequest: (context: ElicitationContext) => Promise<ElicitationResult>;
+	readonly onExitPlanModeRequest: (request: ExitPlanModeRequest, invocation: { sessionId: string }) => Promise<ExitPlanModeResult>;
 	readonly requestUnsandboxedCommandConfirmation: (request: IUnsandboxedCommandConfirmationRequest) => Promise<boolean>;
 	readonly hooks: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
@@ -772,6 +773,7 @@ export class CopilotAgentSession extends Disposable {
 	async initializeSession(): Promise<void> {
 		const wrapper = await this._wrapperFactory({
 			onPermissionRequest: request => this.handlePermissionRequest(request),
+			onExitPlanModeRequest: (request, invocation) => this.handleExitPlanModeRequest(request, invocation),
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => this.handleElicitationRequest(context),
 			requestUnsandboxedCommandConfirmation: request => this.requestUnsandboxedCommandConfirmation(request),
@@ -2027,7 +2029,7 @@ export class CopilotAgentSession extends Disposable {
 	 * paused `exit_plan_mode` tool call and (on accept) updates the SDK's
 	 * `currentMode` so the model can continue with implementation.
 	 */
-	async handleExitPlanModeRequest(data: IExitPlanModeRequestParams): Promise<IExitPlanModeResponse> {
+	async handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
 		const requestId = generateUuid();
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
@@ -2363,7 +2365,7 @@ export class CopilotAgentSession extends Disposable {
  * `autoApproveEdits: true` is set whenever the chosen action is one of the
  * autopilot variants, mirroring the CLI behavior.
  */
-function autoApproveExitPlanMode(data: IExitPlanModeRequestParams): IExitPlanModeResponse {
+function autoApproveExitPlanMode(data: ExitPlanModeRequest): IExitPlanModeResponse {
 	const choices = data.actions ?? [];
 	const isAutopilotAction = (action: string) => action === 'autopilot' || action === 'autopilot_fleet';
 

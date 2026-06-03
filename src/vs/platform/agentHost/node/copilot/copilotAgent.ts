@@ -10,7 +10,7 @@ import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -474,15 +474,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// hands the request off to the matching {@link CopilotAgentSession},
 		// which surfaces it as a {@link SessionInputRequest} and resolves
 		// this promise with the user's choice.
-		const handlerDisposable = connection.onRequest('exitPlanMode.request', async (params: IExitPlanModeRequestParams): Promise<IExitPlanModeResponse> => {
-			const session = this._sessions.get(params.sessionId);
-			if (!session) {
-				this._logService.warn(`[Copilot] exitPlanMode.request for unknown session ${params.sessionId}`);
-				return { approved: false };
-			}
-			return session.handleExitPlanModeRequest(params);
-		});
-		this._register(toDisposable(() => handlerDisposable.dispose()));
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -1582,6 +1573,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
 				onElicitationRequest: callbacks.onElicitationRequest,
+				onExitPlanModeRequest: callbacks.onExitPlanModeRequest,
 				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
 				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
