@@ -9,18 +9,21 @@ import { Application, Logger } from '../../../../automation';
 import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
- * Per-test scenarios. Each test uses a unique scenario id so that the mock
- * reply is distinct — this catches stale-content bugs where the previous
+ * Per-session scenarios. Each session uses a unique scenario id so that the
+ * mock reply is distinct — this catches stale-content bugs where the previous
  * test's response is mistakenly accepted as the current test's response.
  */
-const COPILOT_SCENARIO_ID = 'smoke-hello-copilot';
-const COPILOT_REPLY = 'MOCKED_COPILOT_RESPONSE';
+interface SessionConfig {
+	readonly name: string;
+	readonly scenarioId: string;
+	readonly reply: string;
+}
 
-const LOCAL_SCENARIO_ID = 'smoke-hello-local';
-const LOCAL_REPLY = 'MOCKED_LOCAL_RESPONSE';
-
-const CLAUDE_SCENARIO_ID = 'smoke-hello-claude';
-const CLAUDE_REPLY = 'MOCKED_CLAUDE_RESPONSE';
+const SESSIONS: readonly SessionConfig[] = [
+	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE' },
+	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE' },
+	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE' },
+];
 
 export function setup(logger: Logger) {
 
@@ -39,9 +42,9 @@ export function setup(logger: Logger) {
 
 			// One scenario per session type, each emitting a distinct reply
 			// so the assertion is unambiguous.
-			registerScenario(COPILOT_SCENARIO_ID, new ScenarioBuilder().emit(COPILOT_REPLY).build());
-			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
-			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
+			for (const session of SESSIONS) {
+				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
+			}
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
 			logger.log(`Mock LLM server started at ${mockServer.url}`);
@@ -93,60 +96,30 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('Test Copilot CLI session', async function () {
-			const app = this.app as Application;
+		for (const [i, session] of SESSIONS.entries()) {
+			it(`Test ${session.name} session`, async function () {
+				const app = this.app as Application;
 
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
+				// The Agents Window is opened in `before` and lands on the new
+				// session view; subsequent tests must start a fresh session to
+				// return to that view.
+				if (i > 0) {
+					await app.workbench.agentsWindow.startNewSession();
+				}
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType(session.name);
 
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);
+				const requestsBefore = mockServer.requestCount();
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${session.scenarioId}]`);
 
-			const text = await app.workbench.agentsWindow.waitForAssistantText(COPILOT_REPLY);
-			logger.log(`Agents Window (Copilot) response: ${text}`);
+				const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
+				logger.log(`Agents Window (${session.name}) response: ${text}`);
 
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Copilot session'
-			);
-		});
-
-		it('Test Claude session', async function () {
-			const app = this.app as Application;
-
-			await app.workbench.agentsWindow.startNewSession();
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Claude');
-
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
-
-			const text = await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_REPLY);
-			logger.log(`Agents Window (Claude) response: ${text}`);
-
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Claude session'
-			);
-		});
-
-		it('Test Local session', async function () {
-			const app = this.app as Application;
-
-			await app.workbench.agentsWindow.startNewSession();
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Local');
-
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
-
-			const text = await app.workbench.agentsWindow.waitForAssistantText(LOCAL_REPLY);
-			logger.log(`Agents Window (Local) response: ${text}`);
-
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Local session'
-			);
-		});
+				assert.ok(
+					mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the ${session.name} session`
+				);
+			});
+		}
 	});
 }

@@ -4,22 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Application, Logger } from '../../../../automation';
+import { Application, Chat, Logger } from '../../../../automation';
 import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
- * Per-test scenarios. Each test uses a unique scenario id so that the mock
- * reply is distinct — this catches stale-content bugs where the previous
+ * Per-session scenarios. Each session uses a unique scenario id so that the
+ * mock reply is distinct — this catches stale-content bugs where the previous
  * test's response is mistakenly accepted as the current test's response.
+ *
+ * `kind` selects between the two chat surfaces in the VS Code window:
+ *  - 'editor': the chat opens as an editor tab (Copilot CLI, Claude).
+ *  - 'view':   the default chat panel in the sidebar / aux bar (Local).
  */
-const COPILOT_CLI_SCENARIO_ID = 'smoke-chat-sessions-copilot-cli';
-const COPILOT_CLI_REPLY = 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE';
+interface SessionConfig {
+	readonly name: string;
+	readonly command: string;
+	readonly kind: 'editor' | 'view';
+	readonly scenarioId: string;
+	readonly reply: string;
+}
 
-const CLAUDE_SCENARIO_ID = 'smoke-chat-sessions-claude';
-const CLAUDE_REPLY = 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE';
+const SESSIONS: readonly SessionConfig[] = [
+	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE' },
+	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE' },
+	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE' },
+];
 
-const LOCAL_SCENARIO_ID = 'smoke-chat-sessions-local';
-const LOCAL_REPLY = 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE';
+async function openSession(app: Application, session: SessionConfig): Promise<void> {
+	await app.workbench.quickaccess.runCommand(session.command);
+	if (session.kind === 'editor') {
+		await app.workbench.chat.waitForChatEditor(600);
+	} else {
+		await app.workbench.chat.waitForChatView();
+	}
+}
+
+async function sendAndGetResponse(chat: Chat, session: SessionConfig, message: string): Promise<string> {
+	if (session.kind === 'editor') {
+		await chat.sendEditorMessage(message);
+		await chat.waitForEditorResponse(1500);
+		return (await chat.getLatestEditorResponseText()).trim();
+	}
+	await chat.sendMessage(message);
+	await chat.waitForResponse(1500);
+	return (await chat.getLatestResponseText()).trim();
+}
 
 export function setup(logger: Logger) {
 
@@ -40,9 +69,9 @@ export function setup(logger: Logger) {
 
 			// One scenario per session type, each emitting a distinct reply
 			// so the assertion is unambiguous.
-			registerScenario(COPILOT_CLI_SCENARIO_ID, new ScenarioBuilder().emit(COPILOT_CLI_REPLY).build());
-			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
-			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
+			for (const session of SESSIONS) {
+				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
+			}
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
 			logger.log(`Chat Sessions mock LLM server started at ${mockServer.url}`);
@@ -81,75 +110,24 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('Test Copilot CLI session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
+		for (const session of SESSIONS) {
+			it(`Test ${session.name} session`, async function () {
+				const app = this.app as Application;
+				const requestsBefore = mockServer.requestCount();
 
-			await app.workbench.quickaccess.runCommand('smoketest.openCopilotCliChat');
-			await app.workbench.chat.waitForChatEditor(600);
-			await app.workbench.chat.sendEditorMessage(`hello world [scenario:${COPILOT_CLI_SCENARIO_ID}]`);
-			await app.workbench.chat.waitForEditorResponse(1500);
+				await openSession(app, session);
+				const responseText = await sendAndGetResponse(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`);
+				logger.log(`Chat Sessions (${session.name}) response: ${responseText}`);
 
-			const responseText = (await app.workbench.chat.getLatestEditorResponseText()).trim();
-			logger.log(`Chat Sessions (Copilot CLI) response: ${responseText}`);
-
-			assert.ok(
-				responseText.includes(COPILOT_CLI_REPLY),
-				`Expected Copilot CLI response to include mocked scenario response "${COPILOT_CLI_REPLY}".\n\nResponse:\n${responseText}`
-			);
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Copilot CLI session'
-			);
-		});
-
-		it('Test Claude session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
-			logger.log(`Chat Sessions (Claude) mock requests before: ${requestsBefore}`);
-
-			await app.workbench.quickaccess.runCommand('smoketest.openClaudeChat');
-			await app.workbench.chat.waitForChatEditor(600);
-			await app.workbench.chat.sendEditorMessage(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
-			logger.log(`Chat Sessions (Claude) mock requests after submit: ${mockServer.requestCount()}`);
-			await app.workbench.chat.waitForEditorResponse(1500);
-
-			const responseText = (await app.workbench.chat.getLatestEditorResponseText()).trim();
-			logger.log(`Chat Sessions (Claude) response: ${responseText}`);
-			logger.log(`Chat Sessions (Claude) mock requests after response: ${mockServer.requestCount()}`);
-
-			assert.ok(
-				responseText.includes(CLAUDE_REPLY),
-				`Expected Claude response to include mocked scenario response "${CLAUDE_REPLY}".\n\nResponse:\n${responseText}`
-			);
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Claude session'
-			);
-		});
-
-		it('Test Local session', async function () {
-			const app = this.app as Application;
-			const requestsBefore = mockServer.requestCount();
-
-			// "Local" in the regular VS Code window is the default chat
-			// experience in the chat view (sidebar / aux bar).
-			await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
-			await app.workbench.chat.waitForChatView();
-			await app.workbench.chat.sendMessage(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
-			await app.workbench.chat.waitForResponse(1500);
-
-			const responseText = (await app.workbench.chat.getLatestResponseText()).trim();
-			logger.log(`Chat Sessions (Local) response: ${responseText}`);
-
-			assert.ok(
-				responseText.includes(LOCAL_REPLY),
-				`Expected Local response to include mocked scenario response "${LOCAL_REPLY}".\n\nResponse:\n${responseText}`
-			);
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Local session'
-			);
-		});
+				assert.ok(
+					responseText.includes(session.reply),
+					`Expected ${session.name} response to include mocked scenario response "${session.reply}".\n\nResponse:\n${responseText}`
+				);
+				assert.ok(
+					mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the ${session.name} session`
+				);
+			});
+		}
 	});
 }
