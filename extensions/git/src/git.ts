@@ -649,10 +649,6 @@ export class Git {
 		try {
 			bufferResult = await exec(child, options.cancellationToken, options.onStderr);
 		} catch (ex) {
-			if (ex instanceof CancellationError) {
-				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
-			}
-
 			throw ex;
 		} finally {
 			if (securityKeyAuthenticationHintTimer) {
