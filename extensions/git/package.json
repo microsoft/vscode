@@ -4383,8 +4383,8 @@
     "@vscode/fs-copyfile": "2.0.0",
     "byline": "^5.0.0",
     "file-type": "21.3.2",
-    "picomatch": "2.3.2",
-    "which": "4.0.0"
+    "picomatch": "^2.3.2",
+    "which": "^4.0.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",

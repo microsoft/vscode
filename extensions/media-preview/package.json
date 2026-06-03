@@ -164,7 +164,7 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "vscode-uri": "^3.0.6"
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/node": "24.x"

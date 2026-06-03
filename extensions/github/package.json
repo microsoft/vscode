@@ -243,7 +243,7 @@
   "dependencies": {
     "@octokit/graphql": "8.2.0",
     "@octokit/graphql-schema": "14.4.0",
-    "@octokit/rest": "21.1.1",
+    "@octokit/rest": "^21.1.1",
     "tunnel": "^0.0.6",
     "@vscode/extension-telemetry": "^1.5.1"
   },
