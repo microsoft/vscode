@@ -318,4 +318,83 @@ describe('resolveOTelConfig', () => {
 			expect(config.maxAttributeSizeChars).toBe(0);
 		});
 	});
+
+	describe('enterprise policy precedence', () => {
+		it('policyEnabled=true forces OTel on, wins over setting=undefined and absent env', () => {
+			const config = resolveOTelConfig(makeInput({ policyEnabled: true }));
+			expect(config.enabled).toBe(true);
+			expect(config.enabledExplicitly).toBe(true);
+			expect(config.enabledVia).toBe('policy');
+		});
+
+		it('policyEnabled=false forces OTel off, wins over env var and setting both enabling', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'COPILOT_OTEL_ENABLED': 'true', 'OTEL_EXPORTER_OTLP_ENDPOINT': 'http://collector:4318' },
+				settingEnabled: true,
+				policyEnabled: false,
+			}));
+			expect(config.enabled).toBe(false);
+			expect(config.enabledVia).toBe('disabled');
+		});
+
+		it('policyEnabled=false still allows dbSpanExporter to keep SDK loaded (enabledVia=dbSpanExporterOnly)', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: false,
+				settingDbSpanExporter: true,
+			}));
+			expect(config.enabled).toBe(true);
+			expect(config.enabledExplicitly).toBe(false);
+			expect(config.enabledVia).toBe('dbSpanExporterOnly');
+		});
+
+		it('policyOtlpEndpoint overrides env vars and setting', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: {
+					'COPILOT_OTEL_ENABLED': 'true',
+					'COPILOT_OTEL_ENDPOINT': 'http://env-copilot:4318',
+					'OTEL_EXPORTER_OTLP_ENDPOINT': 'http://env-otel:4318',
+				},
+				settingOtlpEndpoint: 'http://setting:4318',
+				policyOtlpEndpoint: 'https://policy.collector.example.com:4318',
+			}));
+			expect(config.otlpEndpoint).toBe('https://policy.collector.example.com:4318/');
+		});
+
+		it('policyCaptureContent=false wins over env var and setting both enabling capture', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'COPILOT_OTEL_ENABLED': 'true', 'COPILOT_OTEL_CAPTURE_CONTENT': 'true' },
+				settingCaptureContent: true,
+				policyCaptureContent: false,
+			}));
+			expect(config.captureContent).toBe(false);
+		});
+
+		it('policyCaptureContent=true wins over env var and setting both disabling capture', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'COPILOT_OTEL_ENABLED': 'true', 'COPILOT_OTEL_CAPTURE_CONTENT': 'false' },
+				settingCaptureContent: false,
+				policyCaptureContent: true,
+			}));
+			expect(config.captureContent).toBe(true);
+		});
+
+		it('vscodeTelemetryLevel=off master kill switch still wins over policyEnabled=true', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				vscodeTelemetryLevel: 'off',
+			}));
+			expect(config.enabled).toBe(false);
+		});
+
+		it('policy fields undefined preserve existing env/setting precedence', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'COPILOT_OTEL_ENABLED': 'true', 'COPILOT_OTEL_CAPTURE_CONTENT': 'true' },
+				settingOtlpEndpoint: 'http://setting:4318',
+			}));
+			expect(config.enabled).toBe(true);
+			expect(config.enabledVia).toBe('envVar');
+			expect(config.captureContent).toBe(true);
+			expect(config.otlpEndpoint).toBe('http://setting:4318/');
+		});
+	});
 });

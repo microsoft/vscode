@@ -26,6 +26,17 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: boolean;
+	/**
+	 * Enterprise-managed OpenTelemetry policy block. Each sub-field is
+	 * individually optional so admins can pin only the dimensions they care
+	 * about (e.g. just `endpoint`, leaving `enabled` / `captureContent` to
+	 * env/setting precedence).
+	 */
+	readonly telemetry?: {
+		readonly enabled?: boolean;
+		readonly otlpEndpoint?: string;
+		readonly captureContent?: boolean;
+	};
 	/** Any unknown keys in the response are silently ignored for forward compatibility. */
 	readonly [key: string]: unknown;
 }
@@ -74,9 +85,38 @@ export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?
 		extraKnownMarketplaces = entries;
 	}
 
+	let otelEnabled: boolean | undefined;
+	let otelOtlpEndpoint: string | undefined;
+	let otelCaptureContent: boolean | undefined;
+	if (response.telemetry !== undefined) {
+		if (isObject(response.telemetry)) {
+			const t = response.telemetry;
+			if (typeof t.enabled === 'boolean') {
+				otelEnabled = t.enabled;
+			} else if (t.enabled !== undefined) {
+				onWarn?.(`[DefaultAccount] Skipping telemetry.enabled: expected boolean, got ${typeof t.enabled}`);
+			}
+			if (isString(t.otlpEndpoint)) {
+				otelOtlpEndpoint = t.otlpEndpoint;
+			} else if (t.otlpEndpoint !== undefined) {
+				onWarn?.(`[DefaultAccount] Skipping telemetry.otlpEndpoint: expected string, got ${typeof t.otlpEndpoint}`);
+			}
+			if (typeof t.captureContent === 'boolean') {
+				otelCaptureContent = t.captureContent;
+			} else if (t.captureContent !== undefined) {
+				onWarn?.(`[DefaultAccount] Skipping telemetry.captureContent: expected boolean, got ${typeof t.captureContent}`);
+			}
+		} else {
+			onWarn?.(`[DefaultAccount] Skipping malformed telemetry block: expected object, got ${typeof response.telemetry}`);
+		}
+	}
+
 	return {
 		enabledPlugins: isObject(response.enabledPlugins) ? response.enabledPlugins as Record<string, boolean> : undefined,
 		extraKnownMarketplaces,
 		strictKnownMarketplaces: typeof response.strictKnownMarketplaces === 'boolean' ? response.strictKnownMarketplaces : undefined,
+		otelEnabled,
+		otelOtlpEndpoint,
+		otelCaptureContent,
 	};
 }

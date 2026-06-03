@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { deriveClaudeOTelEnv, deriveCopilotCliOTelEnv } from '../agentOTelEnv';
+import { deriveClaudeOTelEnv, deriveCopilotCliOTelEnv, sanitizeOTelEnv } from '../agentOTelEnv';
 import type { OTelConfig } from '../otelConfig';
 
 function makeConfig(overrides: Partial<OTelConfig> = {}): OTelConfig {
@@ -125,5 +125,56 @@ describe('deriveClaudeOTelEnv', () => {
 	it('does not include file exporter path (not supported by Claude SDK)', () => {
 		const result = deriveClaudeOTelEnv(makeConfig({ fileExporterPath: '/tmp/otel.jsonl' }), emptyEnv);
 		expect(result['COPILOT_OTEL_FILE_EXPORTER_PATH']).toBeUndefined();
+	});
+});
+
+describe('sanitizeOTelEnv', () => {
+	it('strips OTEL_*, COPILOT_OTEL_*, and CLAUDE_CODE_ENABLE_TELEMETRY but keeps everything else (incl. PATH/HOME/USER and unrelated CLAUDE_CODE_*)', () => {
+		const result = sanitizeOTelEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://collector:4318',
+			OTEL_RESOURCE_ATTRIBUTES: 'service.name=foo',
+			OTEL_LOG_LEVEL: 'debug',
+			COPILOT_OTEL_ENABLED: 'true',
+			COPILOT_OTEL_CAPTURE_CONTENT: 'true',
+			COPILOT_OTEL_FILE_EXPORTER_PATH: '/tmp/otel.jsonl',
+			CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+			CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+			PATH: '/usr/bin:/bin',
+			HOME: '/home/user',
+			USER: 'alice',
+			NODE_ENV: 'production',
+			MY_APP_VAR: 'value',
+			OTHER_VAR: undefined,
+		});
+		expect(result).toEqual({
+			CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+			PATH: '/usr/bin:/bin',
+			HOME: '/home/user',
+			USER: 'alice',
+			NODE_ENV: 'production',
+			MY_APP_VAR: 'value',
+			OTHER_VAR: undefined,
+		});
+	});
+
+	it('returns an empty object for empty input', () => {
+		expect(sanitizeOTelEnv({})).toEqual({});
+	});
+
+	it('does not mutate the input env', () => {
+		const input = { OTEL_LOG_LEVEL: 'debug', PATH: '/usr/bin' };
+		const before = { ...input };
+		sanitizeOTelEnv(input);
+		expect(input).toEqual(before);
+	});
+
+	it('preserves undefined values (Node spawn treats as "not set")', () => {
+		const result = sanitizeOTelEnv({ FOO: undefined, BAR: 'baz', OTEL_LOG_LEVEL: 'debug' });
+		expect(result).toEqual({ FOO: undefined, BAR: 'baz' });
+	});
+
+	it('does not match case-insensitively (env vars are case-sensitive on POSIX)', () => {
+		const result = sanitizeOTelEnv({ otel_log_level: 'debug', Copilot_Otel_Enabled: 'true' });
+		expect(result).toEqual({ otel_log_level: 'debug', Copilot_Otel_Enabled: 'true' });
 	});
 });

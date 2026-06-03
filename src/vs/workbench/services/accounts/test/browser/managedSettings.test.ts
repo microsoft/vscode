@@ -16,6 +16,9 @@ suite('adaptManagedSettings', () => {
 			enabledPlugins: undefined,
 			extraKnownMarketplaces: undefined,
 			strictKnownMarketplaces: undefined,
+			otelEnabled: undefined,
+			otelOtlpEndpoint: undefined,
+			otelCaptureContent: undefined,
 		});
 	});
 
@@ -90,7 +93,67 @@ suite('adaptManagedSettings', () => {
 				{ name: 'a', source: { source: 'github', repo: 'a/b', ref: 'r' } },
 			],
 			strictKnownMarketplaces: true,
+			otelEnabled: undefined,
+			otelOtlpEndpoint: undefined,
+			otelCaptureContent: undefined,
 		});
+	});
+
+	test('telemetry block: parses enabled/otlpEndpoint/captureContent, malformed sub-fields skipped with warnings', () => {
+		// Valid sub-fields pass through as-is.
+		assert.deepStrictEqual(adaptManagedSettings({
+			telemetry: { enabled: true, otlpEndpoint: 'https://collector.example.com:4318', captureContent: false },
+		}), {
+			enabledPlugins: undefined,
+			extraKnownMarketplaces: undefined,
+			strictKnownMarketplaces: undefined,
+			otelEnabled: true,
+			otelOtlpEndpoint: 'https://collector.example.com:4318',
+			otelCaptureContent: false,
+		});
+
+		// Partial telemetry block: only some fields specified, rest stay undefined.
+		assert.deepStrictEqual(adaptManagedSettings({ telemetry: { enabled: false } }), {
+			enabledPlugins: undefined,
+			extraKnownMarketplaces: undefined,
+			strictKnownMarketplaces: undefined,
+			otelEnabled: false,
+			otelOtlpEndpoint: undefined,
+			otelCaptureContent: undefined,
+		});
+
+		// Wrong sub-field types are dropped individually with a warning, sibling fields still parse.
+		const warnings: string[] = [];
+		const malformed = adaptManagedSettings({
+			telemetry: {
+				enabled: 'yes' as unknown as boolean,
+				otlpEndpoint: 42 as unknown as string,
+				captureContent: true,
+			},
+		}, msg => warnings.push(msg));
+		assert.deepStrictEqual(malformed, {
+			enabledPlugins: undefined,
+			extraKnownMarketplaces: undefined,
+			strictKnownMarketplaces: undefined,
+			otelEnabled: undefined,
+			otelOtlpEndpoint: undefined,
+			otelCaptureContent: true,
+		});
+		assert.strictEqual(warnings.length, 2);
+
+		// Wrong telemetry container shape (array/string) is skipped entirely with one warning.
+		const arrWarnings: string[] = [];
+		assert.deepStrictEqual(adaptManagedSettings({
+			telemetry: ['enabled'] as unknown as { enabled?: boolean },
+		}, msg => arrWarnings.push(msg)), {
+			enabledPlugins: undefined,
+			extraKnownMarketplaces: undefined,
+			strictKnownMarketplaces: undefined,
+			otelEnabled: undefined,
+			otelOtlpEndpoint: undefined,
+			otelCaptureContent: undefined,
+		});
+		assert.strictEqual(arrWarnings.length, 1);
 	});
 
 	test('resilience: unknown top-level keys are silently ignored', () => {
@@ -103,6 +166,9 @@ suite('adaptManagedSettings', () => {
 			enabledPlugins: { 'p@m': true },
 			extraKnownMarketplaces: undefined,
 			strictKnownMarketplaces: false,
+			otelEnabled: undefined,
+			otelOtlpEndpoint: undefined,
+			otelCaptureContent: undefined,
 		});
 	});
 

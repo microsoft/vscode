@@ -284,6 +284,12 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	// OTel service — resolve config from env + settings, create appropriate impl
 	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
+	// Enterprise policy values (delivered via `managed_settings` → core
+	// `chat.otel.*` policy-only settings). When a policy is in effect the
+	// configuration value is the policy value; when no policy is in effect the
+	// setting has no registered default, so `get(...)` returns `undefined` and
+	// the env/setting/default precedence below applies.
+	const otelPolicy = workspace.getConfiguration('chat.otel');
 	const otelConfig = resolveOTelConfig({
 		env: process.env,
 		settingEnabled: otelSettings.get<boolean>('enabled'),
@@ -293,6 +299,9 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
+		policyEnabled: otelPolicy.get<boolean>('enabled'),
+		policyOtlpEndpoint: otelPolicy.get<string>('otlpEndpoint') || undefined,
+		policyCaptureContent: otelPolicy.get<boolean>('captureContent'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});
