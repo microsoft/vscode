@@ -29,7 +29,7 @@ export function createChangesets(
 	const defaultChangeset = changesets.find(c => !c.uriTemplate.includes('{')) ?? changesets[0];
 	const builtChangesets: ISessionChangeset[] = changesets.map(changeset => {
 		const isDefault = changeset === defaultChangeset;
-		return options.instantiationService.createInstance(AgentHostChangeset, options, isActiveSessionObs, {
+		return options.instantiationService.createInstance(AgentHostCatalogChangeset, options, isActiveSessionObs, {
 			...changeset, isDefault
 		});
 	});
@@ -67,7 +67,8 @@ function createActiveSessionSubscriptionObs<TValue>(
 		const subscriptionRef = connection.getSubscription(component, resource);
 		reader.store.add(subscriptionRef);
 
-		return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value as TValue | Error | undefined);
+		return observableFromEvent(subscriptionRef.object.onDidChange,
+			() => subscriptionRef.object.value as TValue | Error | undefined);
 	});
 }
 
@@ -79,8 +80,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	abstract readonly isEnabled: IObservable<boolean>;
 	abstract readonly isDefault: IObservable<boolean>;
 
-	abstract readonly originalCheckpointRef: IObservable<string | undefined>;
-	abstract readonly modifiedCheckpointRef: IObservable<string | undefined>;
+	readonly originalCheckpointRef = observableValue(this, undefined);
+	readonly modifiedCheckpointRef = observableValue(this, undefined);
 
 	readonly isLoadingChanges: IObservable<boolean>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
@@ -121,7 +122,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	}
 }
 
-export class AgentHostChangeset extends AbstractAgentHostChangeset {
+export class AgentHostCatalogChangeset extends AbstractAgentHostChangeset {
 	readonly id: string;
 
 	private _label: string;
@@ -130,11 +131,8 @@ export class AgentHostChangeset extends AbstractAgentHostChangeset {
 	private _description?: string;
 	get description(): string | undefined { return this._description; }
 
-	readonly isEnabled: IObservable<boolean>;
+	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;
-
-	readonly originalCheckpointRef: IObservable<string | undefined>;
-	readonly modifiedCheckpointRef: IObservable<string | undefined>;
 
 	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
 
@@ -156,11 +154,7 @@ export class AgentHostChangeset extends AbstractAgentHostChangeset {
 		this._label = changesetSummary.label;
 		this._description = changesetSummary.description;
 
-		this.isEnabled = constObservable(true);
 		this.isDefault = constObservable(changesetSummary.isDefault);
-
-		this.originalCheckpointRef = constObservable(undefined);
-		this.modifiedCheckpointRef = constObservable(undefined);
 	}
 
 	update(changesetSummary: ChangesetSummary): void {
@@ -169,55 +163,51 @@ export class AgentHostChangeset extends AbstractAgentHostChangeset {
 	}
 }
 
-abstract class AbstractAgentHostCheckpointChangeset extends AbstractAgentHostChangeset {
-	readonly category = 'checkpoint-changesets';
+abstract class AbstractAgentHostTurnCompareChangeset extends AbstractAgentHostChangeset {
+	readonly category = 'turn-compare-changesets';
+
 	override readonly isEnabled: IObservable<boolean>;
 	override readonly isDefault = constObservable(false);
 
-	override readonly originalCheckpointRef = observableValue(this, undefined);
-	override readonly modifiedCheckpointRef = observableValue(this, undefined);
-
-	protected readonly turnIdsObs: IObservable<readonly string[] | undefined>;
 	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
 
 	constructor(
-		protected readonly _sessionUri: URI,
-		protected readonly _options: IAgentHostAdapterOptions,
-		protected readonly _isActiveSessionObs: IObservable<boolean>,
+		sessionUri: URI,
+		options: IAgentHostAdapterOptions,
+		isActiveSessionObs: IObservable<boolean>,
+		resolveChangesetUri: (turnIdsObs: IObservable<readonly string[] | undefined>) => IObservable<URI | undefined>,
 	) {
-		super(_options);
+		super(options);
 
 		const sessionStateObs = createActiveSessionSubscriptionObs<{ turns: readonly Turn[] }>(
-			this._options,
-			this._isActiveSessionObs,
+			options,
+			isActiveSessionObs,
 			StateComponents.Session,
-			constObservable(URI.parse(this._sessionUri.toString())),
+			constObservable(sessionUri),
 		);
 
-		this.turnIdsObs = derived(reader => {
+		const turnIdsObs = derived(reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-
 			return sessionState.turns.map(turn => turn.id);
 		});
 
-		const changesetUriObs = this.resolveChangesetUri();
+		const changesetUriObs = resolveChangesetUri(turnIdsObs);
+
 		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
-			this._options,
-			this._isActiveSessionObs,
+			options,
+			isActiveSessionObs,
 			StateComponents.Changeset,
-			changesetUriObs
+			changesetUriObs,
 		);
 
 		this.isEnabled = derived(reader => changesetUriObs.read(reader) !== undefined);
 	}
-
-	abstract resolveChangesetUri(): IObservable<URI | undefined>;
 }
 
-class AgentHostAllChangesChangeset extends AbstractAgentHostCheckpointChangeset {
+class AgentHostAllChangesChangeset extends AbstractAgentHostTurnCompareChangeset {
 	readonly id = 'All Changes';
 	readonly label = localize('allChanges', "All Changes");
 	readonly description = localize('allChangesDescription', "Show all changes made in this session");
@@ -227,29 +217,26 @@ class AgentHostAllChangesChangeset extends AbstractAgentHostCheckpointChangeset 
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 	) {
-		super(sessionUri, options, isActiveSessionObs);
-	}
+		super(sessionUri, options, isActiveSessionObs, turnIdsObs =>
+			derivedOpts({ equalsFn: isEqual }, reader => {
+				const turnIds = turnIdsObs.read(reader);
+				if (!turnIds) {
+					return undefined;
+				}
 
-	override resolveChangesetUri(): IObservable<URI | undefined> {
-		return derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const turnIds = this.turnIdsObs.read(reader);
-			if (!turnIds) {
-				return undefined;
-			}
+				const originalTurnId = turnIds[0];
+				const modifiedTurnId = turnIds.at(-1);
+				if (!originalTurnId || !modifiedTurnId) {
+					return undefined;
+				}
 
-			const originalTurnId = turnIds[0];
-			const modifiedTurnId = turnIds.at(-1);
-			if (!originalTurnId || !modifiedTurnId) {
-				return undefined;
-			}
-
-			const changesetUri = buildCompareTurnsChangesetUri(this._sessionUri.toString(), originalTurnId, modifiedTurnId);
-			return changesetUri ? URI.parse(changesetUri) : undefined;
-		});
+				const uri = buildCompareTurnsChangesetUri(sessionUri.toString(), originalTurnId, modifiedTurnId);
+				return uri ? URI.parse(uri) : undefined;
+			}));
 	}
 }
 
-class AgentHostLastTurnChangesChangeset extends AbstractAgentHostCheckpointChangeset {
+class AgentHostLastTurnChangesChangeset extends AbstractAgentHostTurnCompareChangeset {
 	readonly id = 'Last Turn Changes';
 	readonly label = localize('lastTurnChanges', "Last Turn Changes");
 	readonly description = localize('lastTurnChangesDescription', "Show only changes made in the last turn");
@@ -259,23 +246,14 @@ class AgentHostLastTurnChangesChangeset extends AbstractAgentHostCheckpointChang
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 	) {
-		super(sessionUri, options, isActiveSessionObs);
-	}
-
-	override resolveChangesetUri(): IObservable<URI | undefined> {
-		return derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const turnIds = this.turnIdsObs.read(reader);
-			if (!turnIds) {
-				return undefined;
-			}
-
-			const lastTurnId = turnIds.at(-1);
-			if (!lastTurnId) {
-				return undefined;
-			}
-
-			const changesetUri = buildTurnChangesetUri(this._sessionUri.toString(), lastTurnId);
-			return changesetUri ? URI.parse(changesetUri) : undefined;
-		});
+		super(sessionUri, options, isActiveSessionObs, turnIdsObs =>
+			derivedOpts({ equalsFn: isEqual }, reader => {
+				const lastTurnId = turnIdsObs.read(reader)?.at(-1);
+				if (!lastTurnId) {
+					return undefined;
+				}
+				const uri = buildTurnChangesetUri(sessionUri.toString(), lastTurnId);
+				return uri ? URI.parse(uri) : undefined;
+			}));
 	}
 }

@@ -45,7 +45,7 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/s
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
-import { AgentHostChangeset, createChangesets } from './agentHostSessionChangesets.js';
+import { AgentHostCatalogChangeset, createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -550,7 +550,7 @@ export class AgentHostSessionAdapter implements ISession {
 			const existingChangeset = existingChangesets
 				.find(c => c.label === changeset.label);
 
-			if (!(existingChangeset instanceof AgentHostChangeset)) {
+			if (!(existingChangeset instanceof AgentHostCatalogChangeset)) {
 				continue;
 			}
 
