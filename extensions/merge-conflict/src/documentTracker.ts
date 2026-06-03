@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { MergeConflictParser } from './mergeConflictParser';
 import * as interfaces from './interfaces';
 import { Delayer } from './delayer';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 
 class ScanTask {
 	public origins: Set<string> = new Set<string>();

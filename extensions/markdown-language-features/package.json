@@ -884,17 +884,16 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/extension-telemetry": "^1.5.1",
     "dompurify": "^3.4.1",
     "highlight.js": "^11.8.0",
-    "markdown-it": "^12.3.2",
+    "markdown-it": "^14.1.1",
     "morphdom": "^2.7.7",
     "picomatch": "^2.3.2",
-    "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "0.5.0-alpha.15",
-    "vscode-uri": "^3.0.3",
+    "vscode-uri": "^3.1.0",
     "yaml": "^2.8.3"
   },
   "devDependencies": {

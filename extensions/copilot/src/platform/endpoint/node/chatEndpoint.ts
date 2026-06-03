@@ -164,7 +164,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.version = modelMetadata.version;
 		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
 		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
-		this.tokenizer = modelMetadata.capabilities.tokenizer;
+		this.tokenizer = modelMetadata.capabilities.tokenizer ?? TokenizerType.O200K;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;

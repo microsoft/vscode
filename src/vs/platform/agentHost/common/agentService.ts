@@ -76,6 +76,46 @@ export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.
  */
 export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
 
+// -- Codex agent settings --------------------------------------------------------
+//
+// Codex is opt-in via `chat.agentHost.codexAgent.path`. The setting points at
+// an absolute path to the `codex` binary; the agent host spawns
+// `<path> app-server` as a long-lived child process and speaks JSON-RPC over
+// stdio. The binary is not bundled; users install codex themselves (typically
+// via `npm install -g @openai/codex` or a platform package manager).
+
+/**
+ * Absolute path to a locally-installed `codex` binary. When non-empty, the
+ * Codex agent provider is registered inside the agent host. Empty (the
+ * default) disables the provider entirely.
+ */
+export const AgentHostCodexAgentBinaryPathSettingId = 'chat.agentHost.codexAgent.path';
+
+/**
+ * Optional override for `$CODEX_HOME`. When set, the codex app-server child
+ * process inherits this value, controlling where rollouts and config live.
+ */
+export const AgentHostCodexAgentCodexHomeSettingId = 'chat.agentHost.codexAgent.codexHome';
+
+/**
+ * Additional command-line arguments passed to `codex app-server`. Mainly for
+ * debugging (e.g. `--log-level=debug`).
+ */
+export const AgentHostCodexAgentBinaryArgsSettingId = 'chat.agentHost.codexAgent.binaryArgs';
+
+/**
+ * Environment variable the agent host process reads to locate the codex
+ * binary. Forwarded by the starters from
+ * {@link AgentHostCodexAgentBinaryPathSettingId}.
+ */
+export const AgentHostCodexAgentBinaryPathEnvVar = 'VSCODE_AGENT_HOST_CODEX_APP_SERVER_PATH';
+
+/** Forwarded `$CODEX_HOME`. */
+export const AgentHostCodexAgentCodexHomeEnvVar = 'CODEX_HOME';
+
+/** Forwarded extra args for `codex app-server` (JSON-encoded string[]). */
+export const AgentHostCodexAgentBinaryArgsEnvVar = 'VSCODE_AGENT_HOST_CODEX_APP_SERVER_ARGS';
+
 // -- OpenTelemetry settings ------------------------------------------------------
 //
 // The `chat.agentHost.otel.*` namespace surfaces the same exporter knobs the CLI
