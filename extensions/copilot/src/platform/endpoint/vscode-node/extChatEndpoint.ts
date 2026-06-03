@@ -196,12 +196,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
 				// Forward reasoning/thinking settings so the extension provider can use them.
 				// The provider receives these via ProvideLanguageModelChatResponseOptions.modelOptions.
-				...(modelCapabilities?.enableThinking !== undefined
-					? { enableThinking: modelCapabilities.enableThinking }
-					: {}),
-				...(modelCapabilities?.reasoningEffort !== undefined
-					? { reasoningEffort: modelCapabilities.reasoningEffort }
-					: {}),
+				...pickDefined(modelCapabilities, 'enableThinking', 'reasoningEffort'),
 			}
 		};
 
@@ -332,6 +327,18 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 
 	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
 	return Number.isSafeInteger(turn) ? turn : undefined;
+}
+
+/** Pick defined properties from an object, returning a new object with only those keys whose values are not `undefined`. */
+function pickDefined<T extends object, K extends keyof T>(source: T | undefined, ...keys: K[]): Pick<T, K> {
+	const result = {} as Pick<T, K>;
+	for (const key of keys) {
+		if (source?.[key] !== undefined) {
+			result[key] = source[key];
+		}
+	}
+	return result;
+}
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {

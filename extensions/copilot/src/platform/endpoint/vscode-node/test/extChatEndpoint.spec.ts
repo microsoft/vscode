@@ -68,13 +68,12 @@ describe('ExtensionContributedChatEndpoint', () => {
 
 	it('forwards enableThinking and reasoningEffort to modelOptions', async () => {
 		const stream = (async function* () {
-			const part = { value: 'ok', kind: 1 } as vscode.LanguageModelTextPart;
-			yield part;
+			yield { value: 'ok' };
 		})();
 
 		const sendRequestSpy = vi.fn(async () => ({
 			stream,
-		}));
+		} as unknown as any);
 
 		const mockLanguageModel = {
 			id: 'test',
@@ -106,7 +105,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 			},
 		}, token);
 
-		const modelOptions = sendRequestSpy.mock.calls[0][1].modelOptions;
+		const modelOptions = sendRequestSpy.mock.calls[0][1]!.modelOptions!;
 		expect(modelOptions.enableThinking).toBe(true);
 		expect(modelOptions.reasoningEffort).toBe('high');
 	});
