@@ -2081,9 +2081,18 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			name: resourceBasename(resourceDirname(file)),
 		};
 	}
+	if (type === DiscoveredType.Instruction) {
+		return {
+			type: CustomizationType.Rule,
+			id,
+			uri,
+			name: resourceBasename(file),
+		};
+	}
+	// agent instruction
 	return {
 		type: CustomizationType.Rule,
-		alwaysApply: type === DiscoveredType.AgentInstruction,
+		alwaysApply: true,
 		id,
 		uri,
 		name: resourceBasename(file),

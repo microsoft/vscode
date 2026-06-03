@@ -79,8 +79,8 @@ const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 /**
  * Builds the list of instruction file candidates used by the Copilot CLI.
  *
- * Returns explicit file URIs (not directories) for workspace and user-home
- * locations so callers can probe for existence in priority order.
+ * Returns paths with filenames for workspace and user-home
+ * locations
  */
 const agentInstructions: { workspace: IInstructionFile[]; user: IInstructionFile[] } = {
 	workspace: [
@@ -171,9 +171,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
 			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result)),
-			...agentInstructions.workspace.map(root => this._scanAgentInstructions(this._workingDirectory, root, seen, result)),
 			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result)),
-			...agentInstructions.user.map(root => this._scanAgentInstructions(this._userHome, root, seen, result)),
+			this._scanAgentInstructions(this._workingDirectory, agentInstructions.workspace, seen, result),
+			this._scanAgentInstructions(this._userHome, agentInstructions.user, seen, result)
 		]);
 
 		for (const [rootUri, recursive] of this._watchRootUris.entries()) {
@@ -186,35 +186,40 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return result;
 	}
 
-	private async _scanAgentInstructions(base: URI, root: IInstructionFile, seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
-
-		const rootUri = joinPath(base, ...root.path);
-		let stat: IFileStatWithMetadata;
-		try {
-			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
-		} catch {
-			// Root does not exist (or is unreadable) — nothing to discover or watch.
-			return;
-		}
-		if (!stat.isDirectory || !stat.children) {
-			return;
-		}
-
-		if (!this._watchRootUris.has(rootUri)) {
-			this._watchRootUris.set(rootUri, false); // set up non recursive watcher
-		}
-
+	/**
+	 * For agent instructions, create a single root for the base directory.
+	 */
+	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
 		const files = [];
-		for (const entry of stat.children) {
-			if (entry.isFile && root.filenames.includes(entry.name)) {
-				const uri = joinPath(rootUri, entry.name);
-				if (!seen.has(uri)) {
-					seen.add(uri);
-					files.push(uri);
+		for (const root of roots) {
+			const rootUri = joinPath(base, ...root.path);
+			let stat: IFileStatWithMetadata;
+			try {
+				stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
+			} catch {
+				// Root does not exist (or is unreadable) — nothing to discover or watch.
+				continue;
+			}
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			if (!this._watchRootUris.has(rootUri)) {
+				this._watchRootUris.set(rootUri, false); // set up non recursive watcher
+			}
+			for (const entry of stat.children) {
+				if (entry.isFile && root.filenames.includes(entry.name)) {
+					const uri = joinPath(rootUri, entry.name);
+					if (!seen.has(uri)) {
+						seen.add(uri);
+						files.push(uri);
+					}
 				}
 			}
 		}
-		result.push({ uri: rootUri, type: DiscoveredType.AgentInstruction, files });
+		if (files.length > 0) {
+			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files });
+		}
 	}
 
 	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
