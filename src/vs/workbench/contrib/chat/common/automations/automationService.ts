@@ -26,14 +26,15 @@ export interface ICreateAutomationOptions {
 	readonly sessionTypeId?: string;
 	readonly modelId?: string;
 	readonly mode?: string;
+	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
 }
 
 /**
  * Patch for `updateAutomation`. Fields not present are left unchanged.
- * Pass `null` for `providerId`, `sessionTypeId`, `modelId`, or `mode` to
- * clear them. `folderUri` cannot be cleared — pass a new URI to change
- * which folder the automation runs in.
+ * Pass `null` for `providerId`, `sessionTypeId`, `modelId`, `mode`, or
+ * `permissionLevel` to clear them. `folderUri` cannot be cleared — pass
+ * a new URI to change which folder the automation runs in.
  */
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
@@ -44,6 +45,7 @@ export interface IUpdateAutomationOptions {
 	readonly sessionTypeId?: string | null;
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
+	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
 }
 

@@ -95,17 +95,19 @@ suite('AutomationService', () => {
 		assert.strictEqual(b.name, 'B');
 	});
 
-	test('updateAutomation can clear modelId/mode by passing null but keeps folderUri', async () => {
+	test('updateAutomation can clear modelId/mode/permissionLevel by passing null but keeps folderUri', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({
 			name: 'A', prompt: 'p', schedule: dailySchedule(),
 			folderUri: FOLDER,
 			modelId: 'gpt-4',
-			mode: 'autopilot',
+			mode: 'agent',
+			permissionLevel: 'autopilot',
 		});
-		const b = await service.updateAutomation(a.id, { modelId: null, mode: null });
+		const b = await service.updateAutomation(a.id, { modelId: null, mode: null, permissionLevel: null });
 		assert.strictEqual(b.modelId, undefined);
 		assert.strictEqual(b.mode, undefined);
+		assert.strictEqual(b.permissionLevel, undefined);
 		assert.strictEqual(b.folderUri.toString(), FOLDER.toString());
 	});
 

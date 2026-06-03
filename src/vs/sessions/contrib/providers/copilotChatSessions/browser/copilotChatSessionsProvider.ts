@@ -30,7 +30,7 @@ import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionM
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -1760,6 +1760,47 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._findChatSession(sessionId)?.setModelId(modelId);
 	}
 
+	/**
+	 * Applies a builtin chat mode (Agent/Ask/Edit) to the given session.
+	 * Unknown modeIds are dropped silently so callers (notably the
+	 * Automations runner) can be tolerant of stored values from a
+	 * different/older provider. Custom (user-defined) modes are not yet
+	 * supported by callers and so are not resolved here.
+	 */
+	setMode(sessionId: string, modeId: string): void {
+		const mode = builtinChatModeById(modeId);
+		if (!mode) {
+			return;
+		}
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			newSession.setMode(mode);
+			return;
+		}
+
+		this._ensureSessionCache();
+		this._findChatSession(sessionId)?.setMode(mode);
+	}
+
+	/**
+	 * Applies a permission level (`default`, `autoApprove`, `autopilot`) to
+	 * the given session. Unknown values are dropped silently so callers can
+	 * be tolerant of stored values from a different/older provider.
+	 */
+	setPermissionLevel(sessionId: string, level: string): void {
+		if (!isChatPermissionLevel(level)) {
+			return;
+		}
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			newSession.setPermissionLevel(level);
+			return;
+		}
+
+		this._ensureSessionCache();
+		this._findChatSession(sessionId)?.setPermissionLevel(level);
+	}
+
 	// -- Session Actions --
 
 	async archiveSession(sessionId: string): Promise<void> {
@@ -3050,5 +3091,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private _isMultiChatEnabled(): boolean {
 		return this._multiChatEnabled;
+	}
+}
+
+function builtinChatModeById(id: string): IChatMode | undefined {
+	switch (id) {
+		case ChatModeKind.Ask: return ChatMode.Ask;
+		case ChatModeKind.Edit: return ChatMode.Edit;
+		case ChatModeKind.Agent: return ChatMode.Agent;
+		default: return undefined;
 	}
 }
