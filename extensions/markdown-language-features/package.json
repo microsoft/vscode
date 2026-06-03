@@ -234,14 +234,14 @@
       ],
       "editor/title": [
         {
-          "command": "markdown.showPreviewToSide",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
-          "alt": "markdown.showPreview",
+          "command": "markdown.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "group": "navigation"
         },
         {
-          "command": "markdown.reopenAsPreview",
-          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "command": "markdown.showPreviewToSide",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "alt": "markdown.showPreview",
           "group": "navigation"
         },
         {
@@ -272,14 +272,14 @@
       ],
       "modalEditor/editorTitle": [
         {
-          "command": "markdown.showPreviewToSide",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
-          "alt": "markdown.showPreview",
+          "command": "markdown.reopenAsPreview",
+          "when": "(activeEditor == workbench.editors.files.textFileEditor || activeEditor == workbench.editors.textDiffEditor) && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "group": "navigation"
         },
         {
-          "command": "markdown.reopenAsPreview",
-          "when": "(activeEditor == workbench.editors.files.textFileEditor || activeEditor == workbench.editors.textDiffEditor) && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "command": "markdown.showPreviewToSide",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "alt": "markdown.showPreview",
           "group": "navigation"
         },
         {
