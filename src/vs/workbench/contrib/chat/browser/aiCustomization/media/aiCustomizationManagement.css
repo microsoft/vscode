@@ -1948,6 +1948,38 @@ pane is first mounted. View switches inside the modal are not animated. */
 	padding: 6px 0;
 }
 
+.automation-form-folder-controls {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.automation-form-folder-controls .automation-form-select {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.automation-form-folder-browse {
+	flex: 0 0 auto;
+	padding: 4px 10px;
+	font-family: inherit;
+	font-size: var(--vscode-agents-fontSize-body2);
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.automation-form-folder-browse:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.automation-form-folder-browse:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .automations-list-widget .automations-row-folder {
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;

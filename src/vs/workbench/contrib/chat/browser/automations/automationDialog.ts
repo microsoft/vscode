@@ -9,6 +9,7 @@ import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -68,6 +69,7 @@ export async function showAutomationDialog(
 	keybindingService: IKeybindingService,
 	layoutService: ILayoutService,
 	hostService: IHostService,
+	fileDialogService: IFileDialogService,
 	options: IShowAutomationDialogOptions,
 ): Promise<IAutomationDialogResult | undefined> {
 	const disposables = new DisposableStore();
@@ -125,7 +127,7 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				renderForm(form, state, options, disposables, validation, () => revalidate());
+				renderForm(form, state, options, disposables, validation, () => revalidate(), fileDialogService);
 				revalidate = () => updateSaveButtonState(saveButton, state, validation, form);
 				revalidate();
 			},
@@ -208,6 +210,7 @@ function renderForm(
 	disposables: DisposableStore,
 	validation: IValidationState,
 	revalidate: () => void,
+	fileDialogService: IFileDialogService,
 ): void {
 	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
@@ -284,46 +287,93 @@ function renderForm(
 	}));
 
 	// --- Folder (required) ---
+	// Always rendered: a dropdown of currently-open workspace folders
+	// plus a Browse button that opens an OS folder picker so the user
+	// can target any folder, even when no workspace is open.
 	const folderRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(folderRow, $('label.automation-form-label', { for: 'automation-folder' }, localize('automation.form.folder', "Workspace folder")));
-	if (options.folders.length === 0) {
-		DOM.append(folderRow, $('.automation-form-empty', undefined, localize('automation.form.noFolders', "Open a folder or workspace before creating an automation.")));
-		state.folderUri = undefined;
-	} else {
-		const folderSelect = DOM.append(folderRow, $('select.automation-form-select', { id: 'automation-folder' })) as HTMLSelectElement;
-		for (const folder of options.folders) {
-			const optEl = DOM.append(folderSelect, $('option', { value: folder.uri.toString() }, folder.label)) as HTMLOptionElement;
-			if (state.folderUri && folder.uri.toString() === state.folderUri.toString()) {
+	const folderControls = DOM.append(folderRow, $('.automation-form-folder-controls'));
+	const folderSelect = DOM.append(folderControls, $('select.automation-form-select', { id: 'automation-folder' })) as HTMLSelectElement;
+	const browseButton = DOM.append(folderControls, $('button.automation-form-folder-browse', { type: 'button' }, localize('automation.form.browse', "Browse…"))) as HTMLButtonElement;
+	const folderError = DOM.append(folderRow, $('.automation-form-error'));
+
+	// Track folders added at runtime via Browse so we can keep them in
+	// the dropdown after re-population.
+	const browsedFolders: URI[] = [];
+
+	const populateFolderSelect = () => {
+		DOM.clearNode(folderSelect);
+		// Sentinel option shown when there is nothing to pick yet.
+		if (options.folders.length === 0 && browsedFolders.length === 0 && !state.folderUri) {
+			const optEl = DOM.append(folderSelect, $('option', { value: '', disabled: 'true', selected: 'true' }, localize('automation.form.folderPlaceholder', "Browse… to choose a folder"))) as HTMLOptionElement;
+			optEl.value = '';
+			return;
+		}
+		const seen = new Set<string>();
+		const addOption = (uri: URI, label: string) => {
+			const key = uri.toString();
+			if (seen.has(key)) {
+				return;
+			}
+			seen.add(key);
+			const optEl = DOM.append(folderSelect, $('option', { value: key }, label)) as HTMLOptionElement;
+			if (state.folderUri && state.folderUri.toString() === key) {
 				optEl.selected = true;
 			}
+		};
+		for (const folder of options.folders) {
+			addOption(folder.uri, folder.label);
 		}
-		// If the currently selected folder is not present (e.g. editing
-		// an automation pointing at a folder that is no longer open),
-		// surface it as a disabled option so the user sees what is
-		// stored and can choose to switch.
-		const hasMatch = state.folderUri && options.folders.some(f => f.uri.toString() === state.folderUri!.toString());
-		if (state.folderUri && !hasMatch) {
+		for (const uri of browsedFolders) {
+			addOption(uri, basenameOrUri(uri));
+		}
+		// If the stored folder is not in either list (e.g. editing an
+		// automation whose folder is not currently open and was not
+		// just browsed), add it as a fallback so the user sees what is
+		// stored and can replace it.
+		if (state.folderUri && !seen.has(state.folderUri.toString())) {
 			const stored = state.folderUri;
-			const optEl = DOM.append(folderSelect, $('option', { value: stored.toString() }, localize('automation.form.folderNotOpen', "{0} (folder not currently open)", stored.toString()))) as HTMLOptionElement;
+			const optEl = DOM.append(folderSelect, $('option', { value: stored.toString() }, localize('automation.form.folderNotOpen', "{0} (folder not currently open)", basenameOrUri(stored)))) as HTMLOptionElement;
 			optEl.selected = true;
-		} else if (!state.folderUri) {
-			state.folderUri = options.folders[0].uri;
+		} else if (!state.folderUri && (options.folders.length > 0 || browsedFolders.length > 0)) {
+			// Default to the first available folder.
+			state.folderUri = options.folders[0]?.uri ?? browsedFolders[0];
 			folderSelect.value = state.folderUri.toString();
 		}
-		const folderError = DOM.append(folderRow, $('.automation-form-error'));
-		disposables.add(DOM.addStandardDisposableListener(folderSelect, 'change', () => {
-			const match = options.folders.find(f => f.uri.toString() === folderSelect.value);
-			if (match) {
-				state.folderUri = match.uri;
-			} else {
-				// User picked the stored-but-not-open entry; keep the
-				// existing URI.
-				state.folderUri = URI.parse(folderSelect.value);
-			}
-			revalidate();
-			folderError.textContent = validation.folderError ?? '';
-		}));
-	}
+	};
+	populateFolderSelect();
+
+	disposables.add(DOM.addStandardDisposableListener(folderSelect, 'change', () => {
+		if (!folderSelect.value) {
+			state.folderUri = undefined;
+		} else {
+			state.folderUri = URI.parse(folderSelect.value);
+		}
+		revalidate();
+		folderError.textContent = validation.folderError ?? '';
+	}));
+
+	disposables.add(DOM.addStandardDisposableListener(browseButton, 'click', async () => {
+		const picked = await fileDialogService.showOpenDialog({
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+			title: localize('automation.form.browseTitle', "Select Workspace Folder"),
+			defaultUri: state.folderUri,
+		});
+		if (!picked || picked.length === 0) {
+			return;
+		}
+		const pickedUri = picked[0];
+		if (!browsedFolders.some(u => u.toString() === pickedUri.toString())) {
+			browsedFolders.push(pickedUri);
+		}
+		state.folderUri = pickedUri;
+		populateFolderSelect();
+		folderSelect.value = pickedUri.toString();
+		revalidate();
+		folderError.textContent = validation.folderError ?? '';
+	}));
 
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
@@ -364,4 +414,9 @@ function updateSaveButtonState(
 		saveButton.enabled = valid;
 	}
 	form.classList.toggle('automation-form-invalid', !valid);
+}
+
+function basenameOrUri(uri: URI): string {
+	const segments = uri.path.split('/').filter(s => s.length > 0);
+	return segments[segments.length - 1] ?? uri.toString();
 }

@@ -78,8 +78,8 @@ export class AutomationsAccessibilityHelpProvider extends Disposable implements 
 
 		// Creating and editing
 		lines.push(nls.localize('automations.help.dialogHeader', 'Create/Edit Dialog:'));
-		lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, and a Workspace folder selector. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
-		lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Workspace folder are all set. The New button is disabled when no folder or workspace is open; open a folder first. Activate Cancel or press Escape to dismiss without saving.'));
+		lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, and a Workspace folder selector with a Browse button. The Browse button opens a folder picker so you can target any folder, even one that is not currently open. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
+		lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Workspace folder are all set. Activate Cancel or press Escape to dismiss without saving.'));
 		lines.push('');
 
 		// History expansion

@@ -15,7 +15,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -59,8 +59,7 @@ export class AutomationsListWidget extends Disposable {
 	// Per-render row disposables, cleared on every re-render.
 	private readonly rowDisposables = this._register(new DisposableStore());
 
-	// Hover tooltip for the New button; replaced when workspace folder
-	// availability changes.
+	// Hover tooltip for the New button.
 	private readonly newButtonHover = this._register(new MutableDisposable());
 	private readonly newEmptyStateButtonHover = this._register(new MutableDisposable());
 
@@ -76,6 +75,7 @@ export class AutomationsListWidget extends Disposable {
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -113,26 +113,7 @@ export class AutomationsListWidget extends Disposable {
 		newButton.element.classList.add('automations-new-button');
 		this._register(newButton.onDidClick(() => this.openCreateDialog()));
 		this.newButton = newButton;
-
-		// Listen to workspace folder changes so the "New automation"
-		// affordance reflects whether a folder is available to target.
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.updateNewButtonState()));
-		this.updateNewButtonState();
-	}
-
-	private updateNewButtonState(): void {
-		const hasFolder = this.workspaceContextService.getWorkspace().folders.length > 0;
-		const tooltip = hasFolder
-			? localize('newAutomationTooltip', "Create a new automation")
-			: localize('newAutomationNoFolderTooltip', "Open a folder or workspace to create an automation.");
-		if (this.newButton) {
-			this.newButton.enabled = hasFolder;
-			this.newButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.newButton.element, tooltip);
-		}
-		if (this.newEmptyStateButton) {
-			this.newEmptyStateButton.enabled = hasFolder;
-			this.newEmptyStateButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.newEmptyStateButton.element, tooltip);
-		}
+		this.newButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), newButton.element, localize('newAutomationTooltip', "Create a new automation"));
 	}
 
 	private renderList(items: readonly IAutomation[]): void {
@@ -165,7 +146,7 @@ export class AutomationsListWidget extends Disposable {
 		ctaButton.element.classList.add('automations-empty-cta');
 		this.rowDisposables.add(ctaButton.onDidClick(() => this.openCreateDialog()));
 		this.newEmptyStateButton = ctaButton;
-		this.updateNewButtonState();
+		this.newEmptyStateButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), ctaButton.element, localize('newAutomationTooltip', "Create a new automation"));
 	}
 
 	private renderRow(automation: IAutomation): void {
@@ -394,7 +375,7 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private async openCreateDialog(): Promise<void> {
-		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, {
+		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, {
 			folders: this.collectFolderChoices(),
 		});
 		if (!result || result.kind !== 'create') {
@@ -413,7 +394,7 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private async openEditDialog(automation: IAutomation): Promise<void> {
-		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, {
+		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, {
 			folders: this.collectFolderChoices(),
 			existing: automation,
 		});
