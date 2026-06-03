@@ -62,10 +62,19 @@ pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
 pub const INITIAL_AGENT_HOST_VERSION_ENV: &str = "VSCODE_CLI_INITIAL_AH_VERSION";
 
 /// Reads {@link INITIAL_AGENT_HOST_VERSION_ENV}, returning the commit SHA
-/// override if it is set to a non-empty value.
+/// override if it is set to a non-empty value. The value is restricted to
+/// hex digits so it can't smuggle path separators (`/`, `..`) or other
+/// characters into the URL and filesystem paths derived from the commit.
 fn initial_agent_host_version() -> Option<String> {
 	match std::env::var(INITIAL_AGENT_HOST_VERSION_ENV) {
-		Ok(v) if !v.is_empty() => Some(v),
+		Ok(v) => {
+			let v = v.trim();
+			if !v.is_empty() && v.chars().all(|c| c.is_ascii_hexdigit()) {
+				Some(v.to_string())
+			} else {
+				None
+			}
+		}
 		_ => None,
 	}
 }
