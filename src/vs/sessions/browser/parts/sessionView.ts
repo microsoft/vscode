@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, isAncestor, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -42,6 +43,23 @@ export class SessionView extends Disposable implements ISerializableView {
 	/** Height of the chat composite bar when visible. */
 	private static readonly BAR_HEIGHT = 35;
 
+	/**
+	 * Delay (ms) before revealing the focus border / focusing the chat input of a
+	 * newly active session. Slightly longer than the input fade-in (the `opacity`
+	 * transitions in `sessionView.css` run at 0.15s) so the focus border is only
+	 * revealed once the fade has reliably finished, avoiding a flash.
+	 */
+	private static readonly SESSION_VIEW_FADE_IN_MS = 200;
+
+	/**
+	 * Extra delay (ms) added to the `activating` suppression beyond the deferred
+	 * focus so the suppression class is still present at the moment `focus()` runs
+	 * and the focus border lands. Without this buffer both timers would fire on the
+	 * same tick and — because the suppression is armed first — its removal would
+	 * run before the focus, briefly re-introducing the border flash.
+	 */
+	private static readonly ACTIVATING_FOCUS_BUFFER_MS = 16;
+
 	readonly element: HTMLElement = $('.session-view');
 
 	readonly minimumWidth = 200;
@@ -70,6 +88,9 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
+
+	/** Holds the pending work that drives the inactive→active fade-in animation. */
+	private readonly _pendingActivation = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
@@ -209,6 +230,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionIsMaximizedKey.set(maximized);
 	}
 
+	/** Whether this view currently hosts the active session in the grid. */
+	get isActive(): boolean { return this._isActive; }
+
 	/**
 	 * Updates whether this view currently hosts the active session in the grid.
 	 * Forwarded to the inner chat view so it can adjust its visual styling
@@ -223,7 +247,41 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.setActive(active);
 	}
 
+	/**
+	 * Marks this view as `activating` for the duration of the chat input fade-in
+	 * that runs when a session is promoted to active (see the `is-active` opacity
+	 * transitions in `sessionView.css`). While the class is present the CSS
+	 * suppresses the chat input's focus border so it does not flash around the
+	 * still-fading placeholder/editor.
+	 *
+	 * When {@link focusAfterFade} is `true`, the chat input is also focused once
+	 * the fade has settled — skipped if focus has moved elsewhere in the
+	 * workbench before the timer fires, so we never steal focus from outside the
+	 * sessions area.
+	 *
+	 * Replaces any previously armed activation on this view.
+	 */
+	beginActivation(focusAfterFade: boolean): void {
+		this.element.classList.add('activating');
+		const store = new DisposableStore();
+		if (focusAfterFade) {
+			store.add(disposableTimeout(() => {
+				const activeElement = this.element.ownerDocument.activeElement;
+				if (activeElement && !isAncestor(activeElement, this.element)) {
+					return;
+				}
+				this.focus();
+			}, SessionView.SESSION_VIEW_FADE_IN_MS));
+		}
+		store.add(disposableTimeout(
+			() => this.element.classList.remove('activating'),
+			SessionView.SESSION_VIEW_FADE_IN_MS + SessionView.ACTIVATING_FOCUS_BUFFER_MS
+		));
+		this._pendingActivation.value = store;
+	}
+
 	private _applyActiveSessionStyles(): void {
+		this.element.classList.toggle('is-active', this._isActive);
 		const background = this._isActive ? SessionView.ACTIVE_BACKGROUND : SessionView.INACTIVE_BACKGROUND;
 		const foreground = this._isActive ? SessionView.ACTIVE_FOREGROUND : SessionView.INACTIVE_FOREGROUND;
 		this.element.style.setProperty('--session-view-background', background);
