@@ -131,12 +131,20 @@ function renderPicker(
 	// Recreate the production ancestor chain so the bottom-row chip CSS
 	// rules (`.new-chat-widget-container .new-chat-bottom-container ...`)
 	// apply: chip height/padding, codicon size and chevron hiding.
-	// Width is set above the 330px @container threshold so labels render
-	// (production session-create container is wider than this threshold).
 	container.style.padding = '12px';
-	container.style.width = '440px';
+	container.style.boxSizing = 'border-box';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	const widgetContainer = dom.append(container, dom.$('.new-chat-widget-container'));
+	// `.new-chat-widget-container` declares `container-type: size`, which
+	// would (a) collapse the element to 0px tall because no explicit
+	// block-size is set, and (b) make the `@container (max-width: 330px)`
+	// label-hiding rule match against the fixture viewport. Override here
+	// so the chip CSS rules still apply (they're plain descendant
+	// selectors) but neither side-effect kicks in for the fixture.
+	widgetContainer.style.containerType = 'normal';
+	widgetContainer.style.display = 'flex';
+	widgetContainer.style.alignItems = 'center';
+	widgetContainer.style.minHeight = '40px';
 	const bottomContainer = dom.append(widgetContainer, dom.$('.new-chat-bottom-container'));
 	bottomContainer.style.display = 'flex';
 	bottomContainer.style.alignItems = 'center';
@@ -171,7 +179,8 @@ function renderOptionListPreview(
 	list.style.border = '1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border))';
 	list.style.borderRadius = '4px';
 	list.style.fontSize = '12px';
-	list.style.minWidth = '240px';
+	list.style.boxSizing = 'border-box';
+	list.style.width = '100%';
 	for (const item of items) {
 		if (!item.label) {
 			continue;
@@ -181,6 +190,7 @@ function renderOptionListPreview(
 		row.style.display = 'flex';
 		row.style.flexDirection = 'column';
 		row.style.gap = '2px';
+		row.style.minWidth = '0';
 		const title = dom.append(row, dom.$('span'));
 		title.textContent = item.label;
 		if (item.description) {
@@ -188,6 +198,7 @@ function renderOptionListPreview(
 			desc.textContent = typeof item.description === 'string' ? item.description : item.description.value;
 			desc.style.opacity = '0.7';
 			desc.style.fontSize = '11px';
+			desc.style.overflowWrap = 'anywhere';
 		}
 	}
 }
