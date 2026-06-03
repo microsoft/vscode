@@ -947,9 +947,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Restore parts (open default view containers)
 		this.restoreParts();
 
-		// Restore the last active session (progress is shown inside the service).
-		void this.sessionsManagementService.restoreLastActiveSession().catch(e => {
-			this.logService.error('[Workbench] restoreLastActiveSession failed', e);
+		// Restore the sessions that were visible in the grid. The part is told to
+		// suppress the empty new-session view while restore runs so it does not
+		// flash before the persisted sessions are laid out; load progress is then
+		// shown per session view as each chat model loads.
+		this.sessionsPartService.beginSessionRestore();
+		void this.sessionsManagementService.restoreVisibleSessions().catch(e => {
+			this.logService.error('[Workbench] restoreVisibleSessions failed', e);
+		}).finally(() => {
+			this.sessionsPartService.endSessionRestore();
 		});
 
 		// Set lifecycle phase to `Restored`

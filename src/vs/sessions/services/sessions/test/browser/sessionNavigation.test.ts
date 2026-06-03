@@ -168,7 +168,7 @@ class MockSessionStore implements ISessionsManagementService {
 			this.setActiveSession(session, chat);
 		}
 	}
-	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
+	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }

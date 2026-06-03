@@ -174,7 +174,7 @@ export class ChatView extends AbstractChatView {
 		this._loadCts.value = cts;
 		const token = cts.token;
 
-		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
+		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			if (token.isCancellationRequested || !ref) {
 				ref?.dispose();
 				return;
@@ -190,6 +190,11 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+
+		// Surface progress on this leaf's own bar while the chat model loads,
+		// matching how each editor group shows progress independently. The short
+		// delay avoids flashing the bar for fast cached loads.
+		this.showProgressWhile(loadPromise, 800);
 	}
 
 	private _updateWidgetLockState(sessionType: string): void {

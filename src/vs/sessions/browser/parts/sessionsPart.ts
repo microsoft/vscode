@@ -15,7 +15,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveElement, isAncestor, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -33,6 +33,25 @@ interface IGridSlot {
 	readonly disposables: DisposableStore;
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
+}
+
+/**
+ * Decides whether active-session focus should be moved into `targetElement`.
+ * Focus is moved only when it would not steal focus from another surface:
+ * - `false` if focus already rests inside `targetElement` (no-op), otherwise
+ * - `true` only when focus currently rests on `<body>`/nothing (e.g. startup
+ *   restore) or already within `gridElement` (moving between grid leaves);
+ * - `false` when focus is held elsewhere (e.g. the sessions list or a dialog).
+ *
+ * Exported for unit testing; see {@link SessionsPart.focusSessionIfNotFocused}.
+ */
+export function shouldMoveActiveFocusInto(targetElement: HTMLElement, gridElement: HTMLElement | undefined, activeElement: Element | null): boolean {
+	if (isAncestor(activeElement, targetElement)) {
+		return false;
+	}
+	const focusOnBody = activeElement === null || activeElement === activeElement.ownerDocument.body;
+	const focusInGrid = isAncestor(activeElement, gridElement ?? null);
+	return focusOnBody || focusInGrid;
 }
 
 export class SessionsPart extends Part {
@@ -165,10 +184,16 @@ export class SessionsPart extends Part {
 	 * the number of visible sessions changes, and rebinds each slot to its
 	 * session by position via {@link SessionView.openSession}.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, restoring: boolean = false): void {
 		if (!this._gridWidget) {
 			return;
 		}
+
+		// While restoring real sessions on startup the visibility model is still
+		// empty; hide the grid (which would otherwise show the empty new-session
+		// view) so it does not flash before the restored sessions are laid out.
+		const hasRealSession = visible.some(s => s !== undefined);
+		this._setContentHidden(restoring && !hasRealSession);
 
 		// Always keep at least one slot (a placeholder when no sessions are visible).
 		const desiredCount = Math.max(visible.length, 1);
@@ -219,6 +244,15 @@ export class SessionsPart extends Part {
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
 		this._multipleSessionsVisibleKey.set(visible.length > 1);
+	}
+
+	/**
+	 * Hides or shows the grid content (the session views) without affecting the
+	 * progress bar pinned above it. Used to keep the empty new-session view from
+	 * flashing while sessions are being restored on startup.
+	 */
+	private _setContentHidden(hidden: boolean): void {
+		this._gridWidget?.element.classList.toggle('restoring', hidden);
 	}
 
 	/**
@@ -279,6 +313,27 @@ export class SessionsPart extends Part {
 	focusSession(sessionId: string | undefined): void {
 		const slot = this._slots.find(s => s.boundSessionId === sessionId);
 		if (!slot) {
+			return;
+		}
+		this._revealView(slot.view);
+		slot.view.focus();
+	}
+
+	/**
+	 * Like {@link focusSession}, but only moves focus when doing so would not
+	 * steal it from another surface. Used to follow active-session changes
+	 * (open / switch / restore) without yanking focus away from e.g. the
+	 * sessions list when the active session changes incidentally (such as a
+	 * fallback after deleting a session). Focus is moved only when:
+	 * - it is not already inside the target session view (otherwise no-op), and
+	 * - it currently rests on `<body>`/nothing (startup restore) or already
+	 *   within the grid (moving between leaves).
+	 * Deliberate opens originating elsewhere move focus via their own explicit
+	 * {@link focusSession} call.
+	 */
+	focusSessionIfNotFocused(sessionId: string | undefined): void {
+		const slot = this._slots.find(s => s.boundSessionId === sessionId);
+		if (!slot || !shouldMoveActiveFocusInto(slot.view.element, this._gridWidget?.element, getActiveElement())) {
 			return;
 		}
 		this._revealView(slot.view);
