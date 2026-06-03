@@ -800,7 +800,7 @@ suite('AgentHostChangesetService', () => {
 			return {
 				...NULL_CHECKPOINT_SERVICE,
 				getTurnCheckpointPair: async (_session: URI, turnId: string) => pairs[turnId],
-				getBaselineRef: async () => baselineRef,
+				getBaselineCheckpointRef: async () => baselineRef,
 			};
 		}
 
