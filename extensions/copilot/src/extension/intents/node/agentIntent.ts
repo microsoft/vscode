@@ -104,6 +104,42 @@ export function isBackgroundTodoAgentEnabled(configurationService: IConfiguratio
 		&& !isTodoToolExplicitlyEnabled(request);
 }
 
+/**
+ * Resolve the configured summarization threshold into an absolute token count.
+ *
+ * The setting accepts two interchangeable units so users can express the
+ * compaction trigger however is most natural:
+ *
+ *  - **Ratio** (`0 < value <= 1`): a fraction of the model's context window,
+ *    e.g. `0.8` means "compact at 80% of the window". This is resolved against
+ *    `effectiveMaxTokens` so it automatically tracks model/context-size changes.
+ *  - **Absolute tokens** (`value >= 100`): a fixed token budget, e.g. `60000`.
+ *
+ * Values in the ambiguous `(1, 100)` gap (too large to be a sensible ratio, too
+ * small to be a useful token budget) are rejected so a typo like `80` — which a
+ * user likely meant as "80%" — fails loudly instead of silently compacting after
+ * 80 tokens.
+ *
+ * Returns `undefined` when unset (or non-positive), meaning "use the model's full
+ * context window".
+ *
+ * @internal - exported for testing
+ */
+export function resolveSummarizeThresholdTokens(value: number | undefined, effectiveMaxTokens: number, settingId: string): number | undefined {
+	if (typeof value !== 'number' || value <= 0) {
+		return undefined;
+	}
+	if (value <= 1) {
+		// Ratio of the model's context window.
+		return Math.max(1, Math.floor(effectiveMaxTokens * value));
+	}
+	if (value < 100) {
+		throw new Error(`Setting github.copilot.${settingId} is too low; use a ratio in the range (0, 1] (e.g. 0.8 for 80%) or an absolute token count of at least 100.`);
+	}
+	// Absolute token count.
+	return value;
+}
+
 export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest, model?: IChatEndpoint) => {
 	const toolsService = accessor.get<IToolsService>(IToolsService);
 	const testService = accessor.get<ITestProvider>(ITestProvider);
@@ -144,21 +180,32 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
-	const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
-	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
-	allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
+	// BYOK endpoints that own their `Authorization` have no Copilot token for the
+	// agentic proxy or override models the subagents rely on, so disable them
+	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
+	if (model.ownsAuthorization) {
+		allowTools[ToolName.SearchSubagent] = false;
+		allowTools[ToolName.ExploreSubagent] = false;
+		allowTools[ToolName.ExecutionSubagent] = false;
+	} else {
+		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
+		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
+		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
+		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
 
-	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-	const executionSubagentModel = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, experimentationService);
-	if (executionSubagentModel.toLowerCase().includes('gemini-3-flash')) {
-		const allEndpoints = await endpointProvider.getAllChatEndpoints();
-		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
+		// The execution subagent is powered by gemini-3-flash, so it can only be
+		// offered when that model is actually available to the user. If it isn't
+		// in the user's endpoints, keep the tool disabled regardless of the setting.
+		// Skip the (potentially expensive) endpoint lookup when the tool would be
+		// disabled anyway based on model family or the experiment setting.
+		let hasGemini3Flash = false;
+		if (isGptOrAnthropic && executionSubagentEnabled) {
+			const allEndpoints = await endpointProvider.getAllChatEndpoints();
+			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		}
 		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
-	}
-	else {
-		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
@@ -549,9 +596,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;
 
 		const summarizeThresholdOverride = this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold);
-		if (typeof summarizeThresholdOverride === 'number' && summarizeThresholdOverride < 100 && summarizeThresholdOverride > 0) {
-			throw new Error(`Setting github.copilot.${ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id} is too low`);
-		}
 
 		// Apply context size override if configured by the user in the model picker
 		const configuredContextSize = this.request.modelConfiguration?.contextSize;
@@ -559,8 +603,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			? configuredContextSize
 			: this.endpoint.modelMaxPromptTokens;
 
+		// The override may be expressed as a ratio of the context window (0-1) or
+		// an absolute token count (>= 100); resolve it to tokens before clamping.
+		const summarizeThresholdTokens = resolveSummarizeThresholdTokens(summarizeThresholdOverride, effectiveMaxTokens, ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id);
+
 		const baseBudget = Math.min(
-			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? effectiveMaxTokens,
+			summarizeThresholdTokens ?? effectiveMaxTokens,
 			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);

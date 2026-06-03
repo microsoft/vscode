@@ -995,6 +995,24 @@ async function handleMessagesApi(body, res) {
 				break;
 			}
 		}
+
+		// Anthropic's Messages API also accepts a top-level `system` parameter
+		// (string or array of `{ type: 'text', text }` blocks). Some session
+		// types (e.g. Claude Code) embed the user prompt there alongside the
+		// system instructions, so scan it as a fallback when no tag was found
+		// in the messages array.
+		if (!isScenarioRequest && parsed.system !== undefined) {
+			const systemContent = typeof parsed.system === 'string'
+				? parsed.system
+				: Array.isArray(parsed.system)
+					? parsed.system.map((/** @type {any} */ c) => c.text || '').join('')
+					: '';
+			const match = systemContent.match(/\[scenario:([^\]]+)\]/);
+			if (match && SCENARIOS[match[1]]) {
+				scenarioId = match[1];
+				isScenarioRequest = true;
+			}
+		}
 	} catch { }
 
 	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];

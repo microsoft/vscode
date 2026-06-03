@@ -296,7 +296,7 @@ class ShowBrowserFindAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Tools,
 				order: 1,
 			},
 			keybinding: {

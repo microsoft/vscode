@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -18,7 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -46,6 +46,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const sessions = sessionsManagementService.getSessions()
 			.filter(s => !s.isArchived.get())
@@ -102,6 +103,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 					sessionsManagementService.openSession(selected.session.resource);
 				} else {
 					sessionsManagementService.openNewSessionView();
+					sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 				}
 			}
 			picker.hide();
@@ -219,6 +221,65 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 	}
 });
 
+// -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
+
+for (let index = 0; index < 9; index++) {
+	const position = index + 1;
+	registerAction2(class FocusSessionByPositionAction extends Action2 {
+		constructor() {
+			super({
+				id: `sessions.focusSessionInGrid${position}`,
+				title: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
+				f1: true,
+				category: SessionsCategories.Sessions,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
+					when: IsSessionsWindowContext,
+				},
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsPartService = accessor.get(ISessionsPartService);
+
+			const visible = sessionsManagementService.visibleSessions.get();
+			if (index >= visible.length) {
+				return;
+			}
+
+			const session = visible[index];
+			sessionsManagementService.setActive(session);
+			sessionsPartService.focusSession(session);
+		}
+	});
+}
+
+// -- Close All Sessions --
+
+registerAction2(class CloseAllSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.closeAllSessions',
+			title: localize2('closeAllSessions', "Close All Sessions"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: IsSessionsWindowContext,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyW),
+				// Only fire from the keyboard while a session (its chat view) has focus.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(ISessionsManagementService).closeAllSessions();
+	}
+});
+
 registerAction2(class AddChatToSessionBarAction extends Action2 {
 	constructor() {
 		super({
@@ -238,7 +299,10 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsManagementService).openNewChatInSession(session);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		await sessionsManagementService.openNewChatInSession(session);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 });
 

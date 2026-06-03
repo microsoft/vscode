@@ -609,7 +609,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 					}
 				});
 				((event.data.attachments || []))
-					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' ? true : !isInstructionAttachmentPath(attachment.path))
+					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' || attachment.type === 'extension_context' ? true : !isInstructionAttachmentPath(attachment.path))
 					.forEach(attachment => {
 						if (attachment.type === 'github_reference') {
 							return;

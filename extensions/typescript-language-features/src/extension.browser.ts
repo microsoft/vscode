@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter as VsCodeTelemetryReporter } from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';

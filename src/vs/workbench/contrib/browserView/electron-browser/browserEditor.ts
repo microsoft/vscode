@@ -41,8 +41,8 @@ export const BrowserActionCategory = localize2('browserCategory', "Browser");
 export enum BrowserActionGroup {
 	Tabs = '1_tabs',
 	Zoom = '2_zoom',
-	Developer = '3_developer',
-	Page = '4_page',
+	Tools = '3_tools',
+	Data = '4_data',
 	Settings = '5_settings'
 }
 
@@ -347,6 +347,12 @@ export interface IBrowserUrlSuggestionProvider {
 	readonly description?: string;
 	/** Sort order between providers. Lower runs first. Defaults to 0. */
 	readonly order?: number;
+	/**
+	 * Optional buttons rendered inline on the group's separator row. Only
+	 * shown when the provider returns at least one suggestion. Use these for
+	 * commands that operate on the whole group (e.g. a "manage" picker).
+	 */
+	readonly actions?: readonly IBrowserUrlSuggestionAction[];
 	/**
 	 * Fires when the set of suggestions or any suggestion's state has changed.
 	 * The navbar re-requests suggestions when this fires.
