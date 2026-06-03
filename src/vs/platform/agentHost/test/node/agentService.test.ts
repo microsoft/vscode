@@ -19,7 +19,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -885,6 +885,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
+				commitAll: async () => { },
+				hasUpstream: async () => false,
+				pushBranch: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -933,6 +936,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
+				commitAll: async () => { },
+				hasUpstream: async () => false,
+				pushBranch: async () => { },
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -1195,8 +1201,23 @@ suite('AgentService (node dispatcher)', () => {
 
 			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
 
-			assert.deepStrictEqual(result, { authenticated: false });
-			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
+			assert.deepStrictEqual({ result, token: service.getAuthToken('https://unknown.example.com'), authenticateCalls: copilotAgent.authenticateCalls }, {
+				result: { authenticated: false },
+				token: undefined,
+				authenticateCalls: [],
+			});
+		});
+
+		test('stores GitHub Copilot token for operation handlers', async () => {
+			service.registerProvider(copilotAgent);
+
+			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
+
+			assert.deepStrictEqual({ result, token: service.getAuthToken(GITHUB_COPILOT_PROTECTED_RESOURCE.resource), authenticateCalls: copilotAgent.authenticateCalls }, {
+				result: { authenticated: true },
+				token: 'copilot-token',
+				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
+			});
 		});
 
 		test('fans out to every provider that owns the resource', async () => {

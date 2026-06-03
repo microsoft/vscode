@@ -11,7 +11,6 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDis
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
-import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -26,6 +25,7 @@ import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sess
 import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
@@ -46,10 +46,15 @@ import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompleti
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
+import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { AgentHostChangesetOperationContributionService } from './agentHostChangesetOperationContributionService.js';
+import { registerDefaultChangesetOperationContributions } from './agentHostChangesetOperationContributions.js';
+import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { equals as objectEquals } from '../../../base/common/objects.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -100,6 +105,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
+	private readonly _authTokens = new Map<string, string>();
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
@@ -110,6 +116,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _changesets: IAgentHostChangesetService;
 	/** Owns AgentService-side orchestration of the changeset feature. */
 	private readonly _changesetCoordinator: ChangesetSessionCoordinator;
+	/** Owns session git-state probing and git-backed catalogue decoration. */
+	private readonly _sessionGitStateService: AgentHostSessionGitStateService;
+	/** Owns changeset operation contributions and handler activation. */
+	private readonly _changesetOperationContributionService: AgentHostChangesetOperationContributionService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
@@ -205,6 +215,7 @@ export class AgentService extends Disposable implements IAgentService {
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
+			[IAgentService, this],
 			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostFileMonitorService, fileMonitorService],
@@ -217,6 +228,9 @@ export class AgentService extends Disposable implements IAgentService {
 			[ISessionDataService, this._sessionDataService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+		services.set(ICopilotApiService, instantiationService.createInstance(CopilotApiService, undefined));
+		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
+		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
 
 		// The checkpoint service is constructed in the outer agent-host
 		// DI scope and passed via {@link _checkpointService}; register it
@@ -236,6 +250,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// constructor injection resolves naturally.
 		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
 		services.set(IAgentHostChangesetService, this._changesets);
+		this._register(registerDefaultChangesetOperationContributions(this._changesetOperationContributionService, instantiationService, this._stateManager));
 
 		// The coordinator owns all AgentService-side orchestration of the
 		// changeset feature: lifecycle hooks, listSessions overlay,
@@ -326,7 +341,20 @@ export class AgentService extends Disposable implements IAgentService {
 				);
 			}
 		}
+		if (authenticated) {
+			this._authTokens.set(params.resource, params.token);
+		}
 		return { authenticated };
+	}
+
+	getAuthToken(resource: string): string | undefined {
+		return this._authTokens.get(resource);
+	}
+
+	// ---- Changeset operation handlers --------------------------------------
+
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._changesetOperationContributionService.invokeChangesetOperation(params);
 	}
 
 	// ---- session management -------------------------------------------------
@@ -647,16 +675,14 @@ export class AgentService extends Disposable implements IAgentService {
 	 * rendering naturally skips them in the meantime.
 	 */
 	private _attachGitState(session: URI, workingDirectory: URI | undefined): void {
-		if (!workingDirectory) {
-			return;
-		}
 		const sessionKey = session.toString();
-		this._gitService.getSessionGitState(workingDirectory).then(
+		this._sessionGitStateService.attachGitState(session, workingDirectory).then(
 			gitState => {
 				if (!gitState) {
 					this._stripGitOnlyChangesetEntries(sessionKey);
 					return;
 				}
+				this._changesetOperationContributionService.updateOperations(sessionKey, gitState);
 				const current = this._stateManager.getSessionState(sessionKey)?._meta;
 				const currentGitState = readSessionGitState(current);
 				// Skip the meta action if the computed git state hasn't changed; this is
