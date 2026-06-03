@@ -321,15 +321,20 @@ function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
 	}
 	// Clamp sentinel negative values that some BYOK providers emit
 	// when the API hasn't reported a count yet (e.g. -1).
+	const cached = parsed.prompt_tokens_details?.cached_tokens;
 	return {
 		...parsed,
 		prompt_tokens: Math.max(0, parsed.prompt_tokens),
 		completion_tokens: Math.max(0, parsed.completion_tokens),
 		total_tokens: Math.max(0, parsed.total_tokens),
-		prompt_tokens_details: {
-			...parsed.prompt_tokens_details,
-			cached_tokens: Math.max(0, parsed.prompt_tokens_details?.cached_tokens ?? 0)
-		}
+		...(cached !== undefined
+			? {
+				prompt_tokens_details: {
+					...parsed.prompt_tokens_details,
+					cached_tokens: Math.max(0, cached),
+				},
+			}
+			: {}),
 	};
 }
 

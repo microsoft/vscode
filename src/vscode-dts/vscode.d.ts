@@ -21043,7 +21043,7 @@ declare module 'vscode' {
 		/**
 		 * @param promptTokens Number of prompt tokens
 		 * @param completionTokens Number of completion tokens
-		 * @param totalTokens Total tokens (defaults to prompt + completion when omitted in factories)
+		 * @param totalTokens Total tokens; when omitted, defaults to prompt + completion
 		 * @param cachedInputTokens Optional cached prompt tokens
 		 */
 		constructor(promptTokens: number, completionTokens: number, totalTokens?: number, cachedInputTokens?: number);
