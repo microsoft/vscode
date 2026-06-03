@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverAttributionForLoopError } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverAttributionForLoopError, scheduleAtNextAnimationFrame, runAtThisOrScheduleAtNextAnimationFrame } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -530,6 +530,65 @@ suite('dom', () => {
 			assert.strictEqual(callCount, 2);
 
 			scheduler.dispose();
+		});
+	});
+
+	suite('AnimationFrameQueue', () => {
+		const waitForAnimationFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+		test('runs callbacks by priority while preserving insertion order for equal priorities', async () => {
+			const calls: string[] = [];
+
+			scheduleAtNextAnimationFrame(mainWindow, () => calls.push('low'), -1);
+			scheduleAtNextAnimationFrame(mainWindow, () => calls.push('high-1'), 1);
+			scheduleAtNextAnimationFrame(mainWindow, () => calls.push('high-2'), 1);
+			scheduleAtNextAnimationFrame(mainWindow, () => calls.push('default'));
+			await waitForAnimationFrame();
+
+			assert.deepStrictEqual(calls, ['high-1', 'high-2', 'default', 'low']);
+		});
+
+		test('keeps larger priority queues stable', async () => {
+			const calls: number[] = [];
+			const items = Array.from({ length: 128 }, (_, index) => ({
+				index,
+				priority: (index * 17) % 9
+			}));
+
+			for (const item of items) {
+				scheduleAtNextAnimationFrame(mainWindow, () => calls.push(item.index), item.priority);
+			}
+			await waitForAnimationFrame();
+
+			assert.deepStrictEqual(
+				calls,
+				items.toSorted((a, b) => b.priority - a.priority || a.index - b.index).map(item => item.index)
+			);
+		});
+
+		test('does not run canceled callbacks', async () => {
+			const calls: string[] = [];
+
+			const disposable = scheduleAtNextAnimationFrame(mainWindow, () => calls.push('canceled'), 10);
+			scheduleAtNextAnimationFrame(mainWindow, () => calls.push('kept'), 0);
+			disposable.dispose();
+			await waitForAnimationFrame();
+
+			assert.deepStrictEqual(calls, ['kept']);
+		});
+
+		test('keeps the current frame queue ordered when callbacks add more work', async () => {
+			const calls: string[] = [];
+
+			runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => {
+				calls.push('first');
+				runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => calls.push('middle'), 0);
+				runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => calls.push('next-high'), 2);
+			}, 1);
+			runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => calls.push('last'), -1);
+			await waitForAnimationFrame();
+
+			assert.deepStrictEqual(calls, ['first', 'next-high', 'middle', 'last']);
 		});
 	});
 

@@ -395,13 +395,15 @@ export class WindowIntervalTimer extends IntervalTimer {
 
 class AnimationFrameQueueItem implements IDisposable {
 
-	private _runner: () => void;
-	public priority: number;
+	private readonly _runner: () => void;
+	private readonly _priority: number;
+	private _order: number;
 	private _canceled: boolean;
 
 	constructor(runner: () => void, priority: number = 0) {
 		this._runner = runner;
-		this.priority = priority;
+		this._priority = priority;
+		this._order = 0;
 		this._canceled = false;
 	}
 
@@ -421,9 +423,78 @@ class AnimationFrameQueueItem implements IDisposable {
 		}
 	}
 
-	// Sort by priority (largest to lowest)
-	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
-		return b.priority - a.priority;
+	setOrder(order: number): void {
+		this._order = order;
+	}
+
+	runsBefore(other: AnimationFrameQueueItem): boolean {
+		return this._priority > other._priority || (this._priority === other._priority && this._order < other._order);
+	}
+
+}
+
+class AnimationFrameQueue {
+
+	private readonly _items: AnimationFrameQueueItem[] = [];
+	private _order = 0;
+
+	get length(): number {
+		return this._items.length;
+	}
+
+	push(item: AnimationFrameQueueItem): void {
+		item.setOrder(this._order++);
+		this._items.push(item);
+		this._bubbleUp(this._items.length - 1);
+	}
+
+	pop(): AnimationFrameQueueItem | undefined {
+		if (this._items.length === 0) {
+			return undefined;
+		}
+		if (this._items.length === 1) {
+			return this._items.pop();
+		}
+
+		const result = this._items[0];
+		this._items[0] = this._items.pop()!;
+		this._bubbleDown(0);
+		return result;
+	}
+
+	private _bubbleUp(index: number): void {
+		const item = this._items[index];
+		while (index > 0) {
+			const parentIndex = ((index - 1) / 2) | 0;
+			const parent = this._items[parentIndex];
+			if (!item.runsBefore(parent)) {
+				break;
+			}
+			this._items[index] = parent;
+			index = parentIndex;
+		}
+		this._items[index] = item;
+	}
+
+	private _bubbleDown(index: number): void {
+		const item = this._items[index];
+		while (true) {
+			const leftIndex = index * 2 + 1;
+			if (leftIndex >= this._items.length) {
+				break;
+			}
+			const rightIndex = leftIndex + 1;
+			let childIndex = leftIndex;
+			if (rightIndex < this._items.length && this._items[rightIndex].runsBefore(this._items[leftIndex])) {
+				childIndex = rightIndex;
+			}
+			if (!this._items[childIndex].runsBefore(item)) {
+				break;
+			}
+			this._items[index] = this._items[childIndex];
+			index = childIndex;
+		}
+		this._items[index] = item;
 	}
 }
 
@@ -431,11 +502,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the next animation frame
 	 */
-	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
+	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueue>();
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
+	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueue>();
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
@@ -448,14 +519,13 @@ class AnimationFrameQueueItem implements IDisposable {
 	const animationFrameRunner = (targetWindowId: number) => {
 		animFrameRequested.set(targetWindowId, false);
 
-		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
+		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? new AnimationFrameQueue();
 		CURRENT_QUEUE.set(targetWindowId, currentQueue);
-		NEXT_QUEUE.set(targetWindowId, []);
+		NEXT_QUEUE.set(targetWindowId, new AnimationFrameQueue());
 
 		inAnimationFrameRunner.set(targetWindowId, true);
 		while (currentQueue.length > 0) {
-			currentQueue.sort(AnimationFrameQueueItem.sort);
-			const top = currentQueue.shift()!;
+			const top = currentQueue.pop()!;
 			top.execute();
 		}
 		inAnimationFrameRunner.set(targetWindowId, false);
@@ -467,7 +537,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		let nextQueue = NEXT_QUEUE.get(targetWindowId);
 		if (!nextQueue) {
-			nextQueue = [];
+			nextQueue = new AnimationFrameQueue();
 			NEXT_QUEUE.set(targetWindowId, nextQueue);
 		}
 		nextQueue.push(item);
@@ -486,7 +556,7 @@ class AnimationFrameQueueItem implements IDisposable {
 			const item = new AnimationFrameQueueItem(runner, priority);
 			let currentQueue = CURRENT_QUEUE.get(targetWindowId);
 			if (!currentQueue) {
-				currentQueue = [];
+				currentQueue = new AnimationFrameQueue();
 				CURRENT_QUEUE.set(targetWindowId, currentQueue);
 			}
 			currentQueue.push(item);
