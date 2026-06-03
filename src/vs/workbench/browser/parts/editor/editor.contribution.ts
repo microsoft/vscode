@@ -465,13 +465,15 @@ const SPLIT_ORDER = 100000;  // towards the end
 const CLOSE_ORDER = 1000000; // towards the far end
 
 // Editor Title Menu: Split Editor
+// In the agents window the split editor action is moved into the overflow (...)
+// menu (see below) rather than being shown as a primary toolbar icon.
 appendEditorToolItem(
 	{
 		id: SPLIT_EDITOR,
 		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	},
-	SplitEditorsVertically.negate(),
+	ContextKeyExpr.and(SplitEditorsVertically.negate(), IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_DOWN,
@@ -486,7 +488,7 @@ appendEditorToolItem(
 		title: localize('splitEditorDown', "Split Editor Down"),
 		icon: Codicon.splitVertical
 	},
-	SplitEditorsVertically,
+	ContextKeyExpr.and(SplitEditorsVertically, IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_RIGHT,
@@ -494,6 +496,19 @@ appendEditorToolItem(
 		icon: Codicon.splitHorizontal
 	}
 );
+
+// Agents window: show Split Editor in the editor title overflow (...) menu
+// instead of as a primary toolbar icon.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditor', "Split Editor"),
+		icon: Codicon.splitHorizontal
+	},
+	group: '4_split',
+	order: 10,
+	when: IsSessionsWindowContext
+});
 
 // Side by side: layout
 appendEditorToolItem(
