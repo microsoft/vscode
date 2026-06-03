@@ -2056,6 +2056,7 @@ function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
 		case DiscoveredType.Skill:
 			return CustomizationType.Skill;
 		case DiscoveredType.Instruction:
+		case DiscoveredType.AgentInstruction:
 			return CustomizationType.Rule;
 	}
 }
@@ -2080,8 +2081,18 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			name: resourceBasename(resourceDirname(file)),
 		};
 	}
+	if (type === DiscoveredType.Instruction) {
+		return {
+			type: CustomizationType.Rule,
+			id,
+			uri,
+			name: resourceBasename(file),
+		};
+	}
+	// agent instruction
 	return {
 		type: CustomizationType.Rule,
+		alwaysApply: true,
 		id,
 		uri,
 		name: resourceBasename(file),
