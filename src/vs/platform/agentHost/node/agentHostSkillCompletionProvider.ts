@@ -44,21 +44,26 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			return [];
 		}
 
-		return candidates.map(skill => ({
-			insertText: '/' + skill.name + ' ',
-			rangeStart: leading.rangeStart,
-			rangeEnd: leading.rangeEnd,
-			attachment: {
-				type: MessageAttachmentKind.Simple,
-				label: '/' + skill.name,
-				_meta: {
-					uri: skill.uri.toString(),
-					name: skill.name,
-					displayName: skill.name,
-					...(skill.description !== undefined ? { description: skill.description } : {}),
+		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
+		const typed = leading.typed;
+
+		return candidates
+			.filter(skill => !typed.length || skill.name.startsWith(typed))
+			.map(skill => ({
+				insertText: '/' + skill.name + ' ',
+				rangeStart: leading.rangeStart,
+				rangeEnd: leading.rangeEnd,
+				attachment: {
+					type: MessageAttachmentKind.Simple,
+					label: '/' + skill.name,
+					_meta: {
+						uri: skill.uri.toString(),
+						name: skill.name,
+						displayName: skill.name,
+						...(skill.description !== undefined ? { description: skill.description } : {}),
+					},
 				},
-			},
-		}));
+			}));
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SkillCustomization[]> {
@@ -66,6 +71,8 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			return [];
 		}
 		const customizations = await agent.getSessionCustomizations(session);
-		return customizations.flatMap(c => (c.children ?? []).filter(child => child.type === CustomizationType.Skill));
+		return customizations
+			.filter(c => c.enabled)
+			.flatMap(c => (c.children ?? []).filter(child => child.type === CustomizationType.Skill));
 	}
 }

@@ -36,13 +36,13 @@ suite('AgentHostSkillCompletionProvider', () => {
 		};
 	}
 
-	function plugin(name: string, children?: readonly (SkillCustomization | PromptCustomization)[]): PluginCustomization {
+	function plugin(name: string, children?: readonly (SkillCustomization | PromptCustomization)[], enabled = true): PluginCustomization {
 		return {
 			type: CustomizationType.Plugin,
 			id: `file:///plugins/${name}`,
 			uri: `file:///plugins/${name}`,
 			name,
-			enabled: true,
+			enabled,
 			load: { kind: CustomizationLoadStatus.Loaded },
 			...(children ? { children: [...children] } : {}),
 		};
@@ -102,6 +102,19 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual(result.map(item => item.insertText), ['/session-skill ', '/global-skill ']);
 	});
 
+	test('ignores disabled customization containers', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('disabled', [skill('hidden-skill')], false),
+			plugin('enabled', [skill('visible-skill')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/visible-skill ']);
+	});
+
 	test('returns an empty list when the agent has no session customizations hook', async () => {
 		const agent = new MockAgent('mock');
 		const provider = createProvider(agent);
@@ -111,7 +124,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual(result, []);
 	});
 
-	test('returns all skills when the cursor is inside the leading slash token and replaces only that token', async () => {
+	test('filters skills by the typed slash prefix and replaces only that token', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
@@ -119,7 +132,6 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const result = await run(provider, '/b extra', 2);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/alpha ', rangeStart: 0, rangeEnd: 2 },
 			{ insertText: '/beta ', rangeStart: 0, rangeEnd: 2 },
 		]);
 	});
