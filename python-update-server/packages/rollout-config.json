@@ -1,0 +1,47 @@
+{
+  "rollouts": {
+    "win32-x64-user/stable": {
+      "enabled": true,
+      "rollout_percentage": 15.0,
+      "salt": "win32-x64-user/stable-v1.0.3-20260512",
+      "whitelist": [],
+      "blacklist": [],
+      "paused": false,
+      "stages": [
+        {
+          "percentage": 10.0,
+          "duration_hours": 1
+        },
+        {
+          "percentage": 15.0,
+          "duration_hours": 2
+        },
+        {
+          "percentage": 30.0,
+          "duration_hours": 4
+        },
+        {
+          "percentage": 45.0,
+          "duration_hours": 6
+        },
+        {
+          "percentage": 70.0,
+          "duration_hours": 8
+        },
+        {
+          "percentage": 100.0,
+          "duration_hours": 10
+        }
+      ],
+      "current_stage": 1,
+      "created_at": "2026-05-12T20:00:29.873915",
+      "updated_at": "2026-05-13T11:46:08.379965"
+    }
+  },
+  "global_settings": {
+    "default_rollout_percentage": 100.0,
+    "enable_metrics": true,
+    "metrics_retention_days": 30,
+    "enable_rollback": false
+  }
+}
