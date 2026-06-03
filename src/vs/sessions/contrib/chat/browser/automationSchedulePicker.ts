@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { AutomationInterval, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 
 /**
@@ -79,7 +80,7 @@ function formatTime12h(hour24: number, minute: number): string {
 }
 
 interface IIntervalPickerItem { readonly interval: AutomationInterval }
-interface ITimePickerItem { readonly hour: number; readonly minute: number }
+interface ITimePickerItem { readonly hour: number; readonly minute: number; readonly custom?: boolean }
 interface IDayPickerItem { readonly day: number }
 
 /**
@@ -120,6 +121,7 @@ export class AutomationSchedulePicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 	}
@@ -322,6 +324,14 @@ export class AutomationSchedulePicker extends Disposable {
 		const trigger = this._timeTrigger;
 
 		const items: IActionListItem<ITimePickerItem>[] = [];
+		items.push({
+			kind: ActionListItemKind.Action,
+			label: localize('automationSchedule.customTime', "Custom time…"),
+			description: localize('automationSchedule.customTime.desc', "Type an exact time (e.g. 9:15 AM, 14:30)."),
+			group: { title: '', icon: Codicon.edit },
+			item: { hour: this._hour.get(), minute: this._minute.get(), custom: true },
+			disabled: false,
+		});
 		for (let hour = 0; hour < 24; hour++) {
 			for (let minute = 0; minute < 60; minute += TIME_INCREMENT_MINUTES) {
 				items.push({
@@ -337,6 +347,10 @@ export class AutomationSchedulePicker extends Disposable {
 		const delegate: IActionListDelegate<ITimePickerItem> = {
 			onSelect: item => {
 				this.actionWidgetService.hide();
+				if (item.custom) {
+					void this._promptForCustomTime();
+					return;
+				}
 				transaction(tx => {
 					this._hour.set(item.hour, tx);
 					this._minute.set(item.minute, tx);
@@ -359,10 +373,41 @@ export class AutomationSchedulePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.item ? formatTime12h(item.item.hour, item.item.minute) : '',
+				getAriaLabel: item => item.item ? (item.item.custom ? localize('automationSchedule.customTime', "Custom time…") : formatTime12h(item.item.hour, item.item.minute)) : '',
 				getWidgetAriaLabel: () => localize('automationSchedule.timeWidgetAriaLabel', "Schedule time"),
 			},
 		);
+	}
+
+	/**
+	 * Prompts the user for a free-form time string and applies the parsed
+	 * result to the picker. Accepts a flexible set of formats: ``9:15``,
+	 * ``09:15``, ``9:15 AM``, ``9:15pm``, ``21:30``, ``9 AM``, etc. Returns
+	 * silently if the user cancels.
+	 */
+	private async _promptForCustomTime(): Promise<void> {
+		const initial = formatTime12h(this._hour.get(), this._minute.get());
+		const result = await this.quickInputService.input({
+			title: localize('automationSchedule.customTime.title', "Schedule time"),
+			prompt: localize('automationSchedule.customTime.prompt', "Enter a time (e.g. 9:15 AM, 14:30)."),
+			value: initial,
+			validateInput: async value => {
+				return parseTime(value) ? undefined : localize('automationSchedule.customTime.invalid', "Enter a time like ``9:15 AM`` or ``14:30``.");
+			},
+		});
+		if (result === undefined) {
+			return;
+		}
+		const parsed = parseTime(result);
+		if (!parsed) {
+			return;
+		}
+		transaction(tx => {
+			this._hour.set(parsed.hour, tx);
+			this._minute.set(parsed.minute, tx);
+		});
+		this._refreshTimeTrigger();
+		this._timeTrigger?.focus();
 	}
 
 	private _showDayPicker(): void {
@@ -414,6 +459,12 @@ export class AutomationSchedulePicker extends Disposable {
 
 	private _snapMinute(minute: number): number {
 		if (!Number.isFinite(minute)) { return 0; }
+		// Custom-entered minutes (0-59) are preserved when hydrating from an
+		// existing schedule. Only minutes that came from outside the valid
+		// range get snapped to the nearest valid bucket.
+		if (minute >= 0 && minute < 60) {
+			return Math.trunc(minute);
+		}
 		const snapped = Math.round(minute / TIME_INCREMENT_MINUTES) * TIME_INCREMENT_MINUTES;
 		return Math.min(60 - TIME_INCREMENT_MINUTES, Math.max(0, snapped));
 	}
@@ -422,4 +473,50 @@ export class AutomationSchedulePicker extends Disposable {
 		if (!Number.isFinite(day)) { return 1; }
 		return Math.min(6, Math.max(0, Math.trunc(day)));
 	}
+}
+
+/**
+ * Parses a free-form user-entered time string into hour (0-23) and minute
+ * (0-59). Accepts 12-hour formats (``9:15 AM``, ``9:15pm``, ``9 PM``) and
+ * 24-hour formats (``21:30``, ``09:15``). Whitespace and case are ignored.
+ * Returns ``undefined`` if the input cannot be parsed.
+ *
+ * Exported for unit testing.
+ */
+export function parseTime(input: string): { hour: number; minute: number } | undefined {
+	if (!input) {
+		return undefined;
+	}
+	const trimmed = input.trim().toUpperCase();
+	// Matches: "9", "9:15", "09:15", with optional " AM"/" PM" suffix.
+	const match = /^(\d{1,2})(?::(\d{1,2}))?\s*(AM|PM)?$/.exec(trimmed);
+	if (!match) {
+		return undefined;
+	}
+	let hour = parseInt(match[1], 10);
+	const minute = match[2] !== undefined ? parseInt(match[2], 10) : 0;
+	const period = match[3];
+
+	if (!Number.isFinite(hour) || !Number.isFinite(minute) || minute < 0 || minute > 59) {
+		return undefined;
+	}
+
+	if (period) {
+		// 12-hour with AM/PM: hour must be 1-12.
+		if (hour < 1 || hour > 12) {
+			return undefined;
+		}
+		if (period === 'AM') {
+			hour = hour === 12 ? 0 : hour;
+		} else {
+			hour = hour === 12 ? 12 : hour + 12;
+		}
+	} else {
+		// 24-hour: hour must be 0-23.
+		if (hour < 0 || hour > 23) {
+			return undefined;
+		}
+	}
+
+	return { hour, minute };
 }
