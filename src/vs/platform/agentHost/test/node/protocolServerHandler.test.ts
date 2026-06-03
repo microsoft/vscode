@@ -12,11 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -145,9 +145,26 @@ class MockAgentService implements IAgentService {
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> {
 		throw new Error('Not implemented');
 	}
-	async resourceCopy(): Promise<{}> { return {}; }
+	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async resourceResolve(_params: ResourceResolveParams): Promise<ResourceResolveResult> { throw new Error('Not implemented'); }
+	async resourceMkdir(_params: ResourceMkdirParams): Promise<ResourceMkdirResult> { return {}; }
+	readonly watchSubscribeCalls: string[] = [];
+	readonly watchUnsubscribeCalls: string[] = [];
+	/** Channels for which `onResourceWatchSubscribed` should return a descriptor. */
+	readonly liveWatchDescriptors = new Map<string, import('../../common/state/sessionProtocol.js').ResourceWatchState>();
+	async createResourceWatch(_params: import('../../common/state/sessionProtocol.js').CreateResourceWatchParams): Promise<import('../../common/state/sessionProtocol.js').CreateResourceWatchResult> {
+		throw new Error('Not implemented');
+	}
+	onResourceWatchSubscribed(channel: string): import('../../common/state/sessionProtocol.js').ResourceWatchState | undefined {
+		this.watchSubscribeCalls.push(channel);
+		return this.liveWatchDescriptors.get(channel);
+	}
+	onResourceWatchUnsubscribed(channel: string): boolean {
+		this.watchUnsubscribeCalls.push(channel);
+		return this.liveWatchDescriptors.has(channel);
+	}
 	async createTerminal(): Promise<void> { }
 	async disposeTerminal(): Promise<void> { }
 
@@ -398,7 +415,7 @@ suite('ProtocolServerHandler', () => {
 			action: {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		}));
 
@@ -808,7 +825,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -865,7 +882,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -913,7 +930,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -971,7 +988,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -1023,7 +1040,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run it' },
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallStart,
@@ -1412,6 +1429,69 @@ suite('ProtocolServerHandler', () => {
 			otlpEmitter.emit({ timeUnixNano: '2', severityNumber: 9, severityText: 'info', body: 'after-unsub' });
 
 			assert.strictEqual(findOtlpLogs(transport.sent).length, 1, 'no further notifications after unsubscribe');
+		});
+	});
+
+	suite('resource watches', () => {
+
+		test('subscribe to a resource-watch channel returns the descriptor + bumps refcount; envelopes are routed', async () => {
+			// Pre-populate the mock so `onResourceWatchSubscribed` returns
+			// a descriptor — this is the role the production `AgentService`
+			// plays after it parses the channel URI.
+			const watchChannel = 'ahp-resource-watch:/mock-watch';
+			const descriptor = { root: 'file:///workspace', recursive: false };
+			agentService.liveWatchDescriptors.set(watchChannel, descriptor);
+
+			const transport = connectClient('client-watch');
+			transport.sent.length = 0;
+
+			const subPromise = waitForResponse(transport, 101);
+			transport.simulateMessage(request(101, 'subscribe', { channel: watchChannel }));
+			const resp = await subPromise;
+			const result = (resp as { result: { snapshot: IStateSnapshot } }).result;
+			assert.strictEqual(result.snapshot.resource, watchChannel);
+			assert.deepStrictEqual(result.snapshot.state, descriptor);
+			assert.deepStrictEqual(agentService.watchSubscribeCalls, [watchChannel]);
+
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(watchChannel, {
+				type: ActionType.ResourceWatchChanged,
+				changes: { items: [{ uri: 'file:///workspace/a.txt', type: 'updated' as never }] },
+			} as unknown as Parameters<typeof stateManager.dispatchServerAction>[1]);
+
+			const actionMsgs = findNotifications(transport.sent, 'action');
+			assert.strictEqual(actionMsgs.length, 1, 'subscriber should receive the change envelope');
+			const env = actionMsgs[0].params as unknown as { channel: string; action: { type: string } };
+			assert.strictEqual(env.channel, watchChannel);
+			assert.strictEqual(env.action.type, ActionType.ResourceWatchChanged);
+
+			// Explicit unsubscribe drops the refcount through the agent service.
+			transport.simulateMessage(notification('unsubscribe', { channel: watchChannel }));
+			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
+		});
+
+		test('subscribe to an unknown resource-watch channel surfaces a JSON-RPC error', async () => {
+			const transport = connectClient('client-watch-bad');
+			transport.sent.length = 0;
+			const respPromise = waitForResponse(transport, 102);
+			transport.simulateMessage(request(102, 'subscribe', { channel: 'ahp-resource-watch:/bogus' }));
+			const resp = await respPromise;
+			const error = (resp as unknown as { error?: { code: number } }).error;
+			assert.ok(error, `expected an error response, got ${JSON.stringify(resp)}`);
+		});
+
+		test('client disconnect releases the watch refcount', async () => {
+			const watchChannel = 'ahp-resource-watch:/mock-watch-disconnect';
+			agentService.liveWatchDescriptors.set(watchChannel, { root: 'file:///root', recursive: false });
+
+			const transport = connectClient('client-watch-2');
+			const subPromise = waitForResponse(transport, 200);
+			transport.simulateMessage(request(200, 'subscribe', { channel: watchChannel }));
+			await subPromise;
+			assert.deepStrictEqual(agentService.watchSubscribeCalls, [watchChannel]);
+
+			transport.simulateClose();
+			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
 		});
 	});
 });

@@ -14,8 +14,18 @@ import { SessionView } from './sessionView.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
+
+/**
+ * Payload for {@link ISessionsPartService.onDidToggleMaximizeSession}.
+ */
+export interface IToggleMaximizeSessionEvent {
+	readonly session: IActiveSession;
+	/** The session view's maximized state after the toggle. */
+	readonly maximized: boolean;
+}
 
 export interface ISessionsPartService {
 	readonly _serviceBrand: undefined;
@@ -31,7 +41,21 @@ export interface ISessionsPartService {
 	 * Toggles the maximized state of the session view hosting the given session
 	 * in the sessions part's grid.
 	 */
-	toggleMaximizeSession(session: IActiveSession): void;
+	toggleMaximizeSession(session: IActiveSession | undefined): void;
+
+	/**
+	 * Fires after the maximized state of a session view was toggled via
+	 * {@link toggleMaximizeSession}. Does not fire when the call was a no-op
+	 * (e.g. the session was not visible or fewer than two views were present).
+	 */
+	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent>;
+
+	/**
+	 * Moves keyboard focus into the chat input of the session view hosting the
+	 * given session, or into the placeholder (new-session) view when `session`
+	 * is `undefined`. No-op if no matching slot is currently mounted.
+	 */
+	focusSession(session: IActiveSession | undefined): void;
 
 	/**
 	 * Returns the {@link SessionView} hosting the given session id, or the
@@ -58,6 +82,9 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _mainPart: SessionsPart;
+
+	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
+	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -92,8 +119,19 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		}));
 	}
 
-	toggleMaximizeSession(session: IActiveSession): void {
-		this._mainPart.toggleMaximizeSession(session.sessionId);
+	toggleMaximizeSession(session: IActiveSession | undefined): void {
+		if (!session) {
+			this._mainPart.toggleMaximizeSession(undefined);
+			return;
+		}
+		const maximized = this._mainPart.toggleMaximizeSession(session.sessionId);
+		if (maximized !== undefined) {
+			this._onDidToggleMaximizeSession.fire({ session, maximized });
+		}
+	}
+
+	focusSession(session: IActiveSession | undefined): void {
+		this._mainPart.focusSession(session?.sessionId);
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {

@@ -325,7 +325,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', command);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 			} finally {
 				cleanup();
@@ -341,7 +341,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.strictEqual(result, undefined);
 			} finally {
 				try { unlinkSync(filePath); } catch { /* ignore */ }
@@ -356,7 +356,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.strictEqual(result, undefined);
 			} finally {
 				try { unlinkSync(filePath); } catch { /* ignore */ }
@@ -380,7 +380,7 @@ suite('copilotPluginConverters', () => {
 				};
 				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' };
+				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
 				const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 				assert.deepStrictEqual(trackingInput, callInput);

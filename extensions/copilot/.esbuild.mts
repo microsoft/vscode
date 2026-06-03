@@ -15,6 +15,12 @@ const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
 const sourceMapOutDir = './dist-sourcemaps';
 
+/** Externalize only when bundled with the vscode product (which ships `extensions/node_modules/`).
+ *  Default unset = inlined, so the standalone marketplace .vsix stays self-contained. */
+function sharedRuntimeExternal(packages: string[]): string[] {
+	return process.env['VSCODE_USE_SHARED_EXTENSION_DEPS'] === 'true' ? packages : [];
+}
+
 const baseBuildOptions = {
 	bundle: true,
 	logLevel: 'info',
@@ -42,6 +48,18 @@ const baseNodeBuildOptions = {
 		'sqlite3',
 		'node-pty', // Required by @github/copilot
 		'@github/copilot',
+		// Shared deps from `extensions/package.json` — externalized only in the
+		// in-tree vscode build (see `sharedRuntimeExternal`).
+		...sharedRuntimeExternal([
+			'@vscode/extension-telemetry',
+			'@microsoft/1ds-core-js',
+			'@microsoft/1ds-post-js',
+			'dompurify',
+			'jsonc-parser',
+			'markdown-it',
+			'minimatch',
+			'vscode-tas-client',
+		]),
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',

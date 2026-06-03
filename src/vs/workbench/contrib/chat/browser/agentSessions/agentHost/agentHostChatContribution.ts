@@ -12,7 +12,6 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
@@ -29,7 +28,6 @@ import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
-import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -45,8 +43,6 @@ export { AgentHostSessionListController } from './agentHostSessionListController
 export class AgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostContribution';
-
-	private _loggedConnection: LoggingAgentConnection | undefined;
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
@@ -70,7 +66,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
-		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
@@ -81,13 +76,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
 		}
-
-		// Wrap the agent host service with logging to a dedicated output channel
-		this._loggedConnection = this._register(this._instantiationService.createInstance(
-			LoggingAgentConnection,
-			this._agentHostService,
-			`agenthost.${this._agentHostService.clientId}`,
-			'Agent Host (Local)'));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
@@ -172,11 +160,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
 		this._listControllers.set(agent.provider, listController);
 		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
@@ -184,7 +173,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
 
-		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, agent, this._loggedConnection!, 'local', this._fileService, this._logService, undefined));
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
 		// `[Local]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
@@ -204,7 +193,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			sessionType,
 			fullName: agent.displayName,
 			description: agent.description,
-			connection: this._loggedConnection!,
+			connection: this._agentHostService,
 			connectionAuthority: 'local',
 			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
@@ -251,11 +240,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
 				logService: this._logService,
-				authenticate: request => this._loggedConnection!.authenticate(request),
+				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
-			this._loggedConnection!.logError('authenticateWithServer', err);
 		} finally {
 			this._agentHostService.setAuthenticationPending(false);
 		}
@@ -274,11 +262,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
 				logService: this._logService,
-				authenticate: request => this._loggedConnection!.authenticate(request),
+				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
-			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);
 		}
 		return false;
 	}

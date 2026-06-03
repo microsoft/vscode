@@ -29,7 +29,7 @@ When the user asks for a standup, daily summary, or "what did I do":
 
 1. Call `copilot_sessionStoreSql` with `action: "standup"` and `description: "Generate standup"`.
 2. The tool returns pre-fetched session data (sessions, turns, files, refs from the last 24 hours).
-3. If the result is empty, tell the user no sessions were found in the last 24h, suggest `/chronicle:reindex`, and stop — do not fabricate a standup.
+3. If the result is empty, tell the user no sessions were found in the last 24h, suggest `/chronicle reindex`, and stop — do not fabricate a standup.
 4. For any PR references in the data, check their current status (open, merged, draft) if possible.
 5. Format the returned data as a standup report grouped by work stream (branch/feature):
 
@@ -100,7 +100,7 @@ When recommending custom skills, agents, or instructions as a tip, consult the *
 
 ### Cost Tips
 
-When the user asks for cost tips, ways to reduce token usage, or how to lower Copilot spend (e.g. `/chronicle:cost-tips`):
+When the user asks for cost tips, ways to reduce token usage, or how to lower Copilot spend (e.g. `/chronicle cost-tips`):
 
 The goal is **personalized, data-grounded recommendations** for reducing token usage — not a generic checklist. Every tip must point to a specific pattern you observed in their data.
 
@@ -178,7 +178,7 @@ If the session store has little data (e.g., cloud store is empty, or only a hand
 
 ### Improve
 
-When the user asks to improve their agent instructions based on session history (e.g. `/chronicle:improve`):
+When the user asks to improve their agent instructions based on session history (e.g. `/chronicle improve`):
 
 **Step 1: Read the current instructions file**
 
@@ -210,7 +210,7 @@ After presenting all recommendations, ask the user which ones they'd like to app
 
 ### Search
 
-When the user asks to search, find, or look up past sessions by keyword (e.g. `/chronicle:search <query>`):
+When the user asks to search, find, or look up past sessions by keyword (e.g. `/chronicle search <query>`):
 
 **Search strategy**
 
@@ -272,8 +272,8 @@ Rules:
 If no rows are returned, tell the user and suggest:
 - Trying different keywords or a broader search term (single word, or a substring instead of a phrase)
 - Widening the time window ("search all time", "include older sessions")
-- Running `/chronicle:reindex` if they haven't indexed their sessions yet
-- Running `/chronicle:standup` to see recent activity
+- Running `/chronicle reindex` if they haven't indexed their sessions yet
+- Running `/chronicle standup` to see recent activity
 
 ### Reindex
 

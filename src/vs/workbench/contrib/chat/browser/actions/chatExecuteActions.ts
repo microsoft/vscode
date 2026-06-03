@@ -190,7 +190,7 @@ export class ChatSubmitAction extends SubmitAction {
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
-			ChatContextKeys.inputHasText,
+			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
 		);
@@ -762,7 +762,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
-			ChatContextKeys.inputHasText,
+			ChatContextKeys.inputHasSendableContent,
 			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);

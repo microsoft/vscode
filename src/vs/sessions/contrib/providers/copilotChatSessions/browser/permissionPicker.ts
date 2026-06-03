@@ -157,7 +157,6 @@ export class PermissionPicker extends Disposable {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
@@ -186,10 +185,7 @@ export class PermissionPicker extends Disposable {
 				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
-		];
-
-		if (isAutopilotEnabled) {
-			items.push({
+			{
 				kind: ActionListItemKind.Action,
 				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
 				item: {
@@ -201,8 +197,8 @@ export class PermissionPicker extends Disposable {
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 				disabled: policyRestricted,
-			});
-		}
+			},
+		];
 
 		items.push({
 			kind: ActionListItemKind.Separator,

@@ -36,8 +36,8 @@ export const enum PendingMessageKind {
 export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
-	/** The message content */
-	userMessage: UserMessage;
+	/** The message that will start the next turn */
+	message: Message;
 }
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -552,8 +552,8 @@ export const enum MessageAttachmentKind {
 export interface Turn {
 	/** Turn identifier */
 	id: string;
-	/** The user's input */
-	userMessage: UserMessage;
+	/** The message that initiated the turn */
+	message: Message;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
@@ -577,8 +577,8 @@ export interface Turn {
 export interface ActiveTurn {
 	/** Turn identifier */
 	id: string;
-	/** The user's input */
-	userMessage: UserMessage;
+	/** The message that initiated the turn */
+	message: Message;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
@@ -590,20 +590,41 @@ export interface ActiveTurn {
 }
 
 /**
- * A user message and its associated attachments.
+ * Discriminant for Message types.
  *
- * Attachments MAY be referenced inside {@link UserMessage.text} via their
+ * @category Turn Types
+ */
+export enum MessageKind {
+	User = 'user',
+	SystemNotification = 'systemNotification',
+}
+
+/**
+ * A message that initiates or steers a turn. Messages can originate from the
+ * user or be system-generated (see {@link MessageKind}).
+ *
+ * Attachments MAY be referenced inside {@link Message.text} via their
  * {@link MessageAttachmentBase.range} field. Attachments without a range are
  * still associated with the message but do not correspond to a specific span
  * in the text.
  *
  * @category Turn Types
  */
-export interface UserMessage {
+export interface Message {
 	/** Message text */
 	text: string;
+	/** The origin of the message */
+	origin: { kind: MessageKind };
 	/** File/selection attachments */
 	attachments?: MessageAttachment[];
+	/**
+	 * Additional provider-specific metadata for this message.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry context that does not fit any other
+	 * field. Mirrors the MCP `_meta` convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -619,7 +640,7 @@ export interface MessageAttachmentBase {
 	label: string;
 
 	/**
-	 * If defined, the range in {@link UserMessage.text} that references this
+	 * If defined, the range in {@link Message.text} that references this
 	 * attachment. This is a text range, not a byte range.
 	 */
 	range?: TextRange;
@@ -711,7 +732,7 @@ export interface MessageResourceAttachment extends MessageAttachmentBase, Conten
 }
 
 /**
- * An attachment associated with a {@link UserMessage}.
+ * An attachment associated with a {@link Message}.
  *
  * @category Turn Types
  */
@@ -1059,7 +1080,7 @@ export interface ToolCallCancelledState extends ToolCallBase, ToolCallParameterF
 	/** Optional message explaining the cancellation */
 	reasonMessage?: StringOrMarkdown;
 	/** What the user suggested doing instead */
-	userSuggestion?: UserMessage;
+	userSuggestion?: Message;
 	/** The confirmation option the user selected, if confirmation options were provided */
 	selectedOption?: ConfirmationOption;
 }
@@ -1463,7 +1484,7 @@ export interface ClientPluginCustomization extends PluginCustomization {
  * Presence in the customization list signals that the host may discover
  * customizations from this directory. When `writable` is `true`, clients
  * MAY persist new customizations into the directory using
- * [`resourceWrite`](/reference/commands#resourcewrite); the host will
+ * [`resourceWrite`](/reference/common#resourcewrite); the host will
  * then surface the resulting child via the customization actions.
  *
  * The directory may not yet exist on disk.

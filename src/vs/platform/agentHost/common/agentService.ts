@@ -14,10 +14,11 @@ import type { IConfigurationService } from '../../configuration/common/configura
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
+import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
@@ -47,9 +48,6 @@ export function isAgentHostEnabled(configurationService: IConfigurationService):
 	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
 }
 
-/** Configuration key that controls whether per-host IPC traffic output channels are created. */
-export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
-
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
@@ -77,6 +75,46 @@ export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.
  * by developers as an override.
  */
 export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
+
+// -- Codex agent settings --------------------------------------------------------
+//
+// Codex is opt-in via `chat.agentHost.codexAgent.path`. The setting points at
+// an absolute path to the `codex` binary; the agent host spawns
+// `<path> app-server` as a long-lived child process and speaks JSON-RPC over
+// stdio. The binary is not bundled; users install codex themselves (typically
+// via `npm install -g @openai/codex` or a platform package manager).
+
+/**
+ * Absolute path to a locally-installed `codex` binary. When non-empty, the
+ * Codex agent provider is registered inside the agent host. Empty (the
+ * default) disables the provider entirely.
+ */
+export const AgentHostCodexAgentBinaryPathSettingId = 'chat.agentHost.codexAgent.path';
+
+/**
+ * Optional override for `$CODEX_HOME`. When set, the codex app-server child
+ * process inherits this value, controlling where rollouts and config live.
+ */
+export const AgentHostCodexAgentCodexHomeSettingId = 'chat.agentHost.codexAgent.codexHome';
+
+/**
+ * Additional command-line arguments passed to `codex app-server`. Mainly for
+ * debugging (e.g. `--log-level=debug`).
+ */
+export const AgentHostCodexAgentBinaryArgsSettingId = 'chat.agentHost.codexAgent.binaryArgs';
+
+/**
+ * Environment variable the agent host process reads to locate the codex
+ * binary. Forwarded by the starters from
+ * {@link AgentHostCodexAgentBinaryPathSettingId}.
+ */
+export const AgentHostCodexAgentBinaryPathEnvVar = 'VSCODE_AGENT_HOST_CODEX_APP_SERVER_PATH';
+
+/** Forwarded `$CODEX_HOME`. */
+export const AgentHostCodexAgentCodexHomeEnvVar = 'CODEX_HOME';
+
+/** Forwarded extra args for `codex app-server` (JSON-encoded string[]). */
+export const AgentHostCodexAgentBinaryArgsEnvVar = 'VSCODE_AGENT_HOST_CODEX_APP_SERVER_ARGS';
 
 // -- OpenTelemetry settings ------------------------------------------------------
 //
@@ -455,7 +493,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `SessionToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -873,6 +911,44 @@ export interface IAgentService {
 	 * Move (rename) a resource from one URI to another on the agent host's filesystem.
 	 */
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+
+	/**
+	 * Resolve a resource (stat + realpath) on the agent host's filesystem.
+	 */
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
+
+	/**
+	 * Create a directory (mkdir -p semantics) on the agent host's filesystem.
+	 */
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+
+	/**
+	 * Create a resource watcher on the agent host's filesystem. Returns the
+	 * `ahp-resource-watch:/<id>` channel URI the caller subscribes to in
+	 * order to receive `resourceWatch/changed` events. The watcher is
+	 * tied to the subscriber refcount on that channel — the implementation
+	 * MUST hold the underlying file-system watcher for a short grace
+	 * period after the last unsubscribe so reconnects don't drop events.
+	 */
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+
+	/**
+	 * Notify the agent service that a client subscribed to the given
+	 * `ahp-resource-watch:` channel so the per-watch refcount is bumped
+	 * (and the underlying {@link IFileService} watcher attached on the
+	 * first subscriber). Returns the decoded watch descriptor when the
+	 * channel parses successfully and the watcher is live; returns
+	 * `undefined` for unknown channels so the caller can surface a
+	 * not-found error.
+	 */
+	onResourceWatchSubscribed(channel: string): ResourceWatchState | undefined;
+
+	/**
+	 * Counterpart to {@link onResourceWatchSubscribed}. Decrements the
+	 * per-watch refcount; on the last drop the watcher is held for a
+	 * short grace period before disposal.
+	 */
+	onResourceWatchUnsubscribed(channel: string): boolean;
 }
 
 /**
@@ -883,7 +959,7 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
-	readonly _serviceBrand: undefined;
+
 	readonly clientId: string;
 
 	// ---- State subscriptions ------------------------------------------------
@@ -933,6 +1009,18 @@ export interface IAgentConnection {
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+	/**
+	 * Convenience method that bundles
+	 * {@link createResourceWatch} + {@link subscribe} + a typed
+	 * {@link IFileChange}[] event stream, so consumers (notably
+	 * `AHPFileSystemProvider.watch`) can drive a watcher without
+	 * understanding the underlying channel protocol. Disposing the
+	 * returned handle unsubscribes.
+	 */
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle>;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
@@ -942,6 +1030,8 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
  * exposes the proxied service). Consumed by the main process and workbench.
  */
 export interface IAgentHostService extends IAgentConnection {
+
+	readonly _serviceBrand: undefined;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

@@ -111,6 +111,14 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		// Skip quota notifications for PRU users — only show for UBB.
 		const isQuotaNotificationEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
 
+		// Priority 0: Business/Enterprise org-blocked — hasQuota === false is the
+		// authoritative signal that the org has exceeded its budget, regardless of
+		// overages or remaining quota.
+		if (this._isManagedPlan(entitlement) && this._isManagedPlanBlocked()) {
+			this._showManagedPlanBlockedNotification();
+			return;
+		}
+
 		// Priority 1: Quota exhausted or fully used
 		if (isQuotaNotificationEligible && this._isQuotaUsedUp()) {
 			const quotas = this._chatEntitlementService.quotas;
@@ -362,6 +370,25 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
 		return entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
+	}
+
+	private _isManagedPlanBlocked(): boolean {
+		const snapshot = this._chatEntitlementService.quotas.premiumChat;
+		return !!snapshot && snapshot.hasQuota === false;
+	}
+
+	private _showManagedPlanBlockedNotification(): void {
+		this._showingExhausted = true;
+
+		this._setNotification({
+			id: QUOTA_NOTIFICATION_ID,
+			severity: ChatInputNotificationSeverity.Info,
+			message: localize('quota.blocked.managed.title', "Usage Blocked"),
+			description: localize('quota.blocked.managed', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage."),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: true,
+		});
 	}
 
 	private _formatResetDate(isoDate: string): string {

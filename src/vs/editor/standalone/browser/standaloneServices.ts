@@ -1129,6 +1129,8 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly currentDefaultAccount: IDefaultAccount | null = null;
 	readonly copilotTokenInfo = null;
 	readonly onDidChangeCopilotTokenInfo: Event<null> = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;

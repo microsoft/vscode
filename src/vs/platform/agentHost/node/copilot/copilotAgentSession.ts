@@ -30,12 +30,13 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, type AgentSelection, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
@@ -345,8 +346,6 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
-	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
-	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
@@ -499,7 +498,7 @@ export class CopilotAgentSession extends Disposable {
 		this._emitAction({
 			type: ActionType.SessionTurnStarted,
 			turnId: newTurnId,
-			userMessage: steering.userMessage,
+			message: steering.message,
 			queuedMessageId: steering.id,
 		});
 		// Mirror `resetTurnState` so per-turn counters/mappings (usage
@@ -544,7 +543,7 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		for (const [id, msg] of this._pendingSteeringFlips) {
-			if (msg.userMessage.text === content) {
+			if (msg.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
 				return msg;
 			}
@@ -567,12 +566,25 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Resets per-turn streaming state so the next text/reasoning chunk
-	 * allocates a fresh response part. Called by the agent when a new turn
-	 * starts (typically right before {@link send}).
+	 * allocates a fresh response part for the new turn.
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
-		this._turnCopilotUsageTotalNanoAiu = 0;
+		this._currentMarkdownPartIds.clear();
+		this._currentReasoningPartIds.clear();
+		this._parentToolCallIdsByAgentId.clear();
+	}
+
+	private _completeActiveTurn(): void {
+		if (!this._turnId) {
+			return;
+		}
+		const turnId = this._turnId;
+		this._emitAction({
+			type: ActionType.SessionTurnComplete,
+			turnId,
+		});
+		this._turnId = '';
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -734,7 +746,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
-			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
+			.map(c => ({ data: c.data, mimeType: c.contentType, type: (/^image(\/|$)/.test(c.contentType) ? 'image' : 'resource') as 'image' | 'resource' }));
 
 		if (result.success) {
 			deferred.complete({
@@ -786,7 +798,6 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
-			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -800,9 +811,24 @@ export class CopilotAgentSession extends Disposable {
 			}
 			return;
 		}
+		if (slashCommand?.command === 'research') {
+			prompt = slashCommand.rest ? `/research ${slashCommand.rest}` : '/research';
+		}
 		if (slashCommand?.command === 'plan') {
 			mode = 'plan';
 			prompt = slashCommand.rest;
+		}
+		if (slashCommand?.command === 'rubber-duck') {
+			if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.RubberDuck) !== true) {
+				// Feature not enabled — pass the remaining text through as a plain
+				// message rather than injecting agent instructions for an unavailable agent.
+				prompt = slashCommand.rest;
+			} else {
+				const userPrompt = slashCommand.rest;
+				prompt = userPrompt
+					? `The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.\n\nAdditional instructions: ${userPrompt}`
+					: 'The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.';
+			}
 		}
 
 		const sdkAttachments = attachments?.length
@@ -913,10 +939,10 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._steeringMessagesInFlight.add(steeringMessage.id);
-		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
+		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._wrapper.session.send({
-				prompt: steeringMessage.userMessage.text,
+				prompt: steeringMessage.message.text,
 				mode: 'immediate',
 			});
 			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
@@ -928,7 +954,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getMessages(): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getMessages();
+		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -940,7 +966,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getMessages();
+		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -965,7 +991,7 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
-		await this._wrapper.session.destroy();
+		await this._wrapper.session.disconnect();
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
@@ -977,9 +1003,9 @@ export class CopilotAgentSession extends Disposable {
 	 * Selects (or clears) a custom agent on the live SDK session.
 	 * Mirrors the SDK's `rpc.agent.select` / `rpc.agent.deselect` pair.
 	 */
-	async setAgent(agent: AgentSelection | undefined, agentName?: string): Promise<void> {
-		if (agent) {
-			const name = agentName ?? agent.uri;
+	async setAgent(agentName?: string): Promise<void> {
+		if (agentName) {
+			const name = agentName;
 			this._logService.info(`[Copilot:${this.sessionId}] Selecting custom agent: ${name}`);
 			try {
 				await this._wrapper.session.rpc.agent.select({ name });
@@ -1585,6 +1611,38 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
+		this._register(wrapper.onSystemNotification(e => {
+			const notification = buildCopilotSystemNotification(e);
+			if (!notification) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring system.notification kind=${e.data.kind.type}`);
+				return;
+			}
+
+			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			if (this._turnId) {
+				this._emitAction({
+					type: ActionType.SessionResponsePart,
+					turnId: this._turnId,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: notification.content,
+					},
+				});
+				return;
+			}
+
+			const turnId = generateUuid();
+			this.resetTurnState(turnId);
+			this._emitAction({
+				type: ActionType.SessionTurnStarted,
+				turnId,
+				message: {
+					text: notification.messageText,
+					origin: { kind: MessageKind.SystemNotification },
+				},
+			});
+		}));
+
 		// Handle `user.message` events with three responsibilities:
 		//
 		// 1. Skip SDK-injected (`source !== 'user'`) messages outright —
@@ -1821,10 +1879,7 @@ export class CopilotAgentSession extends Disposable {
 					activity: undefined,
 				});
 			}
-			this._emitAction({
-				type: ActionType.SessionTurnComplete,
-				turnId: this._turnId,
-			});
+			this._completeActiveTurn();
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer
@@ -1892,14 +1947,7 @@ export class CopilotAgentSession extends Disposable {
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}
-			if (typeof e.data.copilotUsage?.totalNanoAiu === 'number') {
-				this._turnCopilotUsageTotalNanoAiu += e.data.copilotUsage.totalNanoAiu;
-				metadata.copilotUsage = {
-					...e.data.copilotUsage,
-					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
-				};
-			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${this._turnCopilotUsageTotalNanoAiu || '?'}`);
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}`);
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
@@ -2094,7 +2142,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionShutdown(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, premiumRequests=${e.data.totalPremiumRequests}, apiDuration=${e.data.totalApiDurationMs}ms`);
+			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, apiDuration=${e.data.totalApiDurationMs}ms`);
 		}));
 
 		this._register(wrapper.onSessionUsageInfo(e => {
