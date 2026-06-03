@@ -69,6 +69,31 @@
 	display: none;
 }
 
+/* Empty Editor Group */
+
+/* Keep the tab bar visible for empty editor groups so the editor layout actions
+   (e.g. close editor area, maximize) remain accessible when there are no editors. */
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .title {
+	display: block;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .title > .tabs-and-actions-container.empty {
+	display: flex;
+}
+
+/* Shrink the watermark to leave room for the visible tab bar above. The watermark
+   would otherwise overlap the title. When there is only one (empty) group, only
+   the title takes space. When there are multiple groups (or an auxiliary editor
+   part), the editor-group-container-toolbar (35px) is also shown above the title. */
+.agent-sessions-workbench .part.editor > .content.empty .editor-group-container.empty > .editor-group-watermark {
+	height: calc(100% - var(--editor-group-tab-height));
+}
+
+.agent-sessions-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
+.agent-sessions-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
+	height: calc(100% - 35px - var(--editor-group-tab-height));
+}
+
 /* Modal Editor Part */
 
 .agent-sessions-workbench .part.editor.modal-editor-part .modal-editor-action-container .action-label.codicon.codicon-open-in-window {

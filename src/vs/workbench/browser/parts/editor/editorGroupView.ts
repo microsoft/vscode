@@ -2103,6 +2103,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				'navigation',
 				shouldInlineGroup
 			);
+		} else if (menuId === MenuId.EditorTitleLayout) {
+			// Layout actions are tied to the editor group/area (e.g. close/maximize editor area)
+			// and should remain available even when the group has no active editor pane.
+			const layoutMenu = disposables.add(this.menuService.createMenu(menuId, this.scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
+			onDidChange = layoutMenu.onDidChange;
+
+			actions = getActionBarActions(
+				layoutMenu.getActions({ arg: this.resourceContext.get(), shouldForwardArgs: true, renderShortTitle: true }),
+				'navigation'
+			);
 		} else {
 			// If there is no active pane in the group (it's the last group and it's empty)
 			// Trigger the change event when the active editor changes

@@ -374,10 +374,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);
 		editorActionsToolbar.setActions([], []);
 
-		this.editorLayoutActionsToolbar?.setActions([], []);
-		if (this.editorLayoutActionsSeparator) {
-			setVisibility(false, this.editorLayoutActionsSeparator);
-		}
+		// Refresh the layout actions toolbar so that actions tied to the editor group
+		// (e.g. close/maximize editor area) remain available even when the per-editor
+		// actions are cleared because the group is empty.
+		this.updateEditorLayoutActionsToolbar();
 	}
 
 	protected onGroupDragStart(e: DragEvent, element: HTMLElement): boolean {

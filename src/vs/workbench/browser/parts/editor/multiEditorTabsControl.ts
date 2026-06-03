@@ -193,6 +193,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Create Editor Toolbar
 		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
+		// Populate the toolbars so the layout actions (e.g. close editor area) are
+		// visible even when the group is initially empty.
+		this.updateEditorActionsToolbar();
+
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
 
