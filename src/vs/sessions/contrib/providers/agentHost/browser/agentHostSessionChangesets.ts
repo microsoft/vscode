@@ -7,7 +7,7 @@ import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObs
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { buildCompareTurnsChangesetUri, buildTurnChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { buildCompareTurnsChangesetUri, buildTurnChangesetUri, BASELINE_TURN_ID } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { ChangesetStatus, ChangesetSummary, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISessionChangeset, ISessionFileChange, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
@@ -219,18 +219,12 @@ class AgentHostAllChangesChangeset extends AbstractAgentHostTurnCompareChangeset
 	) {
 		super(sessionUri, options, isActiveSessionObs, turnIdsObs =>
 			derivedOpts({ equalsFn: isEqual }, reader => {
-				const turnIds = turnIdsObs.read(reader);
-				if (!turnIds) {
+				const modifiedTurnId = turnIdsObs.read(reader)?.at(-1);
+				if (!modifiedTurnId) {
 					return undefined;
 				}
 
-				const originalTurnId = turnIds[0];
-				const modifiedTurnId = turnIds.at(-1);
-				if (!originalTurnId || !modifiedTurnId) {
-					return undefined;
-				}
-
-				const uri = buildCompareTurnsChangesetUri(sessionUri.toString(), originalTurnId, modifiedTurnId);
+				const uri = buildCompareTurnsChangesetUri(sessionUri.toString(), BASELINE_TURN_ID, modifiedTurnId);
 				return uri ? URI.parse(uri) : undefined;
 			}));
 	}
