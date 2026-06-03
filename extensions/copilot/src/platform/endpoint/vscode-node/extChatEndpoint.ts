@@ -238,7 +238,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						try {
-							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;
+							const parsed: unknown = JSON.parse(new TextDecoder().decode(chunk.data));
 							const normalized = normalizeApiUsage(parsed);
 							if (normalized) {
 								reportedUsage = normalized;
@@ -315,7 +315,7 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
-function normalizeApiUsage(parsed: APIUsage): APIUsage | undefined {
+function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
 	if (!isApiUsage(parsed)) {
 		return undefined;
 	}

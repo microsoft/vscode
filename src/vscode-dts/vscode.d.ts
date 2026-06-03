@@ -21046,7 +21046,7 @@ declare module 'vscode' {
 		 * @param totalTokens Total tokens (defaults to prompt + completion when omitted in factories)
 		 * @param cachedInputTokens Optional cached prompt tokens
 		 */
-		constructor(promptTokens: number, completionTokens: number, totalTokens: number, cachedInputTokens?: number);
+		constructor(promptTokens: number, completionTokens: number, totalTokens?: number, cachedInputTokens?: number);
 
 		/**
 		 * Create a usage part from an OpenAI-compatible `usage` object (chat completions or streaming final chunk).

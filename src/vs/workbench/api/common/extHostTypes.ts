@@ -4023,11 +4023,13 @@ export class LanguageModelUsagePart implements vscode.LanguageModelUsagePart {
 	readonly totalTokens: number;
 	readonly cachedInputTokens: number | undefined;
 
-	constructor(promptTokens: number, completionTokens: number, totalTokens: number, cachedInputTokens?: number) {
-		this.promptTokens = promptTokens;
-		this.completionTokens = completionTokens;
-		this.totalTokens = totalTokens;
-		this.cachedInputTokens = cachedInputTokens;
+	constructor(promptTokens: number, completionTokens: number, totalTokens?: number, cachedInputTokens?: number) {
+		const prompt = Math.max(0, promptTokens);
+		const completion = Math.max(0, completionTokens);
+		this.promptTokens = prompt;
+		this.completionTokens = completion;
+		this.totalTokens = Math.max(0, totalTokens ?? prompt + completion);
+		this.cachedInputTokens = cachedInputTokens !== undefined ? Math.max(0, cachedInputTokens) : undefined;
 	}
 
 	static fromOpenAICompatible(usage: {

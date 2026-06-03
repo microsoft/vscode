@@ -192,7 +192,8 @@ suite('lm', function () {
 			async provideLanguageModelChatResponse(_model, _messages, _options, progress, _token) {
 				progress.report(new vscode.LanguageModelTextPart('Hi'));
 				progress.report(new vscode.LanguageModelUsagePart(100, 50, 150, 10));
-				return defer.complete();
+				defer.complete();
+				return defer.p;
 			},
 			async provideTokenCount(_model, _text, _token) {
 				return 1;
@@ -224,6 +225,7 @@ suite('lm', function () {
 		})();
 
 		await Promise.all([textDone, streamDone]);
+		await request.result;
 
 		assert.strictEqual(responseText, 'Hi');
 		const usageParts = streamParts.filter((part): part is vscode.LanguageModelUsagePart => part instanceof vscode.LanguageModelUsagePart);
