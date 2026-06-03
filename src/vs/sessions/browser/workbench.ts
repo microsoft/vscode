@@ -787,6 +787,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsManagementService.openNewSessionView();
 			this.closeMobileSidebarDrawer();
+			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
 		}));
 	}
 
