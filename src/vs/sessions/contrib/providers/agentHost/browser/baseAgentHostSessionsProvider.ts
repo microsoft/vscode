@@ -2458,10 +2458,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			summary: summary.title,
 			activity: summary.activity,
 			status: summary.status,
-			...(summary.project ? { project: { uri: this.mapProjectUri(URI.parse(summary.project.uri)), displayName: summary.project.displayName } } : {}),
+			...(summary.project ? {
+				project: {
+					displayName: summary.project.displayName,
+					uri: this.mapProjectUri(URI.parse(summary.project.uri))
+				}
+			} : {}),
 			model: summary.model,
 			agent: summary.agent,
 			workingDirectory: workingDir,
+			changesets: summary.changesets,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
