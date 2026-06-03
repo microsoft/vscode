@@ -169,7 +169,7 @@ export const activeSessionViewBackground = registerColor(
 );
 
 export const inactiveSessionViewBackground = registerColor(
-	'inactiveSessionView.background', agentsChatInputBackground,
+	'inactiveSessionView.background', agentsBackground,
 	localize('inactiveSessionView.background', 'Background color of an inactive session view in the agent sessions window.')
 );
 
