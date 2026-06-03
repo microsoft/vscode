@@ -8,7 +8,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -23,18 +22,15 @@ import { ISendRequestOptions, ISessionsManagementService } from '../../../servic
  *   1. If another run for the same automation is already pending or
  *      running, skip (per-automation idempotency).
  *   2. Record a `pending` run row, immediately flip it to `running`.
- *   3. Resolve a folder URI: prefer the automation's `folderUri`, fall
- *      back to the first workspace folder. Without a folder we cannot
- *      create a session, so the run is marked failed with a clear
- *      message.
- *   4. Subscribe to {@link ISessionsManagementService.onDidSendRequest}
+ *   3. Subscribe to {@link ISessionsManagementService.onDidSendRequest}
  *      so we can capture the session that was just created, then call
- *      `createAndSendNewChatRequest`.
- *   5. On success, update the run row to `completed`, stamp the
+ *      `createAndSendNewChatRequest` with the automation's required
+ *      `folderUri`.
+ *   4. On success, update the run row to `completed`, stamp the
  *      captured `sessionId` if any, and return. The session itself
  *      keeps running independently; this run row records the kickoff,
  *      not the session's eventual outcome.
- *   6. On failure, update the run row to `failed` with the error
+ *   5. On failure, update the run row to `failed` with the error
  *      message and swallow the error (runners must never throw).
  *
  * Concurrency note: the scheduler awaits each `runOnce` sequentially,
@@ -49,7 +45,6 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 	) { }
 
@@ -79,22 +74,12 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				return;
 			}
 
-			const folderUri = this.resolveFolderUri(automation);
-			if (!folderUri) {
-				await this.automationService.updateRun(runId, {
-					status: 'failed',
-					completedAt: new Date().toISOString(),
-					errorMessage: localize('automationRunner.noFolder', "No workspace folder is available; set a folder on the automation."),
-				});
-				return;
-			}
-
 			const options: ISendRequestOptions = {
 				query: automation.prompt,
 				background: true,
 			};
 
-			const session = await this.createSessionAndCapture(folderUri, options);
+			const session = await this.createSessionAndCapture(automation.folderUri, options);
 
 			await this.automationService.updateRun(runId, {
 				status: 'completed',
@@ -111,14 +96,6 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				});
 			}
 		}
-	}
-
-	private resolveFolderUri(automation: IAutomation): URI | undefined {
-		if (automation.folderUri) {
-			return automation.folderUri;
-		}
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		return folders.length > 0 ? folders[0].uri : undefined;
 	}
 
 	/**

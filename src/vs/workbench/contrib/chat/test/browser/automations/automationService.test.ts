@@ -12,6 +12,8 @@ import { InMemoryStorageService } from '../../../../../../platform/storage/commo
 import { AutomationService } from '../../../browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
 
+const FOLDER = URI.parse('file:///workspace');
+
 function dailySchedule(hour = 9, minute = 0): IAutomationSchedule {
 	return { interval: 'daily', scheduleHour: hour, scheduleMinute: minute, scheduleDay: 0 };
 }
@@ -38,6 +40,7 @@ suite('AutomationService', () => {
 			name: 'Daily review',
 			prompt: 'Summarize what changed',
 			schedule: dailySchedule(),
+			folderUri: FOLDER,
 		});
 		assert.strictEqual(service.automations.get().length, 1);
 		assert.strictEqual(service.automations.get()[0].id, a.id);
@@ -51,8 +54,24 @@ suite('AutomationService', () => {
 			name: 'Manual',
 			prompt: 'p',
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			folderUri: FOLDER,
 		});
 		assert.strictEqual(a.nextRunAt, undefined);
+	});
+
+	test('createAutomation throws when folderUri is missing', async () => {
+		const { service } = createService();
+		await assert.rejects(
+			() => service.createAutomation({
+				name: 'X',
+				prompt: 'p',
+				schedule: dailySchedule(),
+				// Cast to bypass type check — simulates a runtime caller
+				// forgetting the required field.
+				folderUri: undefined as unknown as URI,
+			}),
+			/folderUri/,
+		);
 	});
 
 	test('updateAutomation recomputes nextRunAt when the schedule changes', async () => {
@@ -61,6 +80,7 @@ suite('AutomationService', () => {
 			name: 'A',
 			prompt: 'p',
 			schedule: dailySchedule(9, 0),
+			folderUri: FOLDER,
 		});
 		const before = a.nextRunAt;
 		const b = await service.updateAutomation(a.id, { schedule: dailySchedule(10, 30) });
@@ -69,36 +89,55 @@ suite('AutomationService', () => {
 
 	test('updateAutomation keeps nextRunAt when only the name changes', async () => {
 		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		const b = await service.updateAutomation(a.id, { name: 'B' });
 		assert.strictEqual(b.nextRunAt, a.nextRunAt);
 		assert.strictEqual(b.name, 'B');
 	});
 
-	test('updateAutomation can clear optional fields by passing null', async () => {
+	test('updateAutomation can clear modelId/mode by passing null but keeps folderUri', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({
 			name: 'A', prompt: 'p', schedule: dailySchedule(),
-			folderUri: URI.parse('file:///workspace'),
+			folderUri: FOLDER,
 			modelId: 'gpt-4',
+			mode: 'autopilot',
 		});
-		const b = await service.updateAutomation(a.id, { folderUri: null, modelId: null });
-		assert.strictEqual(b.folderUri, undefined);
+		const b = await service.updateAutomation(a.id, { modelId: null, mode: null });
 		assert.strictEqual(b.modelId, undefined);
+		assert.strictEqual(b.mode, undefined);
+		assert.strictEqual(b.folderUri.toString(), FOLDER.toString());
 	});
 
-	test('deleteAutomation removes the entry but leaves runs alone', async () => {
+	test('updateAutomation switches folder when a new folderUri is provided', async () => {
 		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
-		await service.recordRunStart(a.id, 'manual', 1);
-		await service.deleteAutomation(a.id);
-		assert.deepStrictEqual(service.automations.get(), []);
-		assert.strictEqual(service.runs.get().length, 1);
+		const other = URI.parse('file:///other');
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const b = await service.updateAutomation(a.id, { folderUri: other });
+		assert.strictEqual(b.folderUri.toString(), other.toString());
+	});
+
+	test('deleteAutomation removes the entry and orphan runs are dropped on reload', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		await firstService.recordRunStart(a.id, 'manual', 1);
+		assert.strictEqual(firstService.runs.get().length, 1);
+		await firstService.deleteAutomation(a.id);
+		// Deleting commits a new ledger, which triggers a reload that
+		// drops the now-orphaned run so the ledger does not grow forever.
+		assert.deepStrictEqual(firstService.automations.get(), []);
+		assert.strictEqual(firstService.runs.get().length, 0);
+		firstService.dispose();
+
+		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		assert.deepStrictEqual(secondService.automations.get(), []);
+		assert.strictEqual(secondService.runs.get().length, 0);
 	});
 
 	test('recordRunStart inserts a pending run; updateRun applies a patch', async () => {
 		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		const run = await service.recordRunStart(a.id, 'schedule', 42);
 		assert.strictEqual(run.status, 'pending');
 		assert.strictEqual(run.leaderWindowId, 42);
@@ -109,7 +148,7 @@ suite('AutomationService', () => {
 
 	test('getActiveRunFor returns the first pending or running run for an automation', async () => {
 		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		assert.strictEqual(service.getActiveRunFor(a.id), undefined);
 		const run = await service.recordRunStart(a.id, 'schedule', 1);
 		assert.strictEqual(service.getActiveRunFor(a.id)?.id, run.id);
@@ -119,7 +158,7 @@ suite('AutomationService', () => {
 
 	test('markStaleRunsFailed moves pending and running rows to failed', async () => {
 		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		const r1 = await service.recordRunStart(a.id, 'schedule', 1);
 		const r2 = await service.recordRunStart(a.id, 'schedule', 1);
 		await service.updateRun(r1.id, { status: 'running' });
@@ -132,8 +171,8 @@ suite('AutomationService', () => {
 
 	test('runsFor filters to a single automation', async () => {
 		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
-		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		await service.recordRunStart(a.id, 'schedule', 1);
 		await service.recordRunStart(b.id, 'schedule', 1);
 		await service.recordRunStart(a.id, 'manual', 1);
@@ -144,7 +183,7 @@ suite('AutomationService', () => {
 	test('persists across service restarts via shared storage', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
 		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
-		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule() });
+		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		await firstService.recordRunStart(a.id, 'manual', 7);
 		firstService.dispose();
 
@@ -160,7 +199,7 @@ suite('AutomationService', () => {
 		const windowB = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
 
 		assert.deepStrictEqual(windowB.automations.get(), []);
-		const created = await windowA.createAutomation({ name: 'X', prompt: 'p', schedule: dailySchedule() });
+		const created = await windowA.createAutomation({ name: 'X', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 
 		// In-memory storage fires onDidChangeValue synchronously, so windowB
 		// should already see the new automation.
@@ -184,6 +223,27 @@ suite('AutomationService', () => {
 		assert.deepStrictEqual(service.automations.get(), []);
 	});
 
+	test('persisted automations without folderUri are dropped on load', () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const ledger = {
+			schemaVersion: 1,
+			automations: [
+				{ id: 'orphan', name: 'Old', prompt: 'p', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 }, enabled: true, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+				{ id: 'keep', name: 'Valid', prompt: 'p', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 }, folderUri: FOLDER.toJSON(), enabled: true, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+			],
+			runs: [
+				{ id: 'r-orphan', automationId: 'orphan', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
+				{ id: 'r-keep', automationId: 'keep', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
+			],
+		};
+		storage.store('chat.automations.ledger', JSON.stringify(ledger), -1, 1);
+		const service = teardown.add(new AutomationService(storage, new NullLogService()));
+		assert.strictEqual(service.automations.get().length, 1);
+		assert.strictEqual(service.automations.get()[0].id, 'keep');
+		assert.strictEqual(service.runs.get().length, 1);
+		assert.strictEqual(service.runs.get()[0].id, 'r-keep');
+	});
+
 	test('round-trips a folderUri through persistence', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
 		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
@@ -192,7 +252,7 @@ suite('AutomationService', () => {
 
 		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
 		const reloaded = secondService.automations.get()[0];
-		assert.strictEqual(reloaded.folderUri?.toString(), uri.toString());
+		assert.strictEqual(reloaded.folderUri.toString(), uri.toString());
 	});
 
 	test('disposal does not interfere with later in-store reads', () => {

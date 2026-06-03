@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -58,6 +58,11 @@ export class AutomationsListWidget extends Disposable {
 
 	// Per-render row disposables, cleared on every re-render.
 	private readonly rowDisposables = this._register(new DisposableStore());
+
+	// Hover tooltip for the New button; replaced when workspace folder
+	// availability changes.
+	private readonly newButtonHover = this._register(new MutableDisposable());
+	private readonly newEmptyStateButtonHover = this._register(new MutableDisposable());
 
 	// Per-automation "run is in progress" set, used to disable the Run
 	// Now button so the user cannot double-fire from the UI.
@@ -107,13 +112,33 @@ export class AutomationsListWidget extends Disposable {
 		newButton.label = localize('newAutomation', "New automation");
 		newButton.element.classList.add('automations-new-button');
 		this._register(newButton.onDidClick(() => this.openCreateDialog()));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), newButton.element, localize('newAutomationTooltip', "Create a new automation")));
 		this.newButton = newButton;
+
+		// Listen to workspace folder changes so the "New automation"
+		// affordance reflects whether a folder is available to target.
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.updateNewButtonState()));
+		this.updateNewButtonState();
+	}
+
+	private updateNewButtonState(): void {
+		const hasFolder = this.workspaceContextService.getWorkspace().folders.length > 0;
+		const tooltip = hasFolder
+			? localize('newAutomationTooltip', "Create a new automation")
+			: localize('newAutomationNoFolderTooltip', "Open a folder or workspace to create an automation.");
+		if (this.newButton) {
+			this.newButton.enabled = hasFolder;
+			this.newButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.newButton.element, tooltip);
+		}
+		if (this.newEmptyStateButton) {
+			this.newEmptyStateButton.enabled = hasFolder;
+			this.newEmptyStateButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.newEmptyStateButton.element, tooltip);
+		}
 	}
 
 	private renderList(items: readonly IAutomation[]): void {
 		this.rowDisposables.clear();
 		this.newEmptyStateButton = undefined;
+		this.newEmptyStateButtonHover.clear();
 		DOM.clearNode(this.listEl);
 
 		if (items.length === 0) {
@@ -140,6 +165,7 @@ export class AutomationsListWidget extends Disposable {
 		ctaButton.element.classList.add('automations-empty-cta');
 		this.rowDisposables.add(ctaButton.onDidClick(() => this.openCreateDialog()));
 		this.newEmptyStateButton = ctaButton;
+		this.updateNewButtonState();
 	}
 
 	private renderRow(automation: IAutomation): void {
@@ -163,6 +189,13 @@ export class AutomationsListWidget extends Disposable {
 		sep1.textContent = '·';
 		const nextEl = DOM.append(metaEl, $('span.automations-row-next'));
 		nextEl.textContent = formatNextRun(automation);
+
+		const folderLabel = this.formatFolderLabel(automation.folderUri);
+		const sepFolder = DOM.append(metaEl, $('span.automations-row-meta-sep'));
+		sepFolder.textContent = '·';
+		const folderEl = DOM.append(metaEl, $('span.automations-row-folder'));
+		folderEl.textContent = localize('automationFolderLabel', "in {0}", folderLabel);
+		folderEl.title = automation.folderUri.toString();
 
 		if (automation.lastRunAt) {
 			const sep2 = DOM.append(metaEl, $('span.automations-row-meta-sep'));
@@ -404,6 +437,19 @@ export class AutomationsListWidget extends Disposable {
 			uri: f.uri,
 			label: f.name || URI.from(f.uri).toString(),
 		}));
+	}
+
+	private formatFolderLabel(folderUri: URI): string {
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const match = folders.find(f => f.uri.toString() === folderUri.toString());
+		if (match) {
+			return match.name || URI.from(match.uri).toString();
+		}
+		// Stored folder is not in the current workspace; fall back to
+		// the basename or full URI so the user still sees which target
+		// the automation will run against.
+		const segments = folderUri.path.split('/').filter(s => s.length > 0);
+		return segments[segments.length - 1] ?? folderUri.toString();
 	}
 
 	/**
