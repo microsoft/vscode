@@ -199,7 +199,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				...(modelCapabilities?.enableThinking !== undefined
 					? { enableThinking: modelCapabilities.enableThinking }
 					: {}),
-				...(modelCapabilities?.reasoningEffort
+				...(modelCapabilities?.reasoningEffort !== undefined
 					? { reasoningEffort: modelCapabilities.reasoningEffort }
 					: {}),
 			}
