@@ -7,7 +7,7 @@ import { getCaseInsensitive } from '../../../base/common/objects.js';
 import { win32 } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../common/sandboxHelperService.js';
 
 type FindCommand = (command: string) => Promise<string | undefined>;
 
@@ -39,13 +39,14 @@ export class SandboxHelperService implements ISandboxHelperService {
 			return undefined;
 		}
 
-		const { getAvailableToolsPolicy, getUserProfilePolicy } = await import('@microsoft/mxc-sdk');
+		const { getAvailableToolsPolicy, getUserProfilePolicy, getTemporaryFilesPolicy } = await import('@microsoft/mxc-sdk');
 		const availableToolsPolicy = getAvailableToolsPolicy(process.env, { containerType: 'processcontainer' });
 		const userProfilePolicy = getUserProfilePolicy();
+		const temporaryFilesPolicy = getTemporaryFilesPolicy(process.env);
 		const psHome = await this._getPSHome();
 		return {
-			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...this._getTempReadPaths(), ...(psHome ? [psHome] : [])])],
-			readwritePaths: [...new Set([...availableToolsPolicy.readwritePaths, ...userProfilePolicy.readwritePaths])],
+			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...temporaryFilesPolicy.readonlyPaths, ...(psHome ? [psHome] : [])])],
+			readwritePaths: [...new Set([...availableToolsPolicy.readwritePaths, ...userProfilePolicy.readwritePaths, ...temporaryFilesPolicy.readwritePaths])],
 		};
 	}
 
@@ -55,9 +56,23 @@ export class SandboxHelperService implements ISandboxHelperService {
 		}
 
 		const env: string[] = [];
-		const path = getCaseInsensitive(process.env, 'PATH');
-		if (typeof path === 'string' && path) {
-			env.push(`PATH=${path}`);
+		for (const variable of ['SystemRoot', 'PATH', 'ComSpec', 'PATHEXT', 'PSModulePath']) {
+			const value = getCaseInsensitive(process.env, variable);
+			if (typeof value === 'string' && value) {
+				env.push(`${variable}=${value}`);
+			}
+		}
+		const userProfile = getCaseInsensitive(process.env, 'USERPROFILE');
+		if (typeof userProfile === 'string' && userProfile) {
+			env.push(`USERPROFILE=${userProfile}`);
+		}
+		const appData = getCaseInsensitive(process.env, 'APPDATA');
+		if (typeof appData === 'string' && appData) {
+			env.push(`APPDATA=${appData}`);
+		}
+		const localAppData = this._getLocalAppData();
+		if (typeof localAppData === 'string' && localAppData) {
+			env.push(`LOCALAPPDATA=${localAppData}`);
 		}
 
 		const psHome = await this._getPSHome();
@@ -65,6 +80,15 @@ export class SandboxHelperService implements ISandboxHelperService {
 			env.push(`PSHOME=${psHome}`);
 		}
 		return env;
+	}
+
+	async buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig | undefined> {
+		if (!isWindows) {
+			return undefined;
+		}
+
+		const { buildSandboxPayload } = await import('@microsoft/mxc-sdk');
+		return buildSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
 	}
 
 	private async _getPSHome(): Promise<string | undefined> {
@@ -77,14 +101,8 @@ export class SandboxHelperService implements ISandboxHelperService {
 		return powerShellPath ? win32.dirname(powerShellPath) : undefined;
 	}
 
-	private _getTempReadPaths(): string[] {
-		const paths: string[] = [];
-		for (const variable of ['TMP', 'TEMP']) {
-			const path = getCaseInsensitive(process.env, variable);
-			if (typeof path === 'string' && path) {
-				paths.push(path);
-			}
-		}
-		return paths;
+	private _getLocalAppData(): string | undefined {
+		const localAppData = getCaseInsensitive(process.env, 'LOCALAPPDATA');
+		return typeof localAppData === 'string' && localAppData ? localAppData : undefined;
 	}
 }

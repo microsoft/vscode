@@ -11,13 +11,22 @@
 /* Make the chat bar a positioning context for the water layer (its first
  * child) and keep its real children above the decorative water — without
  * explicit z-index, positioned siblings paint after non-positioned ones. */
-.monaco-workbench .part.chatbar {
+.monaco-workbench .part.sessionspart {
 	position: relative;
 }
-.monaco-workbench .part.chatbar > .title,
-.monaco-workbench .part.chatbar > .content {
+.monaco-workbench .part.sessionspart > .title,
+.monaco-workbench .part.sessionspart > .content {
 	position: relative;
 	z-index: 1;
+}
+
+/* When the aquarium is active, the Sessions Grid wrappers (added between the
+ * sessionspart and the chat widget) would otherwise paint their opaque
+ * `--session-view-background` on top of the water layer and hide everything.
+ * Clear those backgrounds so the fish are visible behind the chat content. */
+.monaco-workbench .part.sessionspart.aquarium-active .session-view,
+.monaco-workbench .part.sessionspart.aquarium-active .session-view > .session-view-content {
+	background-color: transparent;
 }
 
 .agents-aquarium-water {
@@ -188,7 +197,7 @@
 .agents-aquarium-toggle {
 	position: absolute;
 	top: 12px;
-	right: 14px;
+	left: 14px;
 	z-index: 100;
 	width: 24px;
 	height: 24px;

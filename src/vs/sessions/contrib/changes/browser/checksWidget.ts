@@ -18,7 +18,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
@@ -430,8 +430,7 @@ export class CIStatusWidget extends Disposable {
 		}));
 
 		const prompt = buildFixChecksPrompt(failedCheckDetails);
-		const chatWidget = this._chatWidgetService.getWidgetBySessionResource(sessionResource)
-			?? await this._chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		const chatWidget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
 			return;
 		}

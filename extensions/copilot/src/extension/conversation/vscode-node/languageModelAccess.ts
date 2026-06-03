@@ -42,7 +42,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -85,25 +85,15 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const hasLongContextSurcharge = !!pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default pricing'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
 		{
 			value: fullMax,
 			description: hasLongContextSurcharge
-				? vscode.l10n.t('Longer sessions (higher cost)')
+				? vscode.l10n.t('Longer sessions')
 				: vscode.l10n.t('Longer sessions without compaction'),
 			isDefault: false,
 		},
 	];
-}
-
-function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
 }
 
 // Auto model delegates to different backends, so don't expose config pickers
@@ -303,6 +293,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const models: vscode.LanguageModelChatInformation[] = [];
 		const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+		if (!allEndpoints.length) {
+			return this._currentModels;
+		}
 		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
 		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		chatEndpoints.push(autoEndpoint);
@@ -479,6 +472,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+			if (!allEndpoints.length) {
+				return undefined;
+			}
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
@@ -558,8 +554,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
-		if (!this._authenticationService.anyGitHubSession) {
-			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth session');
+		if (!this._authenticationService.hasCopilotTokenSource) {
+			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without a Copilot token source');
 			return undefined;
 		}
 

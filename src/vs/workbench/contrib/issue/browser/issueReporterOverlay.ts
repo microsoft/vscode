@@ -7,7 +7,7 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
@@ -132,8 +132,6 @@ export class IssueReporterOverlay {
 	private includeExtensions = true;
 	private includeExperiments = true;
 	private includeExtensionData = false;
-	private includeSettings = true;
-	private settingsContent: string | undefined;
 	private diagnosticBulkToggleButton: Button | undefined;
 	private diagnosticSectionStates: (() => boolean)[] = [];
 	private performanceInfoLoaded = false;
@@ -387,12 +385,12 @@ export class IssueReporterOverlay {
 				let remaining = this.screenshotDelay;
 				captureBtn.label = `${remaining}...`;
 				const targetWindow = getWindow(this.container);
-				const interval = targetWindow.setInterval(() => {
+				const intervalDisposable = this.disposables.add(disposableWindowInterval(targetWindow, () => {
 					remaining--;
 					if (remaining > 0) {
 						captureBtn.label = `${remaining}...`;
 					} else {
-						targetWindow.clearInterval(interval);
+						this.disposables.delete(intervalDisposable);
 						captureBtn.label = `$(device-camera) ${localize('screenshot', "Screenshot")}`;
 						captureBtn.element.style.minWidth = '';
 						captureBtn.enabled = true;
@@ -401,7 +399,7 @@ export class IssueReporterOverlay {
 						this.updateAttachmentButtons();
 						this._onDidRequestScreenshot.fire();
 					}
-				}, 1000);
+				}, 1000));
 			} else {
 				this._onDidRequestScreenshot.fire();
 			}
@@ -1484,26 +1482,6 @@ export class IssueReporterOverlay {
 			});
 		}
 
-		// Settings
-		if (this.settingsContent) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeSettings);
-			this.createDiagSection(diagContainer, {
-				id: 'settings',
-				label: localize('settings', "Settings"),
-				checked: this.includeSettings,
-				onToggle: (checked) => {
-					this.includeSettings = checked;
-				},
-				renderContent: (container) => {
-					const userLabel = append(container, $('div.review-diag-sublabel'));
-					userLabel.textContent = localize('userSettings', "User Settings");
-					const userPre = append(container, $('pre.review-diag-pre'));
-					userPre.textContent = this.settingsContent!;
-				},
-			});
-		}
-
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			const performanceContainer = append(diagContainer, $('div.review-performance-data'));
 			if (this.performanceInfoRefreshing) {
@@ -1661,7 +1639,6 @@ export class IssueReporterOverlay {
 		this.includeExtensionData = included;
 		this.includeExtensions = included;
 		this.includeExperiments = included;
-		this.includeSettings = included;
 		this.includeProcessInfo = included;
 		this.includeWorkspaceInfo = included;
 		this.model.update({
@@ -2040,10 +2017,6 @@ export class IssueReporterOverlay {
 			sections.push(this.createDetails('A/B Experiments', this.createCodeBlock(modelData.experimentInfo)));
 		}
 
-		if (this.includeSettings && this.settingsContent) {
-			sections.push(this.generateSettingsMd());
-		}
-
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			if (this.includeProcessInfo && modelData.processInfo) {
 				sections.push(this.createDetails('Running Processes', this.createCodeBlock(modelData.processInfo)));
@@ -2158,11 +2131,6 @@ export class IssueReporterOverlay {
 		}
 
 		return this.createDetails(`Extensions (${nonThemeExtensions.length})`, details.join('\n\n'));
-	}
-
-	private generateSettingsMd(): string {
-		const details = [`#### User Settings\n\n${this.createCodeBlock(this.settingsContent ?? '', 'json')}`];
-		return this.createDetails('Settings', details.join('\n\n'));
 	}
 
 	private getIssueTypeTitle(issueType: IssueType): string {
@@ -2280,13 +2248,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		}
 	}
 
-	setSettingsContent(userSettings: string): void {
-		this.settingsContent = userSettings;
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
-	}
-
 	hasUnsavedChanges(): boolean {
 		if (this.previewOpened && this.previewedDraftKey === this.getDraftKey()) {
 			return false;
@@ -2323,8 +2284,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			includeExtensions: this.includeExtensions,
 			includeExperiments: this.includeExperiments,
 			includeExtensionData: this.includeExtensionData,
-			includeSettings: this.includeSettings,
-			settingsContent: this.settingsContent,
 			screenshots: this.screenshots.map(screenshot => screenshot.annotatedDataUrl ?? screenshot.dataUrl),
 			recordings: this.recordings.map(recording => recording.filePath),
 		});

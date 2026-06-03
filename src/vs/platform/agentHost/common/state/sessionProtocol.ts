@@ -57,17 +57,28 @@ export type {
 	ResourceDeleteResult,
 	ResourceListParams,
 	ResourceListResult,
+	ResourceMkdirParams,
+	ResourceMkdirResult,
 	ResourceMoveParams,
 	ResourceMoveResult,
 	ResourceReadParams,
 	ResourceReadResult,
+	ResourceResolveParams,
+	ResourceResolveResult,
 	ResourceWriteParams,
 	ResourceWriteResult,
 	SubscribeParams,
 	UnsubscribeParams,
 } from './protocol/commands.js';
 
-export { ContentEncoding, ReconnectResultType } from './protocol/commands.js';
+export type {
+	CreateResourceWatchParams,
+	CreateResourceWatchResult,
+} from './protocol/channels-resource-watch/commands.js';
+
+export { ContentEncoding, ReconnectResultType, ResourceType, ResourceWriteMode } from './protocol/commands.js';
+export { ResourceChangeType } from './protocol/channels-resource-watch/state.js';
+export type { ResourceChange, ResourceWatchState } from './protocol/channels-resource-watch/state.js';
 
 // Error codes
 export { AhpErrorCodes, JsonRpcErrorCodes } from './protocol/errors.js';
