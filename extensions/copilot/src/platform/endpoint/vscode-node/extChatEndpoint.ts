@@ -315,23 +315,33 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
+function normalizeApiUsageTotal(prompt: number, completion: number, total: number): number {
+	if (total < 0) {
+		return prompt + completion;
+	}
+	return Math.max(total, prompt + completion);
+}
+}
+
 function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
 	if (!isApiUsage(parsed)) {
 		return undefined;
 	}
 	// Clamp sentinel negative values that some BYOK providers emit
 	// when the API hasn't reported a count yet (e.g. -1).
+	const prompt_tokens = Math.max(0, parsed.prompt_tokens);
+	const completion_tokens = Math.max(0, parsed.completion_tokens);
 	const cached = parsed.prompt_tokens_details?.cached_tokens;
 	return {
 		...parsed,
-		prompt_tokens: Math.max(0, parsed.prompt_tokens),
-		completion_tokens: Math.max(0, parsed.completion_tokens),
-		total_tokens: Math.max(0, parsed.total_tokens),
-		...(cached !== undefined
+		prompt_tokens,
+		completion_tokens,
+		total_tokens: normalizeApiUsageTotal(prompt_tokens, completion_tokens, parsed.total_tokens),
+		...(cached !== undefined && cached >= 0
 			? {
 				prompt_tokens_details: {
 					...parsed.prompt_tokens_details,
-					cached_tokens: Math.max(0, cached),
+					cached_tokens: cached,
 				},
 			}
 			: {}),
@@ -339,11 +349,13 @@ function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
 }
 
 function apiUsageFromLanguageModelUsagePart(usage: vscode.LanguageModelUsagePart): APIUsage {
+	const prompt_tokens = Math.max(0, usage.promptTokens);
+	const completion_tokens = Math.max(0, usage.completionTokens);
 	const cached = usage.cachedInputTokens;
 	return {
-		prompt_tokens: Math.max(0, usage.promptTokens),
-		completion_tokens: Math.max(0, usage.completionTokens),
-		total_tokens: Math.max(0, usage.totalTokens),
+		prompt_tokens,
+		completion_tokens,
+		total_tokens: normalizeApiUsageTotal(prompt_tokens, completion_tokens, usage.totalTokens),
 		...(cached !== undefined
 			? { prompt_tokens_details: { cached_tokens: Math.max(0, cached) } }
 			: {}),

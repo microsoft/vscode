@@ -243,7 +243,15 @@ suite('lm', function () {
 		});
 		assert.strictEqual(fromOpenAI.promptTokens, 200);
 		assert.strictEqual(fromOpenAI.completionTokens, 80);
+		assert.strictEqual(fromOpenAI.totalTokens, 280);
 		assert.strictEqual(fromOpenAI.cachedInputTokens, 5);
+
+		const sentinelTotal = vscode.LanguageModelUsagePart.fromOpenAICompatible({
+			prompt_tokens: 10,
+			completion_tokens: 5,
+			total_tokens: -1,
+		});
+		assert.strictEqual(sentinelTotal.totalTokens, 15);
 	});
 
 	test('LanguageModelError instance is not thrown to extensions#235322 (ASYNC)', async function () {

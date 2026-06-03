@@ -788,4 +788,25 @@ suite('ExtHostTypes', function () {
 		m.content = 'Hello';
 		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
+
+	test('LanguageModelUsagePart normalizes sentinel negative totals', function () {
+		const fromCtor = new types.LanguageModelUsagePart(10, 5, -1);
+		assert.strictEqual(fromCtor.promptTokens, 10);
+		assert.strictEqual(fromCtor.completionTokens, 5);
+		assert.strictEqual(fromCtor.totalTokens, 15);
+		assert.strictEqual(fromCtor.cachedInputTokens, undefined);
+
+		const fromOpenAI = types.LanguageModelUsagePart.fromOpenAICompatible({
+			prompt_tokens: 10,
+			completion_tokens: 5,
+			total_tokens: -1,
+		});
+		assert.strictEqual(fromOpenAI.totalTokens, 15);
+
+		const lowTotal = new types.LanguageModelUsagePart(10, 5, 12);
+		assert.strictEqual(lowTotal.totalTokens, 15);
+
+		const negativeCached = new types.LanguageModelUsagePart(10, 5, 15, -1);
+		assert.strictEqual(negativeCached.cachedInputTokens, undefined);
+	});
 });
