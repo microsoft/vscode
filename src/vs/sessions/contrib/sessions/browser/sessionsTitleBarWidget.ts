@@ -25,7 +25,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
@@ -270,7 +270,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
-		if (this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key)) {
+		if (!sessionData.isCreated.get()) {
 			return;
 		}
 
