@@ -318,14 +318,14 @@ export class AgentHostSessionAdapter implements ISession {
 		this.setChangesSummary(metadata.changesets);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const { changesSummary, changes } = this._createChangesObservable(sessionUri, isActiveSessionObs);
+		const { changesSummary, changes } = this._createChangesObs(sessionUri, isActiveSessionObs);
 		this.changesSummary = changesSummary;
 		this.changes = changes;
 
 		// Set the changesets from the catalogue. When the session is active,
 		// the changesets will be updated as some changeset details are being
 		// provided async (ex: description).
-		this.changesets = constObservable(createChangesets(this._options, isActiveSessionObs, metadata.changesets));
+		this.changesets = constObservable(createChangesets(sessionUri, this._options, isActiveSessionObs, metadata.changesets));
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -346,7 +346,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this.chats = this.mainChat.map(c => [c]);
 	}
 
-	private _createChangesObservable(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
+	private _createChangesObs(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
 		changesSummary: IObservable<ISessionChangesSummary | undefined>;
 		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	} {
