@@ -156,9 +156,10 @@ class RolloutStrategyEngine:
         self.configs[platform_quality] = config
         self.save_config()
 
+    # test-workbench_change start
     def decide_version(
         self,
-        client_ip: str,
+        client_ip: str,  # 保持参数名兼容性，实际可以是 IP 或工号标识
         client_id: str,
         current_commit: str,
         platform_quality: str
@@ -167,7 +168,7 @@ class RolloutStrategyEngine:
         决定应该推送哪个版本
 
         Args:
-            client_ip: 客户端 IP 地址（用于日志和白名单/黑名单）
+            client_ip: 客户端标识（可以是 IP 地址或工号，格式如 "ip:192.168.1.1" 或 "employee:12345"）
             client_id: 客户端唯一标识（用于一致性哈希）
             current_commit: 客户端当前的 commit
             platform_quality: 平台和质量通道，如 "win32-x64-user/stable"
@@ -191,13 +192,16 @@ class RolloutStrategyEngine:
             return current_commit
         # test-workbench_change end
 
-        # 1. 检查白名单（强制更新）- 使用 IP
-        if client_ip in config.whitelist:
+        # 提取实际的标识符（去掉前缀）
+        actual_identifier = client_ip.split(':', 1)[1] if ':' in client_ip else client_ip
+
+        # 1. 检查白名单（强制更新）
+        if actual_identifier in config.whitelist:
             logger.info(f"客户端 {client_ip} 在白名单中，推送新版本")
             return target_commit
 
-        # 2. 检查黑名单（禁止更新）- 使用 IP
-        if client_ip in config.blacklist:
+        # 2. 检查黑名单（禁止更新）
+        if actual_identifier in config.blacklist:
             logger.info(f"客户端 {client_ip} 在黑名单中，保持当前版本")
             return current_commit
 
@@ -222,6 +226,7 @@ class RolloutStrategyEngine:
                 f"(hash={percentage:.2f}% >= {config.rollout_percentage}%)"
             )
             return current_commit
+    # test-workbench_change end
 
     def _consistent_hash(self, client_id: str, salt: str) -> int:
         """

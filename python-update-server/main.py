@@ -422,17 +422,27 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 
+# test-workbench_change start
 def extract_client_id(request: Request) -> Tuple[str, str]:
     """
-    提取客户端唯一标识（基于 IP 地址）
+    提取客户端唯一标识（优先使用工号，其次使用 IP 地址）
 
     Args:
         request: FastAPI Request 对象
 
     Returns:
-        (client_ip, client_id): 客户端 IP 和 ID（16 字符的十六进制字符串）
+        (client_identifier, client_id): 客户端标识（工号或 IP）和 ID（16 字符的十六进制字符串）
     """
-    # 获取客户端 IP
+    # 优先从请求头获取工号
+    employee_id = request.headers.get('X-Employee-ID')
+    
+    if employee_id:
+        # 使用工号作为客户端标识
+        client_identifier = f"employee:{employee_id}"
+        client_id = hashlib.sha256(client_identifier.encode()).hexdigest()[:16]
+        return client_identifier, client_id
+    
+    # 如果没有工号，使用 IP 地址
     client_ip = request.client.host if request.client else "unknown"
 
     # 尝试从 X-Forwarded-For 获取真实 IP（如果有代理）
@@ -441,10 +451,12 @@ def extract_client_id(request: Request) -> Tuple[str, str]:
         # X-Forwarded-For 可能包含多个 IP，取第一个
         client_ip = forwarded_for.split(',')[0].strip()
 
-    # 使用 SHA256 哈希生成客户端 ID（用于一致性哈希）
-    client_id = hashlib.sha256(client_ip.encode()).hexdigest()[:16]
+    # 使用 IP 作为客户端标识
+    client_identifier = f"ip:{client_ip}"
+    client_id = hashlib.sha256(client_identifier.encode()).hexdigest()[:16]
 
-    return client_ip, client_id
+    return client_identifier, client_id
+# test-workbench_change end
 
 
 @app.get("/api/update/{platform}/{quality}/{commit}")
@@ -464,9 +476,14 @@ async def check_update(
     """
     logger.info(f"更新检查: platform={platform}, quality={quality}, commit={commit}")
 
-    # 提取客户端 IP 和 ID
-    client_ip, client_id = extract_client_id(request)
-    logger.info(f"  客户端: {client_ip}")
+    # test-workbench_change start
+    employee_id_header = request.headers.get('X-Employee-ID')
+    logger.info(f"  请求头工号 X-Employee-ID: {employee_id_header or '未提供'}")
+    # test-workbench_change end
+
+    # 提取客户端标识和 ID
+    client_identifier, client_id = extract_client_id(request)
+    logger.info(f"  客户端: {client_identifier}")
 
     # 重新扫描目录（支持热更新）
     config = scan_packages_directory()
@@ -504,7 +521,7 @@ async def check_update(
 
         # 如果客户端的 commit 是当前最新版本（需要回退的版本）
         if commit == latest_version.get('commit'):
-            logger.info(f"  → 客户端 {client_ip} 使用新版本 {commit[:8]}，推送备份版本进行回退")
+            logger.info(f"  → 客户端 {client_identifier} 使用新版本 {commit[:8]}，推送备份版本进行回退")
 
             # 构建回退更新信息
             filename = backup_version.get('filename')
@@ -521,12 +538,12 @@ async def check_update(
 
         # 如果客户端已经是备份版本（旧版本），不更新
         elif commit == backup_version.get('commit'):
-            logger.info(f"  → 客户端 {client_ip} 已是备份版本 {commit[:8]}，无需更新 (204)")
+            logger.info(f"  → 客户端 {client_identifier} 已是备份版本 {commit[:8]}，无需更新 (204)")
             return Response(status_code=204)
 
         # 如果客户端是其他版本，也不更新（避免更新到有问题的新版本）
         else:
-            logger.info(f"  → 客户端 {client_ip} 使用其他版本 {commit[:8]}，回滚期间禁止更新 (204)")
+            logger.info(f"  → 客户端 {client_identifier} 使用其他版本 {commit[:8]}，回滚期间禁止更新 (204)")
             return Response(status_code=204)
 
     elif backup_version and not (rollout_engine and rollout_engine.is_rollback_enabled()):
@@ -539,7 +556,7 @@ async def check_update(
     if rollout_engine:
         # 使用灰度发布引擎决定目标版本
         target_commit = rollout_engine.decide_version(
-            client_ip=client_ip,
+            client_ip=client_identifier,
             client_id=client_id,
             current_commit=commit,
             platform_quality=platform_quality
@@ -550,7 +567,7 @@ async def check_update(
 
     # 检查是否需要更新
     if commit == target_commit:
-        logger.info(f"  → 客户端 {client_ip} 已是目标版本 (204)")
+        logger.info(f"  → 客户端 {client_identifier} 已是目标版本 (204)")
         return Response(status_code=204)
 
     # 构建更新信息（符合 VS Code IUpdate 接口）
@@ -563,7 +580,7 @@ async def check_update(
         'sha256hash': latest_version.get('hash', '')           # 注意：VS Code 期望 sha256hash
     }
 
-    logger.info(f"  → 客户端 {client_ip} 发现更新: {latest_version.get('version')}")
+    logger.info(f"  → 客户端 {client_identifier} 发现更新: {latest_version.get('version')}")
     return update_info
 
 
@@ -1085,38 +1102,61 @@ async def get_product_info():
         raise HTTPException(status_code=500, detail=f"读取 product.json 失败: {str(e)}")
 
 
+# test-workbench_change start
 @app.get("/admin/client-id")
-async def get_client_id(request: Request, ip: Optional[str] = None):
+async def get_client_id(request: Request, ip: Optional[str] = None, employee_id: Optional[str] = None):
     """
-    查询客户端 ID
+    查询客户端 ID（支持 IP 或工号）
 
     Query Parameters:
-        ip: 客户端 IP 地址（可选，不提供则使用请求者的 IP）
+        ip: 客户端 IP 地址（可选）
+        employee_id: 工号（可选）
+        如果都不提供，则使用请求者的 IP 或请求头中的工号
 
     Example:
         GET /admin/client-id
         GET /admin/client-id?ip=192.168.1.100
+        GET /admin/client-id?employee_id=12345
     """
-    if ip:
-        # 使用提供的 IP
-        client_ip = ip
+    client_identifier = None
+    identifier_type = None
+    
+    # 优先使用提供的工号
+    if employee_id:
+        client_identifier = f"employee:{employee_id}"
+        identifier_type = "employee_id"
+    # 其次使用提供的 IP
+    elif ip:
+        client_identifier = f"ip:{ip}"
+        identifier_type = "ip"
     else:
-        # 使用请求者的 IP
-        client_ip = request.client.host if request.client else "unknown"
-
-        # 尝试从 X-Forwarded-For 获取真实 IP
-        forwarded_for = request.headers.get('X-Forwarded-For')
-        if forwarded_for:
-            client_ip = forwarded_for.split(',')[0].strip()
+        # 尝试从请求头获取工号
+        header_employee_id = request.headers.get('X-Employee-ID')
+        if header_employee_id:
+            client_identifier = f"employee:{header_employee_id}"
+            identifier_type = "employee_id"
+        else:
+            # 使用请求者的 IP
+            client_ip = request.client.host if request.client else "unknown"
+            
+            # 尝试从 X-Forwarded-For 获取真实 IP
+            forwarded_for = request.headers.get('X-Forwarded-For')
+            if forwarded_for:
+                client_ip = forwarded_for.split(',')[0].strip()
+            
+            client_identifier = f"ip:{client_ip}"
+            identifier_type = "ip"
 
     # 计算 client_id
-    client_id = hashlib.sha256(client_ip.encode()).hexdigest()[:16]
+    client_id = hashlib.sha256(client_identifier.encode()).hexdigest()[:16]
 
     return {
-        "client_ip": client_ip,
+        "client_identifier": client_identifier,
+        "identifier_type": identifier_type,
         "client_id": client_id,
-        "full_hash": hashlib.sha256(client_ip.encode()).hexdigest()
+        "full_hash": hashlib.sha256(client_identifier.encode()).hexdigest()
     }
+# test-workbench_change end
 
 
 @app.post("/admin/rollout/whitelist")

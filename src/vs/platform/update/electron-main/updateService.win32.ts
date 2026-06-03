@@ -34,7 +34,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, enhanceUpdateRequestHeadersWithEmployeeId, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js'; // test-workbench_change
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -204,8 +204,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.CheckingForUpdates(explicit));
 		}
 
-		const headers = getUpdateRequestHeaders(this.productService.version);
-		this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, CancellationToken.None)
+		// test-workbench_change start
+		const baseHeaders = getUpdateRequestHeaders(this.productService.version);
+		enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService)
+			.then(headers => this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, CancellationToken.None))
+			// test-workbench_change end
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();

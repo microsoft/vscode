@@ -211,6 +211,31 @@ registerAction2(InstallUpdateAction);
 registerAction2(RestartToUpdateAction);
 
 if (isWindows) {
+	// test-workbench_change start
+	class TestCheckForUpdateAction extends Action2 {
+		constructor() {
+			super({
+				id: 'update.testCheckForUpdate',
+				title: localize2('testCheckForUpdates', 'Test: Check for Updates...'),
+				category: Categories.Developer,
+				f1: true,
+				menu: [{
+					id: MenuId.MenubarHelpMenu,
+					group: '1_welcome',
+					order: 6,
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const updateService = accessor.get(IUpdateService);
+			return updateService.checkForUpdates(true);
+		}
+	}
+
+	registerAction2(TestCheckForUpdateAction);
+	// test-workbench_change end
+
 	class DeveloperApplyUpdateAction extends Action2 {
 		constructor() {
 			super({

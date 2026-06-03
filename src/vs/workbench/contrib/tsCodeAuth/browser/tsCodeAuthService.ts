@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js'; // test-workbench_change
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js'; // test-workbench_change
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js'; // test-workbench_change
 import {
 	ITsCodeAuthService,
@@ -17,6 +18,7 @@ import {
 	TokenResponse,
 	TSCODE_BASE_URL,
 	TSCODE_GATEWAY_BASE_URL,
+	TSCODE_EMPLOYEE_ID_STORAGE_KEY,
 	createMockToken,
 } from '../common/tsCodeAuth.js';
 
@@ -51,6 +53,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService, // test-workbench_change
+		@IStorageService private readonly storageService: IStorageService, // test-workbench_change
 		@ITelemetryService private readonly telemetryService: ITelemetryService, // test-workbench_change
 	) {
 		super();
@@ -60,11 +63,13 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		try {
 			const token = await this.tokenStore.getToken();
 			if (token) {
+				this._syncEmployeeIdForUpdateService(token.employeeId); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.userId', token.employeeId ?? ''); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.userName', token.userName ?? ''); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.pathName', token.pathName ?? ''); // test-workbench_change
 				return;
 			}
+			this._clearEmployeeIdForUpdateService(); // test-workbench_change
 			this._onDidNeedLogin.fire();
 		} catch (err) {
 			this.logService.error('[TsCodeAuthService] checkAndHandleAuth failed', err);
@@ -100,6 +105,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 			this._pollingTimer = setTimeout(async () => {
 				const mockToken = createMockToken(); // test-workbench_change
 				await this.tokenStore.saveToken(mockToken);
+				this._syncEmployeeIdForUpdateService(mockToken.employeeId); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.userId', mockToken.employeeId ?? ''); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.userName', mockToken.userName ?? ''); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.pathName', mockToken.pathName ?? ''); // test-workbench_change
@@ -128,6 +134,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 							pathName: data.body.pathName,
 						};
 						await this.tokenStore.saveToken(storedToken);
+						this._syncEmployeeIdForUpdateService(storedToken.employeeId); // test-workbench_change
 						this._sendLoginTelemetry(storedToken.employeeId, storedToken.userName); // test-workbench_change
 						this.telemetryService.setCommonProperty('common.userId', storedToken.employeeId ?? ''); // test-workbench_change
 						this.telemetryService.setCommonProperty('common.userName', storedToken.userName ?? ''); // test-workbench_change
@@ -153,6 +160,18 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 	}
 
 	// test-workbench_change start
+	private _syncEmployeeIdForUpdateService(employeeId?: string): void {
+		if (employeeId) {
+			this.storageService.store(TSCODE_EMPLOYEE_ID_STORAGE_KEY, employeeId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this._clearEmployeeIdForUpdateService();
+		}
+	}
+
+	private _clearEmployeeIdForUpdateService(): void {
+		this.storageService.remove(TSCODE_EMPLOYEE_ID_STORAGE_KEY, StorageScope.APPLICATION);
+	}
+
 	private _sendLoginTelemetry(userId?: string, userName?: string): void {
 		type TsCodeLoginCompletedClassification = {
 			owner: 'tsCodeTeam';
@@ -181,6 +200,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 
 	async signOut(): Promise<void> { // test-workbench_change
 		await this.tokenStore.clearToken();
+		this._clearEmployeeIdForUpdateService(); // test-workbench_change
 		this.telemetryService.setCommonProperty('common.userId', ''); // test-workbench_change
 		this.telemetryService.setCommonProperty('common.userName', ''); // test-workbench_change
 		this.telemetryService.setCommonProperty('common.pathName', ''); // test-workbench_change
