@@ -27,7 +27,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"copilot_build_cache_v2" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json | $(Build.SourcesDirectory)/package-lock.json'
+      key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
       path: $(Build.SourcesDirectory)/extensions/copilot/.build/build_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore copilot build cache
@@ -55,7 +55,6 @@ steps:
   - script: npm ci --ignore-scripts --no-workspaces
     workingDirectory: $(Build.SourcesDirectory)
     displayName: Install vscode dependencies
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
 
   - script: npm ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
