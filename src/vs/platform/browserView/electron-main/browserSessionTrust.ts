@@ -72,9 +72,7 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 	}
 
 	/**
-	 * Install the session-level certificate verification callback that records cert errors.
-	 * For the tunnel proxy's self-signed certificate (identified by fingerprint), the
-	 * callback accepts it directly. For all other certificates, it uses default Chromium handling.
+	 * Install the session-level certificate verification callback that records cert errors and accepts the self-signed proxy cert.
 	 */
 	private _installCertVerifyProc(): void {
 		this._session.electronSession.setCertificateVerifyProc((request, callback) => {

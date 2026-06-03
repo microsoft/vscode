@@ -78,7 +78,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		super();
 
 		this.element = $('.browser-url-container');
-		this._preUrlWidgetsContainer = $('.browser-site-info-slot');
+		this._preUrlWidgetsContainer = $('.browser-pre-url-widgets');
 
 		// The URL display is a contenteditable div so it behaves like an input
 		// (caret, typing, backspace, paste) while still permitting child spans for

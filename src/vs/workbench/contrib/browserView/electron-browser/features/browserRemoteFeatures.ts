@@ -8,7 +8,7 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../browserEditor.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -44,11 +44,11 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		this.setRemoteConnected(false);
 	}
 
-	override get preUrlWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._container, order: 0 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PreUrl, element: this._container, order: 0 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this.setRemoteConnected(model.isRemoteSession && !model.url.startsWith('file://'));
 		if (model.isRemoteSession) {
 			store.add(model.onDidNavigate((event) => {
@@ -57,7 +57,7 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		}
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this.setRemoteConnected(false);
 	}
 

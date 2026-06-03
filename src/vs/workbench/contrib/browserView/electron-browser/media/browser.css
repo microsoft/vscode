@@ -705,15 +705,15 @@
 		align-items: center;
 		position: relative;
 		flex-shrink: 0;
-		margin-left: 1px;
+		margin: 1px 0 1px 1px;
 	}
 
 	.browser-site-info-indicator {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 24px;
-		height: 24px;
+		width: 23px;
+		height: 23px;
 		border-radius: var(--vscode-cornerRadius-small);
 		cursor: pointer;
 		background-color: var(--vscode-statusBarItem-errorBackground);

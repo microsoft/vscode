@@ -340,9 +340,6 @@ export class BrowserView extends Disposable {
 		this.session.trust.installCertErrorHandler(webContents);
 
 		// Automatically supply proxy auth credentials for the tunnel proxy.
-		// This intercepts Chromium's 407 → login flow so the credentials are
-		// provided programmatically instead of falling through to the global
-		// ProxyAuthService (which would show a dialog to the user).
 		if (this.session.proxy) {
 			const { username, password } = this.session.proxy.credentials;
 			const proxyPort = this.session.proxy.port;
@@ -351,7 +348,6 @@ export class BrowserView extends Disposable {
 					event.preventDefault();
 					callback(username, password);
 				}
-				// else: don't preventDefault — let app-level handler take over
 			});
 		}
 

@@ -49,7 +49,7 @@ export interface ITunnelConnectFn {
  */
 export class TunnelProxy extends Disposable {
 
-	private _server: net.Server | undefined;
+	private _server: import('https').Server | undefined;
 	private _tunnelAgent: import('http').Agent | undefined;
 	private _localPort: number = 0;
 	private _credentials: { username: string; password: string } | undefined;
@@ -69,8 +69,8 @@ export class TunnelProxy extends Disposable {
 
 	async start(): Promise<ITunnelProxyInfo> {
 		const crypto = await import('crypto');
-		const tls = await import('tls');
 		const http = await import('http');
+		const https = await import('https');
 
 		// Generate random credentials
 		const username = crypto.randomBytes(16).toString('hex');
@@ -97,36 +97,22 @@ export class TunnelProxy extends Disposable {
 				.catch(err => oncreate(err));
 		};
 
-		// Create an HTTPS server (TLS over the proxy connection)
-		const tlsServer = tls.createServer({ key, cert }, (tlsSocket) => {
-			// For plain HTTP requests, Node's http server is wired below
-			// via the `connection` event. This callback is only needed for
-			// TLS setup — actual request handling is done by the http server.
-		});
-		this._server = tlsServer;
-
-		// Layer an HTTP server on top of the TLS server to parse HTTP
-		// requests and CONNECT tunnels within the encrypted channel.
-		const httpServer = http.createServer((req, res) => this._onRequest(req, res));
-		httpServer.on('connect', (req, socket, head) => this._onConnect(req, socket as net.Socket, head));
-
-		// When TLS accepts a connection, feed the decrypted stream into
-		// the HTTP server so it sees standard HTTP framing.
-		tlsServer.on('secureConnection', socket => {
-			httpServer.emit('connection', socket);
-		});
-
-		tlsServer.on('error', err => {
+		// HTTPS server: handles plain HTTP requests (absolute-form URLs from
+		// Chromium when configured as a proxy) and CONNECT tunnels for HTTPS.
+		const server = https.createServer({ key, cert }, (req, res) => this._onRequest(req, res));
+		server.on('connect', (req, socket, head) => this._onConnect(req, socket as net.Socket, head));
+		server.on('error', err => {
 			this._logService.error('[TunnelProxy] Server error:', err);
 		});
+		this._server = server;
 
 		const port = await findFreePortFaster(0, 2, 1000, '127.0.0.1');
-		tlsServer.listen(port, '127.0.0.1');
+		server.listen(port, '127.0.0.1');
 		await new Promise<void>((resolve, reject) => {
-			tlsServer.once('listening', resolve);
-			tlsServer.once('error', reject);
+			server.once('listening', resolve);
+			server.once('error', reject);
 		});
-		const address = tlsServer.address() as net.AddressInfo;
+		const address = server.address() as net.AddressInfo;
 		this._localPort = address.port;
 		this._logService.info(`[TunnelProxy] Listening on https://127.0.0.1:${this._localPort}`);
 
