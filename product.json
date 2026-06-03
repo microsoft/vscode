@@ -300,7 +300,8 @@
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"test-tech.skillhub",
 		"test-tech.testagent",
-		"cweijan.vscode-office"
+		"cweijan.vscode-office",
+		"test-tech.beeeyes"
 	],
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",
@@ -319,8 +320,6 @@
 	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes",
 	"extensionsAutoInstallUrl": "https://tscode-gateway.paasuat.cmbchina.cn/auto-install-extensions",
 	"extensionsAutoInstall": [
-		"test-tech.test-task-manager",
-		"ms-python.python",
-		"ms-python.debugpy"
+		"test-tech.test-task-manager"
 	]
 }
