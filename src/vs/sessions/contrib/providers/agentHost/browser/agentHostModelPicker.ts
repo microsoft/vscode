@@ -113,6 +113,13 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
+		// Resolve extension-contributed language model providers while the new-session
+		// composer is still visible. Without this, the picker can be built from only
+		// the already-registered agent-host BYOK provider on startup, and extension
+		// models do not appear until a chat session starts and the regular chat input
+		// resolves providers.
+		void languageModelsService.selectLanguageModels({}).catch(() => undefined);
+
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.agentHost.modelPicker',
 			(_action, _options, scopedInstantiationService) => {
