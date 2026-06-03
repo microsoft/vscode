@@ -70,7 +70,7 @@ import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesVi
 import { ChecksViewModel } from './checksViewModel.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -713,6 +713,12 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
+				// Open a single file diff editor when configured to do so
+				if (this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING)) {
+					void this._openSingleFileDiffEditor(e.element, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
+					return;
+				}
+
 				// Open multi-file diff editor
 				void this._openMultiFileDiffEditor(e.element.uri);
 			}));
@@ -1101,6 +1107,37 @@ export class ChangesViewPane extends ViewPane {
 			resource: modifiedFileUri,
 			...labels,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+		}, group);
+	}
+
+	private async _openSingleFileDiffEditor(item: IChangesFileItem, sideBySide: boolean, preserveFocus: boolean, pinned: boolean): Promise<void> {
+		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const labels = getChangesEditorLabels(item.uri, this.labelService);
+
+		if (isDeletion && originalUri) {
+			await this.editorService.openEditor({
+				resource: originalUri,
+				...labels,
+				options: { preserveFocus, pinned }
+			}, group);
+			return;
+		}
+
+		if (originalUri) {
+			await this.editorService.openEditor({
+				original: { resource: originalUri },
+				modified: { resource: modifiedFileUri },
+				...labels,
+				options: { preserveFocus, pinned }
+			}, group);
+			return;
+		}
+
+		await this.editorService.openEditor({
+			resource: modifiedFileUri,
+			...labels,
+			options: { preserveFocus, pinned }
 		}, group);
 	}
 
