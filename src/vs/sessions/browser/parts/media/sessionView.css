@@ -56,6 +56,17 @@
 }
 
 /* Fade the chat input editor (including placeholder/draft text) for inactive sessions. */
+.session-view:not(.is-active) .interactive-session .chat-editor-container {
+	opacity: 0.6;
+}
+
+/* Fully desaturate the in-flight chat-input border beam in inactive sessions so
+ * it matches the muted treatment of the rest of the inactive input controls.
+ * Relative color syntax zeroes the saturation channel while preserving hue and
+ * lightness — unlike mixing toward a fixed gray, this keeps the accent's
+ * lightness intact so high-contrast themes (white/black accents) still read. */
+.session-view:not(.is-active) .interactive-session .chat-input-container.working {
+	--chat-input-working-border-color1: hsl(from var(--vscode-chat-inputWorkingBorderColor1) h 0% l);
 }
 
 /* Desaturate the send button so it reads as muted while still discoverable. */
