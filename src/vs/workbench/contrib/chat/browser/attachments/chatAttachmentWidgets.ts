@@ -18,7 +18,7 @@ import * as event from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -76,6 +76,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
+import { createImageThumbnail } from '../chatImageUtils.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -585,6 +586,14 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 }
 
+/**
+ * Maximum width/height (in pixels) of the downscaled image rendered in the hover
+ * preview. The preview is capped at ~350px by CSS, so 768px keeps it crisp on
+ * high-DPI displays. The same thumbnail is reused for the pill to avoid decoding
+ * and resizing the original bitmap twice.
+ */
+const IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
+
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
@@ -611,6 +620,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
 	element.appendChild(pillIcon);
 	element.appendChild(textLabel);
+
+	// Tracks the currently rendered pill so it can be swapped without querying the DOM.
+	let currentPill: HTMLElement = pillIcon;
+	const replacePill = (pill: HTMLElement) => {
+		currentPill.replaceWith(pill);
+		currentPill = pill;
+	};
 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	hoverElement.setAttribute('aria-label', ariaLabel);
@@ -645,18 +661,11 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			style: HoverStyle.Pointer,
 		}));
 
-		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
-		const url = URL.createObjectURL(blob);
-		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
-		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
+		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>]);
 
-		// eslint-disable-next-line no-restricted-syntax
-		const existingPill = element.querySelector('.chat-attached-context-pill');
-		if (existingPill) {
-			existingPill.replaceWith(pill);
-		}
-
-		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		// Keep the full-resolution image available as a fallback for the hover
+		// preview, but only decode it lazily if the downscaled thumbnail fails.
+		const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
 		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
 		hoverElement.appendChild(imageContainer);
 
@@ -667,17 +676,36 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			hoverElement.append(separator, urlContainer);
 		}
 
-		hoverImage.onload = () => { URL.revokeObjectURL(url); };
-		hoverImage.onerror = () => {
+		const onImageFailed = () => {
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
-			// eslint-disable-next-line no-restricted-syntax
-			const existingPill = element.querySelector('.chat-attached-context-pill');
-			if (existingPill) {
-				existingPill.replaceWith(pill);
-			}
+			replacePill(pillIcon);
 		};
+
+		const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+
+		// Both the always-visible pill and the hover preview render small. Use one
+		// generated thumbnail for both so the original bytes are decoded and resized
+		// only once, and the UI keeps a small object URL for steady-state rendering.
+		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
+		const renderPreviewImage = async () => {
+			const thumbnail = await createImageThumbnail(data, undefined, IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
+			if (disposable.isDisposed) {
+				return;
+			}
+			// Fall back to the full-resolution image if downscaling failed.
+			const source = thumbnail ?? blob;
+			const url = URL.createObjectURL(source);
+			previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
+			if (thumbnail) {
+				const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
+				const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
+				replacePill(pill);
+			}
+			hoverImage.onerror = onImageFailed;
+			hoverImage.src = url;
+		};
+		void renderPreviewImage();
 	}
 	return disposable;
 }
