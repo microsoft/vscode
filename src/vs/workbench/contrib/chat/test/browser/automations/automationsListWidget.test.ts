@@ -24,6 +24,7 @@ import { AutomationService } from '../../../browser/automations/automationServic
 import { IAutomation, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
 import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../../common/automations/automationService.js';
+import { IAutomationSessionTypeProvider, PlaceholderAutomationSessionTypeProvider } from '../../../common/automations/automationSessionTypes.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -98,6 +99,7 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(IAutomationRunner, runner);
 		instantiation.stub(IDialogService, dialog);
 		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({ showOpenDialog: async () => undefined }));
+		instantiation.stub(IAutomationSessionTypeProvider, new PlaceholderAutomationSessionTypeProvider());
 		instantiation.stub(IHoverService, NullHoverService);
 		const workspace = new FakeWorkspaceContextService();
 		teardown.add({ dispose: () => workspace.dispose() });
