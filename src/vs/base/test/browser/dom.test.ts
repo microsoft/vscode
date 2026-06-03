@@ -562,7 +562,7 @@ suite('dom', () => {
 
 			assert.deepStrictEqual(
 				calls,
-				items.toSorted((a, b) => b.priority - a.priority || a.index - b.index).map(item => item.index)
+				[...items].sort((a, b) => b.priority - a.priority || a.index - b.index).map(item => item.index)
 			);
 		});
 

@@ -403,7 +403,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	constructor(runner: () => void, priority: number = 0) {
 		this._runner = runner;
 		this._priority = priority;
-		this._order = 0;
+		this._order = -1;
 		this._canceled = false;
 	}
 
@@ -424,6 +424,9 @@ class AnimationFrameQueueItem implements IDisposable {
 	}
 
 	setOrder(order: number): void {
+		if (this._order !== -1) {
+			return;
+		}
 		this._order = order;
 	}
 
