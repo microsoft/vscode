@@ -15,13 +15,10 @@ const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
 const sourceMapOutDir = './dist-sourcemaps';
 
-/**
- * Mark packages `external` only if a shared copy exists in `extensions/node_modules/` (in-tree vscode build).
- * Standalone marketplace builds don't have it, so packages stay inlined and the .vsix is self-contained.
- */
+/** Externalize only when bundled with the vscode product (which ships `extensions/node_modules/`).
+ *  Default unset = inlined, so the standalone marketplace .vsix stays self-contained. */
 function sharedRuntimeExternal(packages: string[]): string[] {
-	const sharedRoot = path.join(REPO_ROOT, '..', 'node_modules');
-	return packages.filter(name => fs.existsSync(path.join(sharedRoot, ...name.split('/'), 'package.json')));
+	return process.env['VSCODE_USE_SHARED_EXTENSION_DEPS'] === 'true' ? packages : [];
 }
 
 const baseBuildOptions = {
