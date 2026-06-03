@@ -79,11 +79,22 @@ export enum ModelSupportedEndpoint {
 	Messages = '/v1/messages'
 }
 
-export interface IModelTokenPrices {
-	batch_size: number;
-	cache_price: number;
+export interface IModelTokenPriceTier {
 	input_price: number;
 	output_price: number;
+	cache_price: number;
+	/**
+	 * The maximum context window size (in tokens) for this pricing tier.
+	 * Present on the `default` tier only when a `long_context` tier also
+	 * exists; always present on the `long_context` tier itself.
+	 */
+	context_max?: number;
+}
+
+export interface IModelTokenPrices {
+	batch_size: number;
+	default: IModelTokenPriceTier;
+	long_context?: IModelTokenPriceTier;
 }
 
 export interface IModelBilling {
@@ -105,6 +116,7 @@ export interface IModelAPIResponse {
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
 	billing?: IModelBilling;
+	model_picker_price_category?: string;
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
 	custom_model?: CustomModel;
@@ -115,6 +127,12 @@ export type IChatModelInformation = IModelAPIResponse & {
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
 	zeroDataRetentionEnabled?: boolean;
+	/**
+	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
+	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
+	 * Chat Completions → top-level `reasoning_effort`).
+	 */
+	reasoningEffortFormat?: 'chat-completions' | 'responses';
 };
 
 export function isChatModelInformation(model: IModelAPIResponse): model is IChatModelInformation {
@@ -135,7 +153,7 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 	return model.capabilities.type === 'completion';
 }
 
-export type ChatEndpointFamily = 'copilot-base' | 'copilot-fast';
+export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small';
 export type EmbeddingsEndpointFamily = 'text3small' | 'metis';
 
 export interface IEndpointProvider {

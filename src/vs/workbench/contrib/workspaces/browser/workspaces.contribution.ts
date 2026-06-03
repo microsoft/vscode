@@ -19,7 +19,7 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { ActiveEditorContext, ResourceContextKey, TemporaryWorkspaceContext } from '../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, TemporaryWorkspaceContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 
@@ -120,7 +120,8 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ResourceContextKey.Extension.isEqualTo(WORKSPACE_SUFFIX),
 					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
-					TemporaryWorkspaceContext.toNegated()
+					TemporaryWorkspaceContext.toNegated(),
+					IsSessionsWindowContext.toNegated()
 				)
 			}
 		});

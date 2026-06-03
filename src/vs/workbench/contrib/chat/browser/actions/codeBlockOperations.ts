@@ -90,6 +90,7 @@ export class InsertCodeBlockOperation {
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: undefined,
 			});
 		}
 	}

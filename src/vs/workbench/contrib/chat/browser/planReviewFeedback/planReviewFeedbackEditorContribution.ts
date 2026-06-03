@@ -14,7 +14,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
 import { overviewRulerInfo } from '../../../../../editor/common/core/editorColorRegistry.js';
-import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -26,7 +26,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IPlanReviewFeedbackService } from './planReviewFeedbackService.js';
-import { hasPlanReviewFeedback, navigationBearingFakeActionId, PlanReviewFeedbackMenuId, submitPlanReviewFeedbackActionId } from './planReviewFeedbackEditorActions.js';
+import { hasPlanReviewFeedback, navigationBearingFakeActionId, PlanReviewFeedbackMenuId } from './planReviewFeedbackEditorActions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 
@@ -43,15 +43,11 @@ class PlanReviewFeedbackInputWidget implements IOverlayWidget {
 	private readonly _measureElement: HTMLElement;
 	private readonly _actionBar: ActionBar;
 	private readonly _addAction: Action;
-	private readonly _addAndSubmitAction: Action;
 	private _position: IOverlayWidgetPosition | null = null;
 	private _lineHeight = 22;
 
 	private readonly _onDidTriggerAdd = new Emitter<void>();
 	readonly onDidTriggerAdd: Event<void> = this._onDidTriggerAdd.event;
-
-	private readonly _onDidTriggerAddAndSubmit = new Emitter<void>();
-	readonly onDidTriggerAddAndSubmit: Event<void> = this._onDidTriggerAddAndSubmit.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -70,7 +66,8 @@ class PlanReviewFeedbackInputWidget implements IOverlayWidget {
 		this._measureElement.classList.add('plan-review-feedback-input-measure');
 		this._domNode.appendChild(this._measureElement);
 
-		// Action bar with add/submit actions
+		// Action bar with the add action. Submission of all queued comments
+		// happens from the chat widget so this surface only captures input.
 		const actionsContainer = document.createElement('div');
 		actionsContainer.classList.add('plan-review-feedback-input-actions');
 		this._domNode.appendChild(actionsContainer);
@@ -83,38 +80,10 @@ class PlanReviewFeedbackInputWidget implements IOverlayWidget {
 			() => { this._onDidTriggerAdd.fire(); return Promise.resolve(); }
 		);
 
-		this._addAndSubmitAction = new Action(
-			'planReviewFeedback.addAndSubmit',
-			localize('planReviewFeedback.addAndSubmit', "Add Feedback and Submit (Alt+Enter)"),
-			ThemeIcon.asClassName(Codicon.send),
-			false,
-			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
-		);
-
 		this._actionBar = new ActionBar(actionsContainer);
-		this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
-
-		// Toggle to alt action when Alt key is held
-		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-		modifierKeyEmitter.event(status => {
-			this._updateActionForAlt(status.altKey);
-		});
+		this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('planReviewFeedback.enter', "Enter") });
 
 		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
-	}
-
-	private _isShowingAlt = false;
-
-	private _updateActionForAlt(altKey: boolean): void {
-		if (altKey && !this._isShowingAlt) {
-			this._isShowingAlt = true;
-			this._actionBar.clear();
-			this._actionBar.push(this._addAndSubmitAction, { icon: true, label: false, keybinding: localize('altEnter', "Alt+Enter") });
-		} else if (!altKey && this._isShowingAlt) {
-			this._isShowingAlt = false;
-			this._actionBar.clear();
-			this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
-		}
 	}
 
 	getId(): string {
@@ -163,7 +132,6 @@ class PlanReviewFeedbackInputWidget implements IOverlayWidget {
 	private _updateActionEnabled(): void {
 		const hasText = this._inputElement.value.trim().length > 0;
 		this._addAction.enabled = hasText;
-		this._addAndSubmitAction.enabled = hasText;
 	}
 
 	private _autoSize(): void {
@@ -186,9 +154,7 @@ class PlanReviewFeedbackInputWidget implements IOverlayWidget {
 	dispose(): void {
 		this._actionBar.dispose();
 		this._addAction.dispose();
-		this._addAndSubmitAction.dispose();
 		this._onDidTriggerAdd.dispose();
-		this._onDidTriggerAddAndSubmit.dispose();
 	}
 }
 
@@ -258,28 +224,16 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 								const { activeIdx, totalCount } = that._navigationBearings.read(r);
 								if (totalCount > 0) {
 									const current = activeIdx === -1 ? 1 : activeIdx + 1;
-									this.label.innerText = localize('nOfM', '{0}/{1}', current, totalCount);
+									this.label.innerText = localize('planReviewFeedback.navStatus.nOfM', '{0}/{1}', current, totalCount);
 								} else {
-									this.label.innerText = localize('zero', '0/0');
+									this.label.innerText = localize('planReviewFeedback.navStatus.zero', '0/0');
 								}
 							}));
 						}
 					};
 				}
 
-				const isPrimary = action.id === submitPlanReviewFeedbackActionId;
-				return new class extends ActionViewItem {
-					constructor() {
-						super(undefined, action, { ...options, icon: !isPrimary, label: isPrimary, keybindingNotRenderedWithLabel: true });
-					}
-
-					override render(container: HTMLElement): void {
-						super.render(container);
-						if (isPrimary) {
-							this.element?.classList.add('primary');
-						}
-					}
-				};
+				return new ActionViewItem(undefined, action, { ...options, icon: true, label: false, keybindingNotRenderedWithLabel: true });
 			},
 		}));
 	}
@@ -359,6 +313,8 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		this._register(this._planReviewFeedbackService.onDidChangeRegistrations(() => this._onModelChanged()));
 		this._register(this._planReviewFeedbackService.onDidChangeFeedback(() => this._updateDecorations()));
 		this._register(this._planReviewFeedbackService.onDidChangeNavigation(() => this._updateDecorations()));
+
+		this._onModelChanged();
 	}
 
 	private _isWidgetTarget(target: EventTarget | Element | null): boolean {
@@ -369,7 +325,6 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		if (!this._widget) {
 			this._widget = new PlanReviewFeedbackInputWidget(this._editor);
 			this._register(this._widget.onDidTriggerAdd(() => this._addFeedback()));
-			this._register(this._widget.onDidTriggerAddAndSubmit(() => this._addFeedbackAndSubmit()));
 			this._editor.addOverlayWidget(this._widget);
 		}
 		return this._widget;
@@ -417,12 +372,16 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 	private _show(): void {
 		const widget = this._ensureWidget();
 
-		if (!this._visible) {
+		// `_show()` runs on every selection change, so only clear input on
+		// the hidden→shown transition to avoid wiping a draft when the user
+		// briefly refocuses the editor.
+		const wasVisible = this._visible;
+		if (!wasVisible) {
 			this._visible = true;
 			this._registerWidgetListeners(widget);
+			widget.clearInput();
 		}
 
-		widget.clearInput();
 		widget.show();
 		this._updatePosition();
 	}
@@ -509,14 +468,7 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 				return;
 			}
 
-			if (e.keyCode === KeyCode.Enter && e.altKey) {
-				e.preventDefault();
-				e.stopPropagation();
-				this._addFeedbackAndSubmit();
-				return;
-			}
-
-			if (e.keyCode === KeyCode.Enter) {
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
 				e.preventDefault();
 				e.stopPropagation();
 				this._addFeedback();
@@ -578,29 +530,6 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		this._planReviewFeedbackService.addFeedback(model.uri, line, column, text);
 		this._hideAndRefocusEditor();
 		return true;
-	}
-
-	private _addFeedbackAndSubmit(): void {
-		if (!this._widget) {
-			return;
-		}
-
-		const text = this._widget.inputElement.value.trim();
-		if (!text) {
-			return;
-		}
-
-		const selection = this._editor.getSelection();
-		const model = this._editor.getModel();
-		if (!selection || !model) {
-			return;
-		}
-
-		const line = selection.startLineNumber;
-		const column = selection.startColumn;
-		this._planReviewFeedbackService.addFeedback(model.uri, line, column, text);
-		this._hideAndRefocusEditor();
-		this._planReviewFeedbackService.submitAllFeedback(model.uri);
 	}
 
 	private _updatePosition(): void {

@@ -70,6 +70,7 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file` |
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
+| `github.copilot.chat.otel.maxAttributeSizeChars` | integer | `0` | Max characters per OTel content attribute (prompts, tool args/results, hook input/output). `0` (the default) disables truncation so backends with no per-attribute limit get full payloads. Set to a positive value to match your backend's per-attribute size limit — consult your backend's documentation. The value counts JavaScript string characters (UTF-16 code units); for non-ASCII content one character can be multiple UTF-8 bytes on the wire. |
 | `github.copilot.chat.otel.outfile` | string | `""` | File path for JSON-lines output |
 | `github.copilot.chat.otel.dbSpanExporter.enabled` | boolean | `false` | Persist OTel spans to a local SQLite database for the **Chat: Export Agent Traces DB** command. Implicitly enables OTel. |
 
@@ -87,6 +88,7 @@ Environment variables **always take precedence** over VS Code settings.
 | `OTEL_SERVICE_NAME` | `copilot-chat` | Service name in resource attributes |
 | `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes (`key1=val1,key2=val2`) |
 | `COPILOT_OTEL_CAPTURE_CONTENT` | `false` | Capture full prompt/response content |
+| `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` | `0` | Override the max character size for OTel content attributes. `0` (default) disables truncation; set to a positive value when your backend has a per-attribute limit. Takes precedence over the `maxAttributeSizeChars` setting. |
 | `COPILOT_OTEL_LOG_LEVEL` | `info` | Min log level: `trace`, `debug`, `info`, `warn`, `error` |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | — | Write all signals to this file (JSON-lines) |
 | `COPILOT_OTEL_HTTP_INSTRUMENTATION` | `false` | Enable HTTP-level OTel instrumentation |
@@ -111,6 +113,16 @@ OTel is **off by default** with zero overhead. It activates when:
 ---
 
 ## What Gets Exported
+
+> ### Attribute namespaces & dual-emit policy
+>
+> Copilot Chat emits OTel attributes under three namespaces:
+>
+> - **`gen_ai.*`** — [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). Use these whenever a standard key exists.
+> - **`github.copilot.*`** — Canonical Copilot-specific namespace. Prefer this for new dashboards and alerts.
+> - **`copilot_chat.*`** — Original VS Code extension namespace. Several keys (notably `copilot_chat.repo.*` and `gen_ai.usage.reasoning_tokens`) are now **dual-emitted alongside the `github.copilot.*` equivalents**. Tables below mark these rows as **Legacy** with a pointer to the preferred key.
+>
+> Legacy keys continue to emit indefinitely so existing collectors, dashboards, and downstream consumers (Agent Debug Log, Chronicle, SQLite span store) keep working without changes. There is no sunset date.
 
 ### Traces
 
@@ -139,6 +151,14 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.usage.output_tokens` | Recommended | `3200` |
 | `gen_ai.usage.cache_read.input_tokens` | When available | `8000` |
 | `gen_ai.usage.cache_creation.input_tokens` | When available | `4200` |
+| `github.copilot.agent.type` | Always | `builtin` \| `custom` \| `plugin` |
+| `github.copilot.git.repository` | When in a repo | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | When in a repo | `main` |
+| `github.copilot.git.commit_sha` | When in a repo | `deadbeef...` |
+| `github.copilot.github.org` | GitHub remotes only | `microsoft` |
+| `copilot_chat.repo.remote_url` | **Legacy** — prefer `github.copilot.git.repository` | `https://github.com/...` |
+| `copilot_chat.repo.head_branch_name` | **Legacy** — prefer `github.copilot.git.branch` | `main` |
+| `copilot_chat.repo.head_commit_hash` | **Legacy** — prefer `github.copilot.git.commit_sha` | `deadbeef...` |
 | `copilot_chat.turn_count` | Always | `4` |
 | `error.type` | On error | `Error` |
 | `gen_ai.input.messages` | Opt-in (captureContent) | `[{"role":"user",...}]` |
@@ -164,6 +184,8 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.usage.output_tokens` | On response | `250` |
 | `gen_ai.usage.cache_read.input_tokens` | When available | `1200` |
 | `gen_ai.usage.cache_creation.input_tokens` | When available | `300` |
+| `gen_ai.usage.reasoning.output_tokens` | When available | `512` |
+| `gen_ai.usage.reasoning_tokens` | **Legacy** — prefer `gen_ai.usage.reasoning.output_tokens` | `512` |
 | `copilot_chat.time_to_first_token` | On response | `450` |
 | `server.address` | When available | `api.github.com` |
 | `copilot_chat.debug_name` | When available | `agentMode` |
@@ -180,6 +202,13 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.tool.type` | Required | `function` or `extension` (MCP tools) |
 | `gen_ai.tool.call.id` | Recommended | `call_abc123` |
 | `gen_ai.tool.description` | When available | `Read the contents of a file` |
+| `github.copilot.tool.parameters.edit_type` | Edit tools | `create` \| `update` \| `str_replace` \| `insert` |
+| `github.copilot.tool.parameters.skill_name` | When invoking a skill | `auto-perf-optimize` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools, opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools, opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
 | `error.type` | On error | `FileNotFoundError` |
 | `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"filePath":"/src/index.ts"}` |
 | `gen_ai.tool.call.result` | Opt-in (captureContent) | `(file contents or summary)` |
@@ -611,11 +640,16 @@ copilot-chat invoke_agent claude               [~33s]
 | `gen_ai.agent.name` | `claude` |
 | `gen_ai.provider.name` | `github` |
 | `gen_ai.request.model` | `claude-haiku-4.5` |
-| `gen_ai.response.model` | `claude-haiku-4-5` |
+| `gen_ai.response.model` | `claude-haiku-4.5` |
 | `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
 | `gen_ai.usage.output_tokens` | `1100` |
 | `gen_ai.usage.cache_read.input_tokens` | `64062` |
 | `gen_ai.usage.cache_creation.input_tokens` | `39629` |
+| `github.copilot.agent.type` | `builtin` |
+| `github.copilot.git.repository` | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | `main` |
+| `github.copilot.git.commit_sha` | `deadbeef...` |
+| `github.copilot.github.org` | `microsoft` |
 | `copilot_chat.turn_count` | `8` |
 | `copilot_chat.total_cost_usd` | `0.067` (session-wide, includes subagents) |
 | `copilot_chat.chat_session_id` | VS Code session ID |
@@ -624,7 +658,31 @@ copilot-chat invoke_agent claude               [~33s]
 
 **`execute_tool`** — one span per tool invocation. When the tool is `Agent` (subagent), child `chat` and `execute_tool` spans are nested underneath, giving full subagent visibility.
 
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_tool` |
+| `gen_ai.tool.name` | Required | `Edit` |
+| `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools (`Bash`), opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools (`Read`, `Edit`, `MultiEdit`, `Write`, `NotebookEdit`), opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
+| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"file_path":"/src/app.ts",...}` |
+
 **`execute_hook`** — one span per Claude hook execution (e.g., `Stop` hooks).
+
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_hook` |
+| `copilot_chat.hook_type` | Required | `PreToolUse` |
+| `copilot_chat.hook_result_kind` | Always | `success` \| `error` \| `non_blocking_error` |
+| `github.copilot.hook.decision` | Always | `pass` \| `block` \| `non_blocking_error` |
+| `github.copilot.hook.duration` | Always | `0.142` (seconds) |
+| `github.copilot.hook.tool_names` | When tool-scoped | `["bash"]` (JSON array) |
+| `copilot_chat.hook_input` | Always | hook input payload (truncated) |
+| `copilot_chat.hook_output` | On success | hook stdout (truncated) |
+| `error.type` | On error | `Error` |
 
 ---
 

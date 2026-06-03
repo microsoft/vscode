@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import picomatch from 'picomatch';
 
 /**
@@ -16,6 +16,12 @@ export type SessionIndexingLevel = 'local' | 'user' | 'repo_and_user';
 
 /**
  * Manages user preferences for session indexing via VS Code settings.
+ *
+ * Two settings control behavior:
+ * - `chat.localIndex.enabled` (ExP) — enables local
+ *   SQLite tracking and /chronicle commands
+ * - `chat.sessionSync.enabled` (core setting with enterprise policy) — enables
+ *   cloud upload
  */
 export class SessionIndexingPreference {
 
@@ -24,7 +30,7 @@ export class SessionIndexingPreference {
 	) { }
 
 	/**
-	 * Get the effective storage level for a given repo.	 *
+	 * Get the effective storage level for a given repo.
 	 * - If cloud sync is enabled and repo is not excluded → 'user'
 	 * - Otherwise → 'local'
 	 */
@@ -36,16 +42,16 @@ export class SessionIndexingPreference {
 	}
 
 	/**
-	 * Check if cloud sync is enabled for a given repo.
-	 * Returns true if cloudSync.enabled is true AND the repo is not excluded.
+	 * Check if session sync is enabled for a given repo.
+	 * Returns true if `chat.sessionSync.enabled` is true AND the repo is not excluded.
 	 */
 	hasCloudConsent(repoNwo?: string): boolean {
-		if (!this._configService.getConfig(ConfigKey.TeamInternal.SessionSearchCloudSyncEnabled)) {
+		if (!(this._configService.getNonExtensionConfig<boolean>('chat.sessionSync.enabled') ?? false)) {
 			return false;
 		}
 
 		if (repoNwo) {
-			const excludePatterns = this._configService.getConfig(ConfigKey.TeamInternal.SessionSearchCloudSyncExcludeRepositories);
+			const excludePatterns = this._configService.getNonExtensionConfig<string[]>('chat.sessionSync.excludeRepositories');
 			if (excludePatterns && excludePatterns.length > 0) {
 				for (const pattern of excludePatterns) {
 					if (pattern === repoNwo || picomatch.isMatch(repoNwo, pattern)) {

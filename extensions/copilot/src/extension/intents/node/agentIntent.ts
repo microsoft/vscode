@@ -31,6 +31,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { ITestProvider } from '../../../platform/testing/common/testProvider';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 
+import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Iterable } from '../../../util/vs/base/common/iterator';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -39,17 +40,19 @@ import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus } from '../../prompt/common/conversation';
-import { IBuildPromptContext } from '../../prompt/common/intents';
+import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus, TurnTokenUsageMetadata } from '../../prompt/common/conversation';
+import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
+import { IntentInvocationMetadata } from '../../prompt/node/conversation';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractInlineSummary, InlineSummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
@@ -71,6 +74,70 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Returns true when the user explicitly referenced the todo tool (e.g. typed
+ * `#todo` in their message) or a custom agent configuration includes it as a
+ * tool reference. Checking `request.toolReferences` is a stronger signal than
+ * `request.tools` because core tools always appear as enabled in the default
+ * tool picker state, which would prevent the experiment from taking effect.
+ *
+ * @internal - exported for testing
+ */
+export function isTodoToolExplicitlyEnabled(request: vscode.ChatRequest): boolean {
+	const todoReferenceName = 'todo';
+	return request.toolReferences.some(ref =>
+		ref.name === todoReferenceName
+		|| ref.name === ToolName.CoreManageTodoList
+	);
+}
+
+/**
+ * Returns true when the background todo agent should manage todos instead of
+ * exposing the regular todo tool to the main agent.
+ *
+ * @internal - exported for testing
+ */
+export function isBackgroundTodoAgentEnabled(configurationService: IConfigurationService, experimentationService: IExperimentationService, request: vscode.ChatRequest): boolean {
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
+		&& !isTodoToolExplicitlyEnabled(request);
+}
+
+/**
+ * Resolve the configured summarization threshold into an absolute token count.
+ *
+ * The setting accepts two interchangeable units so users can express the
+ * compaction trigger however is most natural:
+ *
+ *  - **Ratio** (`0 < value <= 1`): a fraction of the model's context window,
+ *    e.g. `0.8` means "compact at 80% of the window". This is resolved against
+ *    `effectiveMaxTokens` so it automatically tracks model/context-size changes.
+ *  - **Absolute tokens** (`value >= 100`): a fixed token budget, e.g. `60000`.
+ *
+ * Values in the ambiguous `(1, 100)` gap (too large to be a sensible ratio, too
+ * small to be a useful token budget) are rejected so a typo like `80` — which a
+ * user likely meant as "80%" — fails loudly instead of silently compacting after
+ * 80 tokens.
+ *
+ * Returns `undefined` when unset (or non-positive), meaning "use the model's full
+ * context window".
+ *
+ * @internal - exported for testing
+ */
+export function resolveSummarizeThresholdTokens(value: number | undefined, effectiveMaxTokens: number, settingId: string): number | undefined {
+	if (typeof value !== 'number' || value <= 0) {
+		return undefined;
+	}
+	if (value <= 1) {
+		// Ratio of the model's context window.
+		return Math.max(1, Math.floor(effectiveMaxTokens * value));
+	}
+	if (value < 100) {
+		throw new Error(`Setting github.copilot.${settingId} is too low; use a ratio in the range (0, 1] (e.g. 0.8 for 80%) or an absolute token count of at least 100.`);
+	}
+	// Absolute token count.
+	return value;
 }
 
 export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest, model?: IChatEndpoint) => {
@@ -113,19 +180,49 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
-	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled;
+	// BYOK endpoints that own their `Authorization` have no Copilot token for the
+	// agentic proxy or override models the subagents rely on, so disable them
+	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
+	if (model.ownsAuthorization) {
+		allowTools[ToolName.SearchSubagent] = false;
+		allowTools[ToolName.ExploreSubagent] = false;
+		allowTools[ToolName.ExecutionSubagent] = false;
+	} else {
+		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
+		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
+		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
+		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
 
-	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
+		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
+		// The execution subagent is powered by gemini-3-flash, so it can only be
+		// offered when that model is actually available to the user. If it isn't
+		// in the user's endpoints, keep the tool disabled regardless of the setting.
+		// Skip the (potentially expensive) endpoint lookup when the tool would be
+		// disabled anyway based on model family or the experiment setting.
+		let hasGemini3Flash = false;
+		if (isGptOrAnthropic && executionSubagentEnabled) {
+			const allEndpoints = await endpointProvider.getAllChatEndpoints();
+			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		}
+		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
+	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
 
+	const getSCMChangesEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.GetChangedFilesToolEnabled, experimentationService);
+	allowTools[ToolName.GetScmChanges] = getSCMChangesEnabled;
+
+	allowTools[ToolName.SessionStoreSql] = true;
+
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	if (model.family.includes('grok-code')) {
+		allowTools[ToolName.CoreManageTodoList] = false;
+	}
+
+	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, request)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -134,7 +231,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools['task_complete'] = request.permissionLevel === 'autopilot';
 
 	allowTools[ToolName.EditFilesPlaceholder] = false;
-	allowTools[ToolName.SessionStoreSql] = false; // Only available via /chronicle
 	// todo@connor4312: string check here is for back-compat for 1.109 Insiders
 	if (Iterable.some(request.tools, ([t, enabled]) => (typeof t === 'string' ? t : t.name) === ContributedToolName.EditFilesPlaceholder && enabled === false)) {
 		allowTools[ToolName.ApplyPatch] = false;
@@ -184,6 +280,7 @@ export class AgentIntent extends EditCodeIntent {
 	override readonly id = AgentIntent.ID;
 
 	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer>();
+	private readonly _backgroundTodoProcessors = new Map<string, BackgroundTodoProcessor>();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -194,6 +291,7 @@ export class AgentIntent extends EditCodeIntent {
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IChatSessionService chatSessionService: IChatSessionService,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
 		chatSessionService.onDidDisposeChatSession(sessionId => {
@@ -202,16 +300,52 @@ export class AgentIntent extends EditCodeIntent {
 				summarizer.cancel();
 				this._backgroundSummarizers.delete(sessionId);
 			}
+			const todoProcessor = this._backgroundTodoProcessors.get(sessionId);
+			if (todoProcessor) {
+				todoProcessor.cancel();
+				this._backgroundTodoProcessors.delete(sessionId);
+			}
 		});
 	}
 
-	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number): BackgroundSummarizer {
+	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer {
 		let summarizer = this._backgroundSummarizers.get(sessionId);
+		if (summarizer && summarizer.endpointId !== endpointId) {
+			// Endpoint switched mid-session. A summary kicked off against the
+			// previous endpoint's prefix would be applied unconditionally on the
+			// next pre-render, producing a surprising "Compacted conversation"
+			// notice on the new endpoint — cancel and start fresh.
+			summarizer.cancel();
+			this._backgroundSummarizers.delete(sessionId);
+			summarizer = undefined;
+		}
 		if (!summarizer) {
-			summarizer = new BackgroundSummarizer(modelMaxPromptTokens);
+			summarizer = new BackgroundSummarizer(modelMaxPromptTokens, endpointId);
 			this._backgroundSummarizers.set(sessionId, summarizer);
 		}
 		return summarizer;
+	}
+
+	/**
+	 * Cancel and forget the background summarizer for this session. Used by
+	 * `/compact` so a pending background result doesn't immediately overwrite
+	 * the user's explicit foreground compaction on the next turn.
+	 */
+	cancelBackgroundSummarizer(sessionId: string): void {
+		const summarizer = this._backgroundSummarizers.get(sessionId);
+		if (summarizer) {
+			summarizer.cancel();
+			this._backgroundSummarizers.delete(sessionId);
+		}
+	}
+
+	getOrCreateBackgroundTodoProcessor(sessionId: string): BackgroundTodoProcessor {
+		let processor = this._backgroundTodoProcessors.get(sessionId);
+		if (!processor) {
+			processor = new BackgroundTodoProcessor(this._logService);
+			this._backgroundTodoProcessors.set(sessionId, processor);
+		}
+		return processor;
 	}
 
 	protected override getIntentHandlerOptions(request: vscode.ChatRequest): IDefaultIntentRequestHandlerOptions | undefined {
@@ -238,7 +372,28 @@ export class AgentIntent extends EditCodeIntent {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}
 
-		return super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
+		try {
+			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
+		} finally {
+			// Fire one final bg todo review pass once the agent loop has ended for
+			// this turn. The per-round passes never see the very last round, so any
+			// task that just completed otherwise stays stuck as 'in-progress'.
+			// Await completion so the tool invocation runs while the request is
+			// still active — the platform rejects tool calls for completed requests.
+			// Do NOT pass the request `token` as parentToken — it may be cancelled
+			// by the framework after the turn ends, which would immediately abort
+			// the background pass even on a normal completion.
+			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
+				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+				const currentTurn = conversation.getLatestTurn();
+				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
+				const executionContext = invocation instanceof AgentIntentInvocation ? invocation.getBackgroundTodoExecutionContext() : undefined;
+				if (todoProcessor && executionContext) {
+					todoProcessor.requestFinalReview(currentTurn.id, executionContext);
+					await todoProcessor.waitForCompletion();
+				}
+			}
+		}
 	}
 
 	private async handleSummarizeCommand(
@@ -269,12 +424,23 @@ export class AgentIntent extends EditCodeIntent {
 			return {};
 		}
 
+		// Foreground compaction is now authoritative for this session. Cancel any
+		// pending background summarizer so its (potentially stale) result doesn't
+		// overwrite this `/compact` on the next render.
+		this.cancelBackgroundSummarizer(conversation.sessionId);
+
+		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
 			history,
 			chatVariables: new ChatVariablesCollection([]),
 			query: '',
 			toolCallRounds: [],
 			conversation,
+			tools: {
+				availableTools,
+				toolReferences: request.toolReferences.map(InternalToolReference.from),
+				toolInvocationToken: request.toolInvocationToken,
+			},
 		};
 
 		try {
@@ -284,8 +450,13 @@ export class AgentIntent extends EditCodeIntent {
 				endpoint,
 				location: ChatLocation.Agent,
 				promptContext,
+				tools: availableTools,
 				maxToolResultLength: Infinity,
 			});
+			if (!propsInfo) {
+				stream.markdown(l10n.t('Nothing to compact yet.'));
+				return {};
+			}
 
 			stream.progress(l10n.t('Compacting conversation...'));
 
@@ -365,8 +536,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	/** Cached model capabilities from the most recent main agent render, reused by the background summarizer. */
 	private _lastModelCapabilities: { enableThinking: boolean; reasoningEffort: string | undefined; enableToolSearch: boolean; enableContextEditing: boolean } | undefined;
 
+	private _backgroundTodoExecutionContext: IBackgroundTodoExecutionContext | undefined;
+
 	/**
-	 * RNG used to jitter the inline-summarization trigger threshold around 0.80.
+	 * RNG used to jitter the background-summarization trigger threshold around 0.80.
 	 * Tests may overwrite this directly (e.g. `(invocation as any)._thresholdRng = () => 0.5`).
 	 */
 	private _thresholdRng: () => number = Math.random;
@@ -423,18 +596,24 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;
 
 		const summarizeThresholdOverride = this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold);
-		if (typeof summarizeThresholdOverride === 'number' && summarizeThresholdOverride < 100 && summarizeThresholdOverride > 0) {
-			throw new Error(`Setting github.copilot.${ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id} is too low`);
-		}
+
+		// Apply context size override if configured by the user in the model picker
+		const configuredContextSize = this.request.modelConfiguration?.contextSize;
+		const effectiveMaxTokens = typeof configuredContextSize === 'number' && configuredContextSize < this.endpoint.modelMaxPromptTokens
+			? configuredContextSize
+			: this.endpoint.modelMaxPromptTokens;
+
+		// The override may be expressed as a ratio of the context window (0-1) or
+		// an absolute token count (>= 100); resolve it to tokens before clamping.
+		const summarizeThresholdTokens = resolveSummarizeThresholdTokens(summarizeThresholdOverride, effectiveMaxTokens, ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id);
 
 		const baseBudget = Math.min(
-			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? this.endpoint.modelMaxPromptTokens,
-			this.endpoint.modelMaxPromptTokens
+			summarizeThresholdTokens ?? effectiveMaxTokens,
+			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
 		const responsesCompactionContextManagementEnabled = isResponsesCompactionContextManagementEnabled(this.endpoint, this.configurationService, this.expService);
 		const summarizationEnabled = this.configurationService.getConfig(ConfigKey.SummarizeAgentConversationHistory) && this.prompt === AgentPrompt && !responsesCompactionContextManagementEnabled;
-		const useInlineSummarization = summarizationEnabled && this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AgentHistorySummarizationInline, this.expService);
 
 		// When tools are present, apply a 10% safety margin on the message portion
 		// to account for tokenizer discrepancies between our tool-token counter and
@@ -448,11 +627,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
 		let result: RenderPromptResult;
-		// When the "last two messages" cache breakpoint strategy is enabled,
-		// suppress prompt-tsx and heuristic cache breakpoints — messagesApi.ts
-		// will place breakpoints on the last two merged messages instead.
-		const useLastTwoMessagesCacheBPs = isAnthropicFamily(this.endpoint)
-			&& this.configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, this.expService);
+		// For the Anthropic Messages API, cache_control placement is owned
+		// entirely by messagesApi.ts. Suppress prompt-tsx breakpoints to avoid
+		// duplicating or shifting them — but keep summarization on, since the
+		// summarization rendering path is independent from cache breakpoints.
+		const isMessagesApi = this.endpoint.apiType === 'messages';
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -463,7 +642,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				}
 			},
 			location: this.location,
-			enableCacheBreakpoints: summarizationEnabled && !useLastTwoMessagesCacheBPs,
+			enableSummarization: summarizationEnabled,
+			enableCacheBreakpoints: summarizationEnabled && !isMessagesApi,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
@@ -475,12 +655,20 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		//   BudgetExceeded: if bg is InProgress/Completed, wait/apply.
 		//                   Otherwise fall back to foreground summarization.
 		//
-		//   Post-render (≥ 80% + Idle): kick off background compaction
-		//                                so it is ready for a future turn.
+		//   Post-render: kick off background compaction if Idle and the
+		//                jittered/emergency threshold is met (see
+		//                shouldKickOffBackgroundSummarization) so it is
+		//                ready for a future turn.
 		//
 		const backgroundSummarizer = summarizationEnabled ? this._getOrCreateBackgroundSummarizer(promptContext.conversation?.sessionId) : undefined;
+		// Walk back through turns to find the most recent one with token usage
+		// metadata. On iteration 1 of a fresh user turn, the current turn has
+		// no fetch yet, so fall back to the previous turn — otherwise the floor
+		// would be 0 and offer no protection across user-turn boundaries.
+		const lastTurnPromptTokens = findLast(promptContext.conversation?.turns ?? [], turn => !!turn.getMetadata(TurnTokenUsageMetadata))
+			?.getMetadata(TurnTokenUsageMetadata)?.promptTokens;
 		const contextRatio = backgroundSummarizer && baseBudget > 0
-			? (this._lastRenderTokenCount + toolTokens) / baseBudget
+			? Math.max(this._lastRenderTokenCount + toolTokens, lastTurnPromptTokens ?? 0) / baseBudget
 			: 0;
 
 		// Track whether this iteration already performed compaction-related work
@@ -488,20 +676,32 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// we don't immediately re-trigger background compaction in the post-render check.
 		let didSummarizeThisIteration = false;
 
-		// If a previous background pass completed, apply its summary now.
+		// If a previous background pass completed, apply its summary now — but
+		// only when the current context ratio still warrants it. After a model
+		// switch to a larger window (or an increased context-size override) the
+		// ratio can drop below `applyMinRatio`; applying a stale summary in that
+		// case surfaces a confusing "Compacted conversation" notice with
+		// plenty of headroom remaining.
 		if (summarizationEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
-			const bgResult = backgroundSummarizer.consumeAndReset();
-			if (bgResult) {
-				this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
-				progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
-				this._applySummaryToRounds(bgResult, promptContext);
-				this._persistSummaryOnTurn(bgResult, promptContext, this._lastRenderTokenCount);
-				this._sendBackgroundCompactionTelemetry('preRender', 'applied', contextRatio, promptContext);
-				didSummarizeThisIteration = true;
+			if (contextRatio >= BackgroundSummarizationThresholds.applyMinRatio) {
+				const bgResult = backgroundSummarizer.consumeAndReset();
+				if (bgResult) {
+					this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
+					progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
+					this._applySummaryToRounds(bgResult, promptContext);
+					this._persistSummaryOnTurn(bgResult, promptContext, this._lastRenderTokenCount);
+					this._sendBackgroundCompactionTelemetry('preRender', 'applied', contextRatio, promptContext);
+					didSummarizeThisIteration = true;
+				} else {
+					this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
+					this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
+					this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+				}
 			} else {
-				this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
-				this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
-				this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+				// Drop the stale summary so a fresh kick-off can replace it later.
+				backgroundSummarizer.consumeAndReset();
+				this.logService.debug(`[ConversationHistorySummarizer] discarding completed background summary; contextRatio ${(contextRatio * 100).toFixed(0)}% below applyMinRatio ${(BackgroundSummarizationThresholds.applyMinRatio * 100).toFixed(0)}% (likely model switch or context-size override)`);
+				this._sendBackgroundCompactionTelemetry('preRender', 'discardedBelowApplyMinRatio', contextRatio, promptContext);
 			}
 		}
 
@@ -512,6 +712,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			const renderer = PromptRenderer.create(this.instantiationService, this.endpoint, this.prompt, {
 				...renderProps,
 				endpoint: this.endpoint,
+				enableSummarization: false,
 				enableCacheBreakpoints: false
 			});
 			try {
@@ -687,15 +888,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		// Post-render: kick off background compaction if idle and over the
-		// threshold. For the inline-summarization path we care about prompt
-		// cache parity with the main agent fetch — so we gate kick-off on a
-		// completed tool call (cache has been warmed) and jitter the threshold
-		// around 0.80 to avoid firing at the same exact boundary every time.
-		// The non-inline path forks its own prompt and sees no cache benefit,
-		// so it keeps the simple >= 0.80 behavior.
+		// threshold. Prompt cache parity with the main agent fetch matters
+		// here — so we gate kick-off on a completed tool call (cache has been
+		// warmed) and jitter the threshold around 0.80 to avoid firing at the
+		// same exact boundary every time.
 		if (summarizationEnabled && backgroundSummarizer && !didSummarizeThisIteration) {
+			const localPostRender = result.tokenCount + toolTokens;
+			const effectivePostRender = Math.max(localPostRender, lastTurnPromptTokens ?? 0);
 			const postRenderRatio = baseBudget > 0
-				? (result.tokenCount + toolTokens) / baseBudget
+				? effectivePostRender / baseBudget
 				: 0;
 
 			const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
@@ -703,30 +904,31 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
 
-			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, useInlineSummarization, cacheWarm, this._thresholdRng);
+			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, cacheWarm, this._thresholdRng);
 
 			if (kickOff && idleOrFailed) {
-				if (useInlineSummarization) {
-					// Compute and cache model capabilities from the current render's
-					// messages. These must match the main agent fetch for cache parity.
-					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
-					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
-					const isSubagent = !!this.request.subAgentInvocationId;
-					// Must match the main agent's enableThinking logic in
-					// toolCallingLoop.ts runOne() — thinking is only disabled
-					// on continuation turns for Anthropic when no thinking
-					// blocks exist yet in the messages.
-					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
-					this._lastModelCapabilities = {
-						enableThinking: !shouldDisableThinking,
-						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
-						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
-						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
-					};
-				}
-				this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio, useInlineSummarization);
+				// Compute and cache model capabilities from the current render's
+				// messages. These must match the main agent fetch for cache parity.
+				const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
+				const rawEffort = this.request.modelConfiguration?.reasoningEffort;
+				const isSubagent = !!this.request.subAgentInvocationId;
+				// Must match the main agent's enableThinking logic in
+				// toolCallingLoop.ts runOne() — thinking is only disabled
+				// on continuation turns for Anthropic when no thinking
+				// blocks exist yet in the messages.
+				const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
+				this._lastModelCapabilities = {
+					enableThinking: !shouldDisableThinking,
+					reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
+					enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
+					enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
+				};
+				this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio);
 			}
 		}
+
+		// ── Background todo processing ──────────────────────────────────
+		this._maybeStartBackgroundTodoPass(promptContext, token);
 
 		const lastMessage = result.messages.at(-1);
 		if (lastMessage?.role === Raw.ChatRole.User) {
@@ -736,7 +938,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		if (!useLastTwoMessagesCacheBPs) {
+		if (this.endpoint.apiType !== 'messages') {
 			addCacheBreakpoints(result.messages);
 		}
 
@@ -798,9 +1000,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		props: AgentPromptProps,
 		token: vscode.CancellationToken,
 		contextRatio: number,
-		useInlineSummarization: boolean,
 	): void {
-		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting background compaction (inline=${useInlineSummarization})`);
+		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting background compaction`);
 
 		const bgStartTime = Date.now();
 
@@ -851,187 +1052,146 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		backgroundSummarizer.start(async bgToken => {
 			try {
-				if (useInlineSummarization) {
-					// Inline mode: fork the exact messages from the main render
-					// and append a summary user message. The prompt prefix is
-					// byte-identical to the main agent loop for cache hits.
-					const strippedMainMessages = ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages);
-					const summaryMsgResult = await renderPromptElement(
-						this.instantiationService,
-						this.endpoint,
-						InlineSummarizationUserMessage,
-						{ endpoint: this.endpoint },
-						undefined,
-						bgToken,
-					);
-					const messages = [
-						...strippedMainMessages,
-						...summaryMsgResult.messages,
-					];
+				// Fork the exact messages from the main render and append a
+				// summary user message. The prompt prefix is byte-identical
+				// to the main agent loop for cache hits.
+				const strippedMainMessages = ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages);
+				const summaryMsgResult = await renderPromptElement(
+					this.instantiationService,
+					this.endpoint,
+					SummarizationUserMessage,
+					{ endpoint: this.endpoint },
+					undefined,
+					bgToken,
+				);
+				const messages = [
+					...strippedMainMessages,
+					...summaryMsgResult.messages,
+				];
 
-					const response = await this.endpoint.makeChatRequest2({
-						debugName: 'summarizeConversationHistory-inline',
-						messages,
-						finishedCb: undefined,
-						location: ChatLocation.Agent,
-						conversationId,
-						requestOptions: {
-							temperature: 0,
-							stream: false,
-							...toolOpts,
-						},
-						modelCapabilities,
-						telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
-						enableRetryOnFilter: true,
-					}, bgToken);
-					if (response.type !== ChatFetchResponseType.Success) {
-						throw new Error(`Background inline summarization request failed: ${response.type}`);
-					}
-					const rawSummaryText = extractInlineSummary(response.value);
-					if (!rawSummaryText) {
-						throw new Error('Background inline summarization: no <summary> tags found in response');
-					}
-					if (!toolCallRoundId) {
-						throw new Error('Background inline summarization: no round ID to apply summary to');
-					}
-					// Flush the transcript before snapshotting the line count so
-					// the baked "N lines" hint matches the on-disk file at this
-					// moment (mirrors the full/simple path in SummarizedConversationHistory.render).
-					if (conversationId && this.sessionTranscriptService.getTranscriptPath(conversationId)) {
-						await this.sessionTranscriptService.flush(conversationId);
-					}
-					const summaryText = conversationId
-						? appendTranscriptHintToSummary(rawSummaryText, conversationId, this.sessionTranscriptService)
-						: rawSummaryText;
-					this.logService.debug(`[ConversationHistorySummarizer] background inline compaction completed (${summaryText.length} chars, roundId=${toolCallRoundId})`);
-
-					// Send summarizedConversationHistory telemetry for parity
-					// with the standard ConversationHistorySummarizer path.
-					const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(history, rounds);
-					const numRoundsInCurrentTurn = rounds.length;
-					const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
-						?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
-					const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
-					/* __GDPR__
-						"summarizedConversationHistory" : {
-							"owner": "bhavyau",
-							"comment": "Tracks background inline summarization outcome",
-							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
-							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
-							"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-							"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
-							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
-							"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
-							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
-							"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
-							"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total tool call rounds." },
-							"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
-							"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
-							"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this was triggered during tool calling." },
-							"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." },
-							"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Prompt tokens." },
-							"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Cached prompt tokens." },
-							"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Output tokens." }
-						}
-					*/
-					this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
-						outcome: 'success',
-						model: this.endpoint.model,
-						summarizationMode: 'inline',
-						conversationId,
-						chatRequestId: associatedRequestId,
-						lastUsedTool,
-						requestId: response.requestId,
-						promptTypes,
-					}, {
-						numRounds,
-						turnIndex: history.length,
-						curTurnRoundIndex: numRoundsInCurrentTurn,
-						isDuringToolCalling: numRoundsInCurrentTurn > 0 ? 1 : 0,
-						duration: Date.now() - bgStartTime,
-						promptTokenCount: response.usage?.prompt_tokens,
-						promptCacheTokenCount: response.usage?.prompt_tokens_details?.cached_tokens,
-						responseTokenCount: response.usage?.completion_tokens,
-					});
-
-					return {
-						summary: summaryText,
-						toolCallRoundId,
-						promptTokens: response.usage?.prompt_tokens,
-						promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
-						outputTokens: response.usage?.completion_tokens,
-						durationMs: Date.now() - bgStartTime,
-						model: this.endpoint.model,
-						summarizationMode: 'inline',
-						numRounds,
-						numRoundsSinceLastSummarization,
-					};
-				} else {
-					// Standard mode: use triggerSummarize which makes a separate
-					// LLM call with a summarization-specific prompt during render.
-					const snapshotProps: AgentPromptProps = {
-						...props,
-						promptContext: {
-							...promptContext,
-							toolCallRounds: promptContext.toolCallRounds ? [...promptContext.toolCallRounds] : undefined,
-							toolCallResults: promptContext.toolCallResults ? { ...promptContext.toolCallResults } : undefined,
-						}
-					};
-					const bgRenderer = PromptRenderer.create(this.instantiationService, this.endpoint, this.prompt, {
-						...snapshotProps,
-						endpoint: this.endpoint,
-						promptContext: snapshotProps.promptContext,
-						triggerSummarize: true,
-					});
-					const bgProgress: vscode.Progress<vscode.ChatResponseReferencePart | vscode.ChatResponseProgressPart> = { report: () => { } };
-					const bgRenderResult = await bgRenderer.render(bgProgress, bgToken);
-					const summaryMetadata = bgRenderResult.metadata.get(SummarizedConversationHistoryMetadata);
-					if (!summaryMetadata) {
-						throw new Error('Background compaction produced no summary metadata');
-					}
-					this.logService.debug(`[ConversationHistorySummarizer] background compaction completed successfully (roundId=${summaryMetadata.toolCallRoundId})`);
-					return {
-						summary: summaryMetadata.text,
-						toolCallRoundId: summaryMetadata.toolCallRoundId,
-						promptTokens: summaryMetadata.usage?.prompt_tokens,
-						promptCacheTokens: summaryMetadata.usage?.prompt_tokens_details?.cached_tokens,
-						outputTokens: summaryMetadata.usage?.completion_tokens,
-						durationMs: Date.now() - bgStartTime,
-						model: summaryMetadata.model,
-						summarizationMode: summaryMetadata.summarizationMode,
-						numRounds: summaryMetadata.numRounds,
-						numRoundsSinceLastSummarization: summaryMetadata.numRoundsSinceLastSummarization,
-					};
+				const response = await this.endpoint.makeChatRequest2({
+					debugName: 'summarizeConversationHistory',
+					messages,
+					finishedCb: undefined,
+					location: ChatLocation.Agent,
+					conversationId,
+					requestOptions: {
+						temperature: 0,
+						...toolOpts,
+					},
+					modelCapabilities,
+					telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
+					enableRetryOnFilter: true,
+					interactionTypeOverride: 'conversation-compaction',
+				}, bgToken);
+				if (response.type !== ChatFetchResponseType.Success) {
+					throw new Error(`Background summarization request failed: ${response.type}`);
 				}
+				const rawSummaryText = extractSummary(response.value);
+				if (rawSummaryText === undefined) {
+					throw new Error('Background summarization: no <summary> tags found in response');
+				}
+				if (!toolCallRoundId) {
+					throw new Error('Background summarization: no round ID to apply summary to');
+				}
+				// Flush the transcript before snapshotting the line count so
+				// the baked "N lines" hint matches the on-disk file at this
+				// moment (mirrors the full/simple path in SummarizedConversationHistory.render).
+				if (conversationId && this.sessionTranscriptService.getTranscriptPath(conversationId)) {
+					await this.sessionTranscriptService.flush(conversationId);
+				}
+				const summaryText = conversationId
+					? appendTranscriptHintToSummary(rawSummaryText, conversationId, this.sessionTranscriptService)
+					: rawSummaryText;
+				this.logService.debug(`[ConversationHistorySummarizer] background compaction completed (${summaryText.length} chars, roundId=${toolCallRoundId})`);
+
+				// Send summarizedConversationHistory telemetry for parity
+				// with the standard ConversationHistorySummarizer path.
+				const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(history, rounds);
+				const numRoundsInCurrentTurn = rounds.length;
+				const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
+					?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
+				const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
+				/* __GDPR__
+					"summarizedConversationHistory" : {
+						"owner": "bhavyau",
+						"comment": "Tracks background summarization outcome",
+						"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
+						"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
+						"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
+						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
+						"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
+						"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
+						"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
+						"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
+						"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total tool call rounds." },
+						"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
+						"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
+						"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this was triggered during tool calling." },
+						"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." },
+						"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Prompt tokens." },
+						"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Cached prompt tokens." },
+						"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Output tokens." }
+					}
+				*/
+				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
+					outcome: 'success',
+					model: this.endpoint.model,
+					summarizationMode: 'full',
+					conversationId,
+					chatRequestId: associatedRequestId,
+					lastUsedTool,
+					requestId: response.requestId,
+					promptTypes,
+				}, {
+					numRounds,
+					turnIndex: history.length,
+					curTurnRoundIndex: numRoundsInCurrentTurn,
+					isDuringToolCalling: numRoundsInCurrentTurn > 0 ? 1 : 0,
+					duration: Date.now() - bgStartTime,
+					promptTokenCount: response.usage?.prompt_tokens,
+					promptCacheTokenCount: response.usage?.prompt_tokens_details?.cached_tokens,
+					responseTokenCount: response.usage?.completion_tokens,
+				});
+
+				return {
+					summary: summaryText,
+					toolCallRoundId,
+					promptTokens: response.usage?.prompt_tokens,
+					promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
+					outputTokens: response.usage?.completion_tokens,
+					durationMs: Date.now() - bgStartTime,
+					model: this.endpoint.model,
+					summarizationMode: 'full',
+					numRounds,
+					numRoundsSinceLastSummarization,
+				};
 			} catch (err) {
 				this.logService.error(err, `[ConversationHistorySummarizer] background compaction failed`);
 
-				// Send failure telemetry for inline background summarization
-				if (useInlineSummarization) {
-					/* __GDPR__
-						"summarizedConversationHistory" : {
-							"owner": "bhavyau",
-							"comment": "Tracks background inline summarization failure",
-							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
-							"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed failure reason." },
-							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
-							"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-							"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
-							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
-							"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." }
-						}
-					*/
-					this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
-						outcome: 'failed',
-						detailedOutcome: err instanceof Error ? err.message : String(err),
-						model: this.endpoint.model,
-						summarizationMode: 'inline',
-						conversationId,
-						chatRequestId: associatedRequestId,
-					}, {
-						duration: Date.now() - bgStartTime,
-					});
-				}
+				/* __GDPR__
+					"summarizedConversationHistory" : {
+						"owner": "bhavyau",
+						"comment": "Tracks background summarization failure",
+						"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
+						"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed failure reason." },
+						"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
+						"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
+						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
+						"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
+						"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." }
+					}
+				*/
+				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
+					outcome: 'failed',
+					detailedOutcome: err instanceof Error ? err.message : String(err),
+					model: this.endpoint.model,
+					summarizationMode: 'full',
+					conversationId,
+					chatRequestId: associatedRequestId,
+				}, {
+					duration: Date.now() - bgStartTime,
+				});
 
 				throw err;
 			}
@@ -1046,7 +1206,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		if (!sessionId || !(this.intent instanceof AgentIntent)) {
 			return undefined;
 		}
-		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens);
+		// Compose a stable endpoint identity. `model` alone is not unique across
+		// providers (the same model id can come from different providers / api
+		// types), so include those to avoid reusing a summary built against a
+		// different endpoint's prefix.
+		const endpointId = `${this.endpoint.modelProvider}:${this.endpoint.model}${this.endpoint.apiType ? `:${this.endpoint.apiType}` : ''}`;
+		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens, endpointId);
 	}
 
 	/**
@@ -1144,7 +1309,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				"owner": "bhavyau",
 				"comment": "Tracks background compaction orchestration decisions and outcomes in the agent loop.",
 				"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The code path that triggered background compaction consumption." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced)." },
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced), 'discardedBelowApplyMinRatio' (a completed background result was thrown away because the current context ratio dropped below the apply threshold \u2014 typically after a model switch to a larger window)." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this background compaction was consumed during." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
@@ -1161,6 +1326,76 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			contextRatio,
 		});
 		GenAiMetrics.incrementAgentSummarizationCount(this.otelService, outcome);
+	}
+
+	// ── Background todo processing ──────────────────────────────────
+
+	/**
+	 * Returns the `BackgroundTodoProcessor` for this session, or `undefined`
+	 * if the intent is not an `AgentIntent`.
+	 */
+	private _getOrCreateBackgroundTodoProcessor(sessionId: string | undefined): BackgroundTodoProcessor | undefined {
+		if (!sessionId || !(this.intent instanceof AgentIntent)) {
+			return undefined;
+		}
+		return this.intent.getOrCreateBackgroundTodoProcessor(sessionId);
+	}
+
+	getBackgroundTodoExecutionContext(): IBackgroundTodoExecutionContext | undefined {
+		return this._backgroundTodoExecutionContext;
+	}
+
+	/**
+	 * Kick off a background todo pass if the policy says to run.
+	 */
+	private _maybeStartBackgroundTodoPass(
+		promptContext: IBuildPromptContext,
+		token: vscode.CancellationToken,
+	): void {
+		// Subagent requests must not drive background todo passes. The main
+		// agent's next render will see all accumulated rounds from subagents
+		// via the delta tracker and trigger a single consolidated pass then.
+		if (this.request.subAgentInvocationId) {
+			return;
+		}
+
+		const sessionId = promptContext.conversation?.sessionId;
+		const processor = this._getOrCreateBackgroundTodoProcessor(sessionId);
+		if (!processor) {
+			return;
+		}
+
+		const turnId = promptContext.conversation?.getLatestTurn()?.id;
+		const executionContext: IBackgroundTodoExecutionContext = {
+			instantiationService: this.instantiationService,
+			logService: this.logService,
+			toolsService: this.toolsService,
+			telemetryService: this.telemetryService,
+			promptContext,
+		};
+		this._backgroundTodoExecutionContext = executionContext;
+
+		const { decision, reason, delta } = processor.shouldRun({
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
+			isAgentPrompt: this.prompt === AgentPrompt,
+			promptContext,
+			turnId,
+		});
+
+		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
+
+		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
+			// Coalesce into the queue so the latest context is not lost.
+			processor.requestRegularPass(delta, executionContext, token, turnId);
+			return;
+		}
+
+		if (decision !== BackgroundTodoDecision.Run || !delta) {
+			return;
+		}
+
+		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 
 	override processResponse = undefined;

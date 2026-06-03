@@ -4,14 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableSet, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
+import { GitHubApiClient } from '../githubApiClient.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
+
+export class GitHubPullRequestModelReferenceCollection extends ReferenceCollection<GitHubPullRequestModel> {
+	private readonly _fetcher: GitHubPRFetcher;
+
+	constructor(
+		apiClient: GitHubApiClient,
+		@ILogService private readonly _logService: ILogService
+	) {
+		super();
+		this._fetcher = new GitHubPRFetcher(apiClient);
+	}
+
+	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestModel {
+		this._logService.trace(`[GitHubPullRequestModelReferenceCollection][createReferencedObject] Creating PR model for ${key}`);
+		return new GitHubPullRequestModel(owner, repo, prNumber, this._fetcher, this._logService);
+	}
+
+	protected override destroyReferencedObject(key: string, object: GitHubPullRequestModel): void {
+		this._logService.trace(`[GitHubPullRequestModelReferenceCollection][destroyReferencedObject] Disposing PR model for ${key}`);
+		object.dispose();
+	}
+}
 
 /**
  * Reactive model for a GitHub pull request. Wraps fetcher data in
@@ -32,8 +55,8 @@ export class GitHubPullRequestModel extends Disposable {
 
 	private _refreshPromise: Promise<void> | undefined = undefined;
 
-	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
+	private readonly _pollingDisposables = this._register(new DisposableSet());
 
 	constructor(
 		readonly owner: string,
@@ -72,25 +95,26 @@ export class GitHubPullRequestModel extends Disposable {
 	 * Start periodic polling. Each cycle refreshes all PR data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
-		if (this._pollingClientCount++ === 0) {
-			this._pollScheduler.schedule(intervalMs);
-		}
+		const disposable = toDisposable(() => {
+			this._pollingDisposables.deleteAndDispose(disposable);
 
-		return toDisposable(() => {
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			if (--this._pollingClientCount === 0) {
+			if (this._pollingDisposables.size === 0) {
 				this._pollScheduler.cancel();
 			}
 		});
+		this._pollingDisposables.add(disposable);
+
+		if (this._pollingDisposables.size === 1) {
+			this._pollScheduler.schedule(intervalMs);
+		}
+
+		return disposable;
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
-		if (!this._store.isDisposed && this._pollingClientCount > 0) {
+		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
 			this._pollScheduler.schedule();
 		}
 	}

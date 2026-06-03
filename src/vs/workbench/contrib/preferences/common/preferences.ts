@@ -105,6 +105,7 @@ export const ID_SETTING_TAG = 'id:';
 export const LANGUAGE_SETTING_TAG = 'lang:';
 export const GENERAL_TAG_SETTING_TAG = 'tag:';
 export const POLICY_SETTING_TAG = 'hasPolicy';
+export const AGENTS_WINDOW_SETTING_TAG = 'override:agentsWindow';
 export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
 export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const ADVANCED_SETTING_TAG = 'advanced';

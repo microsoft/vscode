@@ -84,7 +84,7 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
 		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
 
-		const modelConfig = configService.getConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfiguration);
+		const modelConfig = configService.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 		const responseFormat = ResponseFormat.fromPromptingStrategy(modelConfig?.promptingStrategy);
 
 		log(`  Local model configuration: ${JSON.stringify(modelConfig)}`);
@@ -132,8 +132,10 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 			});
 		}
 
-		const { responses, errors: responseErrors } = generateAllResponses(responseFormat, responseInputs);
-		log(`  [4/5] Responses generated: ${responses.length} ok, ${responseErrors.length} errors`);
+		const { responses, errors: responseErrors } = generateAllResponses(responseFormat, responseInputs, log);
+		const droppedEditCount = responses.reduce((total, r) => total + (r.response.droppedEditCount ?? 0), 0);
+		const droppedSuffix = droppedEditCount > 0 ? `, ${droppedEditCount} oracle edit(s) dropped outside edit window` : '';
+		log(`  [4/5] Responses generated: ${responses.length} ok, ${responseErrors.length} errors${droppedSuffix}`);
 		logErrors(responseErrors.map(e => {
 			const p = processedByOriginalIndex.get(e.index);
 			return { error: `[sample ${e.index + rowOffset}, ${p?.row.activeDocumentLanguageId ?? '?'}] ${e.error}` };

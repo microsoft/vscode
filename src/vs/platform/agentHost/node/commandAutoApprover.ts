@@ -11,8 +11,71 @@ import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 
-/** Pattern that detects compound commands (&&, ||, ;, |, backtick, $()) */
-const compoundCommandPattern = /&&|\|\||[;|]|`|\$\(/;
+/**
+ * Redirect destinations that do not result in a write to an arbitrary file
+ * on disk: the /dev sinks that discard output (`/dev/null`) or write back to
+ * the same terminal (`/dev/stdout`, `/dev/stderr`, `/dev/tty`).
+ */
+const SAFE_REDIRECT_TARGETS: ReadonlySet<string> = new Set([
+	'/dev/null',
+	'/dev/stdout',
+	'/dev/stderr',
+	'/dev/tty',
+]);
+
+/**
+ * Returns true when the given redirection destination is known to be safe:
+ * either a known-safe /dev sink or a file-descriptor duplication target
+ * like `&1` (used in `2>&1`).
+ */
+function isSafeRedirectDestination(dest: string): boolean {
+	let cleaned = dest.trim();
+	if (cleaned.length === 0) {
+		return false;
+	}
+	if ((cleaned.startsWith(`'`) && cleaned.endsWith(`'`)) ||
+		(cleaned.startsWith('"') && cleaned.endsWith('"'))) {
+		cleaned = cleaned.slice(1, -1);
+	}
+	// File-descriptor duplication: `&N`, optionally followed by `-` to close.
+	if (/^&[0-9]+-?$/.test(cleaned)) {
+		return true;
+	}
+	return SAFE_REDIRECT_TARGETS.has(cleaned);
+}
+
+/**
+ * Classification of a tree-sitter `file_redirect` node.
+ * - `read`: input-only redirect (`<`, `<&N`) — never writes.
+ * - `safeWrite`: write to a known-safe sink (`/dev/null`, fd duplication, ...).
+ * - `unsafeWrite`: write to an arbitrary destination. The destination string
+ *   (with surrounding quotes stripped) is included when it could be parsed,
+ *   so the caller may decide whether the target is acceptable.
+ */
+type FileRedirectClassification =
+	| { kind: 'read' }
+	| { kind: 'safeWrite' }
+	| { kind: 'unsafeWrite'; dest: string | undefined };
+
+function classifyFileRedirect(redirectText: string): FileRedirectClassification {
+	if (!redirectText.includes('>')) {
+		return { kind: 'read' };
+	}
+	const destMatch = redirectText.match(/(?:[0-9]+|&)?>>?\|?\s*(.+)$/);
+	if (!destMatch) {
+		return { kind: 'unsafeWrite', dest: undefined };
+	}
+	const rawDest = destMatch[1].trim();
+	if (isSafeRedirectDestination(rawDest)) {
+		return { kind: 'safeWrite' };
+	}
+	let dest = rawDest;
+	if ((dest.startsWith(`'`) && dest.endsWith(`'`)) ||
+		(dest.startsWith('"') && dest.endsWith('"'))) {
+		dest = dest.slice(1, -1);
+	}
+	return { kind: 'unsafeWrite', dest };
+}
 
 /**
  * Result of a command auto-approval check.
@@ -21,6 +84,21 @@ const compoundCommandPattern = /&&|\|\||[;|]|`|\$\(/;
  * - `noMatch`: no rule matched — requires user confirmation
  */
 export type CommandApprovalResult = 'approved' | 'denied' | 'noMatch';
+
+/** Options for {@link CommandAutoApprover.shouldAutoApprove}. */
+export interface IShouldAutoApproveOptions {
+	/**
+	 * Predicate that decides whether a write redirection to the given
+	 * destination is acceptable. Called once per write-redirect destination
+	 * found in the command line; the destination is the raw string the user
+	 * typed (with surrounding quotes stripped). The predicate is responsible
+	 * for resolving relative paths and applying its own policy.
+	 *
+	 * When omitted, any write redirect to a destination outside the known-safe
+	 * sinks (e.g. `/dev/null`) downgrades the result to `noMatch`.
+	 */
+	readonly isWriteDestApproved?: (dest: string) => boolean;
+}
 
 interface IAutoApproveRule {
 	readonly regex: RegExp;
@@ -39,8 +117,9 @@ const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
  *
  * Tree-sitter is initialized eagerly; call {@link initialize} and await the
  * result before using {@link shouldAutoApprove} to guarantee synchronous
- * parsing. If tree-sitter failed to load, compound commands fall back to
- * `noMatch` (user confirmation required).
+ * parsing. If tree-sitter fails to load or parse the command,
+ * {@link shouldAutoApprove} returns `noMatch` so the user is prompted for
+ * confirmation rather than auto-approving based on the command name alone.
  */
 export class CommandAutoApprover extends Disposable {
 
@@ -70,8 +149,12 @@ export class CommandAutoApprover extends Disposable {
 	/**
 	 * Synchronously check whether the given command line should be auto-approved.
 	 * Uses tree-sitter (if loaded) to parse compound commands into sub-commands.
+	 *
+	 * When the command contains write redirections, `options.isWriteDestApproved`
+	 * is consulted for each destination. If every destination is approved by the
+	 * predicate, write redirections do not block auto-approval.
 	 */
-	shouldAutoApprove(commandLine: string): CommandApprovalResult {
+	shouldAutoApprove(commandLine: string, options?: IShouldAutoApproveOptions): CommandApprovalResult {
 		const trimmed = commandLine.trimStart();
 		if (trimmed.length === 0) {
 			return 'approved';
@@ -79,22 +162,22 @@ export class CommandAutoApprover extends Disposable {
 
 		this._ensureRules();
 
-		// Try to extract sub-commands via tree-sitter
-		const subCommands = this._extractSubCommands(trimmed);
-		if (subCommands && subCommands.length > 0) {
-			return this._matchSubCommands(subCommands);
-		}
-
-		// Fallback: if this looks like a compound command but tree-sitter
-		// failed to parse it, require user confirmation rather than risking
-		// auto-approving a dangerous sub-command.
-		if (compoundCommandPattern.test(trimmed)) {
-			this._logService.trace('[CommandAutoApprover] Compound command without tree-sitter, requiring confirmation');
+		const parsed = this._extractSubCommands(trimmed);
+		if (!parsed) {
+			this._logService.trace('[CommandAutoApprover] Tree-sitter unavailable, requiring confirmation');
 			return 'noMatch';
 		}
 
-		// Simple single command — match against rules
-		return this._matchCommandLine(trimmed);
+		const result = this._matchSubCommands(parsed.subCommands);
+		if (result === 'approved' && parsed.unsafeWriteDests.length > 0) {
+			for (const dest of parsed.unsafeWriteDests) {
+				if (dest === undefined || !options?.isWriteDestApproved?.(dest)) {
+					this._logService.trace('[CommandAutoApprover] Write redirection to non-approved destination, requiring confirmation');
+					return 'noMatch';
+				}
+			}
+		}
+		return result;
 	}
 
 	private _matchSubCommands(subCommands: string[]): CommandApprovalResult {
@@ -114,13 +197,6 @@ export class CommandAutoApprover extends Disposable {
 			}
 		}
 		return allApproved ? 'approved' : 'noMatch';
-	}
-
-	private _matchCommandLine(commandLine: string): CommandApprovalResult {
-		if (transientEnvVarRegex.test(commandLine)) {
-			return 'denied';
-		}
-		return this._matchSingleCommand(commandLine);
 	}
 
 	private _matchSingleCommand(command: string): CommandApprovalResult {
@@ -143,7 +219,7 @@ export class CommandAutoApprover extends Disposable {
 
 	// ---- Tree-sitter --------------------------------------------------------
 
-	private _extractSubCommands(commandLine: string): string[] | undefined {
+	private _extractSubCommands(commandLine: string): { subCommands: string[]; unsafeWriteDests: (string | undefined)[] } | undefined {
 		if (!this._parser || !this._bashLanguage || !this._queryClass) {
 			return undefined;
 		}
@@ -156,11 +232,27 @@ export class CommandAutoApprover extends Disposable {
 			}
 
 			try {
-				const query = new this._queryClass(this._bashLanguage, '(command) @command');
+				const query = new this._queryClass(this._bashLanguage, '(command) @command (file_redirect) @file_redirect (heredoc_redirect) @heredoc_redirect (herestring_redirect) @herestring_redirect');
 				const captures: QueryCapture[] = query.captures(tree.rootNode);
-				const subCommands = captures.map(c => c.node.text);
+				const subCommands: string[] = [];
+				const unsafeWriteDests: (string | undefined)[] = [];
+				for (const capture of captures) {
+					if (capture.name === 'command') {
+						subCommands.push(capture.node.text);
+					} else if (capture.name === 'file_redirect') {
+						// Writes to known-safe sinks (e.g. `> /dev/null`) and
+						// file-descriptor duplications (e.g. `2>&1`) are allowed.
+						const cls = classifyFileRedirect(capture.node.text);
+						if (cls.kind === 'unsafeWrite') {
+							unsafeWriteDests.push(cls.dest);
+						}
+					} else if (capture.name === 'heredoc_redirect' || capture.name === 'herestring_redirect') {
+						// Heredoc/herestring feed data into stdin; they do not write
+						// files, so they are not treated as write redirects here.
+					}
+				}
 				query.delete();
-				return subCommands.length > 0 ? subCommands : undefined;
+				return subCommands.length > 0 || unsafeWriteDests.length > 0 ? { subCommands, unsafeWriteDests } : undefined;
 			} finally {
 				tree.delete();
 			}

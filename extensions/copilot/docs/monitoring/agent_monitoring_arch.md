@@ -321,6 +321,19 @@ if (this._otelService.config.captureContent) {
 }
 ```
 
+### Attribute Truncation
+
+All free-form content attributes (prompts, tool arguments/results, hook input/output, reasoning text) **must** be passed through `truncateForOTel(value, otel.config.maxAttributeSizeChars)` before being set on a span. The default `maxAttributeSizeChars` is `0` (no truncation), matching the [OTel spec default of `Infinity`](https://opentelemetry.io/docs/specs/otel/common/#attribute-limits) for `AttributeValueLengthLimit`. Users whose OTel backend caps per-attribute size should set `github.copilot.chat.otel.maxAttributeSizeChars` (or the `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` env var) to a positive value so OTLP batches stay under the backend cap — consult the backend's documentation for the appropriate value.
+
+> **Chars vs. bytes.** The [OTel spec](https://opentelemetry.io/docs/specs/otel/common/#attribute-limits) defines string attribute limits as "counting any character in it as 1". `truncateForOTel` approximates this using `value.length`, which counts UTF-16 code units rather than Unicode code points — so astral-plane characters (e.g. some emoji) count as 2 against the limit. Backends typically apply a separate UTF-8 byte limit downstream, so the on-wire size for non-ASCII content can be larger than the configured character count.
+
+```typescript
+const maxLen = this._otelService.config.maxAttributeSizeChars; // 0 = unlimited
+span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(args), maxLen));
+```
+
+The two-arg form is preferred at every call site that has access to `IOTelService`. The default-arg form (`truncateForOTel(value)`) is unlimited (no truncation) and should only be used from helpers that do not receive an `IOTelService` (e.g. tests, fixtures).
+
 ---
 
 ## Adding Instrumentation
@@ -363,8 +376,8 @@ return this._otel.startActiveSpan('invoke_agent child', { parentTraceContext: pa
 | Namespace | Used By | Examples |
 |---|---|---|
 | `gen_ai.*` | All agents (standard) | `gen_ai.operation.name`, `gen_ai.usage.input_tokens` |
-| `copilot_chat.*` | Extension-specific | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
-| `github.copilot.*` | CLI SDK internal | `github.copilot.cost`, `github.copilot.aiu` |
+| `copilot_chat.*` | Extension-specific (legacy; several keys dual-emit alongside `github.copilot.*`) | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
+| `github.copilot.*` | Canonical Copilot namespace — extension-emitted enrichment (foreground agent, Claude agent, CLI bridge) + CLI SDK internal metrics | `github.copilot.agent.type`, `github.copilot.git.repository`, `github.copilot.tool.parameters.edit_type`, `github.copilot.hook.decision`, `github.copilot.cost`, `github.copilot.aiu` |
 | `claude_code.*` | Claude subprocess | `claude_code.token.usage`, `claude_code.cost.usage` |
 
 ---

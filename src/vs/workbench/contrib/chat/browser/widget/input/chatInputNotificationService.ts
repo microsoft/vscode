@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -23,11 +26,18 @@ export interface IChatInputNotificationAction {
 export interface IChatInputNotification {
 	readonly id: string;
 	readonly severity: ChatInputNotificationSeverity;
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly description: string | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
+	/**
+	 * Optional allow-list of chat session types that should display this
+	 * notification. When undefined, the notification renders in every chat
+	 * input. When set, only chat inputs whose current session type is in the
+	 * list will render it.
+	 */
+	readonly sessionTypes?: readonly string[];
 }
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');
@@ -36,6 +46,9 @@ export interface IChatInputNotificationService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChange: Event<void>;
+
+	/** Fires when a notification is dismissed by the user (via the X button). */
+	readonly onDidDismiss: Event<string>;
 
 	/**
 	 * Set or update a notification. If a notification with the same ID already
@@ -57,8 +70,10 @@ export interface IChatInputNotificationService {
 	/**
 	 * Get the single active notification to display. Returns the highest-severity
 	 * notification that has not been dismissed. Ties are broken by most-recent insertion.
+	 * An optional `filter` can be provided to restrict the set of notifications considered,
+	 * so a non-matching higher-priority notification doesn't mask other eligible ones.
 	 */
-	getActiveNotification(): IChatInputNotification | undefined;
+	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined;
 
 	/**
 	 * Called when the user sends a chat message. Auto-dismisses all notifications
@@ -80,34 +95,48 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly _onDidDismiss = this._register(new Emitter<string>());
+	readonly onDidDismiss = this._onDidDismiss.event;
+
+	/**
+	 * Signature of the last active notification we announced via ARIA, so we
+	 * don't re-announce the same content when the model fires `onDidChange`
+	 * for unrelated reasons or when the same notification is re-pushed.
+	 */
+	private _lastAnnouncedSignature: string | undefined;
+
 	setNotification(notification: IChatInputNotification): void {
 		this._notifications.set(notification.id, notification);
 		this._dismissed.delete(notification.id);
 		this._insertionOrder.set(notification.id, this._insertionCounter++);
-		this._onDidChange.fire();
+		this._fireDidChange();
 	}
 
 	deleteNotification(id: string): void {
 		if (this._notifications.delete(id)) {
 			this._dismissed.delete(id);
 			this._insertionOrder.delete(id);
-			this._onDidChange.fire();
+			this._fireDidChange();
 		}
 	}
 
 	dismissNotification(id: string): void {
 		if (this._notifications.has(id) && !this._dismissed.has(id)) {
 			this._dismissed.add(id);
-			this._onDidChange.fire();
+			this._onDidDismiss.fire(id);
+			this._fireDidChange();
 		}
 	}
 
-	getActiveNotification(): IChatInputNotification | undefined {
+	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
 		let best: IChatInputNotification | undefined;
 		let bestOrder = -1;
 
 		for (const notification of this._notifications.values()) {
 			if (this._dismissed.has(notification.id)) {
+				continue;
+			}
+			if (filter && !filter(notification)) {
 				continue;
 			}
 
@@ -134,8 +163,43 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			}
 		}
 		if (changed) {
-			this._onDidChange.fire();
+			this._fireDidChange();
 		}
+	}
+
+	private _fireDidChange(): void {
+		this._announceActiveIfChanged();
+		this._onDidChange.fire();
+	}
+
+	/**
+	 * Announce the currently active notification to screen readers, but only
+	 * when its content differs from the last announced one. This prevents
+	 * the same notification from being announced repeatedly when:
+	 *  - the same notification is re-pushed by an extension (e.g. on every
+	 *    quota change tick),
+	 *  - multiple chat widgets are mounted (panel, side bar, etc.) — the
+	 *    announcement happens once at the singleton level instead of once
+	 *    per widget.
+	 */
+	private _announceActiveIfChanged(): void {
+		const active = this.getActiveNotification();
+		if (!active) {
+			this._lastAnnouncedSignature = undefined;
+			return;
+		}
+		const rawMessage = typeof active.message === 'string' ? active.message : active.message.value;
+		const signature = `${active.id}\u0000${rawMessage}\u0000${active.description ?? ''}`;
+		if (signature === this._lastAnnouncedSignature) {
+			return;
+		}
+		this._lastAnnouncedSignature = signature;
+		// Strip Markdown syntax so screen readers don't read backticks, link
+		// targets, etc. verbatim. Done after the signature check so we don't
+		// pay the parse cost on unrelated `onDidChange` fires.
+		const message = renderAsPlaintext(active.message);
+		const text = active.description ? `${message}. ${active.description}` : message;
+		status(text);
 	}
 }
 

@@ -17,8 +17,10 @@ import { IExtensionContribution } from '../../common/contributions';
 import {
 	MAX_ASSISTANT_RESPONSE_LENGTH,
 	MAX_SUMMARY_LENGTH,
+	extractAgentName,
 	extractAssistantResponse,
 	extractFilePath,
+	extractPlainTextFromContent,
 	extractRefsFromMcpTool,
 	extractRefsFromTerminal,
 	extractRepoFromMcpTool,
@@ -156,8 +158,20 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
-			const sessionId = this._getSessionId(span);
 			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
+
+			// Sub-agent spans have no row of their own (schema has no sub-agent concept).
+			// Attribute their tool calls to the parent so we don't lose file/ref signal;
+			// drop their invoke_agent span — the parent's covers that turn.
+			const parentChatSessionId = span.attributes[CopilotChatAttr.PARENT_CHAT_SESSION_ID] as string | undefined;
+			if (parentChatSessionId) {
+				if (operationName === GenAiOperationName.EXECUTE_TOOL && this._initializedSessions.has(parentChatSessionId)) {
+					this._handleToolSpan(parentChatSessionId, span);
+				}
+				return;
+			}
+
+			const sessionId = this._getSessionId(span);
 			if (!sessionId) {
 				return;
 			}
@@ -211,7 +225,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	private _initSession(sessionId: string, span: ICompletedSpanData): void {
 		this._initializedSessions.add(sessionId);
 
-		const sessionSource = (span.attributes[GenAiAttr.AGENT_NAME] as string | undefined) ?? 'unknown';
+		const sessionSource = extractAgentName(span);
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode', agent_name: sessionSource, ...(cwd ? { cwd } : {}) });
 
@@ -244,7 +258,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		const userRequest = span.attributes[CopilotChatAttr.USER_REQUEST] as string | undefined;
 
 		if (branch || remoteUrl || userRequest) {
-			const summary = truncateForStore(userRequest, MAX_SUMMARY_LENGTH);
+			const summary = userRequest ? truncateForStore(extractPlainTextFromContent(userRequest), MAX_SUMMARY_LENGTH) : undefined;
 
 			this._bufferSessionUpsert({
 				id: sessionId,
@@ -252,6 +266,11 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				...(remoteUrl ? { repository: remoteUrl } : {}),
 				...(summary ? { summary } : {}),
 			});
+		}
+
+		const agentName = extractAgentName(span);
+		if (agentName !== 'unknown') {
+			this._bufferSessionUpsert({ id: sessionId, agent_name: agentName });
 		}
 	}
 
@@ -322,8 +341,8 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		// Use the first user message as the session summary if one hasn't been set yet
 		const existingSession = this._buffer.sessions.get(sessionId);
 		if (!existingSession?.summary) {
-			const firstMessage = userMessages[0]?.content ?? userRequest;
-			const summary = truncateForStore(firstMessage, MAX_SUMMARY_LENGTH);
+			const rawFirst = userMessages[0]?.content ?? userRequest;
+			const summary = rawFirst ? truncateForStore(extractPlainTextFromContent(rawFirst), MAX_SUMMARY_LENGTH) : undefined;
 			if (summary) {
 				this._bufferSessionUpsert({ id: sessionId, summary });
 			}
@@ -371,6 +390,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				...(session.host_type ? { host_type: session.host_type } : {}),
 				...(session.branch ? { branch: session.branch } : {}),
 				...(session.summary ? { summary: session.summary } : {}),
+				...(session.agent_name && session.agent_name !== 'unknown' ? { agent_name: session.agent_name } : {}),
 			});
 		} else {
 			this._buffer.sessions.set(session.id, { ...session });

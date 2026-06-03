@@ -34,8 +34,9 @@ function computeAvailableModels(
 	sessionType: string | undefined,
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors);
+	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
 	merged.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 	return filterModelsForSession(merged, sessionType, currentModeKind, location);
 }
@@ -58,7 +59,6 @@ function createModel(
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
 			isUserSelectable: true,
-			modelPickerCategory: undefined,
 			capabilities: { toolCalling: true, agentMode: true },
 			...overrides,
 		} as ILanguageModelChatMetadata,
@@ -640,6 +640,67 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(result.length, 2);
 			assert.deepStrictEqual(result.map(m => m.metadata.vendor).sort(), ['vendor-a', 'vendor-b']);
 		});
+
+		test('evicts cached entries for a resolved vendor that returned zero models (BYOK delete)', () => {
+			// vendor-a is resolved with one live model; vendor-b is resolved with no live models
+			// (e.g. the user removed their BYOK API key). Cached vendor-b entries must NOT
+			// resurrect those models in the picker.
+			const liveA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const staleB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[liveA],
+				[staleB],
+				new Set(['vendor-a', 'vendor-b']),
+				new Set(['vendor-a', 'vendor-b']),
+			);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].metadata.vendor, 'vendor-a');
+		});
+
+		test('keeps cached entries for an unresolved vendor (extension reload race)', () => {
+			// vendor-b is contributed but its provider hasn't completed a resolution yet
+			// (e.g. extension is mid-reload). Cache must bridge the gap so the picker
+			// keeps showing the user's previously-seen models.
+			const liveA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[liveA],
+				[cachedB],
+				new Set(['vendor-a', 'vendor-b']),
+				new Set(['vendor-a']), // vendor-b not yet resolved
+			);
+			assert.strictEqual(result.length, 2);
+			assert.deepStrictEqual(result.map(m => m.metadata.vendor).sort(), ['vendor-a', 'vendor-b']);
+		});
+
+		test('evicts cache for a resolved vendor even when all live models are zero', () => {
+			// Edge case: the only resolved vendor returns zero models (user deleted all
+			// configurations). Cache must be ignored — the picker should be empty.
+			const stale = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[],
+				[stale],
+				new Set(['vendor-b']),
+				new Set(['vendor-b']),
+			);
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('preserves full cache when no vendors are contributed yet (startup race)', () => {
+			// During startup or an extension reload, vendor descriptors may not be
+			// registered yet. contributedVendors is empty and so is resolvedVendors.
+			// We must NOT drop the cache — that would reset the user's selected model
+			// before the vendors come back.
+			const cachedA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[],
+				[cachedA, cachedB],
+				new Set(),
+				new Set(),
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
+		});
 	});
 
 	suite('model switching scenarios', () => {
@@ -830,6 +891,14 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', [gpt, claude]), false);
 		});
 
+		test('reset when the selected model is hidden from the available models', () => {
+			const gpt = createModel('gpt', 'GPT');
+			const claude = createModel('claude', 'Claude');
+			const visibleModels = [gpt, claude].filter(model => model.identifier !== gpt.identifier);
+
+			assert.strictEqual(shouldResetOnModelListChange(gpt.identifier, visibleModels), true);
+		});
+
 		test('reset when current model identifier is undefined', () => {
 			const gpt = createModel('gpt', 'GPT');
 			assert.strictEqual(shouldResetOnModelListChange(undefined, [gpt]), true);
@@ -907,11 +976,11 @@ suite('ChatModelSelectionLogic', () => {
 			);
 		});
 
-		test('does NOT restore model with isUserSelectable=undefined (treated as falsy)', () => {
+		test('restores model with isUserSelectable=undefined (defaults to selectable)', () => {
 			const model = createModel('undef-sel', 'Undef-Sel', { isUserSelectable: undefined });
 			assert.strictEqual(
 				shouldRestoreLateArrivingModel('copilot/undef-sel', false, model, ChatAgentLocation.Chat),
-				false,
+				true,
 			);
 		});
 
@@ -1046,6 +1115,25 @@ suite('ChatModelSelectionLogic', () => {
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['tool']);
 		});
+
+		test('startup/extension reload with no contributors yet preserves cache (production path)', () => {
+			// Mirrors chatInputPart.getAllMergedModels at a moment when getVendors()
+			// is temporarily empty (extension host reloading). resolvedVendors is
+			// also empty because nothing has resolved. The picker must continue to
+			// show cached models so the user's selection isn't reset.
+			const cachedA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = computeAvailableModels(
+				[],
+				[cachedA, cachedB],
+				new Set(),
+				undefined,
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+				new Set(),
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
+		});
 	});
 
 	suite('_syncFromModel edge cases', () => {
@@ -1138,7 +1226,7 @@ suite('ChatModelSelectionLogic', () => {
 
 			// 3. findDefaultModel picks replacement from models filtered for Agent mode
 			const agentCompatibleModels = filterModelsForSession(
-				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat
+				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat,
 			);
 			const defaultModel = findDefaultModel(agentCompatibleModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultModel?.metadata.id, 'agent-model');
