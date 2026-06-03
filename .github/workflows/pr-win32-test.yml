@@ -58,6 +58,10 @@ jobs:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
 
+          # Run preinstall script before root dependencies are installed
+          # so that Electron/v8 headers are patched correctly for native modules.
+          exec { node build/npm/preinstall.ts }
+
           for ($i = 1; $i -le 5; $i++) {
             try {
               exec { npm ci }

@@ -318,3 +318,46 @@
 	outline: none;
 	border-color: var(--vscode-focusBorder);
 }
+
+/* Replies — visually grouped with the parent comment but with subtle separation */
+.agent-feedback-widget-replies {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.agent-feedback-widget-reply {
+	padding-top: 4px;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
+}
+
+.agent-feedback-widget-reply-text {
+	color: var(--vscode-foreground);
+	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+}
+
+/* Reply composer shown when adding to a comment */
+.agent-feedback-widget-add-reply {
+	padding-top: 4px;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
+}
+
+.agent-feedback-widget-add-reply .agent-feedback-widget-edit-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 1;
+}

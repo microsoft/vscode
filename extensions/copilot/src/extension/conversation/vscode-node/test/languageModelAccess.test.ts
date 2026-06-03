@@ -25,6 +25,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
+import { buildReasoningEffortSchemaProperty, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -354,5 +355,118 @@ suite('buildUtilityAliasModelInfo', () => {
 		// upper bound to assert the subtraction happened without re-importing
 		// the constant in the test.
 		assert.ok(result.info.maxInputTokens! < 32_000 - 100, `expected maxInputTokens to subtract baseCount and completion reserve, got ${result.info.maxInputTokens}`);
+	});
+});
+
+suite('reasoning effort schema', () => {
+	test('claude family prefers high when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
+	});
+
+	test('non-claude family prefers medium when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'gpt-5'), 'medium');
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'some-other-family'), 'medium');
+	});
+
+	test('falls back to first advertised level when preferred is missing', () => {
+		// Claude without 'high' → first
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium'], 'claude-haiku'), 'low');
+		// Other family without 'medium' → first
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high'], 'unknown-family'), 'low');
+	});
+
+	test('returns undefined for empty levels', () => {
+		assert.strictEqual(pickDefaultReasoningEffort([], 'gpt-5'), undefined);
+	});
+
+	test('buildReasoningEffortSchemaProperty always sets a concrete default for non-empty levels', () => {
+		const prop = buildReasoningEffortSchemaProperty(['low', 'high'], 'unknown-family');
+		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
+		assert.deepStrictEqual(prop.enum, ['low', 'high']);
+		assert.strictEqual(prop.group, 'navigation');
+	});
+});
+
+suite('normalizeTokenPrices', () => {
+	test('returns undefined for undefined input', () => {
+		assert.strictEqual(normalizeTokenPrices(undefined), undefined);
+	});
+
+	test('returns undefined when flat fields are missing', () => {
+		assert.strictEqual(normalizeTokenPrices({ batch_size: 1_000_000 }), undefined);
+		assert.strictEqual(normalizeTokenPrices({ input_price: 100 }), undefined);
+	});
+
+	test('converts legacy flat nano-AIU prices to credits per 1M tokens', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			input_price: 3_000_000_000,
+			output_price: 15_000_000_000,
+			cache_price: 375_000_000,
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('scales legacy prices when batch_size differs from 1M', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 500_000,
+			input_price: 1_500_000_000,
+			output_price: 7_500_000_000,
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, undefined);
+	});
+
+	test('defaults batch_size to 1M when missing', () => {
+		const result = normalizeTokenPrices({
+			input_price: 1_000_000_000,
+			output_price: 2_000_000_000,
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 1);
+		assert.strictEqual(result.default.outputPrice, 2);
+	});
+
+	test('converts tiered AIU prices to credits per 1M tokens', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
+		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('includes long-context tier when present', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
+			long_context: { input_price: 6, output_price: 30, cache_price: 0.75 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.longContext?.inputPrice, 6);
+		assert.strictEqual(result.longContext?.outputPrice, 30);
+		assert.strictEqual(result.longContext?.cachePrice, 0.75);
+	});
+
+	test('tiered format takes precedence over flat fields', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			input_price: 999_999_999,
+			output_price: 999_999_999,
+			default: { input_price: 3, output_price: 15 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.outputPrice, 15);
 	});
 });

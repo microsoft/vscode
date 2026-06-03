@@ -97,7 +97,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(out.length, 3);
 		const start = out[0];
 		assert.ok(start.kind === 'action' && start.action.type === ActionType.SessionResponsePart);
-		assert.strictEqual(start.action.session, SESSION_STR);
+		assert.strictEqual(start.session.toString(), SESSION_STR);
 		assert.strictEqual(start.action.turnId, TURN_ID);
 		assert.strictEqual(start.action.part.kind, ResponsePartKind.Markdown);
 		const partId = start.action.part.id;
@@ -109,7 +109,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				session: SESSION,
 				action: {
 					type: ActionType.SessionDelta,
-					session: SESSION_STR,
 					turnId: TURN_ID,
 					partId,
 					content: 'Hello, ',
@@ -120,7 +119,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				session: SESSION,
 				action: {
 					type: ActionType.SessionDelta,
-					session: SESSION_STR,
 					turnId: TURN_ID,
 					partId,
 					content: 'world!',
@@ -161,7 +159,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionReasoning,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				partId,
 				content: 'pondering',
@@ -190,7 +187,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallStart,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				toolName: 'Read',
@@ -222,7 +218,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallDelta,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				content: '{"file_pa',
@@ -250,7 +245,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallReady,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_b',
 				invocationMessage: { markdown: 'Running `git status`' },
@@ -289,7 +283,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			session: SESSION,
 			action: {
 				type: ActionType.SessionToolCallComplete,
-				session: SESSION_STR,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				result: {
@@ -518,13 +511,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				session: SESSION,
 				action: {
 					type: ActionType.SessionUsage,
-					session: SESSION_STR,
 					turnId: TURN_ID,
 					usage: {
 						inputTokens: 12,
 						outputTokens: 34,
 						cacheReadTokens: 5,
-						model: 'claude-test',
+						model: 'claude-test'
 					},
 				},
 			},

@@ -48,6 +48,19 @@ extends:
 
       - template: copilot/setup-steps.yml
       - template: copilot/build-steps.yml
+      - script: |
+          set -e
+
+          # The GLIBC check (from the shared extension template) scans every .node
+          # under $PWD. @github/copilot vendors @picovoice/pvrecorder-node, whose
+          # linux/x86_64 prebuild depends on GLIBC > 2.28. The native is not
+          # shipped in the VSIX, so just remove the pvrecorder prebuilds before
+          # the check runs.
+          find "$(Build.SourcesDirectory)" \
+            -type d -name pvrecorder-node \
+            -path "*@picovoice/pvrecorder-node" \
+            -print -exec rm -rf {} +
+        displayName: Remove pvrecorder native binaries before GLIBC check
 
     uploadSourceMaps:
       enabled: true

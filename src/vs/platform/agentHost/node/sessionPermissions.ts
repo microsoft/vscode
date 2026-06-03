@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { homedir } from 'os';
 import { match as globMatch } from '../../../base/common/glob.js';
+import { untildify } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
+import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -150,7 +153,9 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
-			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput);
+			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
+				isWriteDestApproved: (dest) => this._isShellWriteDestApproved(dest, workDir),
+			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
 				return ToolCallConfirmationReason.NotNeeded;
@@ -172,12 +177,11 @@ export class SessionPermissionManager extends Disposable {
 	 * (the protocol state carries `confirmationTitle`), the standard
 	 * confirmation options are baked in so clients can render them directly.
 	 */
-	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
+	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, _sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
 		const state = e.state;
 		if (state.confirmationTitle) {
 			return {
 				type: ActionType.SessionToolCallReady,
-				session: sessionKey,
 				turnId,
 				toolCallId: state.toolCallId,
 				invocationMessage: state.invocationMessage,
@@ -193,7 +197,6 @@ export class SessionPermissionManager extends Disposable {
 		}
 		return {
 			type: ActionType.SessionToolCallReady,
-			session: sessionKey,
 			turnId,
 			toolCallId: state.toolCallId,
 			invocationMessage: state.invocationMessage,
@@ -226,6 +229,41 @@ export class SessionPermissionManager extends Disposable {
 		}
 		const workingDirectory = URI.parse(workDir);
 		return extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(filePath)), workingDirectory);
+	}
+
+	/**
+	 * Checks whether a shell write-redirection destination (e.g. the `out.txt`
+	 * in `echo hi > out.txt`) should be auto-approved by reusing the same
+	 * rules that govern write tool calls: the destination must resolve to a
+	 * path inside the working directory and must not match a denied glob.
+	 */
+	private _isShellWriteDestApproved(dest: string, workDir: string | undefined): boolean {
+		const resolved = this._resolveShellRedirectPath(dest, workDir);
+		if (!resolved) {
+			return false;
+		}
+		return this._isPathInWorkingDirectory(resolved, workDir) && this._isEditAutoApproved(resolved);
+	}
+
+	/**
+	 * Resolves the raw text of a shell redirect destination to an absolute
+	 * filesystem path. `~` is expanded to the user's home directory; the
+	 * downstream working-directory check rejects paths that end up outside
+	 * the workspace. Returns `undefined` when resolution would require a
+	 * working directory that isn't configured.
+	 */
+	private _resolveShellRedirectPath(dest: string, workDir: string | undefined): string | undefined {
+		const trimmed = untildify(dest.trim(), homedir());
+		if (!trimmed) {
+			return undefined;
+		}
+		if (path.isAbsolute(trimmed)) {
+			return trimmed;
+		}
+		if (!workDir) {
+			return undefined;
+		}
+		return path.resolve(URI.parse(workDir).fsPath, trimmed);
 	}
 
 	private _isEditAutoApproved(filePath: string): boolean {

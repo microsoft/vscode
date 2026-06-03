@@ -16,6 +16,7 @@ import { groupBy } from '../../../../util/vs/base/common/collections';
 import { StopWatch } from '../../../../util/vs/base/common/stopwatch';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolExtensionSource, LanguageModelToolMCPSource } from '../../../../vscodeTypes';
+import { ToolName } from '../toolNames';
 import { BuiltInToolGroupHandler } from './builtInToolGroupHandler';
 import { EMBEDDING_TYPE_FOR_TOOL_GROUPING } from './preComputedToolEmbeddingsCache';
 import { IToolEmbeddingsComputer } from './toolEmbeddingsComputer';
@@ -58,9 +59,14 @@ export class VirtualToolGrouper implements IToolCategorization {
 	async addGroups(query: string, root: VirtualTool, tools: LanguageModelToolInformation[], token: CancellationToken): Promise<void> {
 		// If there's no need to group tools, just add them all directly;
 
+		// Don't group built-in tools when tool search is active, otherwise non-deferred tools can be hidden
+		// behind virtual groups that tool search never surfaces. Checked against the full `tools` list since
+		// `tool_search` has an extension source and is bucketed out of `builtinTools` below.
+		const toolSearchActive = tools.some(t => t.name === ToolName.ToolSearch);
+
 		// if there are more than START_BUILTIN_GROUPING_AFTER_TOOL_COUNT tools, we should group built-in tools
 		// otherwise, follow the existing logic of grouping all tools together
-		const shouldGroup = this.shouldTriggerBuiltInGrouping(tools);
+		const shouldGroup = !toolSearchActive && this.shouldTriggerBuiltInGrouping(tools);
 
 		if (!shouldGroup && tools.length < Constant.START_GROUPING_AFTER_TOOL_COUNT) {
 			root.contents = tools;
@@ -96,7 +102,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 		const groupedResults: (VirtualTool | LanguageModelToolInformation)[] = [];
 
 		// Handle built-in tools - apply grouping logic if needed
-		const shouldGroupBuiltin = this.shouldTriggerBuiltInGrouping(builtinTools);
+		const shouldGroupBuiltin = !toolSearchActive && this.shouldTriggerBuiltInGrouping(builtinTools);
 		if (shouldGroupBuiltin) {
 			const builtinGroups = this.builtInToolGroupHandler.createBuiltInToolGroups(builtinTools);
 			groupedResults.push(...builtinGroups);

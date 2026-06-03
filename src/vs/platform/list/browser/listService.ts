@@ -849,9 +849,12 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 	};
 }
 
-export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
+export interface IWorkbenchObjectTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
+}
+
+export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IWorkbenchObjectTreeOptionsUpdate<T>, IResourceNavigatorOptions {
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 	readonly scrollToActiveElement?: boolean;
 }
@@ -882,8 +885,13 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: IAbstractTreeOptionsUpdate<T | null>): void {
+	override updateOptions(options: IWorkbenchObjectTreeOptionsUpdate<T | null> = {}): void {
 		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
+
 		this.internals.updateOptions(options);
 	}
 }

@@ -376,6 +376,20 @@ suite('ChatSubagentContentPart', () => {
 			(toolInvocation as { toolSpecificData: IChatSubagentToolInvocationData }).toolSpecificData = data;
 		}
 
+		test('updateTitle clears previous title file widget disposables', () => {
+			const toolInvocation = createMockToolInvocation({ invocationMessage: 'first' });
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			let disposed = false;
+			(part as unknown as { _titleFileWidgetStore: DisposableStore })._titleFileWidgetStore.add({ dispose: () => { disposed = true; } });
+
+			// Trigger a title re-render
+			part.trackToolState(createMockToolInvocation({ invocationMessage: 'second' }));
+
+			assert.strictEqual(disposed, true, 'Previous title file widget disposable should be cleared');
+		});
+
 		test('default description with no agentName → real description arrives later → title updates', () => {
 			const toolInvocation = createMockToolInvocation({
 				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,

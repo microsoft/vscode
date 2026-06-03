@@ -31,6 +31,13 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
+	/**
+	 * Optional allow-list of chat session types that should display this
+	 * notification. When undefined, the notification renders in every chat
+	 * input. When set, only chat inputs whose current session type is in the
+	 * list will render it.
+	 */
+	readonly sessionTypes?: readonly string[];
 }
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');
@@ -39,6 +46,9 @@ export interface IChatInputNotificationService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChange: Event<void>;
+
+	/** Fires when a notification is dismissed by the user (via the X button). */
+	readonly onDidDismiss: Event<string>;
 
 	/**
 	 * Set or update a notification. If a notification with the same ID already
@@ -60,8 +70,10 @@ export interface IChatInputNotificationService {
 	/**
 	 * Get the single active notification to display. Returns the highest-severity
 	 * notification that has not been dismissed. Ties are broken by most-recent insertion.
+	 * An optional `filter` can be provided to restrict the set of notifications considered,
+	 * so a non-matching higher-priority notification doesn't mask other eligible ones.
 	 */
-	getActiveNotification(): IChatInputNotification | undefined;
+	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined;
 
 	/**
 	 * Called when the user sends a chat message. Auto-dismisses all notifications
@@ -82,6 +94,9 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+
+	private readonly _onDidDismiss = this._register(new Emitter<string>());
+	readonly onDidDismiss = this._onDidDismiss.event;
 
 	/**
 	 * Signature of the last active notification we announced via ARIA, so we
@@ -108,16 +123,20 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	dismissNotification(id: string): void {
 		if (this._notifications.has(id) && !this._dismissed.has(id)) {
 			this._dismissed.add(id);
+			this._onDidDismiss.fire(id);
 			this._fireDidChange();
 		}
 	}
 
-	getActiveNotification(): IChatInputNotification | undefined {
+	getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
 		let best: IChatInputNotification | undefined;
 		let bestOrder = -1;
 
 		for (const notification of this._notifications.values()) {
 			if (this._dismissed.has(notification.id)) {
+				continue;
+			}
+			if (filter && !filter(notification)) {
 				continue;
 			}
 

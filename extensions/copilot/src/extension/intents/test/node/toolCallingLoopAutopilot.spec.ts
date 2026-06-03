@@ -18,7 +18,7 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { IToolsService } from '../../../tools/common/toolsService';
 import { TestToolsService } from '../../../tools/node/test/testToolsService';
 import { IToolCallingLoopOptions, IToolCallSingleResult, ToolCallingLoop } from '../../node/toolCallingLoop';
-import { MockChatHookService } from './toolCallingLoopHooks.spec';
+import { MockChatHookService } from './mockChatHookService';
 
 /**
  * Concrete test implementation that exposes autopilot-related protected methods.

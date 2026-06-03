@@ -648,7 +648,9 @@ appendEditorToolItem(
 	ActiveCustomEditorTextDiffContext,
 	16,
 	undefined,
-	undefined
+	undefined,
+	undefined,
+	true
 );
 
 const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));

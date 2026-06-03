@@ -37,7 +37,8 @@
 	align-items: center;
 	gap: 4px;
 	height: 16px;
-	padding: 3px 0 3px 6px;
+	padding: 3px 6px;
+	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
 
@@ -66,7 +67,7 @@
 .chat-secondary-generic-chips {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: 12px;
 
 	&:empty {
 		display: none;
@@ -86,6 +87,21 @@
 		.codicon {
 			font-size: 12px;
 		}
+	}
+
+	> .agent-host-generic-chip-slot + .agent-host-generic-chip-slot {
+		box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+	}
+}
+
+/* Collapse agent host picker labels to icon-only when the secondary toolbar gets narrow. */
+.interactive-session .chat-secondary-toolbar {
+	container-type: inline-size;
+}
+
+@container (max-width: 480px) {
+	.agent-host-chat-input-picker-label {
+		display: none;
 	}
 }
 

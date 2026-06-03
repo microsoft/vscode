@@ -62,8 +62,10 @@ function makeActiveSession(providerId: string): IActiveSession {
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
+		isCreated: observableValue('isCreated', true),
+		sticky: observableValue('sticky', false),
 	} satisfies IActiveSession;
 }
 
@@ -80,7 +82,7 @@ class FakeNonAgentHostProvider {
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	declare readonly _serviceBrand: undefined;
 	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	setActive(s: IActiveSession | undefined): void {
+	override setActive(s: IActiveSession | undefined): void {
 		this.activeSession.set(s, undefined);
 	}
 }

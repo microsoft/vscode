@@ -39,7 +39,7 @@ export function activateShared(
 	const opener = new MdLinkOpener(client);
 
 	const contentProvider = new MdDocumentRenderer(engine, context, cspArbiter, contributions, logger);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, opener);
+	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, opener, context.workspaceState);
 	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));

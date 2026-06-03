@@ -231,7 +231,12 @@ export function buildCollectionArgs(
  * Builds the single-image arguments for the carousel command.
  */
 export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarouselSingleImageArgs {
-	const name = resource.path.split('/').pop() ?? 'image';
+	let name = resource.path.split('/').pop() ?? 'image';
+	try {
+		name = decodeURIComponent(name);
+	} catch {
+		// keep raw segment if it isn't valid percent-encoding
+	}
 	const mimeType = getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
 	return { name, mimeType, data, title: name };
 }

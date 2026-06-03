@@ -28,8 +28,18 @@
 
 /* Severity variants */
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-info {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-input-border, transparent);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+}
+
+/* Match the chat input's focus ring so the notification merges with it. */
+.interactive-session .interactive-input-part:has(.chat-input-container.focused) > .chat-input-notification-container .chat-input-notification.severity-info {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Working+focused: the chat input dims its focus border; match it here. */
+.interactive-session .interactive-input-part:has(.chat-input-container.working.focused) > .chat-input-notification-container .chat-input-notification.severity-info {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }
 
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-warning {
@@ -77,9 +87,9 @@
 	color: var(--vscode-foreground);
 	flex: 1;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	white-space: normal;
 }
 
 /* Body row: description + actions inline */
@@ -104,7 +114,7 @@
 /* Body row: description + actions inline, wraps at small widths */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 8px;
 	min-width: 0;
 }
@@ -116,9 +126,9 @@
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	white-space: normal;
 }
 
 /* Actions container */

@@ -13,7 +13,15 @@ interface IWorkbenchTestHarness {
 		auxiliaryBar: boolean;
 		editor: boolean;
 		panel: boolean;
-		chatBar: boolean;
+		sessions: boolean;
+	};
+	layoutPolicy: {
+		viewportClass: {
+			get(): 'phone' | 'tablet' | 'desktop';
+		};
+	};
+	storageService: {
+		store(...args: unknown[]): void;
 	};
 	_editorMaximized: boolean;
 	_restoreAttachedEditorMaximizedOnShow: boolean;
@@ -28,6 +36,8 @@ suite('Sessions - Workbench', () => {
 	const rememberAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'rememberAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const restoreAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'restoreAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const setAuxiliaryBarHidden = Reflect.get(Workbench.prototype, 'setAuxiliaryBarHidden') as (this: IWorkbenchTestHarness, hidden: boolean) => void;
+	const loadPartVisibility = Reflect.get(Workbench.prototype, '_loadPartVisibility') as (this: IWorkbenchTestHarness, storageService: { get(): string | undefined; remove(): void }) => { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean };
+	const savePartVisibility = Reflect.get(Workbench.prototype, '_savePartVisibility') as (this: IWorkbenchTestHarness) => void;
 
 	function createWorkbenchHarness(): IWorkbenchTestHarness {
 		return {
@@ -36,7 +46,15 @@ suite('Sessions - Workbench', () => {
 				auxiliaryBar: true,
 				editor: true,
 				panel: false,
-				chatBar: true,
+				sessions: true,
+			},
+			layoutPolicy: {
+				viewportClass: {
+					get: () => 'desktop',
+				},
+			},
+			storageService: {
+				store: () => { },
 			},
 			_editorMaximized: false,
 			_restoreAttachedEditorMaximizedOnShow: false,
@@ -120,5 +138,49 @@ suite('Sessions - Workbench', () => {
 
 		assert.deepStrictEqual(maximizedStates, []);
 		assert.strictEqual(workbench._restoreAttachedEditorMaximizedOnShow, false);
+	});
+
+	test('does not restore saved desktop part visibility on phone layout', () => {
+		let getCalled = false;
+		const workbench = createWorkbenchHarness();
+		workbench.layoutPolicy.viewportClass.get = () => 'phone';
+		const storageService = {
+			get: () => {
+				getCalled = true;
+				return JSON.stringify({ editor: true, auxiliaryBar: true, sidebar: true });
+			},
+			remove: () => { },
+		};
+
+		const restored = loadPartVisibility.call(workbench, storageService);
+
+		assert.deepStrictEqual(restored, {});
+		assert.strictEqual(getCalled, false);
+	});
+
+	test('restores saved desktop part visibility outside phone layout', () => {
+		const workbench = createWorkbenchHarness();
+		workbench.layoutPolicy.viewportClass.get = () => 'desktop';
+		const storageService = {
+			get: () => JSON.stringify({ editor: true, auxiliaryBar: false, sidebar: false }),
+			remove: () => { },
+		};
+
+		const restored = loadPartVisibility.call(workbench, storageService);
+
+		assert.deepStrictEqual(restored, { editor: true, auxiliaryBar: false, sidebar: false });
+	});
+
+	test('does not persist part visibility on phone layout', () => {
+		let storeCalled = false;
+		const workbench = createWorkbenchHarness();
+		workbench.layoutPolicy.viewportClass.get = () => 'phone';
+		workbench.storageService.store = () => {
+			storeCalled = true;
+		};
+
+		savePartVisibility.call(workbench);
+
+		assert.strictEqual(storeCalled, false);
 	});
 });

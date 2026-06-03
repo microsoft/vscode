@@ -134,6 +134,12 @@ export interface IGitHubInfo {
 	};
 }
 
+export interface ISessionChangesSummary {
+	readonly files: number;
+	readonly additions: number;
+	readonly deletions: number;
+}
+
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
 export interface ISessionChangeset {
@@ -165,6 +171,19 @@ export interface ISessionChangeset {
 	readonly originalCheckpointRef: IObservable<string | undefined>;
 	/** Reference to the modified checkpoint for this changeset. */
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+}
+
+/**
+ * A custom agent reference used by session-level selection. Mirrors the Agent
+ * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
+ * sessions service API does not leak the protocol type to non-Agent-Host
+ * consumers.
+ */
+export interface ISessionAgentRef {
+	/** Stable agent URI (matches the contributing customization's agent ref). */
+	readonly uri: string;
+	/** Agent name. */
+	readonly name: string;
 }
 
 export interface IChatCheckpoints {
@@ -237,13 +256,14 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Summary of file changes produced by the session. */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
@@ -257,17 +277,10 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
-	/** The main (first) chat of this session. */
-	readonly mainChat: IChat;
+	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
+	readonly mainChat: IObservable<IChat>;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
-	/**
-	 * Optional key used to deduplicate sessions across providers. When
-	 * multiple sessions share the same key, only one is kept by
-	 * {@link ISessionsManagementService.getSessions}. Local providers are
-	 * preferred over remote ones.
-	 */
-	readonly deduplicationKey?: string;
 }
 
 /**

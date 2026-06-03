@@ -264,11 +264,24 @@ suite('PluginUrlHandler', () => {
 		});
 		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
 		assert.strictEqual(result, true);
-		// Should not show the install confirmation dialog (trust handled by install service)
+		// Broad install (installPluginFromSource) is not used on the targeted path.
 		assert.deepStrictEqual(state.installedSources, []);
 		// Plugin editor was opened
 		assert.strictEqual(state.openedEditorInputs.length, 1);
 		assert.strictEqual(state.openedEditorInputs[0].item.name, 'my-plugin');
+	});
+
+	test('install with plugin param does nothing when dialog is declined', async () => {
+		const plugin = makeMarketplacePlugin('my-plugin', 'acme/plugins');
+		const { handler, state } = createHandler({
+			dialogConfirmResult: false,
+			installFromValidatedSourceResult: { success: true, matchedPlugin: plugin },
+		});
+		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		assert.strictEqual(result, true);
+		assert.deepStrictEqual(state.installedSources, []);
+		assert.strictEqual(state.openedEditorInputs.length, 0);
+		assert.strictEqual(state.openSearchQueries.length, 0);
 	});
 
 	test('install with base64-encoded plugin param opens editor', async () => {

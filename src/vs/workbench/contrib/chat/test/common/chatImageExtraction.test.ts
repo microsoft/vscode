@@ -7,7 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatContentInlineReference, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../common/chatService/chatService.js';
@@ -44,6 +44,7 @@ function makeResponse(items: ReadonlyArray<IChatProgressResponseContent>, opts: 
 	requestId?: string;
 	id?: string;
 	requestMessageText?: string;
+	requestVariables?: readonly IChatRequestVariableEntry[];
 	noMatchingRequest?: boolean;
 } = {}): IChatResponseViewModel {
 	const sessionResource = opts.sessionResource ?? URI.parse('chat-session://test/session');
@@ -61,6 +62,7 @@ function makeResponse(items: ReadonlyArray<IChatProgressResponseContent>, opts: 
 				id: requestId,
 				messageText: requestMessageText,
 				message: { parts: [], text: requestMessageText },
+				variables: opts.requestVariables ?? [],
 			}],
 		},
 	} as unknown as IChatResponseViewModel;
@@ -118,6 +120,13 @@ suite('extractImagesFromChatResponse', () => {
 		const response = makeResponse([], { noMatchingRequest: true });
 		const result = await extractImagesFromChatResponse(response, fakeReadFile);
 		assert.strictEqual(result.title, 'Images');
+	});
+
+	test('uses attachment summary title when matching request has no message text', async () => {
+		const image = makeImageVariableEntry({ value: VSBuffer.fromString('image').buffer });
+		const response = makeResponse([], { requestMessageText: '', requestVariables: [image] });
+		const result = await extractImagesFromChatResponse(response, fakeReadFile);
+		assert.strictEqual(result.title, 'Attached 1 image');
 	});
 
 	test('extracts image from tool invocation with IToolResultOutputDetails', async () => {

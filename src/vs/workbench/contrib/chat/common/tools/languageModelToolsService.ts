@@ -154,7 +154,7 @@ export namespace ToolDataSource {
 		if (source.type === 'internal') {
 			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: source.label };
+			return { ordinal: 2, label: source.serverLabel || source.label };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {

@@ -44,12 +44,13 @@ import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, 
 import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
+import { IntentInvocationMetadata } from '../../prompt/node/conversation';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
-import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
@@ -103,6 +104,42 @@ export function isBackgroundTodoAgentEnabled(configurationService: IConfiguratio
 		&& !isTodoToolExplicitlyEnabled(request);
 }
 
+/**
+ * Resolve the configured summarization threshold into an absolute token count.
+ *
+ * The setting accepts two interchangeable units so users can express the
+ * compaction trigger however is most natural:
+ *
+ *  - **Ratio** (`0 < value <= 1`): a fraction of the model's context window,
+ *    e.g. `0.8` means "compact at 80% of the window". This is resolved against
+ *    `effectiveMaxTokens` so it automatically tracks model/context-size changes.
+ *  - **Absolute tokens** (`value >= 100`): a fixed token budget, e.g. `60000`.
+ *
+ * Values in the ambiguous `(1, 100)` gap (too large to be a sensible ratio, too
+ * small to be a useful token budget) are rejected so a typo like `80` — which a
+ * user likely meant as "80%" — fails loudly instead of silently compacting after
+ * 80 tokens.
+ *
+ * Returns `undefined` when unset (or non-positive), meaning "use the model's full
+ * context window".
+ *
+ * @internal - exported for testing
+ */
+export function resolveSummarizeThresholdTokens(value: number | undefined, effectiveMaxTokens: number, settingId: string): number | undefined {
+	if (typeof value !== 'number' || value <= 0) {
+		return undefined;
+	}
+	if (value <= 1) {
+		// Ratio of the model's context window.
+		return Math.max(1, Math.floor(effectiveMaxTokens * value));
+	}
+	if (value < 100) {
+		throw new Error(`Setting github.copilot.${settingId} is too low; use a ratio in the range (0, 1] (e.g. 0.8 for 80%) or an absolute token count of at least 100.`);
+	}
+	// Absolute token count.
+	return value;
+}
+
 export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest, model?: IChatEndpoint) => {
 	const toolsService = accessor.get<IToolsService>(IToolsService);
 	const testService = accessor.get<ITestProvider>(ITestProvider);
@@ -143,14 +180,33 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
-	const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
-	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
-	allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
+	// BYOK endpoints that own their `Authorization` have no Copilot token for the
+	// agentic proxy or override models the subagents rely on, so disable them
+	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
+	if (model.ownsAuthorization) {
+		allowTools[ToolName.SearchSubagent] = false;
+		allowTools[ToolName.ExploreSubagent] = false;
+		allowTools[ToolName.ExecutionSubagent] = false;
+	} else {
+		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
+		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
+		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
+		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
+		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
 
-	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
+		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
+		// The execution subagent is powered by gemini-3-flash, so it can only be
+		// offered when that model is actually available to the user. If it isn't
+		// in the user's endpoints, keep the tool disabled regardless of the setting.
+		// Skip the (potentially expensive) endpoint lookup when the tool would be
+		// disabled anyway based on model family or the experiment setting.
+		let hasGemini3Flash = false;
+		if (isGptOrAnthropic && executionSubagentEnabled) {
+			const allEndpoints = await endpointProvider.getAllChatEndpoints();
+			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		}
+		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
+	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
@@ -252,13 +308,35 @@ export class AgentIntent extends EditCodeIntent {
 		});
 	}
 
-	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number): BackgroundSummarizer {
+	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer {
 		let summarizer = this._backgroundSummarizers.get(sessionId);
+		if (summarizer && summarizer.endpointId !== endpointId) {
+			// Endpoint switched mid-session. A summary kicked off against the
+			// previous endpoint's prefix would be applied unconditionally on the
+			// next pre-render, producing a surprising "Compacted conversation"
+			// notice on the new endpoint — cancel and start fresh.
+			summarizer.cancel();
+			this._backgroundSummarizers.delete(sessionId);
+			summarizer = undefined;
+		}
 		if (!summarizer) {
-			summarizer = new BackgroundSummarizer(modelMaxPromptTokens);
+			summarizer = new BackgroundSummarizer(modelMaxPromptTokens, endpointId);
 			this._backgroundSummarizers.set(sessionId, summarizer);
 		}
 		return summarizer;
+	}
+
+	/**
+	 * Cancel and forget the background summarizer for this session. Used by
+	 * `/compact` so a pending background result doesn't immediately overwrite
+	 * the user's explicit foreground compaction on the next turn.
+	 */
+	cancelBackgroundSummarizer(sessionId: string): void {
+		const summarizer = this._backgroundSummarizers.get(sessionId);
+		if (summarizer) {
+			summarizer.cancel();
+			this._backgroundSummarizers.delete(sessionId);
+		}
 	}
 
 	getOrCreateBackgroundTodoProcessor(sessionId: string): BackgroundTodoProcessor {
@@ -307,9 +385,11 @@ export class AgentIntent extends EditCodeIntent {
 			// the background pass even on a normal completion.
 			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
 				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-				if (todoProcessor) {
-					const turnId = conversation.getLatestTurn().id;
-					todoProcessor.requestFinalReview(turnId);
+				const currentTurn = conversation.getLatestTurn();
+				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
+				const executionContext = invocation instanceof AgentIntentInvocation ? invocation.getBackgroundTodoExecutionContext() : undefined;
+				if (todoProcessor && executionContext) {
+					todoProcessor.requestFinalReview(currentTurn.id, executionContext);
 					await todoProcessor.waitForCompletion();
 				}
 			}
@@ -343,6 +423,11 @@ export class AgentIntent extends EditCodeIntent {
 			stream.markdown(l10n.t('Compaction is already managed by context management for this session.'));
 			return {};
 		}
+
+		// Foreground compaction is now authoritative for this session. Cancel any
+		// pending background summarizer so its (potentially stale) result doesn't
+		// overwrite this `/compact` on the next render.
+		this.cancelBackgroundSummarizer(conversation.sessionId);
 
 		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
@@ -451,6 +536,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	/** Cached model capabilities from the most recent main agent render, reused by the background summarizer. */
 	private _lastModelCapabilities: { enableThinking: boolean; reasoningEffort: string | undefined; enableToolSearch: boolean; enableContextEditing: boolean } | undefined;
 
+	private _backgroundTodoExecutionContext: IBackgroundTodoExecutionContext | undefined;
+
 	/**
 	 * RNG used to jitter the background-summarization trigger threshold around 0.80.
 	 * Tests may overwrite this directly (e.g. `(invocation as any)._thresholdRng = () => 0.5`).
@@ -509,9 +596,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;
 
 		const summarizeThresholdOverride = this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold);
-		if (typeof summarizeThresholdOverride === 'number' && summarizeThresholdOverride < 100 && summarizeThresholdOverride > 0) {
-			throw new Error(`Setting github.copilot.${ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id} is too low`);
-		}
 
 		// Apply context size override if configured by the user in the model picker
 		const configuredContextSize = this.request.modelConfiguration?.contextSize;
@@ -519,8 +603,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			? configuredContextSize
 			: this.endpoint.modelMaxPromptTokens;
 
+		// The override may be expressed as a ratio of the context window (0-1) or
+		// an absolute token count (>= 100); resolve it to tokens before clamping.
+		const summarizeThresholdTokens = resolveSummarizeThresholdTokens(summarizeThresholdOverride, effectiveMaxTokens, ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id);
+
 		const baseBudget = Math.min(
-			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? effectiveMaxTokens,
+			summarizeThresholdTokens ?? effectiveMaxTokens,
 			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
@@ -588,20 +676,32 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// we don't immediately re-trigger background compaction in the post-render check.
 		let didSummarizeThisIteration = false;
 
-		// If a previous background pass completed, apply its summary now.
+		// If a previous background pass completed, apply its summary now — but
+		// only when the current context ratio still warrants it. After a model
+		// switch to a larger window (or an increased context-size override) the
+		// ratio can drop below `applyMinRatio`; applying a stale summary in that
+		// case surfaces a confusing "Compacted conversation" notice with
+		// plenty of headroom remaining.
 		if (summarizationEnabled && backgroundSummarizer?.state === BackgroundSummarizationState.Completed) {
-			const bgResult = backgroundSummarizer.consumeAndReset();
-			if (bgResult) {
-				this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
-				progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
-				this._applySummaryToRounds(bgResult, promptContext);
-				this._persistSummaryOnTurn(bgResult, promptContext, this._lastRenderTokenCount);
-				this._sendBackgroundCompactionTelemetry('preRender', 'applied', contextRatio, promptContext);
-				didSummarizeThisIteration = true;
+			if (contextRatio >= BackgroundSummarizationThresholds.applyMinRatio) {
+				const bgResult = backgroundSummarizer.consumeAndReset();
+				if (bgResult) {
+					this.logService.debug(`[ConversationHistorySummarizer] applying completed background summary (roundId=${bgResult.toolCallRoundId})`);
+					progress.report(new ChatResponseProgressPart2(l10n.t('Compacted conversation'), async () => l10n.t('Compacted conversation')));
+					this._applySummaryToRounds(bgResult, promptContext);
+					this._persistSummaryOnTurn(bgResult, promptContext, this._lastRenderTokenCount);
+					this._sendBackgroundCompactionTelemetry('preRender', 'applied', contextRatio, promptContext);
+					didSummarizeThisIteration = true;
+				} else {
+					this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
+					this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
+					this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+				}
 			} else {
-				this.logService.warn(`[ConversationHistorySummarizer] background compaction state was Completed but consumeAndReset returned no result`);
-				this._sendBackgroundCompactionTelemetry('preRender', 'noResult', contextRatio, promptContext);
-				this._recordBackgroundCompactionFailure(promptContext, 'preRender');
+				// Drop the stale summary so a fresh kick-off can replace it later.
+				backgroundSummarizer.consumeAndReset();
+				this.logService.debug(`[ConversationHistorySummarizer] discarding completed background summary; contextRatio ${(contextRatio * 100).toFixed(0)}% below applyMinRatio ${(BackgroundSummarizationThresholds.applyMinRatio * 100).toFixed(0)}% (likely model switch or context-size override)`);
+				this._sendBackgroundCompactionTelemetry('preRender', 'discardedBelowApplyMinRatio', contextRatio, promptContext);
 			}
 		}
 
@@ -1106,7 +1206,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		if (!sessionId || !(this.intent instanceof AgentIntent)) {
 			return undefined;
 		}
-		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens);
+		// Compose a stable endpoint identity. `model` alone is not unique across
+		// providers (the same model id can come from different providers / api
+		// types), so include those to avoid reusing a summary built against a
+		// different endpoint's prefix.
+		const endpointId = `${this.endpoint.modelProvider}:${this.endpoint.model}${this.endpoint.apiType ? `:${this.endpoint.apiType}` : ''}`;
+		return this.intent.getOrCreateBackgroundSummarizer(sessionId, this.endpoint.modelMaxPromptTokens, endpointId);
 	}
 
 	/**
@@ -1204,7 +1309,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				"owner": "bhavyau",
 				"comment": "Tracks background compaction orchestration decisions and outcomes in the agent loop.",
 				"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The code path that triggered background compaction consumption." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced)." },
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced), 'discardedBelowApplyMinRatio' (a completed background result was thrown away because the current context ratio dropped below the apply threshold \u2014 typically after a model switch to a larger window)." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this background compaction was consumed during." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },
@@ -1236,6 +1341,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		return this.intent.getOrCreateBackgroundTodoProcessor(sessionId);
 	}
 
+	getBackgroundTodoExecutionContext(): IBackgroundTodoExecutionContext | undefined {
+		return this._backgroundTodoExecutionContext;
+	}
+
 	/**
 	 * Kick off a background todo pass if the policy says to run.
 	 */
@@ -1256,26 +1365,29 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
-		const { decision, reason, delta } = processor.shouldRun({
-			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
-			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
-			isAgentPrompt: this.prompt === AgentPrompt,
-			promptContext,
-		});
-
-		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
-
-		const executionContext = {
+		const turnId = promptContext.conversation?.getLatestTurn()?.id;
+		const executionContext: IBackgroundTodoExecutionContext = {
 			instantiationService: this.instantiationService,
 			logService: this.logService,
 			toolsService: this.toolsService,
 			telemetryService: this.telemetryService,
 			promptContext,
 		};
+		this._backgroundTodoExecutionContext = executionContext;
+
+		const { decision, reason, delta } = processor.shouldRun({
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
+			isAgentPrompt: this.prompt === AgentPrompt,
+			promptContext,
+			turnId,
+		});
+
+		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
 
 		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
 			// Coalesce into the queue so the latest context is not lost.
-			processor.requestRegularPass(delta, executionContext, token);
+			processor.requestRegularPass(delta, executionContext, token, turnId);
 			return;
 		}
 
@@ -1283,7 +1395,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
-		processor.requestRegularPass(delta, executionContext, token);
+		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 
 	override processResponse = undefined;

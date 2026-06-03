@@ -50,13 +50,13 @@ type LocalSyncableFile = { readonly uri: URI; readonly type: PromptsType };
 
 class FakeBundler {
 	readonly received: LocalSyncableFile[][] = [];
-	constructor(private readonly _result: { uri: string; displayName: string } | undefined = { uri: 'open-plugin://bundle', displayName: 'Open Plugin' }) { }
+	constructor(private readonly _result: { uri: string; name: string } | undefined = { uri: 'open-plugin://bundle', name: 'Open Plugin' }) { }
 	async bundle(files: readonly LocalSyncableFile[]) {
 		this.received.push([...files]);
 		if (!this._result) {
 			return undefined;
 		}
-		return { ref: { uri: this._result.uri as never, displayName: this._result.displayName }, paths: [] };
+		return { ref: { type: 'plugin' as const, id: this._result.uri, uri: this._result.uri as never, name: this._result.name, enabled: true }, paths: [] };
 	}
 }
 
@@ -84,7 +84,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			{ uri: builtin.toString(), type: PromptsType.skill },
 		]);
 		assert.strictEqual(refs.length, 1);
-		assert.strictEqual(refs[0].displayName, 'Open Plugin');
+		assert.strictEqual(refs[0].name, 'Open Plugin');
 	});
 
 	test('omits disabled built-in skills from the bundle', async () => {

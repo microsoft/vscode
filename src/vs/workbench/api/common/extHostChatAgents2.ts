@@ -845,6 +845,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				type: typeConvert.ChatSessionCustomizationType.from(item.type),
 				name: item.name,
 				description: item.description,
+				source: item.source,
 				groupKey: item.groupKey,
 				badge: item.badge,
 				badgeTooltip: item.badgeTooltip,

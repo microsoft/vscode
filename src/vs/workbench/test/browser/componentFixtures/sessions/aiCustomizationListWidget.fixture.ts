@@ -119,12 +119,17 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 
 function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
+	const activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
-		override readonly activeHarness = derived(r => getChatSessionType(this.activeSessionResource.read(r)));
+		override readonly activeSessionResource = activeSessionResource;
+		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
+		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
+		override setActiveSession(sessionResource: URI) { activeSessionResource.set(sessionResource, undefined); }
+		override getSessionResourceForHarness() { return activeSessionResource.get(); }
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }

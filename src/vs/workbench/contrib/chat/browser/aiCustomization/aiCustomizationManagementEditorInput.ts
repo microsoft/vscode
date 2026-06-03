@@ -8,13 +8,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
  * Editor input for the AI Customizations Management Editor.
  * This is a singleton-style input with no file resource.
  */
-export class AICustomizationManagementEditorInput extends EditorInput {
+export class AICustomizationManagementEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
@@ -57,6 +58,10 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
+	}
+
+	getModalEditorOptions(): IModalEditorOptions {
+		return { compactHeader: true };
 	}
 
 	override async resolve(): Promise<null> {

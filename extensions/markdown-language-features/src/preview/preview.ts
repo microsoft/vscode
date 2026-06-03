@@ -79,6 +79,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	readonly #resource: vscode.Uri;
 	readonly #webviewPanel: vscode.WebviewPanel;
+	readonly #isDiffView: boolean;
 
 	#line: number | undefined;
 	readonly #scrollToFragment: string | undefined;
@@ -126,7 +127,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.#webviewPanel = webview;
 		this.#resource = resource;
 
-		this.#scrollToFirstDiffChange = !startingScroll && !!delegate.getLineChanges;
+		this.#isDiffView = !!delegate.getLineChanges;
+		this.#scrollToFirstDiffChange = !startingScroll && this.#isDiffView;
 
 		switch (startingScroll?.type) {
 			case 'line':
@@ -213,6 +215,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.#disposed = true;
 
 		clearTimeout(this.#throttleTimer);
+		clearTimeout(this.#scrollingTimer);
 		for (const entry of this.#fileWatchersBySrc.values()) {
 			entry.dispose();
 		}
@@ -221,6 +224,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	public get resource(): vscode.Uri {
 		return this.#resource;
+	}
+
+	public get isDiffView(): boolean {
+		return this.#isDiffView;
 	}
 
 	public get state() {
@@ -519,6 +526,7 @@ export interface IManagedMarkdownPreview {
 
 	readonly resource: vscode.Uri;
 	readonly resourceColumn: vscode.ViewColumn;
+	readonly isDiffView: boolean;
 
 	readonly onDispose: vscode.Event<void>;
 	readonly onDidChangeViewState: vscode.Event<vscode.WebviewPanelOnDidChangeViewStateEvent>;
@@ -665,6 +673,10 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 
 	public get resourceColumn() {
 		return this.#webviewPanel.viewColumn || vscode.ViewColumn.One;
+	}
+
+	public get isDiffView(): boolean {
+		return this.#preview.isDiffView;
 	}
 }
 
@@ -822,6 +834,10 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 
 	public get resourceColumn() {
 		return this.#resourceColumn;
+	}
+
+	public get isDiffView(): boolean {
+		return this.#preview.isDiffView;
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn) {

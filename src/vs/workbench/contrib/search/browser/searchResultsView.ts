@@ -7,7 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
-import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as paths from '../../../../base/common/path.js';
 import * as nls from '../../../../nls.js';
@@ -70,6 +70,7 @@ interface IMatchTemplate {
 	after: HTMLElement;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
+	elementDisposables: DisposableStore;
 	contextKeyService: IContextKeyService;
 }
 
@@ -429,6 +430,10 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			},
 		}));
 
+		const elementDisposables = new DisposableStore();
+		disposables.add(elementDisposables);
+
+
 		return {
 			parent,
 			before,
@@ -438,6 +443,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			lineNumber,
 			actions,
 			disposables,
+			elementDisposables,
 			contextKeyService: contextKeyServiceMain
 		};
 	}
@@ -456,7 +462,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
 
@@ -468,10 +474,14 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
+	}
+
+	disposeElement(element: ITreeNode<ISearchTreeMatch, void>, index: number, templateData: IMatchTemplate, details?: ITreeElementRenderDetails): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IMatchTemplate): void {

@@ -42,6 +42,9 @@ function makeAgentInfo(name: string, description = '', displayName?: string): CL
 	return {
 		agent: makeSweAgent(name, description, displayName),
 		sourceUri: URI.from({ scheme: 'copilotcli', path: `/agents/${name}` }),
+		source: 'local',
+		extensionId: undefined,
+		pluginUri: undefined,
 	};
 }
 
@@ -50,6 +53,9 @@ function makeFileAgentInfo(name: string, fileUri: URI, description = ''): CLIAge
 	return {
 		agent: makeSweAgent(name, description),
 		sourceUri: fileUri,
+		source: 'local',
+		extensionId: undefined,
+		pluginUri: undefined,
 	};
 }
 

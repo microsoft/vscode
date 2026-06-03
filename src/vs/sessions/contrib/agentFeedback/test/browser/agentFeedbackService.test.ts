@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -15,6 +17,9 @@ import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/bro
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -39,6 +44,13 @@ suite('AgentFeedbackService - Ordering', () => {
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override onDidVisibleEditorsChange = Event.None;
+			override visibleEditorPanes = [];
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		});
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -209,5 +221,182 @@ suite('AgentFeedbackService - Ordering', () => {
 
 		assert.strictEqual(feedback.codeSelection, 'const value = 1;');
 		assert.strictEqual(feedback.diffHunks, '@@ -1,1 +1,1 @@\n-const value = 0;\n+const value = 1;');
+	});
+
+	test('addReply appends replies to the comment thread', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'initial');
+		service.addReply(session, feedback.id, 'first reply');
+		service.addReply(session, feedback.id, 'second reply');
+
+		const items = service.getFeedback(session);
+		assert.deepStrictEqual({
+			text: items[0].text,
+			replies: items[0].replies,
+		}, {
+			text: 'initial',
+			replies: ['first reply', 'second reply'],
+		});
+	});
+
+	test('addReply ignores unknown feedback ids', () => {
+		service.addFeedback(session, fileA, r(10), 'initial');
+		service.addReply(session, 'unknown', 'should not crash');
+
+		const items = service.getFeedback(session);
+		assert.strictEqual(items[0].replies, undefined);
+	});
+});
+
+suite('AgentFeedbackService - getSessionForFile', () => {
+
+	const store = new DisposableStore();
+
+	let service: IAgentFeedbackService;
+	let visibleEditorsEmitter: Emitter<IVisibleEditorsChangeEvent>;
+	let visiblePanes: any[];
+	let activeSessionObs: ISettableObservable<IActiveSession | undefined>;
+	let sessions: Map<string, ISession>;
+
+	let sessionS1: URI;
+	let sessionS2: URI;
+	let fileA: URI;
+	let fileB: URI;
+
+	function pane(...resources: URI[]): any {
+		// Single resource: a plain editor input with `.resource`.
+		// Two resources: a resource-side-by-side shaped input so that
+		// `EditorResourceAccessor.getOriginalUri(..., supportSideBySide: BOTH)`
+		// surfaces both URIs.
+		const input = resources.length === 1
+			? { resource: resources[0] }
+			: { primary: { resource: resources[0] }, secondary: { resource: resources[1] } };
+		return { input };
+	}
+
+	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress): ISession {
+		return {
+			resource,
+			status: observableValue<SessionStatus>('status', status),
+		} as unknown as ISession;
+	}
+
+	function setActiveSession(s: ISession | undefined): void {
+		activeSessionObs.set(s as IActiveSession | undefined, undefined);
+	}
+
+	function setVisibleEditors(panes: any[]): void {
+		visiblePanes.length = 0;
+		visiblePanes.push(...panes);
+		visibleEditorsEmitter.fire({} as IVisibleEditorsChangeEvent);
+	}
+
+	setup(() => {
+		visibleEditorsEmitter = store.add(new Emitter<IVisibleEditorsChangeEvent>());
+		visiblePanes = [];
+		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		sessions = new Map<string, ISession>();
+
+		const instantiationService = store.add(new TestInstantiationService());
+
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override onDidVisibleEditorsChange = visibleEditorsEmitter.event;
+			override get visibleEditorPanes() { return visiblePanes; }
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override activeSession = activeSessionObs;
+			override getSession(resource: URI) { return sessions.get(resource.toString()); }
+		});
+
+		service = store.add(instantiationService.createInstance(AgentFeedbackService));
+
+		sessionS1 = URI.parse('test://session/1');
+		sessionS2 = URI.parse('test://session/2');
+		fileA = URI.parse('file:///a.ts');
+		fileB = URI.parse('file:///b.ts');
+
+		sessions.set(sessionS1.toString(), makeSession(sessionS1));
+		sessions.set(sessionS2.toString(), makeSession(sessionS2));
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns undefined when there is no active session and no tracked file', () => {
+		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+
+	test('untracked file falls back to the active session', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('captures active session when file becomes visible', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('preserves captured session after active session switches without a visibility change', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		// Switch active session without firing a visibility change
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());
+		// Untracked file falls back to the current active session
+		assert.strictEqual(service.getSessionForFile(fileB)?.resource.toString(), sessionS2.toString());
+	});
+
+	test('most recent visibility wins when the same file is seen under a different session', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		setActiveSession(sessions.get(sessionS2.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS2.toString());
+	});
+
+	test('distinct files captured under different active sessions retain their own mapping', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		setActiveSession(sessions.get(sessionS2.toString())!);
+		setVisibleEditors([pane(fileB)]);
+
+		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());
+		assert.strictEqual(service.getSessionForFile(fileB)?.resource.toString(), sessionS2.toString());
+	});
+
+	test('multi-resource editor pane tracks every resource under the active session', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA, fileB)]);
+
+		assert.strictEqual(service.getSessionForFile(fileA)?.resource.toString(), sessionS1.toString());
+		assert.strictEqual(service.getSessionForFile(fileB)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('returns undefined when the active session has Untitled status', () => {
+		sessions.set(sessionS1.toString(), makeSession(sessionS1, SessionStatus.Untitled));
+		setActiveSession(sessions.get(sessionS1.toString())!);
+
+		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+
+	test('returns undefined when the mapped session is unknown to the management service', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		sessions.delete(sessionS1.toString());
+		setActiveSession(undefined);
+
+		assert.strictEqual(service.getSessionForFile(fileA), undefined);
 	});
 });

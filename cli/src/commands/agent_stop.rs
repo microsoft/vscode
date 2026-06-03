@@ -24,13 +24,13 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 		&client,
 		"subscribe",
 		SubscribeParams {
-			resource: args.session.clone(),
+			channel: args.session.clone(),
 		},
 	)
 	.await?;
 
-	let turn_id = match result.snapshot.state {
-		SnapshotState::Session(session) => session.active_turn.map(|t| t.id),
+	let turn_id = match result.snapshot.map(|s| s.state) {
+		Some(SnapshotState::Session(session)) => session.active_turn.map(|t| t.id),
 		_ => None,
 	};
 
@@ -46,12 +46,12 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 	debug!(ctx.log, "Cancelling turn {} on {}", turn_id, args.session);
 
 	client
-		.dispatch(StateAction::SessionTurnCancelled(
-			SessionTurnCancelledAction {
-				session: args.session.clone(),
+		.dispatch(
+			args.session.clone(),
+			StateAction::SessionTurnCancelled(SessionTurnCancelledAction {
 				turn_id: turn_id.clone(),
-			},
-		))
+			}),
+		)
 		.await
 		.map_err(|e| wrap(e, "Failed to dispatch turn cancellation"))?;
 

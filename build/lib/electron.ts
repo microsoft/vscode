@@ -100,7 +100,8 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
-const { electronVersion, msBuildId } = util.getElectronVersion();
+const { msBuildId } = util.getElectronVersion();
+const electronVersion = '42.2.0';
 
 export const config = {
 	version: electronVersion,

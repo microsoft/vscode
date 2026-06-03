@@ -1,0 +1,215 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Mobile Multi-Diff View — stacked multi-file diff with sticky file headers. */
+
+/* Override the scroll wrapper: disable horizontal scroll at the container level;
+ * each file content area scrolls horizontally on its own. */
+.mobile-multi-diff-view .mobile-overlay-scroll {
+	overflow-x: hidden;
+	min-width: 0;
+}
+
+/* Prevent the scroll wrapper's children from expanding horizontally */
+.mobile-multi-diff-view .mobile-overlay-scroll > * {
+	max-width: 100%;
+}
+
+.mobile-multi-diff-virtual-content {
+	position: relative;
+	min-width: 0;
+	width: 100%;
+}
+
+/* -- Top bar (fixed, shows Back + file count) -------------------------------- */
+
+.mobile-multi-diff-topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 44px;
+	min-height: 44px;
+	padding: 0 8px;
+	padding-top: env(safe-area-inset-top);
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	flex-shrink: 0;
+	box-sizing: content-box;
+}
+
+.mobile-multi-diff-file-count {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	padding-right: 8px;
+}
+
+/* -- File sections ----------------------------------------------------------- */
+
+.mobile-multi-diff-file-section {
+	position: absolute;
+	left: 0;
+	right: 0;
+	min-width: 0; /* Allow flex child to shrink below content width */
+}
+
+.mobile-multi-diff-file-section:last-child {
+	border-bottom: none;
+}
+
+/* -- File header ------------------------------------------------------------- */
+
+.mobile-multi-diff-file-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	position: sticky;
+	top: 0;
+	height: 44px;
+	box-sizing: border-box;
+	padding: 8px 12px;
+	z-index: 3;
+	background: var(--vscode-multiDiffEditor-headerBackground);
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-multiDiffEditor-border, transparent));
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	line-height: 22px;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.mobile-multi-diff-file-chevron.codicon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	padding: 4px;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.mobile-multi-diff-file-chevron::before {
+	font-size: 16px;
+	line-height: 1;
+}
+
+.mobile-multi-diff-file-header:active {
+	background: var(--vscode-toolbar-hoverBackground, var(--vscode-multiDiffEditor-headerBackground));
+}
+
+.mobile-multi-diff-file-chevron:hover {
+	background: var(--vscode-toolbar-hoverBackground, transparent);
+}
+
+.mobile-multi-diff-file-chevron:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, transparent);
+	outline-offset: -1px;
+}
+
+/* Hide the content area when the section is collapsed */
+.mobile-multi-diff-file-section.collapsed > .mobile-multi-diff-file-content {
+	display: none;
+}
+
+.mobile-multi-diff-file-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-foreground);
+	letter-spacing: 0.01em;
+}
+
+.mobile-multi-diff-file-dir {
+	color: var(--vscode-descriptionForeground);
+	font-weight: 400;
+}
+
+.mobile-multi-diff-file-base {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.mobile-multi-diff-file-stats {
+	display: flex;
+	gap: 8px;
+	flex-shrink: 0;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	font-weight: 500;
+}
+
+.mobile-multi-diff-stat-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground, #73c991);
+}
+
+.mobile-multi-diff-stat-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c);
+}
+
+/* -- File content area ------------------------------------------------------- */
+
+.mobile-multi-diff-file-content {
+	position: absolute;
+	top: 44px;
+	left: 0;
+	right: 0;
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+	font-size: 12px;
+	line-height: 18px;
+	overflow-x: auto;
+	overflow-y: visible;
+	-webkit-overflow-scrolling: touch;
+	will-change: transform;
+	z-index: 1;
+}
+
+.mobile-multi-diff-file-content-placeholder {
+	overflow-x: hidden;
+}
+
+/*
+ * Inner wrapper stretches to the widest line so that shorter lines
+ * still have their background color fill the full scrollable width —
+ * same as Monaco's isWholeLine decoration behavior.
+ */
+.mobile-multi-diff-file-content-inner {
+	position: relative;
+	min-width: max-content;
+	width: 100%;
+}
+
+/* Lines must not wrap so they overflow horizontally into the scroll container */
+.mobile-multi-diff-file-content .mobile-diff-line {
+	white-space: nowrap;
+}
+
+.mobile-multi-diff-file-content .mobile-diff-hunk-header {
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.mobile-multi-diff-file-section .mobile-diff-hunk-header {
+	position: static;
+	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.mobile-multi-diff-file-content .mobile-multi-diff-body-entry {
+	position: absolute;
+	left: 0;
+	right: 0;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.mobile-multi-diff-file-content .mobile-diff-empty-state {
+	height: 76px;
+	padding: 0 32px;
+	box-sizing: border-box;
+}
+
+.mobile-multi-diff-file-content-placeholder .mobile-diff-empty-state {
+	position: sticky;
+	top: 44px;
+}

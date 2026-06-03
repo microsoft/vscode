@@ -7,7 +7,11 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import type { ITerminalSandboxPrecheckInputs } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import type { IChatWidgetService } from '../chat.js';
+import type { IChatService } from '../../common/chatService/chatService.js';
+import { ChatPermissionLevel, isAutoApproveLevel } from '../../common/constants.js';
 import { IToolResult } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { WorkingDirectory } from '../../common/workingDirectory.js';
@@ -33,6 +37,54 @@ export function resolveToolUri(input: ISymbolToolInput, workspaceContextService:
 		return workingDir.resolveRelativePath(input.filePath);
 	}
 	return undefined;
+}
+
+/**
+ * Gets the chat permission level that should apply to a tool invocation.
+ *
+ * When a request id is available, the request-stamped permission level is the
+ * source of truth for that invocation. If the request cannot be resolved (for
+ * example during early streaming), fall back to the live session widget and then
+ * the latest request in the chat model.
+ */
+export function getChatPermissionLevelForToolInvocation(
+	chatSessionResource: URI | undefined,
+	chatRequestId: string | undefined,
+	chatWidgetService: IChatWidgetService,
+	chatService: IChatService,
+): ChatPermissionLevel | undefined {
+	if (!chatSessionResource) {
+		return undefined;
+	}
+
+	const model = chatService.getSession(chatSessionResource);
+	const request = chatRequestId
+		? model?.getRequests().find(request => request.id === chatRequestId)
+		: undefined;
+	if (request) {
+		return request.modeInfo?.permissionLevel ?? ChatPermissionLevel.Default;
+	}
+
+	const widget = chatWidgetService.getWidgetBySessionResource(chatSessionResource);
+	if (widget) {
+		return widget.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default;
+	}
+
+	return model?.getRequests().at(-1)?.modeInfo?.permissionLevel ?? ChatPermissionLevel.Default;
+}
+
+/**
+ * Translates the chat permission level for a tool invocation into the
+ * platform-neutral sandbox precheck inputs.
+ */
+export function getSandboxPrecheckInputsForToolInvocation(
+	chatSessionResource: URI | undefined,
+	chatRequestId: string | undefined,
+	chatWidgetService: IChatWidgetService,
+	chatService: IChatService,
+): ITerminalSandboxPrecheckInputs | undefined {
+	const chatPermissionLevel = getChatPermissionLevelForToolInvocation(chatSessionResource, chatRequestId, chatWidgetService, chatService);
+	return chatPermissionLevel === undefined ? undefined : { isDefaultApprovalPermissionEnabled: !isAutoApproveLevel(chatPermissionLevel) };
 }
 
 /**

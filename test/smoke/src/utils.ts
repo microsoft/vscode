@@ -7,6 +7,12 @@ import { Suite, Context } from 'mocha';
 import { dirname, join } from 'path';
 import { Application, ApplicationOptions, Logger } from '../../automation';
 
+export interface MockLlmServer {
+	readonly url: string;
+	requestCount(): number;
+	close(): Promise<void>;
+}
+
 export function describeRepeat(n: number, description: string, callback: (this: Suite) => void): void {
 	for (let i = 0; i < n; i++) {
 		describe(`${description} (iteration ${i})`, callback);
@@ -116,6 +122,40 @@ export function createApp(options: ApplicationOptions, optionsTransform?: (opts:
 	const app = new Application(config);
 
 	return app;
+}
+
+export function getMockLlmServerPath(): string {
+	return join(__dirname, '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.js');
+}
+
+export function buildCopilotChatToken(mockUrl: string): string {
+	return Buffer.from(JSON.stringify({
+		token: 'smoketest-fake-token',
+		expires_at: Math.floor(Date.now() / 1000) + 3600,
+		refresh_in: 1800,
+		sku: 'free_limited_copilot',
+		individual: true,
+		isNoAuthUser: true,
+		copilot_plan: 'free',
+		organization_login_list: [],
+		endpoints: { api: mockUrl, proxy: mockUrl },
+	})).toString('base64');
+}
+
+export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer): Readonly<Record<string, string | undefined>> {
+	return {
+		// Mirror the env-var bypass used by `scripts/chat-simulation/common/utils.js#buildEnv`
+		// for perf-regression / memory-leak runs:
+		//   - GITHUB_PAT switches copilotTokenManager into FixedCopilotTokenManager,
+		//     skipping the real GitHub OAuth flow.
+		//   - IS_SCENARIO_AUTOMATION tells the Copilot extension this is an automation run
+		//     so it suppresses sign-in prompts and uses NoAuth paths.
+		//   - VSCODE_COPILOT_CHAT_TOKEN is a fake token whose endpoints.api/proxy
+		//     point at the mock LLM server.
+		GITHUB_PAT: 'smoketest-fake-pat',
+		IS_SCENARIO_AUTOMATION: '1',
+		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+	};
 }
 
 export function getRandomUserDataDir(baseUserDataDir: string): string {

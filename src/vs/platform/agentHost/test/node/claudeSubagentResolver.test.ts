@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { scanTranscriptForAgentIds, SUBAGENT_ID_SUFFIX_REGEX, SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
@@ -59,12 +59,14 @@ class FakeSdkService implements IClaudeAgentSdkService {
 		if (this.getSubagentMessagesRejection) { throw this.getSubagentMessagesRejection; }
 		return this.subagentMessages.get(`${sessionId}::${agentId}`) ?? [];
 	}
+	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in test fake'); }
+	async tool(): Promise<never> { throw new Error('not implemented in test fake'); }
 }
 
 function makeAgentToolCallTurn(toolCallId: string, opts: { prompt?: string; suffixText?: string; toolName?: string; status?: ToolCallStatus.Completed }): Turn {
 	return {
 		id: 'turn-' + toolCallId,
-		userMessage: { text: '' },
+		message: { text: '', origin: { kind: MessageKind.User } },
 		responseParts: [{
 			kind: ResponsePartKind.ToolCall,
 			toolCall: {
@@ -442,4 +444,3 @@ suite('claudeSubagentResolver — fetchParentTurns', () => {
 		});
 	});
 });
-

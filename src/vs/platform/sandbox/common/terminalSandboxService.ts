@@ -35,6 +35,21 @@ export interface ITerminalSandboxWrapResult {
 	blockedDomains?: string[];
 	deniedDomains?: string[];
 	requiresUnsandboxConfirmation?: boolean;
+	requiresAllowNetworkConfirmation?: boolean;
+}
+
+export interface ITerminalSandboxPrecheckInputs {
+	/**
+	 * Whether the current caller is using the default approval permission flow.
+	 */
+	readonly isDefaultApprovalPermissionEnabled?: boolean;
+}
+
+export interface ITerminalSandboxPrecheckInputs {
+	/**
+	 * Whether the current caller is using the default approval permission flow.
+	 */
+	readonly isDefaultApprovalPermissionEnabled?: boolean;
 }
 
 export interface ITerminalSandboxCommand {
@@ -84,17 +99,18 @@ export interface ISandboxDependencyInstallResult {
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	isEnabled(): Promise<boolean>;
-	isSandboxAllowNetworkEnabled(): Promise<boolean>;
+	isEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean>;
+	isSandboxAllowNetworkEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
-	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
+	checkForSandboxingPrereqs(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult>;
 	/**
 	 * Wraps a command line for sandbox execution. Command details are optional,
 	 * but when provided they are used to derive command-specific read/write
-	 * allow-list entries.
+	 * allow-list entries. When explicitly requested, `requestAllowNetwork`
+	 * retains sandbox execution while using a network-unrestricted config.
 	 */
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[]): Promise<ITerminalSandboxWrapResult>;
-	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult>;
+	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;

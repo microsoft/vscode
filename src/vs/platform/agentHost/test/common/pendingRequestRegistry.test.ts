@@ -57,4 +57,25 @@ suite('PendingRequestRegistry', () => {
 		// After respond removed it, denyAll has nothing to do — no throw, no second resolution.
 		registry.denyAll(false);
 	});
+
+	test('rejectAll rejects every parked deferred with the supplied error and clears the registry', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		const a = registry.registerAndFire('a', () => { });
+		const b = registry.registerAndFire('b', () => { });
+		const err = new Error('cancelled');
+
+		registry.rejectAll(err);
+
+		await Promise.all([a, b].map(async p => {
+			try {
+				await p;
+				assert.fail('expected reject');
+			} catch (e) {
+				assert.strictEqual(e, err);
+			}
+		}));
+		// Cleared: post-rejectAll respond calls find nothing.
+		assert.strictEqual(registry.respond('a', 'x'), false);
+		assert.strictEqual(registry.respond('b', 'y'), false);
+	});
 });

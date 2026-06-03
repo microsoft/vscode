@@ -724,7 +724,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			telemetryProperties: {
 				messageId: this.telemetry.telemetryMessageId,
 				conversationId: this.options.conversation.sessionId,
-				messageSource: this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
+				messageSource: opts.isKeepAliveProbe ? 'chat.cacheKeepAlive' : this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
 				subType: this.options.request.subAgentInvocationId ? `subagent` : this.options.request.isSystemInitiated ? 'system-initiated' : undefined,
 				parentRequestId: this.options.request.parentRequestId,
 				iterationNumber: opts.iterationNumber.toString(),

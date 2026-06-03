@@ -891,6 +891,14 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', [gpt, claude]), false);
 		});
 
+		test('reset when the selected model is hidden from the available models', () => {
+			const gpt = createModel('gpt', 'GPT');
+			const claude = createModel('claude', 'Claude');
+			const visibleModels = [gpt, claude].filter(model => model.identifier !== gpt.identifier);
+
+			assert.strictEqual(shouldResetOnModelListChange(gpt.identifier, visibleModels), true);
+		});
+
 		test('reset when current model identifier is undefined', () => {
 			const gpt = createModel('gpt', 'GPT');
 			assert.strictEqual(shouldResetOnModelListChange(undefined, [gpt]), true);

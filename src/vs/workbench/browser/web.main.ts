@@ -37,7 +37,7 @@ import { BrowserStorageService } from '../services/storage/browser/storageServic
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { toLocalISOString } from '../../base/common/date.js';
 import { isWorkspaceToOpen, isFolderToOpen } from '../../platform/window/common/window.js';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../services/workspaces/browser/workspaces.js';
+import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ICommandService } from '../../platform/commands/common/commands.js';
 import { IndexedDBFileSystemProvider } from '../../platform/files/browser/indexedDBFileSystemProvider.js';

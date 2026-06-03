@@ -53,6 +53,8 @@ function getTerminalSandboxRuntimeConfigurationForOperation(operation: TerminalS
 
 		case TerminalSandboxRuntimeConfigurationOperation.Node:
 			switch (os) {
+				case OperatingSystem.Windows:
+					return {};
 				case OperatingSystem.Macintosh:
 				case OperatingSystem.Linux:
 				default:

@@ -446,11 +446,18 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 								detail: c.imageUrl.detail || 'auto',
 								image_url: c.imageUrl.url,
 							}));
+						const asFiles = message.content
+							.filter((c): c is RawDocumentContentPart => c.type === Raw.ChatCompletionContentPartKind.Document)
+							.map(rawDocumentToResponsesInputFile)
+							.filter(isDefined);
 
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
 							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+						}
+						if (asFiles.length) {
+							input.push({ role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
@@ -520,12 +527,28 @@ function getLatestCompactionMessageIndex(messages: readonly Raw.ChatMessage[]): 
 	return undefined;
 }
 
+type RawDocumentContentPart = Extract<Raw.ChatCompletionContentPart, { type: Raw.ChatCompletionContentPartKind.Document }>;
+
+function rawDocumentToResponsesInputFile(part: RawDocumentContentPart): OpenAI.Responses.ResponseInputFile | undefined {
+	if (part.documentData.mediaType !== 'application/pdf') {
+		return undefined;
+	}
+
+	return {
+		type: 'input_file',
+		filename: 'document.pdf',
+		file_data: `data:${part.documentData.mediaType};base64,${part.documentData.data}`,
+	};
+}
+
 function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseInputContent | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			return { type: 'input_text', text: part.text };
 		case Raw.ChatCompletionContentPartKind.Image:
 			return { type: 'input_image', detail: part.imageUrl.detail || 'auto', image_url: part.imageUrl.url };
+		case Raw.ChatCompletionContentPartKind.Document:
+			return rawDocumentToResponsesInputFile(part);
 		case Raw.ChatCompletionContentPartKind.Opaque: {
 			const maybeCast = part.value as OpenAI.Responses.ResponseInputContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {

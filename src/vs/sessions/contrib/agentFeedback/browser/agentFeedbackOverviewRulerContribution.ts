@@ -14,9 +14,6 @@ import { registerColor } from '../../../../platform/theme/common/colorRegistry.j
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { getSessionForResource } from './agentFeedbackEditorUtils.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -34,8 +31,6 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -57,7 +52,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
+		this._sessionResource = this._agentFeedbackService.getSessionForFile(model.uri)?.resource;
 	}
 
 	private _updateDecorations(): void {

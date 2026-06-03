@@ -47,7 +47,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatS
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
@@ -716,6 +716,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				// Convert UriComponents to URI and register any inline content
 				return contributions.map(c => {
 					return {
+						name: c.name,
+						description: c.description,
+						sessionTypes: c.sessionTypes,
+						when: c.when,
 						uri: URI.revive(c.uri),
 					};
 				});
@@ -767,6 +771,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
+					source: item.source,
 					description: item.description,
 					groupKey: item.groupKey,
 					badge: item.badge,
@@ -809,7 +814,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension, BUILTIN_STORAGE],
+				sources: AICustomizationSources.all
 			}),
 			itemProvider,
 		};

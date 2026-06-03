@@ -134,6 +134,7 @@ suite('parseQuotas', () => {
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
 			},
 			completions: {
 				percentRemaining: 100,
@@ -142,6 +143,7 @@ suite('parseQuotas', () => {
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
 			},
 			premiumChat: {
 				percentRemaining: 97.4,
@@ -150,6 +152,7 @@ suite('parseQuotas', () => {
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 3900,
+				quotaRemaining: undefined,
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
@@ -373,6 +376,43 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.premiumChat?.hasQuota, true);
 		assert.strictEqual(quotas.premiumChat?.unlimited, true);
 		assert.strictEqual(quotas.additionalUsageEnabled, false);
+	});
+
+	test('parses quota_remaining from snapshot data', () => {
+		const data = makeEntitlementsData({
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 7.5,
+					unlimited: false,
+					entitlement: '20000',
+					quota_remaining: 1501,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, 1501);
+		assert.strictEqual(quotas.premiumChat?.entitlement, 20000);
+	});
+
+	test('quotaRemaining is undefined when not present in snapshot', () => {
+		const data = makeEntitlementsData({
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: false,
+					entitlement: '1000',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
 	});
 
 	test('pooled entitlements not exhausted when overages are enabled even if has_quota is false', () => {

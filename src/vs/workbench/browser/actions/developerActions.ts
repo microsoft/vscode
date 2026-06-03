@@ -780,6 +780,31 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
 		}
 
+		content += '## Managed Settings\n\n';
+		try {
+			const policyData = defaultAccountService.policyData;
+
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
+			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
+			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += '\n';
+
+			const managedSettingsData = {
+				enabledPlugins: policyData?.enabledPlugins,
+				extraKnownMarketplaces: policyData?.extraKnownMarketplaces,
+				strictKnownMarketplaces: policyData?.strictKnownMarketplaces,
+			};
+			content += '```json\n';
+			content += JSON.stringify(managedSettingsData, null, 2);
+			content += '\n```\n\n';
+		} catch (error) {
+			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+		}
+
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();

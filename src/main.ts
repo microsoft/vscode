@@ -101,6 +101,10 @@ protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-file',
 		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true, codeCache: true }
+	},
+	{
+		scheme: 'vscode-remote-resource',
+		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
 	}
 ]);
 
@@ -549,18 +553,6 @@ function getJSFlags(cliArgs: NativeParsedArgs, argvConfig: IArgvConfig): string 
 	// Add JS flags from runtime arguments (argv.json)
 	if (typeof argvConfig['js-flags'] === 'string' && argvConfig['js-flags']) {
 		jsFlags.push(argvConfig['js-flags']);
-	}
-
-	if (process.platform === 'linux') {
-		// Fix cppgc crash on Linux with 16KB page size.
-		// Refs https://issues.chromium.org/issues/378017037
-		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
-		// only affects non-renderer process.
-		// The following will ensure that the flag will be
-		// applied to the renderer process as well.
-		// TODO(deepak1556): Remove this once we update to
-		// Chromium >= 134.
-		jsFlags.push('--nodecommit_pooled_pages');
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;

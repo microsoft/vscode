@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -45,6 +46,20 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
+
+		// Bridge workbench-side language-model changes to extensions via `vscode.lm.onDidChangeChatModels`.
+		// Only forward when the set of model identifiers changes. Providers (e.g. BYOK utility aliases) can
+		// re-publish models with metadata-only diffs many times per second; firing on those lets listeners
+		// that re-resolve models (e.g. `selectChatModels`) spin an unbounded CPU-pinning feedback loop.
+		let lastModelIds = new Set(this._chatProviderService.getLanguageModelIds());
+		this._store.add(this._chatProviderService.onDidChangeLanguageModels(() => {
+			const currentModelIds = new Set(this._chatProviderService.getLanguageModelIds());
+			if (equalSets(lastModelIds, currentModelIds)) {
+				return;
+			}
+			lastModelIds = currentModelIds;
+			this._proxy.$onChatModelsChange();
+		}));
 	}
 
 	dispose(): void {

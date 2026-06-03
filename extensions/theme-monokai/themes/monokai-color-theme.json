@@ -62,6 +62,11 @@
 		"input.background": "#414339",
 		"inputOption.activeBorder": "#75715E",
 		"focusBorder": "#99947c",
+		// agent sessions
+		"agentsPanel.border": "#414339",
+		"agentsChatInput.border": "#414339",
+		"agentsChatInput.focusBorder": "#99947c",
+		"agentsNewSessionButton.border": "#414339",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
 		"diffEditor.insertedTextBackground": "#4b661680", // middle of #272822 and #a6e22e

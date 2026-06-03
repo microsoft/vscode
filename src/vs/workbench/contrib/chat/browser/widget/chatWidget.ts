@@ -54,7 +54,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
-import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -390,7 +390,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		viewContext: IChatWidgetViewContext | undefined,
 		private readonly viewOptions: IChatWidgetViewOptions,
-		private readonly styles: IChatWidgetStyles,
+		private styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -1686,6 +1686,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
+				if (currentElement.modelId) {
+					this.input.switchModelByIdentifier(currentElement.modelId);
+				}
 				this.input.setEditing(true, isEditingSentRequest);
 				this._onDidChangeActiveInputEditor.fire();
 			} else {
@@ -1787,10 +1790,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!isInput) {
 			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
 			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-			const currentModel = this.input.selectedLanguageModel.get();
-			if (currentModel) {
-				this.inputPart.switchModel(currentModel.metadata);
-			}
 
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {
@@ -2031,6 +2030,42 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
 	}
 
+	/**
+	 * Updates the widget's color styles after construction. Propagates the new
+	 * `listForeground`/`listBackground` to the list widget, pushes the new color
+	 * tokens into `editorOptions` so subscribers (code blocks, result/input editor
+	 * backgrounds, container CSS variables) pick them up via `onDidChange`, and
+	 * refreshes the CSS variables the chat container exposes for stylesheet rules.
+	 */
+	setStyles(styles: IChatWidgetStyles): void {
+		const oldStyles = this.styles;
+		this.styles = styles;
+
+		// update list if needed
+		const listColorsChanged =
+			oldStyles.listBackground !== styles.listBackground ||
+			oldStyles.listForeground !== styles.listForeground;
+
+		if (listColorsChanged) {
+			this.listWidget?.setStyles({
+				listForeground: styles.listForeground,
+				listBackground: styles.listBackground,
+			});
+		}
+
+		// update editor colors if needed
+		const editorColorsChanged =
+			oldStyles.listForeground !== styles.listForeground ||
+			oldStyles.inputEditorBackground !== styles.inputEditorBackground ||
+			oldStyles.resultEditorBackground !== styles.resultEditorBackground;
+
+		if (editorColorsChanged && this.container) {
+			// Updating editorOptions fires onDidChange which triggers onDidStyleChange
+			// and also propagates the new colors to subscribers like CodeBlockPart.
+			this.editorOptions.setColors(styles.listForeground, styles.inputEditorBackground, styles.resultEditorBackground);
+		}
+	}
+
 
 	setModel(model: IChatModel | undefined): void {
 		if (!this.container || !this.inputPart) {
@@ -2040,7 +2075,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		const currentInputModel = this.viewModel?.model?.inputModel?.state?.get();
 		if (!model) {
+			logChangesToStateModel(this.viewModel?.model?.inputModel, `ChatWidget.setModel to empty, old ${this.viewModel?.sessionResource.toString()}`, undefined, currentInputModel, this.logService);
 			// Flush any unsent draft to the outgoing input model before we drop our
 			// reference to it, so the host's `willDisposeModel` persistence sees it.
 			this.inputPart.flushInputStateToModel();
@@ -2057,6 +2094,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
 			return;
 		}
+
+		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();

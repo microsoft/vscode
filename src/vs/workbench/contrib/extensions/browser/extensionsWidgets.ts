@@ -825,7 +825,16 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			},
 				this.options.target,
 				{
-					markdown: () => Promise.resolve(this.getHoverMarkdown()),
+					markdown: async () => {
+						// Recompute the status so any time-sensitive content (e.g. the
+						// delayed auto-update message) reflects the current time on each hover.
+						try {
+							await this.extensionStatusAction.recomputeStatus();
+						} catch (error) {
+							// Ignore: fall back to the last computed status.
+						}
+						return this.getHoverMarkdown();
+					},
 					markdownNotSupportedFallback: undefined
 				},
 				{

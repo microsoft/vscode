@@ -20,6 +20,7 @@ import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveA
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
 import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
+import './agentHost/agentHostModeSynchronizer.js';
 
 //#region Actions and Menus
 

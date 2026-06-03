@@ -8,7 +8,7 @@
 
 ### Mobile Part Subclasses
 
-Desktop Parts (`ChatBarPart`, `SidebarPart`, `PanelPart`, `AuxiliaryBarPart`) remain unchanged. Each has a **mobile subclass** that extends it and overrides only `layout()` and/or `updateStyles()`. `AgenticPaneCompositePartService` conditionally instantiates the mobile or desktop variant at startup based on viewport width (`< 640px` → phone).
+Desktop Parts (`SessionsPart`, `SidebarPart`, `PanelPart`, `AuxiliaryBarPart`) remain unchanged. Each has a **mobile subclass** that extends it and overrides only `layout()` and/or `updateStyles()`. `AgenticPaneCompositePartService` conditionally instantiates the mobile or desktop variant at startup based on viewport width (`< 640px` → phone).
 
 Each mobile Part checks the current layout class (via `isPhoneLayout(layoutService)`) at every call. When the viewport is phone it applies mobile behavior (full-cell layout, no card chrome, no session-bar subtraction). When the viewport is tablet/desktop — which happens when a real phone rotates past the 640px breakpoint — it delegates to the desktop `super` implementation. This means a `Mobile*Part` instance is safe to keep through a viewport-class transition without producing wrong layout math.
 
@@ -35,7 +35,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 | Feature | Phone Status | Mechanism |
 |---------|--------------|-----------|
 | Sessions list (sidebar) | ✅ Compatible | No gate |
-| Chat views (ChatBar) | ✅ Compatible | No gate |
+| Sessions Part (chat views) | ✅ Compatible | No gate — phone enforces a single visible session via `MobileSessionsPart` |
 | Changes view (AuxiliaryBar) | ❌ Gated (with mobile equivalent) | `when: !sessionsIsPhoneLayout` on view descriptor; phone uses `MobileChangesView` overlay reachable from the title-bar Changes pill |
 | Files view (AuxiliaryBar) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
 | Logs view (Panel) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
@@ -54,7 +54,7 @@ On phone-sized viewports (`< 640px` width):
 │  [☰]  Session Title      [+|👤] │  ← MobileTitlebarPart (prepended before grid)
 ├──────────────────────────────────┤
 │                                  │
-│     Chat (edge-to-edge)          │  ← Grid: ChatBarPart fills 100%
+│     Chat (edge-to-edge)          │  ← Grid: SessionsPart fills 100% (single SessionView)
 │                                  │
 │                                  │
 │                                  │
@@ -92,7 +92,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 |---|---|---|
 | **Titlebar** (3-section toolbar) | **MobileTitlebarPart** (☰ / title / +|👤) | Always visible at top |
 | **Sidebar** (sessions list) | Drawer overlay (85% width) | Hamburger button (☰) |
-| **ChatBar** (chat widget) | Same Part, edge-to-edge, no card chrome | Default view (always visible) |
+| **Sessions Part** (chat views) | Same Part (`MobileSessionsPart`), edge-to-edge, no card chrome, single visible session | Default view (always visible) |
 | **AuxiliaryBar** (files, changes) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **Panel** (terminal, output) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **SessionCompositeBar** (chat tabs) | Hidden on phone | — |
@@ -105,7 +105,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | File | Purpose |
 |------|---------|
-| `browser/parts/mobile/mobileChatBarPart.ts` | Extends `ChatBarPart`. Overrides `layout()` (no card margins) and `updateStyles()` (no inline card styles). |
+| `browser/parts/mobile/mobileSessionsPart.ts` | Extends `SessionsPart`. Overrides `layout()` (no card margins) and `updateStyles()` (no inline card styles). Phone layout always shows a single `SessionView` filling the part. |
 | `browser/parts/mobile/mobileSidebarPart.ts` | Extends `SidebarPart`. Overrides `updateStyles()` (no inline card/title styles). |
 | `browser/parts/mobile/mobileAuxiliaryBarPart.ts` | Extends `AuxiliaryBarPart`. Overrides `layout()` and `updateStyles()` (no card margins or inline styles). |
 | `browser/parts/mobile/mobilePanelPart.ts` | Extends `PanelPart`. Overrides `layout()` and `updateStyles()` (no card margins or inline styles). |
@@ -160,7 +160,7 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 | File | Key Changes |
 |------|-------------|
 | `browser/workbench.ts` | Layout policy integration, MobileTitlebarPart creation/destruction (via `DisposableStore`), sidebar drawer open/close with backdrop, viewport-class-change detection, window resize listener, grid height calculation (subtracts MobileTitlebarPart height), titlebar grid visibility toggle, `ISessionsManagementService` for new session button. |
-| `browser/parts/chatBarPart.ts` | `_lastLayout` changed from `private` to `protected` for mobile subclass access. |
+| `browser/parts/sessionsPart.ts` | `_lastLayout` exposed as `protected` for mobile subclass access. |
 
 ### Styling
 

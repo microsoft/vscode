@@ -6,7 +6,7 @@
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
@@ -185,6 +185,11 @@ interface ICopilotGlobToolArgs {
 interface ICopilotSqlToolArgs {
 	description?: string;
 	query?: string;
+}
+
+/** Parameters for the `web_fetch` tool. */
+interface ICopilotWebFetchToolArgs {
+	url: string;
 }
 
 /**
@@ -403,6 +408,10 @@ function formatPathAsMarkdownLink(path: string): string {
 	return `[${basename(uri)}](${uri})`;
 }
 
+function formatUrlAsMarkdownLink(url: string): string {
+	return new MarkdownString().appendLink(url, truncate(url, 80)).value;
+}
+
 /**
  * Wraps a localized message containing a markdown file link into a
  * `StringOrMarkdown` object so the renderer treats it as markdown.
@@ -562,6 +571,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			const args = parameters as ICopilotSqlToolArgs | undefined;
 			return args?.description || localize('toolInvoke.sql', "Executing SQL query");
 		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			if (args?.url) {
+				return md(localize('toolInvoke.webFetch', "Fetching {0}", formatUrlAsMarkdownLink(args.url)));
+			}
+			return localize('toolInvoke.webFetchGeneric', "Fetching URL");
+		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
@@ -664,6 +680,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Sql: {
 			const args = parameters as ICopilotSqlToolArgs | undefined;
 			return args?.description || localize('toolComplete.sql', "Executed SQL query");
+		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			if (args?.url) {
+				return md(localize('toolComplete.webFetch', "Fetched {0}", formatUrlAsMarkdownLink(args.url)));
+			}
+			return localize('toolComplete.webFetchGeneric', "Fetched URL");
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
@@ -786,6 +809,10 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 			const args = parameters as ICopilotRgToolArgs | undefined;
 			return args?.pattern ?? rawArguments;
 		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			return args?.url ?? rawArguments;
+		}
 		default:
 			// For other tools, show the formatted JSON arguments
 			if (parameters) {
@@ -869,11 +896,21 @@ export function tryStringify(value: unknown): string | undefined {
 }
 
 /**
- * Extends the SDK's {@link PermissionRequest} with the known extra properties
- * that arrive on the index-signature. The SDK defines these as `[key: string]: unknown`
- * so this interface adds proper types for the fields we actually use.
+ * Loose, optional-field projection of the SDK's {@link PermissionRequest}
+ * discriminated union. Lets the rest of the agent host read the well-known
+ * fields without `switch (request.kind)` narrowing at every access site.
+ *
+ * The SDK's `PermissionRequest` (a union with required per-variant fields) is
+ * structurally assignable to this interface — every variant carries `kind`
+ * and `toolCallId?`, and the variant-specific fields are listed here as
+ * optional. Use this type at the agent-host boundary so call sites and tests
+ * can rely on a single shape.
  */
-export interface ITypedPermissionRequest extends PermissionRequest {
+export interface ITypedPermissionRequest {
+	/** Permission kind discriminator from the SDK. */
+	kind: PermissionRequest['kind'];
+	/** Tool call ID that triggered this permission request, when available. */
+	toolCallId?: string;
 	/** File path — set for `read` permission requests. */
 	path?: string;
 	/** File path — set for `write` permission requests. */

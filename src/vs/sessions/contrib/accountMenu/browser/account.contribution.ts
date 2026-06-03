@@ -230,7 +230,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.renderState();
 
 		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
-		if (requestId !== this.accountRequestCounter) {
+		if (requestId !== this.accountRequestCounter || this._store.isDisposed) {
 			return;
 		}
 

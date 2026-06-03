@@ -112,6 +112,7 @@ class TestAuthService extends Disposable implements IAuthenticationService {
 	readonly isMinimalMode = true;
 	readonly anyGitHubSession = undefined;
 	readonly permissiveGitHubSession = undefined;
+	readonly hasCopilotTokenSource = true;
 	readonly copilotToken = createTestCopilotToken();
 	speculativeDecodingEndpointToken: string | undefined;
 

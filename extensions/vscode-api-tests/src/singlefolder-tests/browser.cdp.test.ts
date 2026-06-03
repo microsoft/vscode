@@ -177,7 +177,11 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 
 	// #endregion
 
-	test('CDP debugging golden scenario', async function () {
+	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
+	// workspaces: the workspace folder is a `vscode-remote://` URI so it
+	// isn't added to the local `file://` trust allowlist, and the harness
+	// would be rejected with 403 before the worker is ever attached.
+	(vscode.env.remoteName ? test.skip : test)('CDP debugging golden scenario', async function () {
 		this.timeout(30_000);
 
 		const workspaceRoot = workspace.rootPath!;

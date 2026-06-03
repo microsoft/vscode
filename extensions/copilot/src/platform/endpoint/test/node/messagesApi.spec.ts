@@ -13,7 +13,7 @@ import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabl
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, AnthropicMessagesProcessor, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
 import { HeadersImpl, Response } from '../../../networking/common/fetcherService';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
@@ -1404,6 +1404,142 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].usage?.prompt_tokens_details?.cached_tokens).toBe(30);
 	});
 
+	test('surfaces 1h/5m cache_creation split when present', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache_ttl',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 25,
+				cache_read_input_tokens: 0,
+				cache_creation: {
+					ephemeral_1h_input_tokens: 17,
+					ephemeral_5m_input_tokens: 8,
+				},
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		const details = results[0].usage?.prompt_tokens_details;
+		expect(details?.cache_creation_input_tokens).toBe(25);
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(17);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(8);
+	});
+
+	test('omits 1h/5m split fields when Anthropic does not report them', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache_no_split',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 20,
+				cache_read_input_tokens: 30,
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		const details = results[0].usage?.prompt_tokens_details;
+		expect(details?.cache_creation_input_tokens).toBe(20);
+		expect(details?.anthropic_cache_creation).toBeUndefined();
+	});
+
+	test('surfaces thinking_tokens as completion_tokens_details.reasoning_tokens', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'thought' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 10,
+				output_tokens: 1140,
+				output_tokens_details: { thinking_tokens: 580 },
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens).toBe(1140);
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(580);
+	});
+
+	test('reasoning_tokens defaults to 0 when output_tokens_details is absent', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_no_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no thinking' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 50 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(0);
+	});
+
 	test('rejects on malformed JSON', async () => {
 		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
@@ -1553,5 +1689,162 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 		}
 		expect(results).toHaveLength(1);
 		expect(results[0].message.content).toHaveLength(1);
+	});
+});
+
+suite('AnthropicMessagesProcessor streaming cache_creation', () => {
+	function makeProcessor(): AnthropicMessagesProcessor {
+		return new AnthropicMessagesProcessor(
+			TelemetryData.createAndMarkAsIssued(),
+			'req-1',
+			'gh-req-1',
+			'',
+			new TestLogService(),
+			new NullTelemetryService(),
+		);
+	}
+
+	test('message_start cache_creation survives a message_delta that omits the breakdown', () => {
+		// Production happy path: Anthropic only emits the cache_creation breakdown
+		// in message_start. message_delta updates other usage fields but typically
+		// has no cache_creation. The ?? fallback in the processor must preserve
+		// the values seen in message_start — including 0 (a common control-arm
+		// value) which would be wiped out by a `||` regression.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 0,
+					cache_creation_input_tokens: 12336,
+					cache_read_input_tokens: 391352,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 12336,
+					},
+				},
+			},
+		}, noop);
+
+		// message_delta with usage but no cache_creation breakdown — mirrors
+		// what every observed backend (Anthropic 1P, Bedrock, Vertex) emits in
+		// the final delta of a stream.
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 42,
+				input_tokens: 5,
+				cache_creation_input_tokens: 12336,
+				cache_read_input_tokens: 391352,
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion).toBeDefined();
+
+		const details = completion!.usage?.prompt_tokens_details;
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(0);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(12336);
+	});
+
+	test('message_delta cache_creation overrides message_start values', () => {
+		// Defensive: if a backend ever did emit the breakdown in message_delta,
+		// the later values should win (matches the existing overwrite pattern
+		// for cache_creation_input_tokens / cache_read_input_tokens).
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_stream_override',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 0,
+					cache_creation_input_tokens: 10000,
+					cache_read_input_tokens: 0,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 10000,
+					},
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 10,
+				input_tokens: 5,
+				cache_creation_input_tokens: 15000,
+				cache_read_input_tokens: 0,
+				cache_creation: {
+					ephemeral_1h_input_tokens: 5000,
+					ephemeral_5m_input_tokens: 10000,
+				},
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		const details = completion!.usage?.prompt_tokens_details;
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(5000);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(10000);
+	});
+
+	test('streaming thinking_tokens from message_delta surfaces as reasoning_tokens', () => {
+		// Anthropic typically reports thinking_tokens in the final message_delta
+		// (after the cumulative output_tokens count is known). Matches the
+		// observed payload shape from CAPI/Anthropic 1P/Bedrock/Vertex.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_thinking_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 1,
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 2024,
+				input_tokens: 5,
+				output_tokens_details: { thinking_tokens: 639 },
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion!.usage?.completion_tokens).toBe(2024);
+		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
 	});
 });

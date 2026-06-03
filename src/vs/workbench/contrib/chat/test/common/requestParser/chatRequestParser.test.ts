@@ -196,6 +196,91 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('prompt subcommand via space form resolves to colon-named prompt', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.returns(true);
+		promptsService.hasPromptSlashCommand.callsFake((name: string) => name === 'chronicle:tips');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '/chronicle tips show me insights');
+
+		const slashPart = result.parts.find(part => part.kind === 'prompt');
+		assert.deepStrictEqual({
+			kinds: result.parts.map(part => part.kind),
+			kind: slashPart?.kind,
+			name: (slashPart as { name?: string } | undefined)?.name,
+			text: slashPart?.text,
+			trailing: result.parts[result.parts.length - 1]?.text,
+		}, {
+			kinds: ['prompt', 'text'],
+			kind: 'prompt',
+			name: 'chronicle:tips',
+			text: '/chronicle tips',
+			trailing: ' show me insights',
+		});
+	});
+
+	test('prompt subcommand via colon form is unchanged', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.returns(true);
+		promptsService.hasPromptSlashCommand.callsFake((name: string) => name === 'chronicle:tips');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '/chronicle:tips show me insights');
+
+		const slashPart = result.parts.find(part => part.kind === 'prompt');
+		assert.deepStrictEqual({
+			kinds: result.parts.map(part => part.kind),
+			kind: slashPart?.kind,
+			name: (slashPart as { name?: string } | undefined)?.name,
+			text: slashPart?.text,
+			trailing: result.parts[result.parts.length - 1]?.text,
+		}, {
+			kinds: ['prompt', 'text'],
+			kind: 'prompt',
+			name: 'chronicle:tips',
+			text: '/chronicle:tips',
+			trailing: ' show me insights',
+		});
+	});
+
+	test('space form does not extend when no `<cmd>:<sub>` matches', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.returns(true);
+		promptsService.hasPromptSlashCommand.returns(false);
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '/nonexistent tips');
+
+		const slashPart = result.parts.find(part => part.kind === 'prompt');
+		assert.deepStrictEqual({
+			kinds: result.parts.map(part => part.kind),
+			name: (slashPart as { name?: string } | undefined)?.name,
+			text: slashPart?.text,
+			trailing: result.parts[result.parts.length - 1]?.text,
+		}, {
+			kinds: ['prompt', 'text'],
+			name: 'nonexistent',
+			text: '/nonexistent',
+			trailing: ' tips',
+		});
+	});
+
 	// test('variables', async () => {
 	// 	varService.hasVariable.returns(true);
 	// 	varService.getVariable.returns({ id: 'copilot.selection' });

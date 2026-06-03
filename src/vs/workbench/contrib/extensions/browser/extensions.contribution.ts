@@ -137,6 +137,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
+				type: ['boolean', 'string'],
 				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
 					localize('all', "All Extensions"),
@@ -548,9 +549,9 @@ const CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED = new RawContextKey<boolean>(
 const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPrivateRepositorySigned', false);
 const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
-async function runAction(action: IAction): Promise<void> {
+async function runAction<T = void>(action: IAction): Promise<T> {
 	try {
-		await action.run();
+		return await action.run() as T;
 	} finally {
 		if (isDisposable(action)) {
 			action.dispose();
@@ -778,7 +779,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
 				}, {
 					id: MenuId.ViewContainerTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`).negate(), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'))),
+					when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 					group: '1_updates',
 					order: 2
 				}, {
@@ -1362,7 +1363,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1383,7 +1384,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1404,7 +1405,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetProductIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1463,7 +1464,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1486,7 +1487,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1508,7 +1509,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1530,7 +1531,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1550,7 +1551,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				const action = instantiationService.createInstance(ClearLanguageAction);
 				action.extension = extension;
-				return action.run();
+				return runAction(action);
 			}
 		});
 
@@ -1571,7 +1572,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1595,7 +1596,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						isMachineScoped: true,
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1619,7 +1620,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						preRelease: true
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1638,7 +1639,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					return instantiationService.createInstance(InstallAnotherVersionAction, extension, false).run();
+					return runAction(instantiationService.createInstance(InstallAnotherVersionAction, extension, false));
 				}
 			}
 		});
@@ -2102,6 +2103,14 @@ Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.Co
 		key: AutoUpdateConfigurationKey,
 		migrateFn: (value, accessor) => {
 			if (value === 'onlySelectedExtensions') {
+				return { value: false };
+			}
+			// Migrate insiders values ('on' | 'delayed' | 'off') that were
+			// rolled out with the delayed auto-update mode back to booleans.
+			if (value === 'on' || value === 'delayed') {
+				return { value: true };
+			}
+			if (value === 'off') {
 				return { value: false };
 			}
 			return [];

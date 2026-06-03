@@ -109,8 +109,16 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
+		if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+			return this.getPluginSourceInstallUri(plugin.sourceDescriptor);
+		}
 		const repoDir = this.getRepositoryUri(plugin.marketplaceReference, plugin.marketplaceType);
-		return this._getPluginDir(repoDir, plugin.source);
+		const normalizedSource = plugin.source.trim().replace(/^\.?\/+|\/+$/g, '');
+		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
+		if (!isEqualOrParent(pluginDir, repoDir)) {
+			throw new Error(`Invalid plugin source path '${plugin.source}'`);
+		}
+		return pluginDir;
 	}
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
@@ -129,7 +137,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
 			return repoDir;
 		});
@@ -268,15 +276,6 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} finally {
 			cts.dispose();
 		}
-	}
-
-	private _getPluginDir(repoDir: URI, source: string): URI {
-		const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
-		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
-		if (!isEqualOrParent(pluginDir, repoDir)) {
-			throw new Error(`Invalid plugin source path '${source}'`);
-		}
-		return pluginDir;
 	}
 
 	getPluginSourceInstallUri(sourceDescriptor: IPluginSourceDescriptor): URI {

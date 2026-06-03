@@ -131,7 +131,11 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 	}
 
 	if (dir === 'build') {
-		env['npm_config_target'] = process.versions.node;
+		// Temporarily lock the target version.
+		// Node 24 V8 headers require C++20, but tree-sitter hard-pin "c++17" in their binding.gyp.
+		// This is fixed in v0.25.1 however the version is not published to npm, refs
+		// https://github.com/tree-sitter/node-tree-sitter/issues/268.
+		// env['npm_config_target'] = process.versions.node;
 		env['npm_config_arch'] = process.arch;
 	}
 }

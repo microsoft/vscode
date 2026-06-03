@@ -212,6 +212,24 @@ suite('AgentInstructionsLocator', () => {
 		expect(paths).not.toContain(`${userHome}/.claude/CLAUDE.md`);
 	});
 
+	test('should collect ~/.copilot/copilot-instructions.md when enabled', async () => {
+		const userHome = '/home/testuser';
+		await mockFiles(fileSystem, [
+			{ path: `${userHome}/.copilot/copilot-instructions.md`, contents: ['Copilot guidelines from home'] },
+			{ path: `${rootFolder}/src/file.ts`, contents: ['console.log("test");'] },
+		]);
+
+		await configService.setConfig(ConfigKey.UseInstructionFiles, true);
+		let result = await locator.listAgentInstructions(CancellationToken.None);
+		let paths = result.map(f => f.uri.path);
+		expect(paths).toContain(`${userHome}/.copilot/copilot-instructions.md`);
+
+		await configService.setConfig(ConfigKey.UseInstructionFiles, false);
+		result = await locator.listAgentInstructions(CancellationToken.None);
+		paths = result.map(f => f.uri.path);
+		expect(paths).not.toContain(`${userHome}/.copilot/copilot-instructions.md`);
+	});
+
 	test('should collect parent folder CLAUDE configurations when includeWorkspaceFolderParents is enabled', async () => {
 		await mockFiles(fileSystem, [
 			// `.git/HEAD` marks the parent folder as a repository root.

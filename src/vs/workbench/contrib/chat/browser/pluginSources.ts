@@ -299,14 +299,32 @@ export class GitHubPluginSource extends AbstractGitPluginSource {
 export class GitUrlPluginSource extends AbstractGitPluginSource {
 	readonly kind = PluginSourceKind.GitUrl;
 
+	/** Returns the URI where the plugin content lives (repo root + optional sub-path). */
 	getInstallUri(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
+		const git = descriptor as IGitUrlPluginSource;
+		if (git.path) {
+			const normalizedPath = git.path.trim().replace(/^\.?\/+|\/+$/g, '');
+			if (normalizedPath) {
+				const target = joinPath(repoDir, normalizedPath);
+				if (isEqualOrParent(target, repoDir)) {
+					return target;
+				}
+			}
+		}
+		return repoDir;
+	}
+
+	/** Returns the cloned repository root (without sub-path). */
+	protected override _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		const git = descriptor as IGitUrlPluginSource;
 		const segments = this._gitUrlCacheSegments(git.url, git.ref, git.sha);
 		return joinPath(cacheRoot, ...segments);
 	}
 
 	getLabel(descriptor: IPluginSourceDescriptor): string {
-		return (descriptor as IGitUrlPluginSource).url;
+		const git = descriptor as IGitUrlPluginSource;
+		return git.path ? `${git.url}/${git.path}` : git.url;
 	}
 
 	protected _cloneUrl(descriptor: IPluginSourceDescriptor): string {

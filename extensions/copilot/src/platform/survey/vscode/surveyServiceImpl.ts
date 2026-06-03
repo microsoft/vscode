@@ -34,7 +34,8 @@ export class SurveyService implements ISurveyService {
 	readonly _serviceBrand: undefined;
 
 	private readonly surveyUri: vscode.Uri;
-	private debounceTimeout: any | null = null;
+	private debounceTimeout: ReturnType<typeof setTimeout> | undefined;
+	private readonly inactiveTimeout: ReturnType<typeof setTimeout>;
 	private lastSource: string | null = null;
 	private lastLanguageId: string | null = null;
 	private readonly sessionSeed: number;
@@ -50,13 +51,18 @@ export class SurveyService implements ISurveyService {
 		this.sessionSeed = Math.random();
 
 		// Inactive survey check only runs once
-		setTimeout(async () => {
+		this.inactiveTimeout = setTimeout(async () => {
 			await this.updateUsageData(false);
 			const eligible = await this.checkInactiveUserHeuristic();
 			if (eligible) {
 				this.promptSurvey('churn');
 			}
 		}, INACTIVE_TIMEOUT);
+	}
+
+	dispose(): void {
+		clearTimeout(this.inactiveTimeout);
+		clearTimeout(this.debounceTimeout);
 	}
 
 	public async signalUsage(source: string, languageId?: string): Promise<void> {
@@ -66,13 +72,13 @@ export class SurveyService implements ISurveyService {
 			this.lastLanguageId = languageId;
 		}
 
-		if (!this.debounceTimeout) {
+		if (this.debounceTimeout === undefined) {
 			this.debounceTimeout = setTimeout(async () => {
 				const eligible = await this.checkEligibility();
 				if (eligible) {
 					this.promptSurvey('usage');
 				}
-				this.debounceTimeout = null;
+				this.debounceTimeout = undefined;
 			}, DEBOUNCE_TIME);
 		}
 	}

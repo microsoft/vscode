@@ -4,10 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
+
+/**
+ * Intercepts a CDP command before it is forwarded to the Electron debugger.
+ * Return `undefined` to let the command fall through to the upstream debugger;
+ * return a Promise to short-circuit — its resolved value becomes the command
+ * response observed by the caller.
+ */
+export type CDPCommandInterceptor = (method: string, params: unknown, session: ICDPConnection | undefined) => Promise<unknown> | undefined;
 
 /**
  * CDP transport for a browser view, backed by the Electron debugger.
@@ -51,9 +59,12 @@ export class BrowserViewDebugger extends Disposable {
 	private _isPaused = false;
 	get isPaused(): boolean { return this._isPaused; }
 
+	private _targetId: string | undefined;
+	get targetId(): string | undefined { return this._targetId; }
+
 	private readonly _messageHandler: (event: Electron.Event, method: string, params: unknown, sessionId?: string) => void;
 	private readonly _electronDebugger: Electron.Debugger;
-	private _targetId: string | undefined;
+	private readonly _interceptors = new Set<CDPCommandInterceptor>();
 
 	constructor(
 		private readonly view: BrowserView,
@@ -105,11 +116,28 @@ export class BrowserViewDebugger extends Disposable {
 	 * Send a CDP command. Handles Electron-specific workarounds in a single place.
 	 */
 	sendCommand(method: string, params?: unknown, sessionId?: string): Promise<unknown> {
-		// This crashes Electron. Don't pass it through.
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		for (const interceptor of this._interceptors) {
+			const result = interceptor(method, params, session);
+			if (result !== undefined) {
+				return result;
+			}
+		}
+
+		// This crashes Electron in some circumstances. Don't pass it through.
 		if (method === 'Emulation.setDeviceMetricsOverride') {
 			return Promise.resolve({});
 		}
 
+		return this.sendCommandRaw(method, params, sessionId);
+	}
+
+	/**
+	 * Send a CDP command bypassing all registered interceptors. Used by trusted
+	 * internal callers (such as the emulator) that themselves implement
+	 * interceptors and would otherwise re-enter their own logic.
+	 */
+	sendCommandRaw(method: string, params?: unknown, sessionId?: string): Promise<unknown> {
 		this.ensureAttached();
 		const resultPromise = this._electronDebugger.sendCommand(method, params, sessionId);
 
@@ -119,6 +147,16 @@ export class BrowserViewDebugger extends Disposable {
 		}
 
 		return resultPromise;
+	}
+
+	/**
+	 * Register an interceptor that gets first chance at every {@link sendCommand}
+	 * invocation. Multiple interceptors are evaluated in registration order;
+	 * the first to return a non-`undefined` value wins.
+	 */
+	registerCommandInterceptor(interceptor: CDPCommandInterceptor): IDisposable {
+		this._interceptors.add(interceptor);
+		return toDisposable(() => this._interceptors.delete(interceptor));
 	}
 
 	private ensureAttached(): void {

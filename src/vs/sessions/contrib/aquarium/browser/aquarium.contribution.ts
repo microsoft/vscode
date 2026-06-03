@@ -7,7 +7,6 @@ import './media/aquarium.css';
 import { localize } from '../../../../nls.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AquariumService, IAquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from './aquariumOverlay.js';
 
@@ -16,7 +15,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: true,
 			description: localize('sessions.developerJoy.enabled', "Adds an easter egg to the Agents window."),
 			tags: ['experimental'],
 		},

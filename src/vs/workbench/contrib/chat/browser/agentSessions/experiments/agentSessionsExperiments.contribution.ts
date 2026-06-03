@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -257,7 +258,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
-		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false),
+		InEditorZenModeContext.negate()
 	),
 	order: 10002 // to the right of the chat button
 });

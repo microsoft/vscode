@@ -17,7 +17,7 @@ import { IExtensionContributionFactory, asContributionFactory } from '../../comm
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
 import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKeys.contribution';
-import { ChatInputNotificationContribution } from '../../chatInputNotification/vscode-node/chatInputNotification.contribution';
+import { ByokUtilityModelNotificationContribution } from '../../chatInputNotification/vscode-node/byokUtilityModel.contribution';
 import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEditsContrib';
 import { ConversationFeature } from '../../conversation/vscode-node/conversationFeature';
 import { FeedbackCommandContribution } from '../../conversation/vscode-node/feedbackContribution';
@@ -75,7 +75,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(FetcherTelemetryContribution),
 	asContributionFactory(PowerStateLogger),
 	asContributionFactory(ContextKeysContribution),
-	asContributionFactory(ChatInputNotificationContribution),
+	asContributionFactory(ByokUtilityModelNotificationContribution),
 	asContributionFactory(CopilotDebugCommandContribution),
 	asContributionFactory(DebugCommandsContribution),
 	asContributionFactory(LanguageModelAccess),

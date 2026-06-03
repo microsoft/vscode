@@ -113,7 +113,6 @@ import { ConversationStore, IConversationStore } from '../../conversationStore/n
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
 import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
-import { ITestGenInfoStorage, TestGenInfoStorage } from '../../intents/node/testIntent/testInfoStorage';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
@@ -212,7 +211,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubCodeSearchService, new SyncDescriptor(GithubCodeSearchService));
 	builder.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(GithubAvailableEmbeddingTypesService));
 
-	builder.define(ITestGenInfoStorage, new SyncDescriptor(TestGenInfoStorage)); // Used for test generation (/tests intent)
 	builder.define(IParserService, new SyncDescriptor(ParserServiceImpl, [/*useWorker*/ true]));
 	builder.define(IIntentService, new SyncDescriptor(IntentService));
 	builder.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));

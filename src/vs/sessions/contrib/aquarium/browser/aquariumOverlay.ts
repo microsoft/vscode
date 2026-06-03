@@ -15,6 +15,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
@@ -113,6 +114,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -252,6 +254,18 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	private toggle(): void {
+		const willActivate = !this.activeRef.value;
+		type AquariumToggleEvent = {
+			activated: boolean;
+		};
+		type AquariumToggleClassification = {
+			activated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the toggle activated (true) or deactivated (false) the aquarium.' };
+			owner: 'justschen';
+			comment: 'Tracks how often users click the Agents window aquarium easter-egg toggle.';
+		};
+		this.telemetryService.publicLog2<AquariumToggleEvent, AquariumToggleClassification>('vscodeAgents.aquarium/toggle', {
+			activated: willActivate,
+		});
 		if (this.activeRef.value) {
 			this.deactivate(/* persist */ true);
 		} else if (this.hasVisibleMount()) {
@@ -350,8 +364,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
 	// no z-index gymnastics required.
-	const chatBar = layoutService.getContainer(targetWindow, Parts.CHATBAR_PART);
-	if (!chatBar || !layoutService.isVisible(Parts.CHATBAR_PART, targetWindow)) {
+	const sessionsContainer = layoutService.getContainer(targetWindow, Parts.SESSIONS_PART);
+	if (!sessionsContainer || !layoutService.isVisible(Parts.SESSIONS_PART, targetWindow)) {
 		return undefined;
 	}
 
@@ -362,8 +376,15 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	// Decorative: hide the entire subtree from a11y tree.
 	water.setAttribute('aria-hidden', 'true');
 	// First child so subsequent chat bar content paints over it.
-	chatBar.insertBefore(water, chatBar.firstChild);
-	store.add(toDisposable(() => water.remove()));
+	sessionsContainer.insertBefore(water, sessionsContainer.firstChild);
+	// Sessions Grid wraps the chat content in `.session-view` / `.session-view-content`
+	// with opaque backgrounds (see sessionsPart.css). Mark the part so a scoped
+	// CSS override can clear those backgrounds and let the water layer show through.
+	sessionsContainer.classList.add('aquarium-active');
+	store.add(toDisposable(() => {
+		water.remove();
+		sessionsContainer.classList.remove('aquarium-active');
+	}));
 
 	const fishLayer = doc.createElement('div');
 	fishLayer.className = 'agents-aquarium-fish-layer';

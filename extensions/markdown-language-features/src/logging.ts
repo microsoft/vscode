@@ -8,7 +8,7 @@ import { Disposable } from './util/dispose';
 
 
 export interface ILogger {
-	trace(title: string, message: string, data?: any): void;
+	trace(title: string, message: string, data?: unknown): void;
 }
 
 export class VsCodeOutputLogger extends Disposable implements ILogger {
@@ -23,7 +23,7 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 		super();
 	}
 
-	public trace(title: string, message: string, data?: any): void {
+	public trace(title: string, message: string, data?: unknown): void {
 		this.#outputChannel.trace(`${title}: ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
 	}
 }

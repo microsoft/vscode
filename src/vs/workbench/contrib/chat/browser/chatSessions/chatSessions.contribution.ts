@@ -1107,7 +1107,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
-				session.dispose();
 				return existingSessionData.session;
 			}
 		}

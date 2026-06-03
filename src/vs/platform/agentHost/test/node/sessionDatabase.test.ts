@@ -401,6 +401,53 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Turn event ids -------------------------------------------------
+
+	suite('turn event ids', () => {
+
+		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), 'evt-2');
+		});
+
+		test('getNextTurnEventId falls back to `event_id` when the key is the SDK event id', async () => {
+			// Sessions restored from disk surface SDK envelope ids as the
+			// protocol turn id (see mapSessionEvents.ts), but `turns.id`
+			// was populated live with the client-side `request_xxx` id.
+			// The fallback lets fork / truncate resolve the boundary
+			// without forcing every caller to translate.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('sdk-evt-1'), 'sdk-evt-2');
+		});
+
+		test('getNextTurnEventId returns undefined for the last turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), undefined);
+			assert.strictEqual(await db.getNextTurnEventId('evt-1'), undefined);
+		});
+
+		test('getNextTurnEventId returns undefined for an unknown key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
+		});
+	});
+
 	// ---- Dispose --------------------------------------------------------
 
 	suite('dispose', () => {

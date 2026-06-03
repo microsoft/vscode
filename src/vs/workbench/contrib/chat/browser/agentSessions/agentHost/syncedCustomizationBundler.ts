@@ -10,8 +10,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
 // Re-export so existing consumers don't need to change their import source.
@@ -48,7 +48,7 @@ interface ISyncableFile {
 }
 
 interface IBundleResult {
-	readonly ref: CustomizationRef;
+	readonly ref: ClientPluginCustomization;
 }
 
 /**
@@ -98,7 +98,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	/**
 	 * Bundles the given files into the in-memory plugin filesystem.
 	 *
-	 * Overwrites any previous bundle content. Returns a {@link CustomizationRef}
+	 * Overwrites any previous bundle content. Returns a {@link ClientPluginCustomization}
 	 * pointing at the virtual plugin directory with a content-based nonce.
 	 *
 	 * @returns The bundle result, or `undefined` if no syncable files were provided.
@@ -155,11 +155,14 @@ export class SyncedCustomizationBundler extends Disposable {
 
 		this._lastNonce = nonce;
 
+		const rootUriString = this._rootUri.toString() as ProtocolURI;
 		return {
 			ref: {
-				uri: this._rootUri.toString() as ProtocolURI,
-				displayName: DISPLAY_NAME,
-				description: `${syncable.length} customization(s) synced from VS Code`,
+				type: CustomizationType.Plugin,
+				id: customizationId(rootUriString),
+				uri: rootUriString,
+				name: DISPLAY_NAME,
+				enabled: true,
 				nonce,
 			},
 		};

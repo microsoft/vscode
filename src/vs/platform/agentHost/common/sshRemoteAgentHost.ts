@@ -35,6 +35,8 @@ export interface ISSHAgentHostConfig {
 	readonly authMethod: SSHAuthMethod;
 	/** Path to the private key file (when {@link authMethod} is KeyFile). */
 	readonly privateKeyPath?: string;
+	/** Raw IdentityAgent value from resolved SSH config; may be a socket path, `none`, `SSH_AUTH_SOCK`, or an environment reference. */
+	readonly identityAgent?: string;
 	/** Password string (when {@link authMethod} is Password). */
 	readonly password?: string;
 	/** Display name for this connection. */
@@ -155,6 +157,7 @@ export interface ISSHResolvedConfig {
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
+	readonly identityAgent: string | undefined;
 	readonly forwardAgent: boolean;
 }
 

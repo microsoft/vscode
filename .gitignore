@@ -24,6 +24,7 @@ vscode.db
 product.overrides.json
 *.snap.actual
 *.tsbuildinfo
+.eslintcache
 .vscode-test
 .chat-simulation-data
 vscode-telemetry-docs/

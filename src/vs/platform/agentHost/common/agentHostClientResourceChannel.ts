@@ -8,12 +8,12 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IFileService } from '../../files/common/files.js';
-import { AhpJsonlLogger, getAhpLogByteLength } from './ahpJsonlLogger.js';
+import { AhpJsonlLogger } from './ahpJsonlLogger.js';
 import { IRemoteFilesystemConnection } from './agentHostFileSystemProvider.js';
 import {
-	ContentEncoding, type DirectoryEntry, type ResourceDeleteParams, type ResourceDeleteResult,
-	type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult,
-	type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult,
+	ContentEncoding, ResourceType, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult,
+	type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult,
+	type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult,
 } from './state/protocol/commands.js';
 
 /**
@@ -65,7 +65,7 @@ export class AgentHostClientResourceChannel implements IServerChannel {
 	}
 
 	private _logReverseFrame(frame: object, dir: 'c2s' | 's2c'): void {
-		this._ahpLogger?.log(frame, dir, getAhpLogByteLength(safeStringify(frame)));
+		this._ahpLogger?.log(frame, dir);
 	}
 
 	private async _call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {
@@ -92,8 +92,8 @@ export class AgentHostClientResourceChannel implements IServerChannel {
 				return result as T;
 			}
 			case 'resourceWrite': {
-				const params = a as unknown as ResourceWriteParams & { createOnly?: boolean };
-				const writeUri = URI.parse(params.uri as unknown as string);
+				const params = a as unknown as ResourceWriteParams;
+				const writeUri = URI.parse(params.uri);
 				const buf = params.encoding === ContentEncoding.Base64
 					? decodeBase64(params.data)
 					: VSBuffer.fromString(params.data);
@@ -107,14 +107,53 @@ export class AgentHostClientResourceChannel implements IServerChannel {
 			}
 			case 'resourceDelete': {
 				const params = a as unknown as ResourceDeleteParams;
-				await this._fileService.del(URI.parse(params.uri as unknown as string), { recursive: !!params.recursive });
+				await this._fileService.del(URI.parse(params.uri), { recursive: !!params.recursive });
 				const result: ResourceDeleteResult = {};
 				return result as T;
 			}
 			case 'resourceMove': {
 				const params = a as unknown as ResourceMoveParams;
-				await this._fileService.move(URI.parse(params.source as unknown as string), URI.parse(params.destination as unknown as string), !params.failIfExists);
+				await this._fileService.move(URI.parse(params.source), URI.parse(params.destination), !params.failIfExists);
 				const result: ResourceMoveResult = {};
+				return result as T;
+			}
+			case 'resourceCopy': {
+				const params = a as unknown as ResourceCopyParams;
+				await this._fileService.copy(URI.parse(params.source), URI.parse(params.destination), !params.failIfExists);
+				const result: ResourceCopyResult = {};
+				return result as T;
+			}
+			case 'resourceResolve': {
+				const params = a as unknown as ResourceResolveParams;
+				const uri = URI.parse(params.uri);
+				const stat = await this._fileService.stat(uri);
+				let type: ResourceType;
+				if (stat.isSymbolicLink && params.followSymlinks === false) {
+					type = ResourceType.Symlink;
+				} else if (stat.isDirectory) {
+					type = ResourceType.Directory;
+				} else {
+					type = ResourceType.File;
+				}
+				const result: ResourceResolveResult = {
+					uri: uri.toString(),
+					type,
+					...(stat.size !== undefined ? { size: stat.size } : {}),
+					...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+					...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+					...(stat.etag ? { etag: stat.etag } : {}),
+				};
+				return result as T;
+			}
+			case 'resourceMkdir': {
+				const params = a as unknown as ResourceMkdirParams;
+				const uri = URI.parse(params.uri);
+				const existing = await this._fileService.stat(uri).catch(() => undefined);
+				if (existing && !existing.isDirectory) {
+					throw new Error(`Path exists and is not a directory: ${uri.toString()}`);
+				}
+				await this._fileService.createFolder(uri);
+				const result: ResourceMkdirResult = {};
 				return result as T;
 			}
 		}
@@ -133,15 +172,10 @@ export function createAgentHostClientResourceConnection(channel: IChannel): IRem
 		resourceList: (uri) => channel.call('resourceList', { uri: uri.toString() }) as Promise<ResourceListResult>,
 		resourceRead: (uri) => channel.call('resourceRead', { uri: uri.toString() }) as Promise<ResourceReadResult>,
 		resourceWrite: (params) => channel.call('resourceWrite', { ...params, uri: params.uri.toString() }) as Promise<ResourceWriteResult>,
+		resourceCopy: (params) => channel.call('resourceCopy', { ...params, source: params.source.toString(), destination: params.destination.toString() }) as Promise<ResourceCopyResult>,
 		resourceDelete: (params) => channel.call('resourceDelete', { ...params, uri: params.uri.toString() }) as Promise<ResourceDeleteResult>,
 		resourceMove: (params) => channel.call('resourceMove', { ...params, source: params.source.toString(), destination: params.destination.toString() }) as Promise<ResourceMoveResult>,
+		resourceResolve: (params) => channel.call('resourceResolve', { ...params, uri: params.uri.toString() }) as Promise<ResourceResolveResult>,
+		resourceMkdir: (params) => channel.call('resourceMkdir', { ...params, uri: params.uri.toString() }) as Promise<ResourceMkdirResult>,
 	};
-}
-
-function safeStringify(value: unknown): string {
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return '';
-	}
 }

@@ -7,7 +7,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { ILanguageModelsService } from '../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { createDefaultModelArrays, DefaultModelContribution } from './defaultModelContribution.js';
 
 // The empty value for these settings means "use the built-in utility-family
@@ -40,6 +40,7 @@ export class UtilityModelContribution extends DefaultModelContribution {
 			configKey: ChatConfiguration.UtilityModel,
 			configSectionId: 'chatSidebar',
 			logPrefix: '[UtilityModel]',
+			filter: metadata => metadata.vendor !== COPILOT_VENDOR_ID,
 			storageFormat: 'vendorAndId',
 			defaultEntryLabel,
 			defaultEntryDescription,
@@ -68,6 +69,7 @@ export class UtilitySmallModelContribution extends DefaultModelContribution {
 			configKey: ChatConfiguration.UtilitySmallModel,
 			configSectionId: 'chatSidebar',
 			logPrefix: '[UtilitySmallModel]',
+			filter: metadata => metadata.vendor !== COPILOT_VENDOR_ID,
 			storageFormat: 'vendorAndId',
 			defaultEntryLabel,
 			defaultEntryDescription,

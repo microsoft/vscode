@@ -33,7 +33,7 @@ import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
-import { UriTemplate } from './uriTemplate.js';
+import { UriTemplate } from '../../../../base/common/uriTemplate.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -545,6 +545,26 @@ export interface McpServerTransportHTTPAuthentication {
 
 export interface McpServerTransportHTTPOAuth {
 	readonly clientId?: string;
+	/**
+	 * (Preview) When true, the MCP server uses enterprise-managed authentication via the configured
+	 * SSO issuer (see `mcp.enterpriseManagedAuth.idp`). Tokens are obtained through OAuth Identity
+	 * Assertion Authorization Grant (ID-JAG) so that, after a one-time sign-in, subsequent enterprise-managed
+	 * servers connect silently.
+	 */
+	readonly enterpriseManaged?: boolean;
+}
+
+/**
+ * Returns the secret-storage key under which an MCP server OAuth client secret is stored.
+ * Scoped by the MCP server URL AND the OAuth client_id so that two servers sharing the same
+ * client_id string (e.g. against different authorization servers) cannot clobber each other's
+ * secret, and so the key is stable across mcp.json configurations that happen to share a label
+ * (e.g. user mcp.json vs. workspace mcp.json). Set by the "Set Client Secret" code lens in
+ * mcp.json and read at authentication time so that client secrets are never stored in
+ * plain-text config files.
+ */
+export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: string): string {
+	return `mcp.oauth.clientSecret:${mcpServerUrl}:${clientId}`;
 }
 
 /**

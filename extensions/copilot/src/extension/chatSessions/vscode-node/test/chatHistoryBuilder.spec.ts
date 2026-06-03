@@ -698,6 +698,30 @@ describe('buildChatHistory', () => {
 			expect(systemParts).toHaveLength(1);
 			expect(systemParts[0]).toMatchObject({ type: 'markdown', content: '\n\n---\n\n*Conversation compacted*' });
 		});
+
+		it('trims surrounding whitespace from system message content so emphasis and codespans render', () => {
+			const systemMessage: StoredMessage = {
+				uuid: 'sys-1',
+				sessionId: 'test-session',
+				timestamp: new Date(),
+				parentUuid: null,
+				type: 'system',
+				message: { role: 'system' as const, content: ' `someCommand` was run\n' },
+			};
+
+			const result = buildChatHistory(session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi there' }]),
+				systemMessage,
+			]));
+
+			const snapshot = mapHistoryForSnapshot(result);
+			const responseParts = getResponseParts(snapshot, 1);
+			expect(responseParts).toHaveLength(2);
+			// Content is trimmed so the leading/trailing whitespace does not break
+			// the inline emphasis delimiters (which would otherwise render literally).
+			expect(responseParts[1]).toMatchObject({ type: 'markdown', content: '\n\n---\n\n*`someCommand` was run*' });
+		});
 	});
 
 	// #endregion

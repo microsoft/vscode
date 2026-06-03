@@ -24,7 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationService } from '../../browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
-import { getWorkspaceIdentifier } from '../../../../../workbench/services/workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 

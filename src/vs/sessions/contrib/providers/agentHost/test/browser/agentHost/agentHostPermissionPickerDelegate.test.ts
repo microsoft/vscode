@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -39,7 +39,7 @@ function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigRes
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id: string = PROVIDER_ID;
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
@@ -49,6 +49,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
+	}
+	isSessionConfigResolving(_sessionId: string) {
+		return constObservable(false);
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);

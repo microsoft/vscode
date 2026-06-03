@@ -7,11 +7,9 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { AutoUpdateConfigurationKey } from '../../../../extensions/common/extensions.js';
+import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { PluginAutoUpdate } from '../../../browser/pluginAutoUpdate.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -26,7 +24,7 @@ suite('PluginAutoUpdate', () => {
 		clearUpdatesAvailableCalls: number;
 	}
 
-	function createContribution(autoUpdate: unknown, stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
+	function createContribution(autoUpdate: AutoUpdateConfigurationValue, stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		const state: MockState = {
@@ -52,9 +50,9 @@ suite('PluginAutoUpdate', () => {
 			},
 		} as Partial<IPluginInstallService> as IPluginInstallService);
 
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(AutoUpdateConfigurationKey, autoUpdate);
-		instantiationService.stub(IConfigurationService, configService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => autoUpdate,
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -67,7 +65,7 @@ suite('PluginAutoUpdate', () => {
 		return new Promise(resolve => queueMicrotask(resolve));
 	}
 
-	test('does not trigger update on construction when flag is false', async () => {
+	test('does not trigger update on construction', async () => {
 		const { state } = createContribution(true);
 		await flushMicrotasks();
 		assert.deepStrictEqual(state.updateAllCalls, []);
@@ -94,7 +92,7 @@ suite('PluginAutoUpdate', () => {
 	test('does not trigger update for non-true auto-update values like onlyEnabledExtensions', async () => {
 		// Plugins have no per-item opt-in equivalent to extensions, so only
 		// `true` (update everything) opts plugins into auto-update.
-		for (const value of ['onlyEnabledExtensions', 'onlySelectedExtensions']) {
+		for (const value of ['onlyEnabledExtensions', 'onlySelectedExtensions'] as const) {
 			const { state } = createContribution(value);
 
 			state.hasUpdatesAvailable.set(true, undefined);

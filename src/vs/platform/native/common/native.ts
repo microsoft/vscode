@@ -129,7 +129,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: { folderUri?: UriComponents }): Promise<void>;
+	openAgentsWindow(options?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents; preferredSessionType?: { providerId?: string; sessionTypeId: string } }): Promise<void>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
@@ -181,6 +181,8 @@ export interface ICommonNativeHostService {
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
+	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;
@@ -195,6 +197,9 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+
+	// GitHub mobile upload API (runs in main process to avoid CORS)
+	uploadFileViaMobileApi(token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;

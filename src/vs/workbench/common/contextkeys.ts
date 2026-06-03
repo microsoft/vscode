@@ -104,6 +104,7 @@ export const EditorPartModalSidebarVisibleContext = new RawContextKey<boolean>('
 
 // Editor Layout Context Keys
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
+export const EditorAreaFocusContext = new RawContextKey<boolean>('editorAreaFocus', false, localize('editorAreaFocus', "Whether the editor area (any editor part) has keyboard focus"));
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false, localize('inZenMode', "Whether Zen mode is enabled"));
 export const IsMainEditorCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isMainEditorCenteredLayout', "Whether centered layout is enabled for the main editor"));
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));

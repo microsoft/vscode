@@ -26,6 +26,7 @@ export const enum McpCommandIds {
 	RestartServer = 'workbench.mcp.restartServer',
 	ServerOptions = 'workbench.mcp.serverOptions',
 	ServerOptionsInConfirmation = 'workbench.mcp.serverOptionsInConfirmation',
+	SetOAuthClientSecret = 'workbench.mcp.setOAuthClientSecret',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowInstalled = 'workbench.mcp.showInstalledServers',
 	ShowOutput = 'workbench.mcp.showOutput',

@@ -240,7 +240,9 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			this._logService.debug(`[getAllSessions] Got ${Array.isArray(result) ? result.length : 'non-array'} sessions for nwo=${nwo}`);
 			return result;
 		} catch (e) {
-			if (e instanceof Error) {
+			if (e instanceof PermissiveAuthRequiredError) {
+				this._logService.trace(`[getAllSessions] No permissive GitHub session (nwo=${nwo})`);
+			} else if (e instanceof Error) {
 				this._logService.error(e, 'Error in getAllSessions');
 				this._logService.debug(`[getAllSessions] Error for nwo=${nwo}: ${e.message}`);
 			} else {
@@ -292,7 +294,11 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			}
 			throw new Error('Invalid response format');
 		} catch (e) {
-			this._logService.error(e);
+			if (e instanceof PermissiveAuthRequiredError) {
+				this._logService.trace('[getCustomAgents] No permissive GitHub session');
+			} else {
+				this._logService.error(e);
+			}
 			return [];
 		}
 	}
@@ -463,7 +469,11 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			}
 			return [];
 		} catch (e) {
-			this._logService.error(e);
+			if (e instanceof PermissiveAuthRequiredError) {
+				this._logService.trace('[getCopilotAgentModels] No permissive GitHub session');
+			} else {
+				this._logService.error(e);
+			}
 			return [];
 		}
 	}

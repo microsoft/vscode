@@ -68,39 +68,42 @@ export class UrlChunkEmbeddingsIndex extends Disposable {
 			throw new Error('No embedding types available');
 		}
 
+		// Acquire auth up front (this may prompt sign-in) so the parallel query embedding doesn't race against it
+		// and return empty results from the "no GitHub session" guard while file embeddings concurrently succeed.
+		this._logService.trace(`urlChunkEmbeddingsIndex: Getting auth token `);
+		const authToken = await raceCancellationError(this.tryGetAuthToken(), token);
+		if (!authToken) {
+			this._logService.error('urlChunkEmbeddingsIndex: Unable to get auth token');
+			throw new Error('Unable to get auth token');
+		}
+
 		const [queryEmbedding, fileChunksAndEmbeddings] = await raceCancellationError(Promise.all([
 			this.computeEmbeddings(embeddingType, query, 'query', token),
-			this.getEmbeddingsForFiles(embeddingType, files.map(file => new UrlContent(file.uri, file.content)), EmbeddingsComputeQos.Batch, token)
+			this.getEmbeddingsForFiles(authToken, embeddingType, files.map(file => new UrlContent(file.uri, file.content)), EmbeddingsComputeQos.Batch, token)
 		]), token);
+
+		if (!queryEmbedding) {
+			return files.map(() => []);
+		}
 
 		return this.computeChunkScores(fileChunksAndEmbeddings, queryEmbedding);
 	}
 
-	private async computeEmbeddings(embeddingType: EmbeddingType, str: string, inputType: EmbeddingInputType, token: CancellationToken): Promise<Embedding> {
+	private async computeEmbeddings(embeddingType: EmbeddingType, str: string, inputType: EmbeddingInputType, token: CancellationToken): Promise<Embedding | undefined> {
 		const embeddings = await this._embeddingsComputer.computeEmbeddings(embeddingType, [str], { inputType }, new TelemetryCorrelationId('UrlChunkEmbeddingsIndex::computeEmbeddings'), token);
 		return embeddings.values[0];
 	}
 
-	private async getEmbeddingsForFiles(embeddingType: EmbeddingType, files: readonly UrlContent[], qos: EmbeddingsComputeQos, token: CancellationToken): Promise<(readonly FileChunkWithEmbedding[])[]> {
+	private async getEmbeddingsForFiles(authToken: string, embeddingType: EmbeddingType, files: readonly UrlContent[], qos: EmbeddingsComputeQos, token: CancellationToken): Promise<(readonly FileChunkWithEmbedding[])[]> {
 		if (!files.length) {
 			return [];
 		}
 
 		const batchInfo = new ComputeBatchInfo();
 
-		this._logService.trace(`urlChunkEmbeddingsIndex: Getting auth token `);
-		const authToken = await this.tryGetAuthToken();
-		if (!authToken) {
-			this._logService.error('urlChunkEmbeddingsIndex: Unable to get auth token');
-			throw new Error('Unable to get auth token');
-		}
-
 		const result = await Promise.all(files.map(async file => {
 			const result = await this.getChunksAndEmbeddings(authToken, embeddingType, file, batchInfo, qos, token);
-			if (!result) {
-				return [];
-			}
-			return result;
+			return result ?? [];
 		}));
 		return result;
 	}

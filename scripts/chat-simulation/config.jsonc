@@ -1,7 +1,7 @@
 {
 	"perfRegression": {
 		// VS Code version, "insiders", or a commit hash (7-40 hex chars)
-		"baselineBuild": "1.116.0",
+		"baselineBuild": "1.122.0",
 
 		// Number of benchmark iterations per scenario
 		"runsPerScenario": 5,

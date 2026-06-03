@@ -59,14 +59,14 @@ const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	provider: 'claude',
 	scheme: 'claude',
 	shellToolName: 'Bash',
-	subagentToolName: 'Task',
+	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
 	enabled: REAL_SDK_ENABLED && !!CLAUDE_SDK_PATH,
 	claudeSdkPath: CLAUDE_SDK_PATH,
-	// Claude has not landed worktree isolation or subagents yet (deferred to
-	// Phase 12). The shared suite skips those tests when the flags are false.
+	// Claude has not landed worktree isolation yet (deferred to Phase 12).
+	// The shared suite skips that test when the flag is false.
 	supportsWorktreeIsolation: false,
-	supportsSubagents: false,
+	supportsSubagents: true,
 	// Plan mode is wired (`ExitPlanMode` interactive tool exists) but the
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.

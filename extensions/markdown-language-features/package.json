@@ -901,7 +901,7 @@
     "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "^14.1.2",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",

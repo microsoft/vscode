@@ -415,6 +415,84 @@ suite('TelemetryService', () => {
 		}
 	}));
 
+	test('Unexpected Error Telemetry redacts only offending frames and preserves the rest of the callstack', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			// A frame whose function name matches the broad `Generic Secret` heuristic
+			// (`getStorageKey` contains `key(`) previously caused the entire callstack
+			// to be redacted. See https://github.com/microsoft/vscode/issues/301200.
+			const stack = [
+				'Error: Something failed',
+				'    at StorageService.getStorageKey (out/vs/platform/storage/storage.js:1:200)',
+				'    at Foo.run (out/vs/workbench/foo.js:3:40)',
+				'    at Bar.baz (out/vs/workbench/bar.js:5:60)',
+			];
+
+			const error: any = new Error('Something failed');
+			error.stack = stack.join('\n');
+			Errors.onUnexpectedError(error);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs: string = testAppender.events[0].data.callstack;
+			// The whole stack must not collapse into a single redaction marker.
+			assert.notStrictEqual(cs, '<REDACTED: Generic Secret>', 'Entire callstack should not be redacted');
+			assert.strictEqual(cs.split('\n').length, stack.length, 'All frames should be preserved');
+			// Only the offending frame is redacted, the others remain intact.
+			assert.notStrictEqual(cs.indexOf('Foo.run'), -1, 'Non-offending frames should be preserved');
+			assert.notStrictEqual(cs.indexOf('Bar.baz'), -1, 'Non-offending frames should be preserved');
+			assert.strictEqual(cs.indexOf('getStorageKey'), -1, 'Offending frame should be redacted');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Unexpected Error Telemetry still redacts a frame whose trailing token relies on the newline delimiter', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			// `getApiKey` ends the line, so the `Generic Secret` heuristic only
+			// matches because of the following newline. Per-line redaction must
+			// re-append that delimiter so this frame is still redacted, matching
+			// the previous whole-string behavior.
+			const stack = [
+				'Error: boom',
+				'    at Service.getApiKey',
+				'    at Foo.run (out/vs/workbench/foo.js:3:40)',
+			];
+
+			const error: any = new Error('boom');
+			error.stack = stack.join('\n');
+			Errors.onUnexpectedError(error);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs: string = testAppender.events[0].data.callstack;
+			assert.strictEqual(cs.indexOf('getApiKey'), -1, 'Trailing-token frame should still be redacted');
+			assert.notStrictEqual(cs.indexOf('Foo.run'), -1, 'Other frames should be preserved');
+			assert.strictEqual(cs.split('\n').length, stack.length, 'All frames should be preserved');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
 	test('Uncaught Error Telemetry removes PII', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
 		mainWindow.onerror = errorStub;

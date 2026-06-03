@@ -18,6 +18,7 @@ import { createEditConfirmation, formatDiffAsUnified } from '../../../tools/node
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { getAffectedUrisForEditTool, getCdPresentationOverrides, ToolCall } from '../common/copilotCLITools';
+import type { Session } from '../common/utils';
 import { getCopilotCLISessionStateDir } from './cliHelpers';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 
@@ -43,7 +44,7 @@ type CoreConfirmationToolParams = {
  * The result of requesting permissions — the full union accepted by `Session.respondToPermission`.
  * Extracted from the SDK's second parameter type to stay in sync automatically.
  */
-export type PermissionRequestResult = Parameters<import('@github/copilot/sdk').Session['respondToPermission']>[1];
+export type PermissionRequestResult = Parameters<Session['respondToPermission']>[1];
 
 /**
  * Handles `read` permission requests.

@@ -11,10 +11,10 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, formatTokenCount, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
@@ -140,6 +140,17 @@ function callBuild(
 		undefined,
 		opts.isUBB,
 	);
+}
+
+function createControlManifest(): IModelsControlManifest {
+	return {
+		free: {
+			'free-model': { label: 'Free Model', featured: true, exists: true },
+		},
+		paid: {
+			'paid-model': { label: 'Paid Model', featured: true, exists: true },
+		},
+	};
 }
 
 suite('buildModelPickerItems', () => {
@@ -301,6 +312,11 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].label, 'Auto');
 		// GPT-4o should be in promoted due to featured
 		assert.strictEqual(actions[1].label, 'GPT-4o');
+	});
+
+	test('edu entitlement uses free featured control manifest', () => {
+		const manifest = createControlManifest();
+		assert.strictEqual(getControlModelsForEntitlement(manifest, ChatEntitlement.EDU), manifest.free);
 	});
 
 	test('featured model not in models list shows as unavailable for free users (upgrade)', () => {
@@ -1065,8 +1081,12 @@ suite('formatTokenCount', () => {
 	test('returns M for counts above 900K', () => {
 		assert.strictEqual(formatTokenCount(1_000_000), '1M');
 		assert.strictEqual(formatTokenCount(935_997), '1M');
-		assert.strictEqual(formatTokenCount(1_500_000), '2M');
+		assert.strictEqual(formatTokenCount(1_050_000), '1M');
+		assert.strictEqual(formatTokenCount(1_100_000), '1.1M');
+		assert.strictEqual(formatTokenCount(1_500_000), '1.5M');
+		assert.strictEqual(formatTokenCount(1_990_000), '1.9M');
 		assert.strictEqual(formatTokenCount(2_000_000), '2M');
+		assert.strictEqual(formatTokenCount(2_500_000), '2.5M');
 	});
 
 	test('returns K for counts between 1000 and 900K', () => {

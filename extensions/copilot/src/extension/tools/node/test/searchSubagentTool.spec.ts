@@ -5,12 +5,40 @@
 
 import type * as vscode from 'vscode';
 import { expect, suite, test } from 'vitest';
+import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { toolCategories, ToolCategory, ToolName } from '../../common/toolNames';
 import { ToolRegistry } from '../../common/toolsRegistry';
 
 // Ensure side-effect registration
-import '../searchSubagentTool';
+import { CONTEXT_OVERFLOW_FALLBACK, mapLoopResponseToText } from '../searchSubagentTool';
+
+/**
+ * Returns an invokeFunction stub that dequeues outcomes in call order.
+ * Each outcome is either a value to resolve with, or a thunk that throws.
+ */
+function sequencedInvokeFunction(...outcomes: Array<unknown | (() => never)>) {
+	let i = 0;
+	return async (_fn: unknown) => {
+		const outcome = outcomes[i++];
+		if (typeof outcome === 'function') {
+			return (outcome as () => unknown)();
+		}
+		return outcome;
+	};
+}
+
+/** Minimal vscode.TextDocument-shaped object that satisfies TextDocumentSnapshot.create. */
+function makeFakeDocument(uri: URI, text: string) {
+	return {
+		uri,
+		getText: () => text,
+		languageId: 'typescript',
+		eol: 1,
+		version: 0,
+	} as unknown as vscode.TextDocument;
+}
 
 /** Minimal stub for LanguageModelToolInformation */
 function makeToolInfo(overrides: Partial<vscode.LanguageModelToolInformation> = {}): vscode.LanguageModelToolInformation {
@@ -25,7 +53,14 @@ function makeToolInfo(overrides: Partial<vscode.LanguageModelToolInformation> = 
 }
 
 /** Returns an instance of the (private) SearchSubagentTool via the registry */
-function makeToolInstance(thoroughnessEnabled: boolean, toolCallLimit: number = 4) {
+function makeToolInstance(
+	thoroughnessEnabled: boolean,
+	toolCallLimit: number = 4,
+	overrides: {
+		invokeFunction?: (fn: unknown) => Promise<unknown>;
+		openTextDocument?: (uri: URI) => Promise<vscode.TextDocument>;
+	} = {},
+) {
 	const toolCtor = ToolRegistry.getTools().find(t => t.toolName === ToolName.SearchSubagent)!;
 
 	const configService = {
@@ -49,12 +84,18 @@ function makeToolInstance(thoroughnessEnabled: boolean, toolCallLimit: number = 
 			// Return a minimal stub that exposes run()
 			return { run: async () => ({ response: { type: 'error', reason: 'stub' }, toolCallRounds: [], round: { response: '' } }) };
 		},
+		invokeFunction: overrides.invokeFunction ?? (async () => { throw new Error('invokeFunction not stubbed'); }),
+	};
+
+	const workspaceService = {
+		getWorkspaceFolders: () => [],
+		openTextDocument: overrides.openTextDocument ?? (async () => { throw new Error('openTextDocument not stubbed'); }),
 	};
 
 	const tool = new (toolCtor as any)(
 		instantiationService,
 		{ captureInvocation: async (_token: unknown, fn: () => unknown) => fn() }, // requestLogger
-		{ getWorkspaceFolders: () => [], openTextDocument: async () => { throw new Error('stub'); } }, // workspaceService
+		workspaceService,
 		configService,
 		experimentationService,
 	);
@@ -182,21 +223,116 @@ suite('SearchSubagentTool', () => {
 				'- /workspace/other.ts (lines 30-40): test2',
 			].join('\n');
 
-			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', notCancelled);
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
 
 			expect(result).toBe(response);
 		});
 
-		test('keeps a matching line verbatim when the captured path fails to open (no error suffix)', async () => {
-			const { tool } = makeToolInstance(false);
-			const response = [
-				'- /workspace/file.ts:10-20'
-			].join('\n');
+		test('drops the line when the path is outside the workspace', async () => {
+			const { tool } = makeToolInstance(false, 4, {
+				invokeFunction: sequencedInvokeFunction(
+					() => { throw new Error('outside workspace'); },
+					true,
+				),
+			});
 
-			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', notCancelled);
+			const response = '/external/secret.ts:5-10';
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
+
+			expect(result).toBe('');
+		});
+
+		test('keeps the original line when an inside-workspace path fails to open', async () => {
+			const { tool } = makeToolInstance(false, 4, {
+				invokeFunction: sequencedInvokeFunction(
+					undefined,
+					false,
+				),
+				openTextDocument: async () => { throw new Error('file not found'); },
+			});
+
+			const response = 'inside/file.ts:5-10';
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', undefined, notCancelled);
 
 			expect(result).toBe(response);
-			expect(result).not.toContain('unable to read file');
 		});
+
+		test('hydrates the line with code when an inside-workspace path opens', async () => {
+			const cwd = '/workspace';
+			const filePath = 'inside/file.ts';
+			const fileText = 'line1\nline2';
+			const uri = URI.joinPath(URI.file(cwd), filePath);
+
+			const { tool } = makeToolInstance(false, 4, {
+				invokeFunction: sequencedInvokeFunction(undefined),
+				openTextDocument: async () => makeFakeDocument(uri, fileText),
+			});
+
+			const result = await tool['parseFinalAnswerAndHydrate'](`${filePath}:1-2`, cwd, undefined, notCancelled);
+
+			expect(result).toBe(`File: \`${uri.fsPath}\`, lines 1-2:\n\`\`\`\n${fileText}\n\`\`\``);
+		});
+	});
+});
+
+suite('mapLoopResponseToText', () => {
+	function makeRound(response: string) {
+		return { id: 'r', response, toolInputRetry: 0, toolCalls: [] };
+	}
+
+	test('success returns the last tool-call round response', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Success },
+			toolCallRounds: [makeRound('first'), makeRound('last')],
+			round: makeRound('final-round'),
+		} as any);
+		expect(text).toBe('last');
+	});
+
+	test('success falls back to round.response when toolCallRounds is empty', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Success },
+			toolCallRounds: [],
+			round: makeRound('final-round'),
+		} as any);
+		expect(text).toBe('final-round');
+	});
+
+	test('success returns empty string when no responses are available', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Success },
+			toolCallRounds: [],
+			round: makeRound(''),
+		} as any);
+		expect(text).toBe('');
+	});
+
+	test('context-overflow BadRequest is converted to the benign final_answer fallback', () => {
+		const overflowReasons = [
+			'context_length_exceeded',
+			'Request too large for model',
+			'prompt is too long for this model',
+			'maximum context length is 200000 tokens',
+		];
+
+		for (const reason of overflowReasons) {
+			const text = mapLoopResponseToText({
+				response: { type: ChatFetchResponseType.BadRequest, reason },
+				toolCallRounds: [],
+				round: makeRound('ignored'),
+			} as any);
+			expect(text, `reason "${reason}" should map to fallback`).toBe(CONTEXT_OVERFLOW_FALLBACK);
+		}
+	});
+
+	test('non-overflow failures surface the response type and reason to the main agent', () => {
+		const text = mapLoopResponseToText({
+			response: { type: ChatFetchResponseType.Failed, reason: 'network down' },
+			toolCallRounds: [],
+			round: makeRound(''),
+		} as any);
+		expect(text).toContain(ChatFetchResponseType.Failed);
+		expect(text).toContain('network down');
+		expect(text).not.toBe(CONTEXT_OVERFLOW_FALLBACK);
 	});
 });
