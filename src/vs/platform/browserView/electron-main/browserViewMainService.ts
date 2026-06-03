@@ -287,6 +287,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).untrustCertificate(host, fingerprint);
 	}
 
+	async deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void> {
+		this._getBrowserView(id).session.history.delete(entryIds);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal();
 		browserSession.connectStorage(this.applicationStorageMainService);
@@ -321,12 +325,51 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	}
 
+	async updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void> {
+		this._perWindowTrustedRoots.set(windowId, roots);
+		this._ensureWindowCloseSubscription(windowId);
+		this._recomputeTrustedFileRoots();
+	}
+
+	private readonly _perWindowTrustedRoots = new Map<number, readonly string[]>();
+	private readonly _windowCloseSubscriptions = this._register(new DisposableMap<number>());
+	private _ensureWindowCloseSubscription(windowId: number): void {
+		if (this._windowCloseSubscriptions.has(windowId)) {
+			return;
+		}
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (!window) {
+			return;
+		}
+		const onWindowGone = Event.any(window.onDidClose, window.onDidDestroy);
+		this._windowCloseSubscriptions.set(windowId, Event.once(onWindowGone)(() => {
+			this._windowCloseSubscriptions.deleteAndDispose(windowId);
+			if (this._perWindowTrustedRoots.delete(windowId)) {
+				this._recomputeTrustedFileRoots();
+			}
+		}));
+	}
+	private _recomputeTrustedFileRoots(): void {
+		const roots = new Set<string>();
+		for (const contribution of this._perWindowTrustedRoots.values()) {
+			for (const root of contribution) {
+				roots.add(root);
+			}
+		}
+		BrowserSession.setTrustedFileRoots([...roots]);
+	}
+
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
 		this._keybindings = keybindings;
 	}
 
 	async updateConfiguration(config: IBrowserViewConfiguration): Promise<void> {
 		this._configuration = config;
+		if (typeof config.maxHistoryEntries === 'number') {
+			for (const [, view] of this.browserViews) {
+				view.session.history.setMaxEntries(config.maxHistoryEntries);
+			}
+		}
 	}
 
 	/**
@@ -338,6 +381,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		browserSession.connectStorage(this.applicationStorageMainService);
+		if (typeof this._configuration.maxHistoryEntries === 'number') {
+			browserSession.history.setMaxEntries(this._configuration.maxHistoryEntries);
+		}
 
 		const view = this.instantiationService.createInstance(
 			BrowserView,

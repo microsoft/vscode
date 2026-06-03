@@ -315,7 +315,7 @@ export class MobileTitlebarPart extends Disposable {
 		this.renderAccountState();
 
 		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
-		if (requestId !== this.accountRequestCounter) {
+		if (requestId !== this.accountRequestCounter || this._store.isDisposed) {
 			return;
 		}
 

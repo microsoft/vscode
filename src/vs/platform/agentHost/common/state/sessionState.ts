@@ -32,13 +32,13 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
-	type UserMessage,
+	type Message,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
 export {
 	ChangesetOperationScope, ChangesetStatus, CustomizationLoadStatus,
-	CustomizationType, MessageAttachmentKind,
+	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -76,7 +76,7 @@ export {
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
-	type UserMessage
+	type Message
 } from './protocol/state.js';
 
 export {
@@ -370,10 +370,10 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	};
 }
 
-export function createActiveTurn(id: string, userMessage: UserMessage): ActiveTurn {
+export function createActiveTurn(id: string, message: Message): ActiveTurn {
 	return {
 		id,
-		userMessage,
+		message,
 		responseParts: [],
 		usage: undefined,
 	};

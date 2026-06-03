@@ -9,7 +9,7 @@ import CommandHandler from './commandHandler';
 import ContentProvider from './contentProvider';
 import Decorator from './mergeDecorator';
 import * as interfaces from './interfaces';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 
 const ConfigurationSectionName = 'merge-conflict';
 

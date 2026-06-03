@@ -7,7 +7,7 @@ import { getCaseInsensitive } from '../../../base/common/objects.js';
 import { win32 } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../common/sandboxHelperService.js';
 
 type FindCommand = (command: string) => Promise<string | undefined>;
 
@@ -39,13 +39,14 @@ export class SandboxHelperService implements ISandboxHelperService {
 			return undefined;
 		}
 
-		const { getAvailableToolsPolicy, getUserProfilePolicy } = await import('@microsoft/mxc-sdk');
+		const { getAvailableToolsPolicy, getUserProfilePolicy, getTemporaryFilesPolicy } = await import('@microsoft/mxc-sdk');
 		const availableToolsPolicy = getAvailableToolsPolicy(process.env, { containerType: 'processcontainer' });
 		const userProfilePolicy = getUserProfilePolicy();
+		const temporaryFilesPolicy = getTemporaryFilesPolicy(process.env);
 		const psHome = await this._getPSHome();
 		return {
-			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...this._getTempReadPaths(), ...(psHome ? [psHome] : [])])],
-			readwritePaths: [...new Set([...availableToolsPolicy.readwritePaths, ...userProfilePolicy.readwritePaths])],
+			readonlyPaths: [...new Set([...availableToolsPolicy.readonlyPaths, ...userProfilePolicy.readonlyPaths, ...temporaryFilesPolicy.readonlyPaths, ...(psHome ? [psHome] : [])])],
+			readwritePaths: [...new Set([...availableToolsPolicy.readwritePaths, ...userProfilePolicy.readwritePaths, ...temporaryFilesPolicy.readwritePaths])],
 		};
 	}
 
@@ -81,6 +82,15 @@ export class SandboxHelperService implements ISandboxHelperService {
 		return env;
 	}
 
+	async buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig | undefined> {
+		if (!isWindows) {
+			return undefined;
+		}
+
+		const { buildSandboxPayload } = await import('@microsoft/mxc-sdk');
+		return buildSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
+	}
+
 	private async _getPSHome(): Promise<string | undefined> {
 		const psHome = getCaseInsensitive(process.env, 'PSHOME');
 		if (typeof psHome === 'string' && psHome) {
@@ -94,16 +104,5 @@ export class SandboxHelperService implements ISandboxHelperService {
 	private _getLocalAppData(): string | undefined {
 		const localAppData = getCaseInsensitive(process.env, 'LOCALAPPDATA');
 		return typeof localAppData === 'string' && localAppData ? localAppData : undefined;
-	}
-
-	private _getTempReadPaths(): string[] {
-		const paths: string[] = [];
-		for (const variable of ['TMP', 'TEMP']) {
-			const path = getCaseInsensitive(process.env, variable);
-			if (typeof path === 'string' && path) {
-				paths.push(path);
-			}
-		}
-		return paths;
 	}
 }

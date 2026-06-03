@@ -10,11 +10,13 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
+import { Schemas } from '../../../base/common/network.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
@@ -492,7 +494,16 @@ export class AgentService extends Disposable implements IAgentService {
 					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
-			const summary = this._buildInitialSummary(provider, session, config, created, sourceState?.summary.title ?? 'Forked Session');
+			// Prefix the forked session's title so consumers (sidebar, chat
+			// model) can distinguish it from the source without each surface
+			// reinventing the convention. Avoid double-prefixing when a user
+			// forks an already-forked session.
+			const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
+			const sourceTitle = sourceState?.summary.title;
+			const forkedTitle = sourceTitle
+				? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
+				: localize('agentHost.forkedSessionFallback', "Forked Session");
+			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
@@ -649,13 +660,13 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				const current = this._stateManager.getSessionState(sessionKey)?._meta;
-				// Skip the action if the computed git state hasn't changed; this is
+				const currentGitState = readSessionGitState(current);
+				// Skip the meta action if the computed git state hasn't changed; this is
 				// called after every turn, so deduping avoids needless action churn.
-				if (objectEquals(readSessionGitState(current), gitState)) {
-					return;
+				if (!objectEquals(currentGitState, gitState)) {
+					const next = withSessionGitState(current, gitState);
+					this._stateManager.setSessionMeta(sessionKey, next);
 				}
-				const next = withSessionGitState(current, gitState);
-				this._stateManager.setSessionMeta(sessionKey, next);
 				this._updateBranchChangesetDescription(sessionKey, gitState);
 			},
 			e => {
@@ -1124,7 +1135,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
-		return !!action.userMessage.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
+		return !!action.message.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
@@ -1162,7 +1173,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * chance to make use of it.
 	 */
 	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
-		const attachments = action.userMessage.attachments;
+		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
@@ -1171,7 +1182,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
 		return {
 			...action,
-			userMessage: { ...action.userMessage, attachments: rewritten },
+			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
@@ -1184,6 +1195,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (attachment.type === MessageAttachmentKind.Resource && this._isRewritableAttachment(attachment, attachmentsRootStr)) {
 				const originalUri = URI.parse(attachment.uri);
+				// If the attachment references a file that already exists on the agent
+				// host side, leave it untouched rather than snapshotting a client copy (#319314).
+				if (originalUri.scheme === Schemas.file && await this._fileExistsSafe(originalUri)) {
+					return attachment;
+				}
+
 				const bytes = await this._readClientResource(originalUri, clientId);
 				const basename = this._attachmentBasename(attachment.label, getMediaMime(originalUri.path));
 				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
@@ -1192,6 +1209,18 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
 		}
 		return attachment;
+	}
+
+	/**
+	 * Like {@link IFileService.exists} but never throws (e.g. when no provider
+	 * is registered for the URI scheme), returning `false` in that case.
+	 */
+	private async _fileExistsSafe(uri: URI): Promise<boolean> {
+		try {
+			return await this._fileService.exists(uri);
+		} catch {
+			return false;
+		}
 	}
 
 	/**

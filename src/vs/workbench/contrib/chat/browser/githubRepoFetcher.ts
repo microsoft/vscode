@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IRequestService, asJson, isClientError, isSuccess } from '../../../../platform/request/common/request.js';
+import { IRequestService, asJson, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 
 /**
  * GitHub `owner/repo` parsed from a clone URL. Only `https://github.com/...` URLs
@@ -151,26 +151,6 @@ function isRateLimited(headers: Record<string, string | string[] | undefined> | 
 	}
 	// Secondary rate limit: GitHub omits X-RateLimit-Remaining but sets Retry-After.
 	return readHeader(headers, 'retry-after') !== undefined;
-}
-
-function retryAfterFromHeaders(headers: Record<string, string | string[] | undefined> | undefined): number | undefined {
-	if (!headers) {
-		return undefined;
-	}
-	const value = readHeader(headers, 'retry-after');
-	if (!value) {
-		return undefined;
-	}
-	const parsed = parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function readHeader(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
-	const value = headers[name] ?? headers[name.toLowerCase()];
-	if (Array.isArray(value)) {
-		return value[0];
-	}
-	return value;
 }
 
 /**

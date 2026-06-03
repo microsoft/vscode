@@ -22,8 +22,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
-	/** Output channel ID for remote provider logs. */
-	outputChannelId?: string;
 	/**
 	 * Establish (or re-establish) the connection for this host on demand.
 	 * Tears down any existing connection first. Present on remote providers
@@ -121,6 +119,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
+	 * Returns the working directory for the session, if provided by the host.
+	 */
+	getWorkingDirectory(sessionId: string): string | undefined;
+
+	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so
 	 * providers that don't expose custom agents can omit it.
 	 * @param sessionId The ID of the session.
@@ -132,6 +135,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+
+/**
+ * Experimental setting id controlling whether the local agent host acts as the
+ * default sessions provider. When enabled (and `chat.agentHost.enabled` is
+ * true), the local agent host's session types are surfaced before those of
+ * other providers. Defaults to `false`.
+ */
+export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
+
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
 export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;

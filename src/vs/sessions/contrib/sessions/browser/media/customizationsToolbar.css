@@ -116,7 +116,7 @@
 	font-weight: 500;
 	justify-content: space-between;
 	gap: 0;
-	padding: 6px 20px 6px 10px;
+	padding: 6px 16px 6px 10px;
 	border-radius: 0;
 }
 
@@ -124,11 +124,12 @@
 	line up visually with the header chevron above. */
 .ai-customization-toolbar .customization-link-counts {
 	position: absolute;
-	right: 14px;
+	right: 10px;
 	top: 50%;
 	transform: translateY(-50%);
 	display: flex;
 	align-items: center;
+	text-align: right;
 	gap: 6px;
 }
 

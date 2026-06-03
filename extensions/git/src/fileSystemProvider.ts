@@ -49,13 +49,14 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private readonly model: Model, private readonly logger: LogOutputChannel) {
+		const cleanupHandle = setInterval(() => this.cleanup(), FIVE_MINUTES);
+
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
 			workspace.registerFileSystemProvider('git', this, { isReadonly: true, isCaseSensitive: true }),
+			new Disposable(() => clearInterval(cleanupHandle)),
 		);
-
-		setInterval(() => this.cleanup(), FIVE_MINUTES);
 	}
 
 	private onDidChangeRepository({ repository }: ModelChangeEvent): void {

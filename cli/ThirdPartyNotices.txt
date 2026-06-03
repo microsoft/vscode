@@ -9793,7 +9793,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tar 0.4.45 - MIT OR Apache-2.0
+tar 0.4.46 - MIT OR Apache-2.0
 https://github.com/composefs/tar-rs
 
 Copyright (c) The tar-rs Project Contributors

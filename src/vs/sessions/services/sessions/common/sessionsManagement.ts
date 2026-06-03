@@ -10,7 +10,22 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions } from './sessionsProvider.js';
+import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+
+/**
+ * Options for sending a request through the sessions management service.
+ *
+ * Extends the provider-level {@link ISessionsProviderSendRequestOptions} with
+ * management-only concerns that the provider is not aware of.
+ */
+export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions {
+	/**
+	 * Start the session without navigating into it: the new-session composer
+	 * stays put and the started session shows up in the sessions list. Only
+	 * honored by {@link ISessionsManagementService.sendNewChatRequest}.
+	 */
+	readonly background?: boolean;
+}
 
 /**
  * A (provider, session-type) pair returned by
@@ -50,6 +65,26 @@ export interface ISessionsChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
 	readonly changed: readonly ISession[];
+}
+
+/**
+ * Payload for {@link ISessionsManagementService.onDidSendRequest}.
+ */
+export interface ISendRequestSentEvent {
+	readonly session: ISession;
+	readonly chat: IChat;
+	readonly isNewSession: boolean;
+	readonly isNewChat: boolean;
+	readonly options: ISendRequestOptions;
+}
+
+/**
+ * Payload for {@link ISessionsManagementService.onDidToggleSessionStickiness}.
+ */
+export interface IToggleSessionStickinessEvent {
+	readonly session: ISession;
+	/** The session's stickiness state after the toggle. */
+	readonly sticky: boolean;
 }
 
 /**
@@ -120,6 +155,32 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidStartSession: Event<ISession>;
 
+	/**
+	 * Fires immediately before a chat request is sent from this window via
+	 * {@link sendNewChatRequest} or {@link sendRequest}. Listeners can use this
+	 * to prewarm caches whose result is consumed by {@link onDidSendRequest}.
+	 */
+	readonly onWillSendRequest: Event<ISession>;
+
+	/**
+	 * Fires after a chat request was successfully sent from this window via
+	 * {@link sendNewChatRequest} or {@link sendRequest}.
+	 */
+	readonly onDidSendRequest: Event<ISendRequestSentEvent>;
+
+	/** Fires after a session was successfully archived via {@link archiveSession}. */
+	readonly onDidArchiveSession: Event<ISession>;
+	/** Fires after a session was successfully unarchived via {@link unarchiveSession}. */
+	readonly onDidUnarchiveSession: Event<ISession>;
+	/** Fires after a session was successfully deleted via {@link deleteSession}. */
+	readonly onDidDeleteSession: Event<ISession>;
+	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
+	readonly onDidDeleteChat: Event<ISession>;
+	/** Fires after a chat was successfully renamed via {@link renameChat}. */
+	readonly onDidRenameChat: Event<ISession>;
+	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
+	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
+
 	// -- Active Session --
 
 	/**
@@ -166,7 +227,14 @@ export interface ISessionsManagementService {
 	 */
 	closeSession(session: ISession | undefined): void;
 
-	setActive(session: IActiveSession): void;
+	/**
+	 * Close all sessions currently shown in the grid. Removes every visible
+	 * session in a single pass and lands on the new-session view. No-op when no
+	 * session is currently visible.
+	 */
+	closeAllSessions(): void;
+
+	setActive(session: IActiveSession | undefined): void;
 
 	/**
 	 * Select an existing session as the active session.
@@ -212,8 +280,24 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Send a request, creating a new chat in the session.
+	 *
+	 * When {@link ISendRequestOptions.background} is set, the new-session view
+	 * is kept in place (the composer does not navigate into the started
+	 * session); the started session still appears in the sessions list.
 	 */
 	sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
+
+	/**
+	 * Create a new session for the given folder and send a chat request to it,
+	 * without navigating into the started session.
+	 *
+	 * The started session appears in the sessions list once the provider
+	 * commits it, while the user's current view is left untouched. Intended for
+	 * callers outside the new-session composer that want to kick off a session
+	 * programmatically. Rejects (after disposing the stranded draft) if the send
+	 * fails.
+	 */
+	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void>;
 
 	/**
 	 * Send a request for an existing chat within a session.

@@ -13,18 +13,18 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { SessionsTelemetryReporter } from './sessionsTelemetryReporter.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -51,6 +51,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
 	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
+	private readonly _onWillSendRequest = this._register(new Emitter<ISession>());
+	readonly onWillSendRequest: Event<ISession> = this._onWillSendRequest.event;
+	private readonly _onDidSendRequest = this._register(new Emitter<ISendRequestSentEvent>());
+	readonly onDidSendRequest: Event<ISendRequestSentEvent> = this._onDidSendRequest.event;
+
+	private readonly _onDidArchiveSession = this._register(new Emitter<ISession>());
+	readonly onDidArchiveSession: Event<ISession> = this._onDidArchiveSession.event;
+	private readonly _onDidUnarchiveSession = this._register(new Emitter<ISession>());
+	readonly onDidUnarchiveSession: Event<ISession> = this._onDidUnarchiveSession.event;
+	private readonly _onDidDeleteSession = this._register(new Emitter<ISession>());
+	readonly onDidDeleteSession: Event<ISession> = this._onDidDeleteSession.event;
+	private readonly _onDidDeleteChat = this._register(new Emitter<ISession>());
+	readonly onDidDeleteChat: Event<ISession> = this._onDidDeleteChat.event;
+	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
+	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
+
+	private readonly _onDidToggleSessionStickiness = this._register(new Emitter<IToggleSessionStickinessEvent>());
+	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent> = this._onDidToggleSessionStickiness.event;
+
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
@@ -75,7 +94,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	private readonly _navigation: SessionsNavigation;
-	private readonly _telemetryReporter: SessionsTelemetryReporter;
+
+	/**
+	 * Chat resources for which this service has just kicked off a
+	 * `provider.sendRequest` and will emit `_onDidSendRequest` manually after
+	 * the provider call resolves. Used to suppress the duplicate event that
+	 * would otherwise arrive via {@link IChatService.onDidSubmitRequest},
+	 * which fires synchronously inside the same provider call.
+	 */
+	private readonly _pendingSendChatResources = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -85,10 +112,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
-
-		this._telemetryReporter = this._register(this.instantiationService.createInstance(SessionsTelemetryReporter));
 
 		// Bind context key to active session state.
 		// isNewSession is false when there are any established sessions in the model.
@@ -121,6 +147,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+		this._sessionTypes = this._collectSessionTypes();
 
 		// Session navigation history
 		this._navigation = this._register(new SessionsNavigation(
@@ -135,6 +162,32 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._handleActiveSessionContextKeys(activeSession);
 			if (activeSession) {
 				reader.store.add(this._activeSessionListeners(activeSession));
+			}
+		}));
+
+		// Mirror follow-up chat requests (sent from within an existing chat
+		// widget, not through our own send paths) onto `_onDidSendRequest` so
+		// downstream listeners (e.g., telemetry) can observe every user
+		// request for a session, not just those initiated from the sessions
+		// UI. Sends originating from {@link sendRequest} and
+		// {@link sendNewChatRequest} are deduplicated via
+		// {@link _pendingSendChatResources}.
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message }) => {
+			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
+				return;
+			}
+			for (const session of this.getSessions()) {
+				const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatSessionResource));
+				if (chat) {
+					this._onDidSendRequest.fire({
+						session,
+						chat,
+						isNewSession: false,
+						isNewChat: false,
+						options: { query: message?.text ?? '' },
+					});
+					return;
+				}
 			}
 		}));
 	}
@@ -232,16 +285,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private onDidReplaceSession(from: ISession, to: ISession): void {
-		// Rewrite the id in the visibility model so the same grid slot is
-		// reused for the replaced session.
-		const wasActive = this._visibility.activeSession.get()?.sessionId === from.sessionId;
-		this._visibility.replaceId(from.sessionId, to.sessionId);
+		this._visibility.updateSession(from, to);
 
-		if (wasActive) {
-			this.setActiveSession(to, /* force */ true);
-		} else {
-			this._visibility.refresh();
-		}
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
@@ -256,7 +301,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidChangeSessions.fire(e);
 		const currentActive = this._visibility.activeSession.get();
 
-		// Clear stale pending session if the provider removed it
+		// Clear stale pending session if the provider removed it. The provider
+		// already disposed it, so just drop the pointer (do not dispose again).
 		if (e.removed.length && this._pendingNewSession) {
 			if (e.removed.some(r => r.sessionId === this._pendingNewSession!.sessionId)) {
 				this._pendingNewSession = undefined;
@@ -277,7 +323,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
 			const fallback = this._visibility.activeSession.get();
-			if (fallback) {
+			if (fallback && this.getSession(fallback.resource)) {
 				this.openSession(fallback.resource);
 			} else {
 				this.openNewSessionView();
@@ -305,7 +351,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
 		const result: IProviderSessionType[] = [];
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this._getOrderedProviders()) {
 			if (!provider.resolveWorkspace(folderUri)) {
 				continue;
 			}
@@ -329,7 +375,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this._getOrderedProviders()) {
 			for (const type of provider.sessionTypes) {
 				if (!seen.has(type.id)) {
 					seen.add(type.id);
@@ -338,6 +384,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return types;
+	}
+
+	/**
+	 * Returns the registered providers in the order their session types should
+	 * be surfaced, sorted by each provider's {@link ISessionsProvider.order}
+	 * (lower first). The sort is stable, so providers with equal order keep
+	 * their registration order.
+	 */
+	private _getOrderedProviders(): ISessionsProvider[] {
+		return [...this.sessionsProvidersService.getProviders()].sort((a, b) => a.order - b.order);
 	}
 
 	private _updateSessionTypes(): void {
@@ -414,14 +470,37 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 	}
 
-	unsetNewSession(): void {
+	/**
+	 * Delete the currently pending (composed-but-not-sent) new session.
+	 *
+	 * Providers track new sessions themselves and no longer dispose them
+	 * implicitly when a newer one is created, so abandoning a pending session
+	 * must explicitly dispose it through its own provider to release the
+	 * eagerly-acquired backend session.
+	 *
+	 * This is only for abandonment. When a pending session is graduating (being
+	 * sent) or was already removed by its provider, just clear
+	 * {@link _pendingNewSession} directly so the session is left intact.
+	 */
+	private _deletePendingNewSession(): void {
+		const pending = this._pendingNewSession;
 		this._pendingNewSession = undefined;
+		if (pending) {
+			this._getProvider(pending)?.deleteNewSession(pending.sessionId);
+		}
+	}
+
+	unsetNewSession(): void {
+		this._deletePendingNewSession();
 		this.setActiveSession(undefined);
 	}
 
-	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
-		this._startOpenSession();
-
+	/**
+	 * Resolve the provider and session type to use for a new session in the
+	 * given folder, applying the same selection rules as
+	 * {@link createNewSession}. Throws when no provider/type can be resolved.
+	 */
+	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 
@@ -458,27 +537,61 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new Error(`No session types available for provider '${provider.id}'`);
 			}
 		}
+		return { provider, sessionTypeId };
+	}
 
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
+		this._startOpenSession();
+
+		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
+
+		const previousPending = this._pendingNewSession;
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 		this._pendingNewSession = session;
 		this.setActiveSession(session);
+
+		// Providers no longer dispose the previous new session implicitly, so
+		// dispose the one this composer just replaced. Use its own provider
+		// because switching workspace can switch providers. Done after a
+		// successful create so a throw above leaves the previous one intact.
+		if (previousPending && previousPending.sessionId !== session.sessionId) {
+			this._getProvider(previousPending)?.deleteNewSession(previousPending.sessionId);
+		}
 		return session;
 	}
 
-	private _logRequestSent(session: ISession, chat: IChat, isNewSession: boolean, options: ISendRequestOptions): void {
-		const visibleSessionsCount = this._visibility.visibleSessions.get().filter(s => s !== undefined).length;
-		this._telemetryReporter.logRequestSent(session, chat, isNewSession, options, this.getSessions(), visibleSessionsCount);
-	}
-
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
+		// The session is graduating into the list (being sent),
+		// so the provider keeps owning it — just drop the pointer, do not delete.
 		this._pendingNewSession = undefined;
 		this._isNewChatSessionContext.set(false);
 
-		// Kick off the workspace file-count fetch now so it has time to resolve
-		// while the provider creates the chat and sends the request. The reporter
-		// will pick the in-flight result up under the updated session id when
-		// _logRequestSent runs below.
-		this._telemetryReporter.prewarmWorkspaceFileCount(session.workspace.get());
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+
+		if (options.background) {
+			// Restore the new-session view synchronously so the composer stays
+			// put, then run the send fire-and-forget so the composer can reset
+			// and reseed immediately while the request commits. If the commit
+			// fails, the graduating draft is stranded (no longer in
+			// `_pendingNewSession`), so dispose it through its provider to
+			// release the eager backend session. Safe no-op if the provider
+			// already graduated/removed it.
+			this.openNewSessionView();
+			this._sendNewChatRequestInBackground(provider, session, options).catch(e => {
+				provider.deleteNewSession(session.sessionId);
+				this.logService.error('[SessionsManagement] Failed to send background request:', e);
+			});
+			return;
+		}
+
+		// Foreground send: notify listeners that a send is starting. Listeners
+		// (e.g., telemetry) can use this to prewarm caches whose result is
+		// consumed when `onDidSendRequest` fires below. The background path
+		// fires this from within `_sendNewChatRequestInBackground`.
+		this._onWillSendRequest.fire(session);
 
 		const setActiveChatToLast = () => {
 			const activeSession = this._visibility.activeSession.get();
@@ -498,11 +611,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		});
 
 		try {
-			const provider = this._getProvider(session);
-			if (!provider) {
-				throw new Error(`Sessions provider '${session.providerId}' not found`);
-			}
-
 			// Ask the provider to create the new chat; open its widget before sending
 			const chat = await provider.createNewChat(session.sessionId, options.query);
 			// Swap in a transient session whose resource is the new chat
@@ -510,7 +618,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// be sent before the provider hands us the final session.
 			const tmpSession = this._visibility.updateResourceOfSession(session, chat.resource);
 
-			const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			const chatResourceKey = chat.resource.toString();
+			this._pendingSendChatResources.add(chatResourceKey);
+			let updatedSession: ISession;
+			try {
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			} finally {
+				this._pendingSendChatResources.delete(chatResourceKey);
+			}
 			if (updatedSession.sessionId !== session.sessionId) {
 				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 				this._visibility.updateSession(tmpSession, updatedSession);
@@ -518,18 +633,90 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			this._onDidStartSession.fire(updatedSession);
 
-			this._logRequestSent(updatedSession, session.mainChat.get(), true, options);
+			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
 			chatsListener.dispose();
 		}
 	}
 
-	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		this._pendingNewSession = undefined;
+	/**
+	 * Create a new session for the given folder and send a chat request to it,
+	 * without navigating into the started session. The started session appears
+	 * in the sessions list once the provider commits it, while the user's
+	 * current view is left untouched.
+	 *
+	 * Unlike {@link sendNewChatRequest} with `background`, this does not go
+	 * through the new-session composer: it creates a fresh session purely for
+	 * this request and never sets it as pending/active. Intended for callers
+	 * outside the composer that want to kick off a session programmatically.
+	 *
+	 * If the send fails, the stranded draft is disposed through its provider and
+	 * the error is rethrown so the caller can react.
+	 */
+	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void> {
+		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
+		const session = provider.createNewSession(folderUri, sessionTypeId);
 
-		// Kick off the workspace file-count fetch now so it has time to resolve
-		// while the provider sends the request.
-		this._telemetryReporter.prewarmWorkspaceFileCount(session.workspace.get());
+		try {
+			await this._sendNewChatRequestInBackground(provider, session, options);
+		} catch (e) {
+			// The send never committed, so the draft is stranded. Dispose it
+			// through its provider to release the eager backend session before
+			// rethrowing. Safe no-op if the provider already removed it.
+			provider.deleteNewSession(session.sessionId);
+			throw e;
+		}
+	}
+
+	/**
+	 * Commit a new-session request: fire {@link _onWillSendRequest}, create the
+	 * new chat via the provider, send the request, and—on success—fire
+	 * {@link _onDidStartSession} and {@link _onDidSendRequest}. The started
+	 * session is never swapped into the visible chat slot, so it simply appears
+	 * in the sessions list once the provider commits it.
+	 *
+	 * Owns the full will/did send lifecycle so callers do not fire the paired
+	 * events themselves. Errors are propagated to the caller; this method does
+	 * not clean up the stranded draft, so callers own any view handling and the
+	 * error handling (e.g. disposing the stranded draft via
+	 * {@link ISessionsProvider.deleteNewSession}).
+	 *
+	 * Providers are multi-new-session aware, so the graduating session and a
+	 * concurrently reseeded composer draft coexist without conflict.
+	 */
+	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<void> {
+		// Notify listeners (e.g., telemetry) that a send is starting so they can
+		// prewarm caches whose result is consumed when `onDidSendRequest` fires.
+		this._onWillSendRequest.fire(session);
+		const chat = await provider.createNewChat(session.sessionId, options.query);
+
+		// Suppress the `chatService.onDidSubmitRequest` mirror for this send so
+		// `_onDidSendRequest` is not fired twice for providers that dispatch
+		// through `chatService.sendRequest` (see the mirror in the constructor).
+		const chatResourceKey = chat.resource.toString();
+		this._pendingSendChatResources.add(chatResourceKey);
+		let updatedSession: ISession;
+		try {
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		} finally {
+			this._pendingSendChatResources.delete(chatResourceKey);
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._onDidStartSession.fire(updatedSession);
+		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
+	}
+
+	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		// Sending into an existing session abandons any pending composer, so
+		// dispose it to release its eager backend session.
+		this._deletePendingNewSession();
+
+		// Notify listeners that a send is starting. Listeners (e.g., telemetry)
+		// can use this to prewarm caches whose result is consumed when
+		// `onDidSendRequest` fires below.
+		this._onWillSendRequest.fire(session);
 
 		// Keep the sent chat as the active chat
 		this._visibility.setActiveChat(session, chat);
@@ -539,13 +726,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
-		const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		const chatResourceKey = chat.resource.toString();
+		this._pendingSendChatResources.add(chatResourceKey);
+		let updatedSession: ISession;
+		try {
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		} finally {
+			this._pendingSendChatResources.delete(chatResourceKey);
+		}
 		if (updatedSession.sessionId !== session.sessionId) {
 			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 			this._visibility.updateSession(session, updatedSession);
 		}
 
-		this._logRequestSent(updatedSession, chat, false, options);
+		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 
 	openNewSessionView(): void {
@@ -584,7 +778,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._visibility.setActiveChat(session, chat);
 	}
 
-	setActive(session: IActiveSession) {
+	setActive(session: IActiveSession | undefined) {
 		this.setActiveSession(session);
 	}
 
@@ -604,7 +798,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	toggleSessionStickiness(session: ISession): void {
-		this._visibility.toggleStickiness(session);
+		const sticky = this._visibility.toggleStickiness(session);
+		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
 	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
@@ -626,7 +821,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const wasActive = activeSessionId === sessionId;
 
 		if (sessionId === undefined || this._pendingNewSession?.sessionId === sessionId) {
-			this._pendingNewSession = undefined;
+			this._deletePendingNewSession();
 		}
 
 		this._visibility.removeMany([sessionId]);
@@ -641,6 +836,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (fallback === undefined) {
 			this.openNewSessionView();
 		}
+	}
+
+	closeAllSessions(): void {
+		const ids = this._visibility.visibleSessions.get()
+			.filter((s): s is IActiveSession => !!s)
+			.map(s => s.sessionId);
+		if (ids.length === 0) {
+			return;
+		}
+
+		this._pendingNewSession = undefined;
+
+		// Remove every visible session in a single pass; the visibility model
+		// clears the active session, which drives the grid back to the
+		// new-session view via the part's reconciliation.
+		this._visibility.removeMany(ids);
 	}
 
 	private _restoreInitialChat(session: ISession): IChat {
@@ -847,28 +1058,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
-		this._telemetryReporter.logSessionArchived(session);
 		await this._getProvider(session)?.archiveSession(session.sessionId);
+		this._onDidArchiveSession.fire(session);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
-		this._telemetryReporter.logSessionUnarchived(session);
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
+		this._onDidUnarchiveSession.fire(session);
 	}
 
 	async deleteSession(session: ISession): Promise<void> {
-		this._telemetryReporter.logSessionDeleted(session);
 		await this._getProvider(session)?.deleteSession(session.sessionId);
+		this._onDidDeleteSession.fire(session);
 	}
 
 	async deleteChat(session: ISession, chatUri: URI): Promise<void> {
-		this._telemetryReporter.logChatDeleted(session);
 		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri);
+		this._onDidDeleteChat.fire(session);
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
-		this._telemetryReporter.logChatRenamed(session);
 		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
+		this._onDidRenameChat.fire(session);
 	}
 }
 
