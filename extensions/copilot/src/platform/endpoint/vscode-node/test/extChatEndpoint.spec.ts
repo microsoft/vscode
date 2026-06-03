@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
-import type { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IOTelService } from '../../../otel/common/otelService';
 import { ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
@@ -73,7 +73,7 @@ describe('ExtensionContributedChatEndpoint', () => {
 
 		const sendRequestSpy = vi.fn(async () => ({
 			stream,
-		} as unknown as any);
+		} as unknown as any));
 
 		const mockLanguageModel = {
 			id: 'test',
@@ -105,9 +105,11 @@ describe('ExtensionContributedChatEndpoint', () => {
 			},
 		}, token);
 
-		const modelOptions = sendRequestSpy.mock.calls[0][1]!.modelOptions!;
-		expect(modelOptions.enableThinking).toBe(true);
-		expect(modelOptions.reasoningEffort).toBe('high');
+		const callArgs = sendRequestSpy.mock.calls[0] as unknown[];
+		const modelOptions = (callArgs[1] as vscode.LanguageModelChatRequestOptions).modelOptions;
+		expect(modelOptions).toBeDefined();
+		expect((modelOptions as Record<string, unknown>)['enableThinking']).toBe(true);
+		expect((modelOptions as Record<string, unknown>)['reasoningEffort']).toBe('high');
 	});
 });
 

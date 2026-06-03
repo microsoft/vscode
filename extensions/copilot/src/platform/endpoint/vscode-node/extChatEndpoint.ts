@@ -330,15 +330,15 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 }
 
 /** Pick defined properties from an object, returning a new object with only those keys whose values are not `undefined`. */
-function pickDefined<T extends object, K extends keyof T>(source: T | undefined, ...keys: K[]): Pick<T, K> {
-	const result = {} as Pick<T, K>;
+function pickDefined<T extends object, K extends keyof T>(source: T | undefined, ...keys: K[]): Partial<Pick<T, K>> {
+	const result = {} as Partial<Pick<T, K>>;
+	if (!source) return result;
 	for (const key of keys) {
-		if (source?.[key] !== undefined) {
+		if (source[key] !== undefined) {
 			result[key] = source[key];
 		}
 	}
 	return result;
-}
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
