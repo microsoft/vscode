@@ -118,7 +118,7 @@
 
 		> .codicon {
 			flex-shrink: 0;
-			font-size: var(--vscode-codiconFontSize-compact, 12px);
+			font-size: var(--vscode-codiconFontSize, 16px);
 			height: 16px;
 			display: flex;
 			align-items: center;

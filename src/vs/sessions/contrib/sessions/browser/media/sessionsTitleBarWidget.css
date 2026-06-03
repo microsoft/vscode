@@ -88,18 +88,7 @@
 	color: var(--vscode-icon-foreground);
 }
 
-/* Label (title) — shrinks first so folder/branch/diff stats stay visible. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
-	flex: 0 999 auto;
-	min-width: 0;
-	max-width: 400px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-weight: 500;
-}
-
-/* Repository/worktree metadata shrinks after the primary title. */
+/* Repository/worktree metadata. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
 	display: flex;
 	align-items: center;

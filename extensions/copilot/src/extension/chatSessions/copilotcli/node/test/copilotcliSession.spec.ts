@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session, SessionOptions } from '@github/copilot/sdk';
+import type { SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
+import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationToken, CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
@@ -25,13 +28,11 @@ import { ExternalEditTracker } from '../../../common/externalEditTracker';
 import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessionMetadataStore';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService, ToolCall } from '../../common/copilotCLITools';
+import { Session } from '../../common/utils';
 import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
-import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
-import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -149,8 +150,14 @@ class MockSdkSession {
 	set toolMetadata(value: unknown[] | undefined) { this._toolMetadata = value; }
 
 	setAuthInfo(info: any) { this.authInfo = info; }
+	updateOptions(options: { authInfo?: unknown }) {
+		if (options.authInfo !== undefined) {
+			this.authInfo = options.authInfo;
+		}
+	}
 	async getSelectedModel() { return this._selectedModel; }
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
+	getReasoningEffort(): string | undefined { return undefined; }
 	async getEvents() { return []; }
 	getPlanPath(): string | null { return null; }
 
