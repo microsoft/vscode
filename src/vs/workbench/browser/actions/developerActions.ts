@@ -797,6 +797,9 @@ class PolicyDiagnosticsAction extends Action2 {
 				enabledPlugins: policyData?.enabledPlugins,
 				extraKnownMarketplaces: policyData?.extraKnownMarketplaces,
 				strictKnownMarketplaces: policyData?.strictKnownMarketplaces,
+				otelEnabled: policyData?.otelEnabled,
+				otelOtlpEndpoint: policyData?.otelOtlpEndpoint,
+				otelCaptureContent: policyData?.otelCaptureContent,
 			};
 			content += '```json\n';
 			content += JSON.stringify(managedSettingsData, null, 2);
