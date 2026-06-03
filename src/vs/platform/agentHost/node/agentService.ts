@@ -660,13 +660,13 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				const current = this._stateManager.getSessionState(sessionKey)?._meta;
-				// Skip the action if the computed git state hasn't changed; this is
+				const currentGitState = readSessionGitState(current);
+				// Skip the meta action if the computed git state hasn't changed; this is
 				// called after every turn, so deduping avoids needless action churn.
-				if (objectEquals(readSessionGitState(current), gitState)) {
-					return;
+				if (!objectEquals(currentGitState, gitState)) {
+					const next = withSessionGitState(current, gitState);
+					this._stateManager.setSessionMeta(sessionKey, next);
 				}
-				const next = withSessionGitState(current, gitState);
-				this._stateManager.setSessionMeta(sessionKey, next);
 				this._updateBranchChangesetDescription(sessionKey, gitState);
 			},
 			e => {
