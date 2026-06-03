@@ -38,9 +38,9 @@ A subset of runtime dependencies is shared across all built-in extensions and sh
 When you change a dependency that is also listed in `extensions/package.json`:
 
 - Bump the version range in `extensions/package.json` (and run `npm install` in `extensions/`).
-- Update every consumer extension's `package.json` to a range that is satisfied by the new shared version.
+- Update every consumer extension's `package.json` to **the same range string** as `extensions/package.json`.
 - Run `npm install` in each affected extension to refresh its lockfile.
 
-The `extensions/postinstall.mjs` script validates this at install time: if any consumer extension declares a range that the shared copy does not satisfy, the install fails with a list of the offending entries. This catches the silent runtime failure that would otherwise happen (npm would install a private copy at the consumer's version, but esbuild marks the package as external and the runtime would resolve to the wrong major from the shared location).
+The `extensions/postinstall.mjs` script validates this at install time: if any consumer extension declares a range that doesn't match the shared range exactly, the install fails with a list of the offending entries. This catches the silent runtime failure that would otherwise happen (npm would install a private copy at the consumer's version, but esbuild marks the package as external and the runtime would resolve to the wrong major from the shared location).
 
 The list of packages externalized by the shared esbuild config in [extensions/esbuild-extension-common.mts](./esbuild-extension-common.mts) is generated automatically from `extensions/package.json`, so you don't need to touch the esbuild config when adding or removing a shared package.
