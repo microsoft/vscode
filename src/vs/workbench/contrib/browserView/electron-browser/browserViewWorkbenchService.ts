@@ -33,6 +33,7 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -69,7 +70,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			ContextKeyExpr.and(
 				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
 				ContextKeyExpr.or(
-					ContextKeyExpr.equals('activeSessionType', 'local'),
+					ContextKeyExpr.equals('activeSessionType', localChatSessionType),
 					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
 				)
 			),
