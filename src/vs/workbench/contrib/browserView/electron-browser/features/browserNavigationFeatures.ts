@@ -163,7 +163,7 @@ class BrowserNavigationBar extends Disposable {
 			id: 'browser.configureSearchEngine',
 			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 			tooltip: localize('browser.configureSearchEngine', "Configure Search Engine"),
-			run: () => this._preferencesService.openSettings({ query: `@id:workbench.browser.addressBarSearch.*` }),
+			run: () => { this._preferencesService.openSettings({ query: `@id:workbench.browser.addressBarSearch.*` }); },
 		};
 		const search: IBrowserUrlPrimaryAction = {
 			label: localize('browser.searchFor', "{0} - {1} Search", text, getBrowserSearchEngineLabel(engineId)),
