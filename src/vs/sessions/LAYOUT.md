@@ -100,9 +100,12 @@ The Sessions Part (`SessionsPart` in [browser/parts/sessionsPart.ts](src/vs/sess
 
 A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/sessionView.ts)) is a single leaf in the Sessions Part's internal grid. It hosts:
 
-- A **chat composite bar** at the top (tabs for the chats in the bound session — hidden when the session has no chat yet).
-- A **chat view** below the bar, swapped in/out based on session state.
-- A floating toolbar overlay.
+- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · branch · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). Visible once the bound session is created. It is also the drag handle for the session.
+- A **chat composite bar** below the header ([browser/parts/chatCompositeBar.ts](src/vs/sessions/browser/parts/chatCompositeBar.ts)) — the chat tab strip, shown only when the session has more than one chat. A single chat is already represented by the header title.
+- A **chat view** below the bars, swapped in/out based on session state.
+- A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.
+
+The header and the composite bar are deliberately separate widgets: the header represents the session identity/actions and is always present, while the tab strip is a per-chat navigation concern that only appears with multiple chats. They share visual tokens via `applySessionBarThemeColors` ([browser/parts/sessionBarStyles.ts](src/vs/sessions/browser/parts/sessionBarStyles.ts)) and stylesheet ([browser/parts/media/chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). `SessionView` sums each widget's reported height to lay out the chat view below them.
 
 The chat view inside a session view is one of three kinds (`ChatViewKind` in [browser/parts/chatView.ts](src/vs/sessions/browser/parts/chatView.ts)), selected per autorun based on the bound session:
 
