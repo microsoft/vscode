@@ -45,9 +45,12 @@ import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearch
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownCodexApprovalPolicySchema, isWellKnownCodexSandboxSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
+import { AgentHostCodexSandboxPicker } from './agentHostCodexSandboxPicker.js';
+import { AgentHostCodexApprovalPolicyPicker } from './agentHostCodexApprovalPolicyPicker.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -334,6 +337,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// `Menus.NewSessionConfig`) handles it. Non-conforming schemas
 			// still fall through to the generic per-property picker below.
 			if (property === SessionConfigKey.Mode && isWellKnownModeSchema(schema)) {
+				continue;
+			}
+			// Codex sandbox + approval-policy properties have dedicated
+			// left-lane pickers ({@link AgentHostCodexSandboxPicker},
+			// {@link AgentHostCodexApprovalPolicyPicker}) registered for
+			// `Menus.NewSessionControl` / `MenuId.ChatInputSecondary`. Skip
+			// here when the schema matches the expected shape so they don't
+			// double-render on the right-side generic lane.
+			if (property === CodexSessionConfigKey.SandboxMode && isWellKnownCodexSandboxSchema(schema)) {
+				continue;
+			}
+			if (property === CodexSessionConfigKey.ApprovalPolicy && isWellKnownCodexApprovalPolicySchema(schema)) {
 				continue;
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
@@ -816,6 +831,26 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostClaudePermissionModePicker)),
 		));
+		this._register(actionViewItemService.register(
+			Menus.NewSessionControl,
+			NEW_SESSION_CODEX_SANDBOX_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostCodexSandboxPicker)),
+		));
+		this._register(actionViewItemService.register(
+			Menus.NewSessionControl,
+			NEW_SESSION_CODEX_APPROVAL_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostCodexApprovalPolicyPicker)),
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			RUNNING_SESSION_CODEX_SANDBOX_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostCodexSandboxPicker)),
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			RUNNING_SESSION_CODEX_APPROVAL_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostCodexApprovalPolicyPicker)),
+		));
 	}
 
 	/**
@@ -937,6 +972,92 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+
+// ---- Codex sandbox + approval-policy pickers ----
+//
+// Codex sessions promote two of the right-lane "generic" chips into
+// dedicated left-lane pickers so they share styling with the Copilot
+// CLI's `Default Approvals` chip and render the per-mode shield/edit/
+// warning icons. Registered for BOTH `Menus.NewSessionControl` (new
+// session view) and `MenuId.ChatInputSecondary` (running session).
+
+const NEW_SESSION_CODEX_SANDBOX_PICKER_ID = 'sessions.agentHost.newSessionCodexSandboxPicker';
+const NEW_SESSION_CODEX_APPROVAL_PICKER_ID = 'sessions.agentHost.newSessionCodexApprovalPolicyPicker';
+const RUNNING_SESSION_CODEX_SANDBOX_PICKER_ID = 'sessions.agentHost.runningSessionCodexSandboxPicker';
+const RUNNING_SESSION_CODEX_APPROVAL_PICKER_ID = 'sessions.agentHost.runningSessionCodexApprovalPolicyPicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SESSION_CODEX_SANDBOX_PICKER_ID,
+			title: localize2('agentHostNewSessionCodexSandboxPicker', "Sandbox"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionControl,
+				group: 'navigation',
+				order: 0.5,
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SESSION_CODEX_APPROVAL_PICKER_ID,
+			title: localize2('agentHostNewSessionCodexApprovalPolicyPicker', "Approval Policy"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionControl,
+				group: 'navigation',
+				order: 0.6,
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_CODEX_SANDBOX_PICKER_ID,
+			title: localize2('agentHostRunningSessionCodexSandboxPicker', "Sandbox"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 9,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_CODEX_APPROVAL_PICKER_ID,
+			title: localize2('agentHostRunningSessionCodexApprovalPolicyPicker', "Approval Policy"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 9.5,
 				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});

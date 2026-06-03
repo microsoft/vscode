@@ -7,6 +7,7 @@ import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { narrowApprovalPolicy, narrowSandboxMode } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -18,6 +19,8 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
+const REQUIRED_CODEX_SANDBOX_VALUE = 'workspace-write';
+const REQUIRED_CODEX_APPROVAL_POLICY_VALUE = 'on-request';
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -177,4 +180,43 @@ export function isWellKnownClaudePermissionModeSchema(schema: SessionConfigPrope
 		return false;
 	}
 	return schema.enum.every(value => narrowClaudePermissionMode(value) !== undefined);
+}
+
+/**
+ * Returns `true` when a `codex.sandboxMode` session-config property uses the
+ * Codex protocol's well-known sandbox-mode value set and includes
+ * `workspace-write`.
+ *
+ * Callers use this to decide whether to render the dedicated
+ * {@link AgentHostCodexSandboxPicker} (with per-mode icons and the
+ * `danger-full-access` confirmation dialog) or fall back to the generic
+ * per-property picker.
+ */
+export function isWellKnownCodexSandboxSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_CODEX_SANDBOX_VALUE)) {
+		return false;
+	}
+	return schema.enum.every(value => narrowSandboxMode(value) !== undefined);
+}
+
+/**
+ * Returns `true` when a `codex.approvalPolicy` session-config property uses
+ * the Codex protocol's well-known approval-policy value set and includes
+ * `on-request`.
+ *
+ * Callers use this to decide whether to render the dedicated
+ * {@link AgentHostCodexApprovalPolicyPicker} or fall back to the generic
+ * per-property picker.
+ */
+export function isWellKnownCodexApprovalPolicySchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_CODEX_APPROVAL_POLICY_VALUE)) {
+		return false;
+	}
+	return schema.enum.every(value => narrowApprovalPolicy(value) !== undefined);
 }

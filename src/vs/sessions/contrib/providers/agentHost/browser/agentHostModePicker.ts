@@ -125,6 +125,21 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract _getWidgetAriaLabel(): string;
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
+	/**
+	 * Hook for subclasses to apply trigger-level decoration (extra CSS classes,
+	 * custom DOM attributes) every time the trigger is rerendered. Called
+	 * after the icon and label have been appended.
+	 */
+	protected _decorateTrigger(_trigger: HTMLElement, _value: string): void { /* no-op */ }
+	/**
+	 * Hook for subclasses to gate a value selection — e.g. to show a
+	 * confirmation dialog before escalating to a dangerous mode. Returning
+	 * `false` (or rejecting) aborts the selection. The base implementation
+	 * always allows.
+	 */
+	protected _shouldApplyValue(_item: IAgentHostSessionEnumPickerItem, _currentValue: string): Promise<boolean> {
+		return Promise.resolve(true);
+	}
 
 	/**
 	 * `true` while the active session's provider is resolving its config.
@@ -205,6 +220,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
 
+		this._decorateTrigger(this._triggerElement, ctx.currentValue);
+
 		// Reflect the resolving state. Schema is preserved across the
 		// round-trip so the chip keeps its label; toggling `.disabled`
 		// on the slot blocks pointer events (see chatWidget.css).
@@ -237,12 +254,15 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		actionItems.push(...this._getFooterActionItems());
 
 		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem> = {
-			onSelect: item => {
+			onSelect: async item => {
 				this._actionWidgetService.hide();
 				if (this._handleFooterActionItem(item)) {
 					return;
 				}
 				if (!ctx.items.some(candidate => candidate.value === item.value)) {
+					return;
+				}
+				if (!(await this._shouldApplyValue(item, ctx.currentValue))) {
 					return;
 				}
 				const previousItem = ctx.items.find(i => i.value === ctx.currentValue);
