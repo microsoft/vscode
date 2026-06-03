@@ -37,6 +37,8 @@ interface ISerializedAutomation {
 	readonly prompt: string;
 	readonly schedule: IAutomation['schedule'];
 	readonly folderUri: UriComponents;
+	readonly providerId?: string;
+	readonly sessionTypeId?: string;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly enabled: boolean;
@@ -123,6 +125,8 @@ export class AutomationService extends Disposable implements IAutomationService 
 			prompt: options.prompt,
 			schedule: options.schedule,
 			folderUri: options.folderUri,
+			providerId: options.providerId,
+			sessionTypeId: options.sessionTypeId,
 			modelId: options.modelId,
 			mode: options.mode,
 			enabled: options.enabled ?? true,
@@ -298,6 +302,8 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 		prompt: a.prompt,
 		schedule: a.schedule,
 		folderUri: a.folderUri.toJSON() as UriComponents,
+		providerId: a.providerId,
+		sessionTypeId: a.sessionTypeId,
 		modelId: a.modelId,
 		mode: a.mode,
 		enabled: a.enabled,
@@ -315,6 +321,8 @@ function deserializeAutomation(s: ISerializedAutomation): IAutomation {
 		prompt: s.prompt,
 		schedule: s.schedule,
 		folderUri: URI.revive(s.folderUri),
+		providerId: s.providerId,
+		sessionTypeId: s.sessionTypeId,
 		modelId: s.modelId,
 		mode: s.mode,
 		enabled: s.enabled,
@@ -332,6 +340,8 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 		prompt: patch.prompt ?? current.prompt,
 		schedule: patch.schedule ?? current.schedule,
 		folderUri: patch.folderUri ?? current.folderUri,
+		providerId: patch.providerId === null ? undefined : (patch.providerId ?? current.providerId),
+		sessionTypeId: patch.sessionTypeId === null ? undefined : (patch.sessionTypeId ?? current.sessionTypeId),
 		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
 		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
 		enabled: patch.enabled ?? current.enabled,

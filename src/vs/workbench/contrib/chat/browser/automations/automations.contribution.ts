@@ -9,12 +9,14 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../comm
 import { AutomationsAccessibilityHelp } from '../aiCustomization/automationsAccessibilityHelp.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
+import { IAutomationSessionTypeProvider, PlaceholderAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { PlaceholderAutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
 import { AutomationService } from './automationService.js';
 
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 registerSingleton(IAutomationRunner, PlaceholderAutomationRunner, InstantiationType.Delayed);
+registerSingleton(IAutomationSessionTypeProvider, PlaceholderAutomationSessionTypeProvider, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.AfterRestored);
 
