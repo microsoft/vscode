@@ -21,8 +21,7 @@
 	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
 	.session-view .interactive-session .chat-secondary-toolbar,
 	.session-view .interactive-session .chat-attachments-container,
-	.session-view .interactive-session .interactive-input-followups,
-	.session-view .interactive-session .chat-editor-container {
+	.session-view .interactive-session .interactive-input-followups {
 		transition: opacity 0.15s ease;
 	}
 
