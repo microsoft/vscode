@@ -25,7 +25,7 @@ export class GithubCreateIssueTool implements ICopilotTool<GithubCreateIssueTool
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 	) { }
 
-	async invoke(options: vscode.LanguageModelToolInvocationOptions<GithubCreateIssueToolParams>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invoke(options: vscode.LanguageModelToolInvocationOptions<GithubCreateIssueToolParams>, _token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const { title, text, owner, repo } = options.input;
 		const { url } = await this._octoKitService.createIssue(owner, repo, title, text, { createIfNone: { detail: 'Github authentication is required to create an issue.' } });
 
@@ -38,8 +38,8 @@ export class GithubCreateIssueTool implements ICopilotTool<GithubCreateIssueTool
 				title: t(`Allow Issue to be Posted on ${options.input.owner}/${options.input.repo}`),
 				message: new MarkdownString(
 					`**Repository:** ${options.input.owner} / ${options.input.repo} \n\n` +
-					`** Title:** ${options.input.title} \n\n` +
-					`** Body:** ${options.input.text} `
+					`**Title:** ${options.input.title} \n\n` +
+					`**Body:** ${options.input.text} `
 				)
 			},
 			presentation: 'hiddenAfterComplete'

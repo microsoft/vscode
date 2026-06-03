@@ -304,7 +304,7 @@ export interface IOctoKitService {
 	createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest>;
 
 	/**
-	 * Posts a Issue.
+	 * Posts an Issue.
 	 * @param owner The repository owner
 	 * @param repo The repository name
 	 * @param title The title of the issue
@@ -585,7 +585,7 @@ export class BaseOctoKitService {
 		});
 
 		if (!response?.html_url || typeof response.number !== 'number') {
-			throw new Error(`Failed to Post an Issue for ${owner}/${repo}`);
+			throw new Error(`Failed to post an Issue for ${owner}/${repo}`);
 		}
 
 		return {
