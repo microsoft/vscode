@@ -54,6 +54,22 @@ pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// CLI and may therefore advertise the management RPC method to clients.
 pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
 
+/// Environment variable holding a commit SHA used to override the agent
+/// host version the *first* time it is resolved. When set, the agent host
+/// is initially downloaded and started at this commit; subsequent upgrades
+/// still resolve the real latest version. Intended for testing the upgrade
+/// flow.
+pub const INITIAL_AGENT_HOST_VERSION_ENV: &str = "VSCODE_CLI_INITIAL_AH_VERSION";
+
+/// Reads {@link INITIAL_AGENT_HOST_VERSION_ENV}, returning the commit SHA
+/// override if it is set to a non-empty value.
+fn initial_agent_host_version() -> Option<String> {
+	match std::env::var(INITIAL_AGENT_HOST_VERSION_ENV) {
+		Ok(v) if !v.is_empty() => Some(v),
+		_ => None,
+	}
+}
+
 /// Delay between sending the upgrade response and actually killing the
 /// running server. Lets the response hop back through the CLI proxy and
 /// reach the requesting client before the transport drops out from under
@@ -363,6 +379,15 @@ impl AgentHostManager {
 			}
 		}
 
+		// On the very first resolution, an explicit initial version override
+		// (used to test the upgrade flow) must win over the generic cached
+		// fallback below so the requested commit is what we download and start.
+		if self.latest_release.lock().await.is_none() && initial_agent_host_version().is_some() {
+			let release = self.get_latest_release().await?;
+			let dir = self.ensure_downloaded(&release).await?;
+			return Ok((release, dir));
+		}
+
 		let quality = VSCODE_CLI_QUALITY
 			.ok_or(CodeError::UpdatesNotConfigured("no configured quality"))
 			.and_then(|q| {
@@ -439,6 +464,29 @@ impl AgentHostManager {
 			.and_then(|q| {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
+
+		// The first time we resolve a version, honor an explicit commit
+		// override so the upgrade flow can be tested: the agent host is
+		// initially downloaded and started at this commit, and a subsequent
+		// upgrade (which calls this method again, with `latest` already set)
+		// still resolves the real latest version.
+		if latest.is_none() {
+			if let Some(commit) = initial_agent_host_version() {
+				let release = Release {
+					name: String::new(),
+					commit,
+					platform: self.platform,
+					target: TargetKind::Server,
+					quality,
+				};
+				info!(
+					self.log,
+					"Using initial agent host version override: {}", release.commit
+				);
+				*latest = Some((now, release.clone()));
+				return Ok(release);
+			}
+		}
 
 		let result = self
 			.update_service
