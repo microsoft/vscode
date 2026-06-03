@@ -115,6 +115,13 @@ class MobileChatInputConfigPicker extends Disposable {
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
+
+		// Resolve extension-contributed language model providers before the phone
+		// config sheet is opened. Otherwise startup can show only the already-
+		// registered agent-host BYOK provider until the regular chat input resolves
+		// extension providers after the first session starts.
+		void this._languageModelsService.selectLanguageModels({}).catch(() => undefined);
+
 		this._register(this._newChatModelPickerService.registerModelPicker(() => { void this._showSheet(); }));
 
 		// Re-render the trigger whenever the active session, its config,
