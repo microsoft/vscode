@@ -498,16 +498,27 @@ appendEditorToolItem(
 );
 
 // Agents window: show Split Editor in the editor title overflow (...) menu
-// instead of as a primary toolbar icon.
+// instead of as a primary toolbar icon. Mirror the orientation handling of the
+// primary toolbar items so the label/icon match the configured split direction.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SPLIT_EDITOR,
-		title: localize('splitEditor', "Split Editor"),
+		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	},
 	group: '4_split',
 	order: 10,
-	when: IsSessionsWindowContext
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically.negate())
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorDown', "Split Editor Down"),
+		icon: Codicon.splitVertical
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically)
 });
 
 // Side by side: layout

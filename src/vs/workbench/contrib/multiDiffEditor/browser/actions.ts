@@ -145,12 +145,19 @@ export class CollapseAllAction extends Action2 {
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
 			menu: [
 				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
-				...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-					id,
+				{
+					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
 					group: 'navigation',
 					order: 100
-				})),
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
@@ -187,12 +194,19 @@ export class ExpandAllAction extends Action2 {
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
 			menu: [
 				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
-				...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-					id,
+				{
+					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
 					group: 'navigation',
 					order: 100
-				})),
+				},
+				// The compact window editor title has no overflow menu, so keep the primary toolbar icon there.
+				{
+					id: MenuId.CompactWindowEditorTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
+					group: 'navigation',
+					order: 100
+				},
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext),
