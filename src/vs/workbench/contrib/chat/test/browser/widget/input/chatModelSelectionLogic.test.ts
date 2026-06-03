@@ -59,7 +59,6 @@ function createModel(
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
 			isUserSelectable: true,
-			modelPickerCategory: undefined,
 			capabilities: { toolCalling: true, agentMode: true },
 			...overrides,
 		} as ILanguageModelChatMetadata,
@@ -892,6 +891,14 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', [gpt, claude]), false);
 		});
 
+		test('reset when the selected model is hidden from the available models', () => {
+			const gpt = createModel('gpt', 'GPT');
+			const claude = createModel('claude', 'Claude');
+			const visibleModels = [gpt, claude].filter(model => model.identifier !== gpt.identifier);
+
+			assert.strictEqual(shouldResetOnModelListChange(gpt.identifier, visibleModels), true);
+		});
+
 		test('reset when current model identifier is undefined', () => {
 			const gpt = createModel('gpt', 'GPT');
 			assert.strictEqual(shouldResetOnModelListChange(undefined, [gpt]), true);
@@ -969,11 +976,11 @@ suite('ChatModelSelectionLogic', () => {
 			);
 		});
 
-		test('does NOT restore model with isUserSelectable=undefined (treated as falsy)', () => {
+		test('restores model with isUserSelectable=undefined (defaults to selectable)', () => {
 			const model = createModel('undef-sel', 'Undef-Sel', { isUserSelectable: undefined });
 			assert.strictEqual(
 				shouldRestoreLateArrivingModel('copilot/undef-sel', false, model, ChatAgentLocation.Chat),
-				false,
+				true,
 			);
 		});
 
@@ -1219,7 +1226,7 @@ suite('ChatModelSelectionLogic', () => {
 
 			// 3. findDefaultModel picks replacement from models filtered for Agent mode
 			const agentCompatibleModels = filterModelsForSession(
-				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat
+				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat,
 			);
 			const defaultModel = findDefaultModel(agentCompatibleModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultModel?.metadata.id, 'agent-model');

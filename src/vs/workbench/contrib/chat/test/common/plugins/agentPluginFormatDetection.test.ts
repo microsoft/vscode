@@ -153,6 +153,44 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins[0].commands.get()[0].name, 'run');
 	}));
 
+	test('plugin label uses manifest `name` when no marketplace metadata is present', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		// Direct-installed plugin (no marketplace metadata) with a `name` in
+		// its manifest — the label should use the manifest name, not the
+		// uglier directory basename.
+		const uri = pluginUri('/plugins/_direct/sukumarp2022--slide-creator-plugin');
+		await writeFile('/plugins/_direct/sukumarp2022--slide-creator-plugin/plugin.json', JSON.stringify({
+			name: 'Slide Creator',
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.deepStrictEqual(plugins.map(p => p.label), ['Slide Creator']);
+	}));
+
+	test('plugin label falls back to basename when manifest `name` is missing or invalid', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const missingUri = pluginUri('/plugins/missing-name');
+		await writeFile('/plugins/missing-name/plugin.json', JSON.stringify({}));
+
+		const blankUri = pluginUri('/plugins/blank-name');
+		await writeFile('/plugins/blank-name/plugin.json', JSON.stringify({ name: '   ' }));
+
+		const nonStringUri = pluginUri('/plugins/non-string-name');
+		await writeFile('/plugins/non-string-name/plugin.json', JSON.stringify({ name: 42 }));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([missingUri, blankUri, nonStringUri]);
+
+		const plugins = discovery.plugins.get();
+		assert.deepStrictEqual(
+			plugins.map(p => p.label).sort(),
+			['blank-name', 'missing-name', 'non-string-name'],
+		);
+	}));
+
 	test('Open Plugin format takes priority over Claude format', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		// Plugin has both .plugin/plugin.json and .claude-plugin/plugin.json —
 		// the open plugin manifest should be detected first.

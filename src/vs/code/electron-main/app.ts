@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
-import { exec } from 'child_process';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
@@ -126,7 +125,7 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
-import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
+import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -142,7 +141,6 @@ import { IWebContentExtractorService } from '../../platform/webContentExtractor/
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
-import { tryConsumeAgentsLastRunningMarker } from './agentsLastRunningTracker.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -228,6 +226,62 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
+		});
+
+		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
+		const invalidateScreenSourceCache = () => {
+			cachedScreenSources = undefined;
+		};
+		electronScreen.on('display-added', invalidateScreenSourceCache);
+		electronScreen.on('display-removed', invalidateScreenSourceCache);
+		electronScreen.on('display-metrics-changed', invalidateScreenSourceCache);
+		this._register(toDisposable(() => {
+			electronScreen.off('display-added', invalidateScreenSourceCache);
+			electronScreen.off('display-removed', invalidateScreenSourceCache);
+			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
+		}));
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+			try {
+				const frame = request.frame;
+				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
+
+				const displays = electronScreen.getAllDisplays();
+				let targetDisplay = displays[0];
+				if (win) {
+					const winBounds = win.getBounds();
+					targetDisplay = electronScreen.getDisplayNearestPoint({
+						x: winBounds.x + winBounds.width / 2,
+						y: winBounds.y + winBounds.height / 2,
+					});
+				}
+
+				if (!cachedScreenSources) {
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+				}
+
+				let match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				if (!match) {
+					// Cache may be stale even without a topology event
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+					match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				}
+
+				const chosen = match ?? cachedScreenSources[0];
+				if (!chosen) {
+					// No screen sources available (permission denied or transient failure).
+					callback({});
+					return;
+				}
+				callback({ video: chosen });
+			} catch {
+				callback({});
+			}
 		});
 
 		//#endregion
@@ -575,13 +629,6 @@ export class CodeApplication extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
-		}
-
-		// One-time cleanup of the previous Agents sub-application on macOS (Insiders only).
-		// The agents experience now ships as a window of VS Code itself, so any leftover
-		// Dock pinned entry and Launch Services registration of the old sub-app should be removed.
-		if (isMacintosh && this.productService.quality === 'insider') {
-			this.cleanupAgentsApplication();
 		}
 
 		// Main process server (electron IPC based)
@@ -1118,7 +1165,7 @@ export class CodeApplication extends Disposable {
 		services.set(ILocalPtyService, ptyHostService);
 
 		// Agent Host
-		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+		if (isAgentHostEnabled(this.configurationService)) {
 			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 		}
@@ -1312,7 +1359,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
+		const loggerChannel = this._register(new LoggerChannel(accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
@@ -1343,19 +1390,6 @@ export class CodeApplication extends Disposable {
 				cli: args,
 				initialStartup: true
 			});
-		}
-
-		const agentsLastRunning = await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService);
-		if (agentsLastRunning?.agentsRunning) {
-			const agentsWindows = await windowsMainService.openAgentsWindow({
-				context,
-				cli: args,
-				initialStartup: true
-			});
-			if (!agentsLastRunning.vscodeRunning) {
-				return agentsWindows;
-			}
-			// Otherwise also restore the editor windows below.
 		}
 
 		// Then check for windows from protocol links to open
@@ -1727,41 +1761,5 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
-	}
-
-	private cleanupAgentsApplication(): void {
-		const cleanupKey = 'macAgentsSubAppCleanup.v1';
-		if (this.stateService.getItem<boolean>(cleanupKey, false)) {
-			return;
-		}
-
-		const bundleId = 'com.microsoft.VSCodeAgentsInsiders';
-		const script = [
-			`plist="$HOME/Library/Preferences/com.apple.dock.plist"`,
-			`[ -f "$plist" ] || exit 0`,
-			`n=$(/usr/libexec/PlistBuddy -c "Print :persistent-apps" "$plist" 2>/dev/null | grep -c "^    Dict {")`,
-			`changed=0`,
-			`i=$((n-1))`,
-			`while [ $i -ge 0 ]; do`,
-			`  bid=$(/usr/libexec/PlistBuddy -c "Print :persistent-apps:$i:tile-data:bundle-identifier" "$plist" 2>/dev/null)`,
-			`  if [ "$bid" = "${bundleId}" ]; then`,
-			`    /usr/libexec/PlistBuddy -c "Delete :persistent-apps:$i" "$plist" 2>/dev/null`,
-			`    changed=1`,
-			`  fi`,
-			`  i=$((i-1))`,
-			`done`,
-			`[ "$changed" = "1" ] && /usr/bin/killall -HUP Dock`,
-			`exit 0`
-		].join('\n');
-
-		const child = exec(script, { timeout: 10_000, killSignal: 'SIGKILL' }, (error, _stdout, stderr) => {
-			if (error) {
-				this.logService.warn(`[agents] legacy sub-app cleanup failed: ${error.message}${stderr ? ` (${stderr.trim()})` : ''}`);
-				return;
-			}
-			this.stateService.setItem(cleanupKey, true);
-			this.logService.info('[agents] legacy sub-app cleanup completed');
-		});
-		child.unref();
 	}
 }

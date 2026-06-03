@@ -901,7 +901,7 @@ suite('appendNeighborFileSnippets', () => {
 		const docsInPrompt = new Set<DocumentId>();
 		const result = appendNeighborFileSnippets([], snippets, docsInPrompt, 100, computeTokens, IncludeLineNumbersOption.None);
 		expect(snippets).toEqual([]);
-		expect(result).toEqual({ nComputed: 0, nIncluded: 0, includedIndices: [] });
+		expect(result).toEqual({ nComputed: 0, nIncluded: 0, includedIndices: [], tokensConsumed: 0 });
 	});
 
 	test('selects highest-score snippets first when budget is tight', () => {
@@ -967,6 +967,6 @@ suite('appendNeighborFileSnippets', () => {
 			computeTokens,
 			IncludeLineNumbersOption.None,
 		);
-		expect(result).toEqual({ nComputed: 7, nIncluded: 4, includedIndices: [2, 3, 4, 6] });
+		expect(result).toEqual({ nComputed: 7, nIncluded: 4, includedIndices: [2, 3, 4, 6], tokensConsumed: 4 });
 	});
 });

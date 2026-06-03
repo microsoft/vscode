@@ -27,6 +27,37 @@ _Avoid_: "Anthropic proxy", "language model server".
 GitHub Copilot's chat completions API, accessed through `ICopilotApiService`.
 The terminal hop after the proxy.
 
+**Materialization** / `ClaudeAgentSession.materialize`:
+Bringing a provisional session (created by `ClaudeAgent.createSession`, no
+SDK contact yet) up to a live `ClaudeAgentSession` with a bound `WarmQuery`.
+Owned by `ClaudeAgentSession.materialize(ctx)`: builds the SDK `Options`
+bag via the pure helpers in `claudeSdkOptions.ts`, awaits
+`IClaudeAgentSdkService.startup`, opens the per-session DB ref, constructs
+the pipeline, persists the metadata overlay (skipped on `isResume`), and
+attaches the rematerializer. `ClaudeAgent` retains sequencing, the
+`_sessions` map, and the `onDidMaterializeSession` fan-out.
+_Avoid_: "session creation" (overloaded with `IAgent.createSession`).
+
+**Claude session overlay** / `ClaudeSessionMetadataStore`:
+The per-session DB layer that decorates the SDK's `SDKSessionInfo` with
+Claude-namespaced fields (`customizationDirectory`, `model`, `permissionMode`).
+The SDK is the source of truth for session existence; the overlay merely
+decorates. External Claude CLI sessions have no overlay DB, so reads return
+an empty overlay rather than throwing. Owns the three `claude.*` DB keys,
+the `ModelSelection` JSON codec, and the projection from SDK info + overlay
+onto the platform's `IAgentSessionMetadata` shape.
+_Avoid_: "session metadata" (overloaded with `IAgentSessionMetadata`).
+
+**Claude file-edit observer** / `ClaudeFileEditObserver`:
+The per-session collaborator that watches the SDK message stream for
+file-edit `tool_use` / `tool_result` block pairs and persists before/after
+content via `FileEditTracker`. Owned by `ClaudeAgentSession`; takes the
+session's dbRef at construction. Stages `ToolResultFileEditContent` on the
+session's `ClaudeMapperState` so the synchronous mapper can attach it to the
+matching `SessionToolCallComplete` action. Hooks (`Options.hooks.PreToolUse` /
+`PostToolUse`) are deliberately NOT used because they are user-bypassable
+via settings; the message stream is the canonical, non-bypassable signal.
+
 ## Relationships
 
 - The **Agent Host** owns one **Claude Proxy** for the lifetime of the process.
@@ -587,7 +618,7 @@ multiplex from **three** SDK callback origins.
 | IAgent method | Used for | Resolves |
 |---|---|---|
 | `respondToPermissionRequest(requestId, approved: boolean)` | tool-permission gates | the deferred parked inside `Options.canUseTool` |
-| `respondToUserInputRequest(requestId, response: SessionInputResponseKind, answers?)` | structured user input (form questions, URL accept/decline) | the deferred parked inside `Options.canUseTool` (interactive-tool subset) **or** `Options.onElicitation` |
+| `respondToUserInputRequest(requestId, response: SessionInputResponseKind, answers?)` | structured user input (form questions, URL accept/decline) | the deferred parked inside `Options.canUseTool` (`AskUserQuestion` only) **or** `Options.onElicitation` |
 
 **Three SDK origins, two flows.** The host receives callbacks from
 the SDK at three places; `claudeMessageDispatch` / the host's
@@ -595,9 +626,24 @@ permission gate route each to the appropriate IAgent flow.
 
 | SDK callback | When it fires | Routes to flow | Why |
 |---|---|---|---|
-| `Options.canUseTool(toolName, input, { suggestions })` for arbitrary tool names | Before any tool is executed | **Permission** (`SessionToolCallReady` → `respondToPermissionRequest`) | Standard tool-permission gate |
-| `Options.canUseTool('AskUserQuestion' \| 'ExitPlanMode', input, ...)` | Built-in interactive Claude tools | **User input** (`SessionInputRequested` → `respondToUserInputRequest`) | These two tools' "input" is itself a user-facing question / plan; `INTERACTIVE_CLAUDE_TOOLS` is the closed-set discriminator |
+| `Options.canUseTool(toolName, input, { suggestions })` for arbitrary tool names | Before any tool that the SDK has NOT auto-approved via `permissionMode` is executed (see [PermissionMode docstring, sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558)) | **Permission** (`SessionToolCallReady` → `respondToPermissionRequest`) | Standard tool-permission gate |
+| `Options.canUseTool('ExitPlanMode', input, ...)` | Built-in interactive Claude tool (exempt from `permissionMode` auto-approval, so it reaches the host even under `bypassPermissions`) | **Permission** (`SessionToolCallReady` → `respondToPermissionRequest`) | Approving/denying "leave plan mode" is a permission decision (Approve/Deny on a tool call), not user input. The host renders it as a `pending_confirmation` card with custom Approve/Deny labels and the plan body as `invocationMessage`. |
+| `Options.canUseTool('AskUserQuestion', input, ...)` | Built-in interactive Claude tool (exempt from `permissionMode` auto-approval) | **User input** (`SessionInputRequested` → `respondToUserInputRequest`) | The tool's "input" is itself a multi-question carousel that the user fills in; answers ride back on `PermissionResult.updatedInput`. |
 | `Options.onElicitation(request, { signal })` | An MCP server (host's own *or* third-party) calls `elicit/create` | **User input** (`SessionInputRequested` → `respondToUserInputRequest`) | MCP elicitation is the canonical path for "structured user input"; the host's in-process MCP server uses it too |
+
+**SDK-side auto-approval.** The host's `canUseTool` is a pure UI
+bridge: it surfaces a `pending_confirmation` to the workbench and
+returns the user's decision verbatim. It does NOT make mode-aware
+judgement calls of its own. The SDK owns auto-approval / auto-denial
+entirely via `permissionMode`:
+- `bypassPermissions` — SDK auto-approves; `canUseTool` is not called.
+- `acceptEdits` — SDK auto-approves write/edit tools; `canUseTool`
+  is not called for those. Non-write tools still flow through.
+- `plan` — SDK enforces read-only execution. Whatever it elects to
+  delegate to `canUseTool` is rendered to the user as a normal
+  prompt; the host applies no extra denial.
+- `default` / `dontAsk` / `auto` — SDK invokes `canUseTool` for any
+  tool needing a permission decision.
 
 **`canUseTool` return type** (locked invariant, [sdk.d.ts:1582](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1582)):
 
@@ -609,10 +655,13 @@ type PermissionResult =
 
 There is **no `behavior: 'ask'` variant.** `'deny'` requires
 `message: string` (sent back to the model so it knows why) and
-optionally `interrupt: true` to stop the turn entirely. For the
-interactive-tool subset, the host returns `{ behavior: 'allow',
+optionally `interrupt: true` to stop the turn entirely. For
+`AskUserQuestion`, the host returns `{ behavior: 'allow',
 updatedInput }` once the user submits answers — the answers ride on
 `updatedInput` so the tool's own handler sees the chosen values.
+For `ExitPlanMode`, the host returns `{ behavior: 'allow',
+updatedInput: input }` on Approve (input passes through unchanged)
+and `{ behavior: 'deny', message: ... }` on Deny.
 
 **`onElicitation` return type** ([sdk.d.ts:966](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L966), [sdk.d.ts:1163](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1163)):
 
@@ -633,6 +682,25 @@ disable them entirely via settings — relying on them for permission
 gating would create a silent-bypass class of bugs. `canUseTool` and
 `onElicitation` are non-bypassable via SDK contract.
 
+The same constraint drives **Phase 8 file-edit tracking**. The SDK's
+`Options.hooks.PreToolUse` / `PostToolUse` would be the obvious place
+to snapshot before/after content, but they are user-bypassable. And
+`canUseTool` is short-circuited under `permissionMode:
+'bypassPermissions'`. The non-bypassable signal is the SDK message
+stream itself: the SDK has to yield the canonical assistant
+`tool_use` block and the synthetic-user `tool_result` block
+regardless of permission mode or hook configuration. So
+`ClaudeAgentSession._processMessages` interposes
+`_observeAssistantMessage` (fire-and-forget pre-snapshot) and
+`_observeUserMessage` (awaited after-snapshot, populating
+`ClaudeMapperState` before the synchronous mapper runs) directly in
+the message-pump loop. Mirrors the production extension's dispatch-time
+observation at
+[`claudeMessageDispatch.ts:200`](../../../../../../extensions/copilot/src/extension/chatSessions/claude/common/claudeMessageDispatch.ts#L200).
+The pre-snapshot races tool execution but the SDK's own I/O before
+the write gives sufficient microtask headroom — same guarantee
+production relies on with `stream.externalEdit`.
+
 **Per-session sequencer.** Both flows funnel through the same
 `_sessionSequencer`; at most one outstanding permission/input
 request per session is in flight at a time, matching the protocol's
@@ -648,15 +716,15 @@ The shape is the same; the SDK callbacks differ.
 |---|---|---|
 | Permission SDK callback | `Options.canUseTool(toolName, input, ...)` (one seam, dual-routed) | `SessionConfig.handlePermissionRequest(ITypedPermissionRequest)` — typed kind: `'read' \| 'write' \| ...` |
 | Permission return shape | `{ behavior: 'allow', updatedInput? } \| { behavior: 'deny', message }` | `{ kind: 'approve-once' \| 'reject' }` |
-| User-input SDK callback(s) | `canUseTool` for `INTERACTIVE_CLAUDE_TOOLS` **and** `Options.onElicitation` (MCP) | `SessionConfig.onUserInputRequest({ question, choices?, allowFreeform? })` — single seam for the `ask_user` tool |
-| User-input return shape | `PermissionResult` `{ allow, updatedInput }` (interactive-tool path) or `ElicitationResult` `{ action, content? }` (MCP path) | `{ answer: string, wasFreeform: boolean }` |
+| User-input SDK callback(s) | `canUseTool` for `AskUserQuestion`, **and** `Options.onElicitation` (MCP). `ExitPlanMode` is exempt from auto-approval like `AskUserQuestion`, but its semantics fit the permission gate, not user input — see the canUseTool routing table above. | `SessionConfig.onUserInputRequest({ question, choices?, allowFreeform? })` — single seam for the `ask_user` tool |
+| User-input return shape | `PermissionResult` `{ allow, updatedInput }` (`AskUserQuestion` path) or `ElicitationResult` `{ action, content? }` (MCP path) | `{ answer: string, wasFreeform: boolean }` |
 | Pending state | `_pendingPermissions: Map<toolCallId, DeferredPromise<boolean>>`, `_pendingUserInputs: Map<requestId, { deferred, questionId }>` | Same two maps, same shape |
 | Outbound permission signal | `pending_confirmation` progress event → `SessionToolCallReady` action | `pending_confirmation` progress event with `permissionKind` / `permissionPath` / `parentToolCallId` (subagent routing) |
 | Outbound input signal | `ActionType.SessionInputRequested` with `SessionInputRequest { id, questions[] }` | Same action, same shape |
 | Inbound resolution | `respondToPermissionRequest`/`respondToUserInputRequest` walk `_sessions.values()`, return `boolean` on first match | Identical pattern ([`copilotAgent.ts:1239-1254`](../copilot/copilotAgent.ts#L1239-L1254)) |
-| Auto-approve hook | Defers to SDK `permissionMode` (`default` / `acceptEdits` / `plan` / `bypassPermissions`) | Host-side: internal session-resource paths, `copilot-tool-output-*.txt` SDK temp files, `autopilot` config |
+| Auto-approve hook | None on the host — `_handleCanUseTool` is a pure UI bridge. The SDK owns all auto-approval / auto-denial via `permissionMode` ([sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558)) before `canUseTool` is invoked. | Host-side: internal session-resource paths, `copilot-tool-output-*.txt` SDK temp files, `autopilot` config |
 | Edit-preview building | None at this layer (Phase 7) | Builds `FileEdit` with `pending-edit-content:` URI before firing `pending_confirmation` so the client can show a diff |
-| `ExitPlanMode` analogue | `INTERACTIVE_CLAUDE_TOOLS` includes `'ExitPlanMode'`; routed through `SessionInputRequested` | `_pendingPlanReviews` map; `_resolveExitPlanMode` maps the response back to `IExitPlanModeResponse { approved, feedback?, selectedAction?, autoApproveEdits? }` |
+| `ExitPlanMode` analogue | Routed through `pending_confirmation` like a normal permission gate, with custom Approve/Deny labels and the plan body as `invocationMessage`. (`INTERACTIVE_CLAUDE_TOOLS` membership only signals that the SDK does not auto-approve it under any `permissionMode`, ensuring it always reaches the host.) On Approve, host writes `permissionMode: 'acceptEdits'` to `IAgentConfigurationService`; the next `sendMessage` forwards it via `Query.setPermissionMode` between turns. | `_pendingPlanReviews` map; `_resolveExitPlanMode` maps the response back to `IExitPlanModeResponse { approved, feedback?, selectedAction?, autoApproveEdits? }` |
 | Status (Phase 6) | Stub — both methods throw `TODO: Phase 7` ([`claudeAgent.ts:790, 794`](claudeAgent.ts#L790-L794)). Re-implementation explicitly mirrors `copilotAgent.ts:1239-1254` (see [phase7-plan.md](phase7-plan.md)) | Fully implemented |
 
 The Copilot CLI SDK pre-resolves the Claude-side fan-in: its single
@@ -747,7 +815,7 @@ system messages as `SystemNotificationResponsePart`:
 | `SDKSystemMessage` subtype | Render? | Rationale |
 |---|---|---|
 | `compact_boundary` | Yes | "Conversation compacted" — context-loss event |
-| `notification` (priority ≥ medium) | Yes | Loop-side text notifications |
+| `notification` (all priorities) | Yes | Loop-side text notifications. Earlier draft gated on `priority ≥ medium`; relaxed to all priorities pending real-world data on what `priority: 'low'` notifications actually contain. Revisit and re-introduce the gate if `low` notifications turn out to be noise (transcript-only TODO). |
 | `api_retry`, `plugin_install`, `auth_status`, `status` | No | Live UI signals; not transcript content |
 | `hook_started`, `hook_progress`, `hook_response` | No | Decorate the associated `ToolCall`, don't stand alone |
 | anything else | Drop by default | Conservative; opt in subtypes as needs emerge |
@@ -852,6 +920,91 @@ transcripts are fetched lazily, never eagerly.
 live-only lifecycle states. Replay flattens straight to `Completed`
 or `Cancelled`. The "running content merges into result on complete"
 dance from the live path is not reproduced.
+
+#### Subagent correlation: SDK gaps and resolution strategy
+
+Navigating into a subagent transcript requires resolving
+`toolCallId → agentId` (the SDK's `getSubagentMessages` takes
+`agentId`, but workbench-facing subagent URIs carry `toolCallId`).
+This subsection documents what the SDK actually exposes for that
+join, what's empirically usable, and the resolver design that hides
+the whole mess.
+
+**Empirical SDK behaviour** (verified 2026-05-14 against
+`@anthropic-ai/claude-agent-sdk` against real on-disk and live data
+across 2,525+ JSONL files / 110k+ envelopes / 5000+ subagent
+envelopes / multiple live `getSubagentMessages` calls):
+
+| Field / primitive | Where it lives | Truth |
+|---|---|---|
+| `SessionMessage.parent_tool_use_id` | SDK envelope (replay) | Typed `null` (literal). Empirically **always `null`** on every disk record AND every SDK-returned envelope — never a usable join key on the replay path, despite its name. |
+| `(SessionMessage.message as any).parent_tool_use_id` | inner Anthropic body (replay) | Also undefined / null in every observed case. The field is vestigial here; do not read it. |
+| `SDKAssistantMessage.parent_tool_use_id` | SDK envelope (live only) | `string \| null`, populated. Used by `claudeMessageDispatch.ts`. **Live-only**; not on `SessionMessage`. |
+| `envelope.agentId` | on-disk subagent JSONL | Present on every subagent envelope — but **stripped by SDK normalization**. `getSubagentMessages` returns `undefined`. |
+| `envelope.parentUuid` | on-disk subagent JSONL | Present (chains messages within the subagent transcript). Also stripped by SDK. Would not solve the join anyway — points within the subagent, not back to parent. |
+| `envelope.toolUseResult.agentId` | on-disk parent JSONL (Agent `tool_result` row) | Present and would give the join directly — **stripped by SDK**. Returned envelope keys are `[type, uuid, session_id, message, parent_tool_use_id, timestamp]` only. |
+| `tool_result.content[]` agentId text suffix | SDK output | The SDK injects a synthetic text block as the **last** entry of every Agent `tool_result.content[]`: `"agentId: <id> (use SendMessage with to: '<id>') ..."`. Reliable when present, but format may vary by SDK version and is missing in some sessions. |
+| `Agent.tool_use.input.prompt` ↔ subagent's first user message | SDK output | **Byte-for-byte identical** in every sampled case. Reliable cold-path correlation; one fetch per agent to verify. |
+| `CanUseTool` callback `agentID` field | SDK runtime | **Inner subagent tools do NOT trigger the parent's `canUseTool` callback** — the SDK runs them in `bypassPermissions` internally inside the subagent loop. The `agentID` field is reserved for top-level callbacks that originate from inside a subagent context (rare). Per the Phase-12 manual repro on 2026-05-14, no `canUseTool` invocations fired for inner Glob / Read / Bash calls across two parallel subagents. **Live correlation has to come from another channel** — see the next row. |
+| `forwardSubagentText: true` delivery channel | SDK output (live) | Inner subagent text / thinking / tool_use / tool_result blocks arrive as **canonical `SDKAssistantMessage` and `SDKUserMessage` envelopes** with `parent_tool_use_id` set on the envelope — NOT as `SDKPartialAssistantMessage` (`stream_event`). Verified empirically: 5 inner assistant + 4 inner user messages, **0 inner stream_events**. The mapper MUST handle inner content from canonical messages, not partials. |
+| `listSubagents(parentSessionId)` | SDK | Returns `string[]` of agentIds, **sorted alphabetically** (filesystem `readdir` order on `agent-<hex>.jsonl`), NOT invocation order. Tested across 27 sessions — only 1 of 27 happened to match invocation order; 23 had count mismatches because the directory accumulates orphans (nested subagents, sidechain branches, compacted history). **Cannot be used as a positional join.** |
+| Compacted / forked sessions | SDK chain-walking | When a session is continued from compaction, the SDK only returns the post-compaction "active chain" via `getSessionMessages`. Pre-compaction `Agent` `tool_use` blocks are absent from the SDK output even though they appear in the raw JSONL. Filter compacted sessions when sampling, or accept that some Agent calls have no resolvable transcript. First SDK entry of a continuation has `model: '<synthetic>'`. |
+
+**Net SDK gap.** There is no first-class API today that maps
+`(parentSessionId, toolCallId) → agentId`. Every primitive above
+either (a) doesn't exist where it logically should, (b) is stripped
+by SDK normalization, or (c) is a content-pattern hack that may
+shift between SDK versions. We've reported this to the SDK owners;
+until they ship a native lookup, the resolver layer carries
+multiple imperfect strategies behind one stable interface.
+
+**Design — single ingress, layered strategies, no persistence.**
+
+```
+ClaudeAgent.getSessionMessages(uri)
+        │
+        ▼
+IClaudeTranscriptService.getTranscript(uri)
+        │
+        ├── isSubagentSession(uri)? ──► IClaudeSubagentResolver.getTranscript(uri)
+        │                                       │
+        │                                       ├── 1. LiveCaptureStrategy   (canUseTool agentID)
+        │                                       ├── 2. TextSuffixStrategy    (parse agentId text block)
+        │                                       ├── 3. PromptMatchStrategy   (compare prompt bodies)
+        │                                       └── 4. NativeStrategy        (when SDK ships it)
+        │
+        └── else ──► _loadParentTranscript(uri)
+                          ├── _sdkService.getSessionMessages(...)
+                          └── mapSessionMessagesToTurns(...)
+```
+
+- **One consumer-facing method per surface.** `IClaudeTranscriptService.getTranscript(uri)` for everything; no consumer branches on `isSubagentSession`. The service itself does the only branch.
+- **Parent path stays simple.** No strategy chain, no resolver — just `getSessionMessages` + mapper. Premature abstraction would buy nothing today.
+- **Subagent path is a strategy chain.** First hit wins. Each strategy emits a telemetry counter (`claude.subagent.resolved_via.<strategyName>`) so we can watch the migration once a native primitive lands.
+- **No persistence.** The resolver's correlation cache is a process-lifetime `Map<parentSessionId, Map<toolCallId, agentId>>`. Restart re-pays the cold path once per parent; cheap because of priming (next bullet).
+- **Cache priming from parent transcript loads.** `IClaudeTranscriptService._loadParentTranscript` calls `resolver.notePrimingFromParent(parentURI, transcript)` after every successful parent load. The resolver uses `TextSuffixStrategy` to scan tool_result content and pre-populate every `(toolCallId, agentId)` it can find. Subagent clicks that follow a parent load are then **O(1)**. UX wins: the *first* click after restart feels native, not slow.
+- **Live capture from `canUseTool`.** When the SDK asks permission for a tool inside a subagent, the callback exposes `agentID` + `toolUseID`. Cross-referencing through the live mapper's `inner_tool_use_id → parent_tool_use_id` index produces a `(parent_tool_use_id, agentID)` pair — fed into the cache via `resolver.noteLiveAgentId(...)`. Free correlation for any session where a subagent's tool calls require permission.
+- **Subagent URI shape unchanged.** `<parent>/subagent/<toolCallId>` per `buildSubagentSessionUri`. agentId is never in the URI — it's an SDK implementation detail the resolver hides. Workbench never sees it; future SDK migrations don't move call sites.
+
+**Migration story when the SDK ships native correlation.**
+
+1. Implement `NativeStrategy` (small class, ~20 lines).
+2. Insert at chain position 1 (after `LiveCapture`, before others).
+3. Run for a release. Watch telemetry: `resolved_via.native` should dominate.
+4. Once native is universal, delete `TextSuffixStrategy` + `PromptMatchStrategy`. Chain becomes `[LiveCapture, Native]`.
+5. Eventually delete `LiveCapture` if Native is fast enough that the live cache buys nothing.
+
+No call site outside the resolver moves at any step.
+
+**Invariants for the subagent path.**
+
+- **The subagent URI is the workbench-facing identity; agentId is implementation churn.** Returning `Turn[]` from `getTranscript` (rather than agentId + a separate fetch) is the load-bearing decision that makes future migration internal-only.
+- **A subagent URI cannot be reached without first loading its parent's transcript.** There's no standalone "list subagents" workbench API; the marker on the parent's `Agent.tool_use` is the only surface that produces the URI. This is what makes parent-load priming so effective: by the time the URI exists, the resolver's cache is already populated.
+- **`listSubagents` is a discovery primitive, not a correlation primitive.** Use it to enumerate the agentId space (alphabetical / `readdir` order), then pair with content-based matching. Never assume positional correspondence to parent `Agent` `tool_use` order — empirically false.
+- **`SessionMessage.parent_tool_use_id` MUST NOT be read on the replay path.** Always `null`. The field name is misleading; code that consults it produces silently-wrong correlations.
+- **`forwardSubagentText: true` MUST be set on `Options`** ([sdk.d.ts:1376-1379](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1376)). Without it, live subagent sessions emit only `tool_use`/`tool_result` blocks — no text or thinking. Replay returns the full transcript, so the asymmetry would surface as a UX bug ("this subagent talked when I watched it live, but its text is missing on reload").
+- **`pending_confirmation` for inner subagent tools needs `parentToolCallId`.** The mapper-derived `parentToolCallId` does NOT cover canUseTool-derived signals — those originate from the permission callback, not the message stream. The bridge in `claudeCanUseTool.ts` MUST forward `agentID` so the emitted `pending_confirmation` signal carries `parentToolCallId`, otherwise inner permission prompts land on the parent session and the resulting `SessionToolCallReady` action has no matching `SessionToolCallStart`.
+- **Cache invalidation is unnecessary.** A `(toolCallId, agentId)` pair is immutable for the life of the parent session — agentIds are assigned once when the subagent spawns. Process restart resets; that's the only invalidation event.
 
 ### M8 — Live `Query: AsyncGenerator<SDKMessage>`
 
@@ -2353,3 +2506,10 @@ they aren't lost; not blockers to extending the catalogue further.
   conservative. As the agent host gains UI for hook progress, plugin
   install, rate limits, etc., some currently-dropped subtypes may
   promote to `SystemNotification` parts. Track decisions by subtype.
+- **Native subagent correlation API.** Reported to SDK owners. If/when
+  they expose a first-class `(parentSession, toolCallId) → agentId`
+  primitive (e.g. by un-stripping `toolUseResult.agentId` from
+  `getSessionMessages`, populating `parent_tool_use_id` on subagent
+  `SessionMessage`s, or adding a dedicated method), `NativeStrategy`
+  in M7's resolver chain becomes the dominant path and the
+  text-suffix / prompt-match strategies can be removed.

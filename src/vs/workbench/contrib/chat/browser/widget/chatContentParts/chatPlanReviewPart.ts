@@ -12,27 +12,41 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions, ShowLightbulbIconMode } from '../../../../../../editor/common/config/editorOptions.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../../common/chatService/chatService.js';
 import { IPlanReviewFeedbackItem, IPlanReviewFeedbackService } from '../../planReviewFeedback/planReviewFeedbackService.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import './media/chatPlanReview.css';
+
+// Sub-path for the embedded editor's in-memory model. Uses `inmemory:` so
+// `ITextModelService.createModelReference` resolves without a custom provider.
+const PLAN_REVIEW_EDITING_PATH_PREFIX = '/chat-plan-review';
 
 export interface IChatPlanReviewPartOptions {
 	onSubmit: (result: IChatPlanReviewResult) => void;
@@ -70,6 +84,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private _isFeedbackMode = false;
 	private readonly _planReviewRegistration = this._register(new MutableDisposable());
 	private readonly _commentRowDisposables = this._register(new DisposableStore());
+	private _inlineEditorMountId = 0;
+	private _suppressFeedbackModeAutoOpen = false;
+
+	// Bound to an in-memory model so typing doesn't dirty the real file's
+	// working copy (which would trip `TextFileEditorTracker` into opening it).
+	private _messageEditor: CodeEditorWidget | undefined;
+	private _editingUri: URI | undefined;
+	// Used on feedback submission to skip a no-op write and to update `review.content`.
+	private _initialEditorContent: string | undefined;
+	private readonly _messageEditorDisposables = this._register(new DisposableStore());
 
 	constructor(
 		public readonly review: IChatPlanReview,
@@ -81,6 +105,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IPlanReviewFeedbackService private readonly _planReviewFeedbackService: IPlanReviewFeedbackService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -107,10 +137,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				}
 				this._isSubmitted = true;
 				this._options.onSubmit(result);
-				this.markUsed();
+				void this.markUsed();
 			}));
 			registrationStore.add(this._planReviewFeedbackService.onDidChangeFeedback(uri => {
-				if (uri.toString() === planUriString) {
+				// Match the plan URI or the editing URI used while the editor is mounted.
+				const uriString = uri.toString();
+				if (uriString === planUriString || uriString === this._editingUri?.toString()) {
 					this.onInlineFeedbackChanged();
 				}
 			}));
@@ -157,7 +189,13 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			const reviewButton = this._register(new Button(this._titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: reviewButtonTooltip, ariaLabel: reviewButtonTooltip }));
 			reviewButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-review-button');
 			this._reviewButton = reviewButton;
-			this._register(reviewButton.onDidClick(() => this.enterReviewMode()));
+			this._register(reviewButton.onDidClick(() => {
+				if (this._isFeedbackMode) {
+					void this.exitFeedbackMode();
+				} else {
+					void this.enterReviewMode();
+				}
+			}));
 		}
 
 		// Restore/expand toggle.
@@ -194,10 +232,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			if (review.planUri) {
 				dom.hide(elements.feedback); // Hidden until the user enters review mode or inline feedback exists.
 			} else {
-				// No plan file: keep the textarea visible from the start and
-				// treat as already in feedback mode.
-				this._isFeedbackMode = true;
-				this.domNode.classList.add('chat-plan-review-feedback-mode');
+				// No plan file: there's no inline editor surface to coordinate
+				// with, so we don't toggle into "feedback mode". Instead leave
+				// the textarea visible alongside the regular Approve/Reject
+				// buttons and let the user optionally type a comment that
+				// rides along with whichever action they pick.
+				this.domNode.classList.add('chat-plan-review-textarea-mode');
 			}
 		} else {
 			dom.hide(elements.feedback);
@@ -226,7 +266,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		// Promote into review mode if inline feedback is already present
 		// (e.g. restored from a prior session).
 		if (!this._isSubmitted && this.getInlineFeedbackItems().length > 0) {
-			this.enterFeedbackMode({ focus: false });
+			void this.enterFeedbackMode({ focus: false });
 		}
 	}
 
@@ -245,13 +285,14 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 	private renderMarkdown(): void {
 		dom.clearNode(this._messageEl);
+		// Parent the store before populating so the leak tracker doesn't flag it.
 		const store = new DisposableStore();
+		this._messageContentDisposables.value = store;
 		const rendered = store.add(this._markdownRendererService.render(
 			new MarkdownString(this.review.content, { supportThemeIcons: true, isTrusted: false }),
 			{ asyncRenderCallback: () => this._messageScrollable.scanDomNode() }
 		));
 		this._messageEl.append(rendered.element);
-		this._messageContentDisposables.value = store;
 		this._messageScrollable.scanDomNode();
 	}
 
@@ -273,14 +314,14 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._clearAllButtonEl = clearAllButton.element;
 		}
 
-		// Back — non-destructive exit from feedback mode. Per-row × buttons
+		// Close — non-destructive exit from feedback mode. Per-row × buttons
 		// and Clear All handle deletion explicitly.
 		if (this.review.planUri) {
-			const backButtonLabel = localize('chat.planReview.back', "Back");
-			const backButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backButtonLabel, ariaLabel: backButtonLabel }));
-			backButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-feedback-close');
-			backButton.label = backButtonLabel;
-			this._register(backButton.onDidClick(() => this.exitFeedbackMode()));
+			const closeButtonLabel = localize('chat.planReview.close', "Close");
+			const closeButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: closeButtonLabel, ariaLabel: closeButtonLabel }));
+			closeButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-title-icon-button', 'chat-plan-review-feedback-close');
+			closeButton.label = `$(${Codicon.close.id})`;
+			this._register(closeButton.onDidClick(() => this.exitFeedbackMode()));
 		}
 
 		// Inline comments list — wrapped in a Monaco scrollable for a styled
@@ -322,15 +363,21 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this.updateSubmitButtonState();
 		}));
 
-		// Enter submits feedback; Shift+Enter inserts a newline.
-		this._register(dom.addDisposableListener(textarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const ev = new StandardKeyboardEvent(e);
-			if (ev.keyCode === KeyCode.Enter && !ev.shiftKey) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.submitFeedback();
-			}
-		}));
+		// Enter submits feedback; Shift+Enter inserts a newline. Only wired
+		// up in plan-mode (where Submit Feedback is the primary action).
+		// In the no-planUri textarea-only flow the user must explicitly pick
+		// Approve or Reject, so Enter falls through to the default newline
+		// behaviour to avoid an accidental feedback-only submit.
+		if (this.review.planUri) {
+			this._register(dom.addDisposableListener(textarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				const ev = new StandardKeyboardEvent(e);
+				if (ev.keyCode === KeyCode.Enter && !ev.shiftKey) {
+					e.preventDefault();
+					e.stopPropagation();
+					void this.submitFeedback();
+				}
+			}));
+		}
 	}
 
 	private renderCommentsList(): void {
@@ -393,34 +440,52 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._commentsListScrollable?.scanDomNode();
 	}
 
-	private getInlineFeedbackItems(): readonly IPlanReviewFeedbackItem[] {
-		if (!this.review.planUri) {
-			return [];
+	// Comments can be keyed on the real plan URI or on the in-memory editing URI
+	// used by the mounted inline editor.
+	private getCommentUri(): URI | undefined {
+		if (this._editingUri) {
+			return this._editingUri;
 		}
-		return this._planReviewFeedbackService.getFeedback(URI.revive(this.review.planUri));
+		return this.review.planUri ? URI.revive(this.review.planUri) : undefined;
+	}
+
+	private getInlineFeedbackItems(): readonly IPlanReviewFeedbackItem[] {
+		const editingItems = this._editingUri ? this._planReviewFeedbackService.getFeedback(this._editingUri) : [];
+		const planItems = this.review.planUri ? this._planReviewFeedbackService.getFeedback(URI.revive(this.review.planUri)) : [];
+		return [...editingItems, ...planItems].sort((first, second) => first.line - second.line || first.column - second.column);
 	}
 
 	private async revealInlineComment(itemId: string, line: number, column: number): Promise<void> {
-		if (!this.review.planUri) {
+		const uri = this.getCommentUri();
+		if (!uri) {
 			return;
 		}
-		const uri = URI.revive(this.review.planUri);
 		this._planReviewFeedbackService.setNavigationAnchor(uri, itemId);
-		await this._editorService.openEditor({
-			resource: uri,
-			options: { selection: { startLineNumber: line, startColumn: column } },
-		});
+		if (this._messageEditor) {
+			this._messageEditor.revealLineInCenterIfOutsideViewport(line);
+			this._messageEditor.setPosition({ lineNumber: line, column });
+			this._messageEditor.focus();
+			return;
+		}
+		if (this.review.planUri) {
+			await this._editorService.openEditor({
+				resource: URI.revive(this.review.planUri),
+				options: { selection: { startLineNumber: line, startColumn: column } },
+			});
+		}
 	}
 
 	private removeInlineComment(itemId: string): void {
-		if (!this.review.planUri || this._isSubmitted) {
+		if (this._isSubmitted) {
 			return;
 		}
-		this._planReviewFeedbackService.removeFeedback(URI.revive(this.review.planUri), itemId);
+		for (const uri of this.getFeedbackUris()) {
+			this._planReviewFeedbackService.removeFeedback(uri, itemId);
+		}
 	}
 
 	private async clearAllInlineFeedback(): Promise<void> {
-		if (!this.review.planUri || this._isSubmitted) {
+		if (this._isSubmitted) {
 			return;
 		}
 		const items = this.getInlineFeedbackItems();
@@ -436,7 +501,20 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (!result.confirmed) {
 			return;
 		}
-		this._planReviewFeedbackService.clearFeedback(URI.revive(this.review.planUri));
+		for (const uri of this.getFeedbackUris()) {
+			this._planReviewFeedbackService.clearFeedback(uri);
+		}
+	}
+
+	private getFeedbackUris(): URI[] {
+		const uris: URI[] = [];
+		if (this._editingUri) {
+			uris.push(this._editingUri);
+		}
+		if (this.review.planUri) {
+			uris.push(URI.revive(this.review.planUri));
+		}
+		return uris;
 	}
 
 	private onInlineFeedbackChanged(): void {
@@ -446,8 +524,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		const items = this.getInlineFeedbackItems();
 
 		// Auto-promote into review mode the first time a comment shows up.
-		if (items.length > 0 && !this._isFeedbackMode && !this._isCollapsed) {
-			this.enterFeedbackMode({ focus: false });
+		if (items.length > 0 && !this._suppressFeedbackModeAutoOpen && !this._isFeedbackMode && !this._isCollapsed) {
+			void this.enterFeedbackMode({ focus: false });
 			return;
 		}
 
@@ -491,7 +569,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._submitButton = submitButton;
 			this._renderedSubmitInlineCount = inlineCount;
 			this._buttonStore.add(submitButton);
-			this._buttonStore.add(submitButton.onDidClick(() => this.submitFeedback()));
+			this._buttonStore.add(submitButton.onDidClick(() => void this.submitFeedback()));
 
 			if (includeReject) {
 				const rejectButton = new Button(container, { ...defaultButtonStyles, secondary: true });
@@ -623,13 +701,30 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (this._reviewButton) {
 			const isIconOnly = this._isCollapsed;
 			this._reviewButton.element.classList.toggle('chat-plan-review-title-icon-button', isIconOnly);
+			let label: string;
+			let tooltip: string;
 			if (isIconOnly) {
-				this._reviewButton.label = `$(${Codicon.edit.id})`;
+				label = `$(${Codicon.edit.id})`;
+				const fileName = this.review.planUri ? basename(URI.revive(this.review.planUri)) : '';
+				tooltip = this.review.canProvideFeedback
+					? localize('chat.planReview.reviewTooltip', 'Review {0}', fileName)
+					: localize('chat.planReview.openTooltip', 'Open {0}', fileName);
+			} else if (this._isFeedbackMode) {
+				label = localize('chat.planReview.cancelButtonLabel', "Cancel");
+				tooltip = localize('chat.planReview.cancelTooltip', "Exit feedback mode");
 			} else {
-				this._reviewButton.label = this.review.canProvideFeedback
-					? localize('chat.planReview.reviewButtonLabel', "Edit or Provide Feedback")
-					: localize('chat.planReview.openButtonLabel', "Open Plan");
+				const fileName = this.review.planUri ? basename(URI.revive(this.review.planUri)) : '';
+				if (this.review.canProvideFeedback) {
+					label = localize('chat.planReview.reviewButtonLabel', "Edit or Provide Feedback");
+					tooltip = localize('chat.planReview.reviewTooltip', 'Review {0}', fileName);
+				} else {
+					label = localize('chat.planReview.openButtonLabel', "Open Plan");
+					tooltip = localize('chat.planReview.openTooltip', 'Open {0}', fileName);
+				}
 			}
+			this._reviewButton.label = label;
+			this._reviewButton.element.setAttribute('aria-label', tooltip);
+			this._reviewButton.setTitle(tooltip);
 		}
 
 		// Move action buttons between footer (expanded) and inline title
@@ -648,19 +743,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._restoreButton.element.setAttribute('aria-label', tooltip);
 		this._restoreButton.setTitle(tooltip);
 		this._messageScrollable.scanDomNode();
-	}
-
-	private async openPlanFile(): Promise<void> {
-		if (!this.review.planUri) {
-			return;
-		}
-		const uri = URI.revive(this.review.planUri);
-		await this._editorService.openEditor({ resource: uri });
+		// Re-measure the row against the new max-height/min-height.
+		this._onDidChangeHeight.fire();
 	}
 
 	private async enterReviewMode(): Promise<void> {
-		await this.openPlanFile();
+		// Read-only / submitted plans: fall back to opening the file in an editor.
 		if (!this.review.canProvideFeedback || this._isSubmitted) {
+			if (this.review.planUri) {
+				await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
+			}
 			return;
 		}
 		if (this._isCollapsed) {
@@ -671,7 +763,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this.updateCollapsedPresentation();
 			this.updateExpandedPresentation();
 		}
-		this.enterFeedbackMode({ focus: true });
+		await this.enterFeedbackMode({ focus: true });
 	}
 
 	private async submitApproval(action: IChatPlanApprovalAction): Promise<void> {
@@ -685,8 +777,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			}
 		}
 		this._isSubmitted = true;
-		this._options.onSubmit({ action: action.label, rejected: false });
-		this.markUsed();
+		// Only the textarea-only flow (no planUri) attaches a draft to the action click.
+		const ridesAlong = !this.review.planUri;
+		const textareaFeedback = ridesAlong ? this._feedbackTextarea?.value.trim() : undefined;
+		this._options.onSubmit({
+			action: action.label,
+			...(action.id ? { actionId: action.id } : {}),
+			rejected: false,
+			...(textareaFeedback ? { feedback: textareaFeedback, feedbackOverall: textareaFeedback } : {}),
+		});
+		void this.markUsed();
 	}
 
 	private submitRejection(): void {
@@ -694,14 +794,19 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return;
 		}
 		this._isSubmitted = true;
-		this._options.onSubmit({ rejected: true });
-		this.markUsed();
+		const ridesAlong = !this.review.planUri;
+		const textareaFeedback = ridesAlong ? this._feedbackTextarea?.value.trim() : undefined;
+		this._options.onSubmit({
+			rejected: true,
+			...(textareaFeedback ? { feedback: textareaFeedback, feedbackOverall: textareaFeedback } : {}),
+		});
+		void this.markUsed();
 	}
 
-	private enterFeedbackMode(options?: { focus?: boolean }): void {
+	private async enterFeedbackMode(options?: { focus?: boolean }): Promise<void> {
 		if (this._isFeedbackMode) {
 			if (options?.focus) {
-				this._feedbackTextarea?.focus();
+				this.focusFeedbackInput();
 			}
 			return;
 		}
@@ -711,9 +816,20 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 		this.domNode.classList.add('chat-plan-review-feedback-mode');
 		this.renderCommentsList();
-		this.renderCurrentActionButtons();
+		// `updateCollapsedPresentation` re-renders the action buttons, so we don't call
+		// `renderCurrentActionButtons` explicitly here to avoid double work.
+		this.updateCollapsedPresentation();
+		const mountId = ++this._inlineEditorMountId;
+		if (this.isInlineEditorEnabled()) {
+			await this.mountInlineEditor(mountId);
+		} else if (this.review.planUri) {
+			// No inline editor surface: open the plan file in an editor so the user has
+			// somewhere to edit. Covers paths that bypass `enterReviewMode` (e.g. the
+			// constructor auto-promote when restored inline comments exist).
+			await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
+		}
 		if (options?.focus !== false) {
-			this._feedbackTextarea?.focus();
+			this.focusFeedbackInput();
 		}
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
@@ -724,39 +840,246 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return;
 		}
 
-		// Back is non-destructive: inline comments and the textarea draft
-		// persist so the user can resume via the Review button.
+		// Closing is non-destructive: discards the temporary inline editor model;
+		// comments and the textarea draft persist.
 		this._isFeedbackMode = false;
 		if (this._feedbackSection) {
 			dom.hide(this._feedbackSection);
 		}
 		this.domNode.classList.remove('chat-plan-review-feedback-mode');
-		this.renderCurrentActionButtons();
+		await this.unmountInlineEditor();
+		this.renderMarkdown();
+		// `updateCollapsedPresentation` re-renders the action buttons.
+		this.updateCollapsedPresentation();
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
 	}
 
-	private submitFeedback(): void {
+	private focusFeedbackInput(): void {
+		if (this._messageEditor) {
+			this._messageEditor.focus();
+		} else {
+			this._feedbackTextarea?.focus();
+		}
+	}
+
+	// Mount a Monaco editor over the message body backed by an in-memory model
+	// seeded from the plan file. Avoids dirtying the real file's working copy;
+	// the buffer is only written back via `ITextFileService.write` on submission.
+	private async mountInlineEditor(mountId: number): Promise<void> {
+		if (!this.canContinueInlineEditorMount(mountId) || !this.review.planUri) {
+			return;
+		}
+		const planUri = URI.revive(this.review.planUri);
+
+		// Abort on read failure rather than seeding `''` which would clobber the file.
+		let initialContent: string;
+		try {
+			const stat = await this._textFileService.read(planUri);
+			initialContent = stat.value;
+		} catch {
+			return;
+		}
+		if (!this.canContinueInlineEditorMount(mountId)) {
+			return;
+		}
+
+		// Unique scratch URI per mount; same basename for nicer tooltips.
+		const editingUri = URI.from({
+			scheme: Schemas.inMemory,
+			path: `${PLAN_REVIEW_EDITING_PATH_PREFIX}/${generateUuid()}/${basename(planUri)}`,
+		});
+		const language = this._languageService.createByFilepathOrFirstLine(planUri);
+		const model = this._modelService.createModel(initialContent, language, editingUri);
+
+		// Pin a model reference so sub-features (WordHighlighter, hovers) don't
+		// trigger `destroyModel` while the editor is mounted.
+		let pinnedRef: IDisposable | undefined;
+		try {
+			pinnedRef = await this._textModelService.createModelReference(editingUri);
+		} catch {
+			// Non-fatal: editing still works, only some sub-features may misbehave.
+		}
+		if (!this.canContinueInlineEditorMount(mountId)) {
+			pinnedRef?.dispose();
+			model.dispose();
+			return;
+		}
+
+		this._messageEditorDisposables.clear();
+		this._messageContentDisposables.clear();
+		dom.clearNode(this._messageEl);
+		this._messageEl.classList.add('chat-plan-review-body-editor');
+
+		const editorOptions: IEditorOptions = {
+			wordWrap: 'on',
+			lineNumbers: 'on',
+			lineNumbersMinChars: 2,
+			glyphMargin: true,
+			folding: false,
+			minimap: { enabled: false },
+			scrollBeyondLastLine: false,
+			overviewRulerLanes: 0,
+			overviewRulerBorder: false,
+			hideCursorInOverviewRuler: true,
+			lineDecorationsWidth: 6,
+			renderLineHighlight: 'none',
+			lightbulb: { enabled: ShowLightbulbIconMode.Off },
+			padding: { top: 0, bottom: 0 },
+			automaticLayout: true,
+			scrollbar: {
+				vertical: 'auto',
+				horizontal: 'auto',
+				alwaysConsumeMouseWheel: false,
+			},
+		};
+
+		let editor: CodeEditorWidget;
+		try {
+			editor = this._instantiationService.createInstance(CodeEditorWidget, this._messageEl, editorOptions, {
+				isSimpleWidget: false,
+			});
+		} catch {
+			pinnedRef?.dispose();
+			model.dispose();
+			this._messageEl.classList.remove('chat-plan-review-body-editor');
+			dom.clearNode(this._messageEl);
+			this.renderMarkdown();
+			return;
+		}
+		// Explicitly detach the scratch model before either the editor or model is
+		// disposed. This tears down editor ModelData (ViewModel + View) while the
+		// model is still alive, avoiding leaked editor internals.
+		this._messageEditorDisposables.add(toDisposable(() => editor.setModel(null)));
+		this._messageEditorDisposables.add(editor);
+		this._messageEditorDisposables.add(model);
+		if (pinnedRef) {
+			this._messageEditorDisposables.add(pinnedRef);
+		}
+		this._editingUri = editingUri;
+		this._initialEditorContent = initialContent;
+
+		// Register the editing URI before migrating: addFeedback no-ops on unregistered URIs.
+		const editingRegistration = this._planReviewFeedbackService.registerPlanReview(editingUri, () => {
+			void this.submitFeedback();
+		});
+		this._messageEditorDisposables.add(editingRegistration);
+		this._messageEditorDisposables.add(toDisposable(() => {
+			this._editingUri = undefined;
+		}));
+
+		try {
+			editor.setModel(model);
+		} catch {
+			this._messageEditorDisposables.clear();
+			this._messageEl.classList.remove('chat-plan-review-body-editor');
+			dom.clearNode(this._messageEl);
+			this.renderMarkdown();
+			return;
+		}
+		this._messageEditor = editor;
+
+		// Migrate pre-existing comments to the editing URI; restored on unmount.
+		const preExistingComments = this._planReviewFeedbackService.getFeedback(planUri);
+		if (preExistingComments.length > 0) {
+			for (const item of preExistingComments) {
+				this._planReviewFeedbackService.addFeedback(editingUri, item.line, item.column, item.text);
+			}
+			this._planReviewFeedbackService.clearFeedback(planUri);
+		}
+
+		this._messageScrollable.scanDomNode();
+		this._onDidChangeHeight.fire();
+		editor.focus();
+	}
+
+	private canContinueInlineEditorMount(mountId: number): boolean {
+		return this._inlineEditorMountId === mountId
+			&& !this._messageEditor
+			&& this._isFeedbackMode
+			&& !this._isSubmitted
+			&& !this._messageEditorDisposables.isDisposed;
+	}
+
+	private isInlineEditorEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(ChatConfiguration.PlanReviewInlineEditorEnabled) !== false;
+	}
+
+	private migrateInlineFeedbackToPlan(editingUri: URI, planUri: URI): void {
+		const items = [...this._planReviewFeedbackService.getFeedback(editingUri)];
+		if (items.length === 0) {
+			return;
+		}
+
+		this._suppressFeedbackModeAutoOpen = true;
+		try {
+			for (const item of items) {
+				this._planReviewFeedbackService.addFeedback(planUri, item.line, item.column, item.text);
+			}
+			this._planReviewFeedbackService.clearFeedback(editingUri);
+		} finally {
+			this._suppressFeedbackModeAutoOpen = false;
+		}
+	}
+
+	// Tear down the editor; if requested, write changed scratch text back to disk.
+	private async unmountInlineEditor(options?: { writeBack?: boolean }): Promise<void> {
+		this._inlineEditorMountId++;
+		if (!this._messageEditor) {
+			return;
+		}
+		const editor = this._messageEditor;
+		const editingUri = this._editingUri;
+		const model = editingUri ? this._modelService.getModel(editingUri) : undefined;
+		const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
+		const initialContent = this._initialEditorContent;
+
+		// Snapshot before disposing — clearing the store disposes the model.
+		const text = model && !model.isDisposed() ? model.getValue() : undefined;
+		if (editingUri && planUri) {
+			this.migrateInlineFeedbackToPlan(editingUri, planUri);
+		}
+
+		this._messageEditor = undefined;
+		this._initialEditorContent = undefined;
+		try {
+			editor.setModel(null);
+		} finally {
+			this._messageEditorDisposables.clear();
+			this._messageEl.classList.remove('chat-plan-review-body-editor');
+			dom.clearNode(this._messageEl);
+		}
+
+		// Skip writes when nothing changed to avoid mtime bumps / watcher fires.
+		if (options?.writeBack && text !== undefined && planUri && text !== initialContent) {
+			if (this.review instanceof ChatPlanReviewData) {
+				this.review.content = text;
+			}
+			try {
+				await this._textFileService.write(planUri, text);
+			} catch {
+				// Don't fail submission on a transient write error.
+			}
+		}
+	}
+
+	private async submitFeedback(): Promise<void> {
 		if (this._isSubmitted) {
 			return;
 		}
 		const textareaFeedback = this._feedbackTextarea?.value.trim();
 
-		// Collect any inline editor feedback for this plan file.
-		let editorFeedbackItems: readonly IPlanReviewFeedbackItem[] = [];
-		if (this.review.planUri) {
-			const planUri = URI.revive(this.review.planUri);
-			editorFeedbackItems = this._planReviewFeedbackService.getFeedback(planUri);
-		}
+		const editorFeedbackItems = [...this.getInlineFeedbackItems()];
 
 		if (!textareaFeedback && editorFeedbackItems.length === 0) {
 			return;
 		}
+		this._isSubmitted = true;
 
-		// Build a structured markdown message for the agent. Keep the overall
-		// comment and inline-comments block as separate fields on the result
-		// so the transcript can render them differently without re-parsing
-		// the localized combined string.
+		// Flush in-widget edits to disk before notifying the agent.
+		await this.unmountInlineEditor({ writeBack: true });
+
+		// Keep overall and inline blocks separate so the transcript can render them distinctly.
 		let feedbackInlineMarkdown: string | undefined;
 		if (editorFeedbackItems.length > 0) {
 			const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
@@ -782,14 +1105,13 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 
 		const feedback = sections.join('\n\n');
-		this._isSubmitted = true;
 		this._options.onSubmit({
 			rejected: false,
 			feedback,
 			feedbackOverall: textareaFeedback || undefined,
 			feedbackInlineMarkdown,
 		});
-		this.markUsed();
+		await this.markUsed();
 	}
 
 	private async confirmAutopilot(): Promise<boolean> {
@@ -816,14 +1138,17 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		return result.result === true;
 	}
 
-	private markUsed(): void {
+	private async markUsed(): Promise<void> {
 		this.domNode.classList.add('chat-plan-review-used');
 		this._buttonStore.clear();
 		this._submitButton = undefined;
 		this._renderedSubmitInlineCount = -1;
-		// Unregister from the feedback service so the editor contribution
-		// hides/disables immediately, even if the plan file is still open.
+		// Hide the editor contribution even if the plan file is still open.
 		this._planReviewRegistration.clear();
+		if (this._messageEditor) {
+			await this.unmountInlineEditor({ writeBack: false });
+			this.renderMarkdown();
+		}
 		if (this._feedbackTextarea) {
 			this._feedbackTextarea.disabled = true;
 		}

@@ -13,7 +13,8 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -85,6 +86,36 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
 		}
 
+		// Codex agent is opt-in via `chat.agentHost.codexAgent.path`. Mirrors the
+		// Claude opt-in pattern above.
+		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
+			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
+			|| '';
+		if (codexBinaryPath) {
+			env[AgentHostCodexAgentBinaryPathEnvVar] = codexBinaryPath;
+		}
+		const codexHome = this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId) || '';
+		if (codexHome) {
+			env[AgentHostCodexAgentCodexHomeEnvVar] = codexHome;
+		}
+		const codexArgs = this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId);
+		if (Array.isArray(codexArgs) && codexArgs.length > 0) {
+			env[AgentHostCodexAgentBinaryArgsEnvVar] = JSON.stringify(codexArgs);
+		}
+
+		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
+		// the agent host process. Any value already present on `process.env` wins
+		// (developer override) — see `buildAgentHostOTelEnv`.
+		const otelEnv = buildAgentHostOTelEnv({
+			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
+			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
+		}, process.env);
+		Object.assign(env, otelEnv);
+
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {
 			if (this._wsConfig.port) {
@@ -101,13 +132,18 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 		}
 
+		const args = [
+			'--type=agentHost',
+			'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
+			'--user-data-dir', this._environmentService.userDataPath,
+		];
+		if (this._environmentService.disableTelemetry) {
+			args.push('--disable-telemetry');
+		}
+
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
-			args: [
-				'--type=agentHost',
-				'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
-				'--user-data-dir', this._environmentService.userDataPath,
-			],
+			args,
 			env,
 		};
 

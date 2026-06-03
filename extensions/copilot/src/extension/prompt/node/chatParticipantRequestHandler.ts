@@ -32,10 +32,13 @@ import { ICommandService } from '../../commands/node/commandService';
 import { getAgentForIntent, Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { IIntentService } from '../../intents/node/intentService';
+import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
+import { formatAutoModeDetails, formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 import { ContributedToolName } from '../../tools/common/toolNames';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
-import { AnthropicTokenUsageMetadata, Conversation, getGlobalContextCacheKey, GlobalContextMessageMetadata, ICopilotChatResult, ICopilotChatResultIn, normalizeSummariesOnRounds, RenderedUserMessageMetadata, Turn, TurnStatus } from '../common/conversation';
+import { Conversation, getGlobalContextCacheKey, GlobalContextMessageMetadata, ICopilotChatResult, ICopilotChatResultIn, normalizeSummariesOnRounds, RenderedUserMessageMetadata, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
 import { InternalToolReference } from '../common/intents';
 import { ChatTelemetryBuilder } from './chatParticipantTelemetry';
 import { DefaultIntentRequestHandler } from './defaultIntentRequestHandler';
@@ -86,6 +89,7 @@ export class ChatParticipantRequestHandler {
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
 		this.location = this.getLocation(request);
 
@@ -258,15 +262,14 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				if (creditsUsed !== undefined) {
-					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
-					result.details = creditsUsed === 1
-						? l10n.t('{0} • {1} credit', endpoint.name, formatted)
-						: l10n.t('{0} • {1} credits', endpoint.name, formatted);
+				const hideAutoModelName = isAutoModel(endpoint) === 1
+					&& this._experimentationService.getTreatmentVariable<boolean>('copilotchat.hideAutoModelName') === true;
+				if (hideAutoModelName) {
+					result.details = formatAutoModeDetails(creditsUsed, endpoint.multiplier);
+				} else if (this._authService.copilotToken?.isNoAuthUser) {
+					result.details = endpoint.name;
 				} else {
-					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
-						? `${endpoint.name}`
-						: `${endpoint.name} • ${endpoint.multiplier}x`;
+					result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 				}
 			}
 
@@ -454,7 +457,7 @@ function createTurnFromVSCodeChatHistoryTurns(
 		currentTurn.setMetadata(new RenderedUserMessageMetadata(turnMetadata.renderedUserMessage));
 	}
 	if (turnMetadata?.promptTokens && turnMetadata?.outputTokens) {
-		currentTurn.setMetadata(new AnthropicTokenUsageMetadata(turnMetadata.promptTokens, turnMetadata.outputTokens));
+		currentTurn.setMetadata(new TurnTokenUsageMetadata(turnMetadata.promptTokens, turnMetadata.outputTokens));
 	}
 
 	return currentTurn;

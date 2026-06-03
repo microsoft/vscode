@@ -23,8 +23,9 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { Event } from '../../../../base/common/event.js';
 import { timeout } from '../../../../base/common/async.js';
+import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -175,9 +176,34 @@ CommandsRegistry.registerCommand({
 		const installed = await extensionManagementService.getInstalled();
 		const toEnable = installed.filter(e => e.isBuiltin && extensionEnablementService.canChangeEnablement(e) && !extensionEnablementService.isEnabled(e));
 		if (toEnable.length) {
-			const registered = Event.toPromise(extensionService.onDidChangeExtensions);
-			await extensionEnablementService.setEnablement(toEnable, EnablementState.EnabledGlobally);
-			await Promise.race([registered, timeout(5000)]);
+			// Wait until every extension we're about to enable has actually been
+			// registered with the extension service (its contributions, including
+			// configuration, are processed at that point). Racing with a single
+			// `onDidChangeExtensions` event is unreliable because the event may
+			// fire before all of the enabled extensions have joined the registry.
+			const pending = new ExtensionIdentifierSet(toEnable.map(e => e.identifier.id));
+			for (const ext of extensionService.extensions) {
+				pending.delete(ext.identifier);
+			}
+			let sub: IDisposable | undefined;
+			const allRegistered = pending.size === 0
+				? Promise.resolve()
+				: new Promise<void>(resolve => {
+					sub = extensionService.onDidChangeExtensions(({ added }) => {
+						for (const ext of added) {
+							pending.delete(ext.identifier);
+						}
+						if (pending.size === 0) {
+							resolve();
+						}
+					});
+				});
+			try {
+				await extensionEnablementService.setEnablement(toEnable, EnablementState.EnabledGlobally);
+				await Promise.race([allRegistered, timeout(15000)]);
+			} finally {
+				sub?.dispose();
+			}
 			await extensionService.whenInstalledExtensionsRegistered();
 		}
 

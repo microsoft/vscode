@@ -9,7 +9,7 @@ import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointer
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Action } from '../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -31,7 +31,7 @@ import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
-import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -40,7 +40,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
-import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar } from '../../../../platform/editor/common/editor.js';
+import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar, isModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
@@ -48,7 +48,7 @@ const MODAL_MAX_DEFAULT_WIDTH = 1400;
 const MODAL_MAX_DEFAULT_HEIGHT = 900;
 const MODAL_BORDER_WIDTH = 1; // 1px border on each side
 const MODAL_BORDER_SIZE = MODAL_BORDER_WIDTH * 2;
-const MODAL_HEADER_HEIGHT = 33; // 32px header + 1px border bottom
+const MODAL_HEADER_HEIGHT = 33; // Fallback only — actual height is measured from the rendered header element to account for the compact-header variant.
 const MODAL_SNAP_THRESHOLD = 20;
 const MODAL_MAXIMIZED_PADDING = 16;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
@@ -262,7 +262,7 @@ export class ModalEditorPart {
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
 		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, options?.sidebar, disposables);
+		const sidebarResult = this.createSidebar(editorPartContainer, headerElement, options?.sidebar, disposables);
 		if (sidebarResult) {
 			if (sidebarResult.isVisible()) {
 				editorPartContainer.classList.add('has-sidebar');
@@ -386,7 +386,13 @@ export class ModalEditorPart {
 			editorPart.handleHeaderDoubleClick();
 		}));
 
-		// Handle right-click on header to open context menu
+		// Handle right-click on header to open context menu. The context menu
+		// also surfaces the editor actions of the active editor group, mirroring
+		// how the workbench titlebar exposes them when
+		// `workbench.editor.editorActionsLocation` is set to `titleBar`. The
+		// active editor pane's `scopedContextKeyService` is used so the actions'
+		// `when`/`precondition` and keybinding labels are evaluated in the correct
+		// scope.
 		disposables.add(addDisposableListener(headerElement, EventType.CONTEXT_MENU, e => {
 			const target = e.target;
 			if (isHTMLElement(target) && (target.closest('.monaco-button') || target.closest('.action-item'))) {
@@ -395,9 +401,21 @@ export class ModalEditorPart {
 
 			EventHelper.stop(e, true);
 
+			const contextMenuDisposables = new DisposableStore();
+			const activeGroup = editorPart.activeGroup;
+			const activeEditor = activeGroup.activeEditor;
+			const editorScopedContextKeyService = activeGroup.activeEditorPane?.scopedContextKeyService ?? activeGroup.scopedContextKeyService;
+			const editorActions = activeGroup.createEditorActions(contextMenuDisposables, MenuId.EditorTitle);
+			const { primary, secondary } = editorActions.actions;
+
 			this.contextMenuService.showContextMenu({
 				menuId: MenuId.ModalEditorTitleContext,
-				getAnchor: () => ({ x: e.clientX, y: e.clientY })
+				contextKeyService: editorScopedContextKeyService,
+				getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+				getActions: () => Separator.join(primary, secondary),
+				getActionsContext: () => ({ groupId: activeGroup.id, editorIndex: activeEditor ? activeGroup.getIndexOfEditor(activeEditor) : undefined } satisfies IEditorCommandsContext),
+				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, editorScopedContextKeyService),
+				onHide: () => contextMenuDisposables.dispose(),
 			});
 		}));
 
@@ -405,16 +423,17 @@ export class ModalEditorPart {
 			const { width: modalWidth, height: modalHeight } = resizableElement.size;
 			const { top: topPx, left: leftPx } = resizableElement.domNode.style;
 			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+			const headerHeight = headerElement.offsetHeight;
 
 			editorPart.layout(
 				Math.max(0, modalWidth - MODAL_BORDER_SIZE - sidebarWidth),
-				modalHeight - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT,
-				parseFloat(topPx) + MODAL_BORDER_WIDTH + MODAL_HEADER_HEIGHT,
+				modalHeight - MODAL_BORDER_SIZE - headerHeight,
+				parseFloat(topPx) + MODAL_BORDER_WIDTH + headerHeight,
 				parseFloat(leftPx) + MODAL_BORDER_WIDTH + sidebarWidth,
 			);
 
 			if (sizeChanged) {
-				sidebarResult?.layout(modalHeight - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT);
+				sidebarResult?.layout(modalHeight - MODAL_BORDER_SIZE - headerHeight);
 			}
 		};
 
@@ -684,6 +703,16 @@ export class ModalEditorPart {
 		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
 		disposables.add(editorPart.onDidRequestLayout(() => layoutModal()));
 
+		// Reflect modal-options from the active editor (e.g. compact header)
+		// as classes on the modal block, and re-layout so dimensions account
+		// for any header size change.
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
+			const activeEditor = editorPart.activeGroup.activeEditor;
+			const editorModalOptions = isModalEditorOptionsProvider(activeEditor) ? activeEditor.getModalEditorOptions() : undefined;
+			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
+			layoutModal();
+		}));
+
 		// Dim window controls to match the modal overlay
 		this.hostService.setWindowDimmed(mainWindow, true);
 		disposables.add(toDisposable(() => this.hostService.setWindowDimmed(mainWindow, false)));
@@ -698,7 +727,7 @@ export class ModalEditorPart {
 		};
 	}
 
-	private createSidebar(container: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
+	private createSidebar(container: HTMLElement, headerElement: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
 		if (!content) {
 			return undefined;
 		}
@@ -716,11 +745,15 @@ export class ModalEditorPart {
 		const contentDisposable = disposables.add(new MutableDisposable());
 		contentDisposable.value = content.render(sidebarContainer, onDidLayoutEmitter.event);
 
-		// Sash for resizing sidebar
+		// Sash for resizing sidebar.
+		// Prefer the measured header height so the sash aligns with the real chrome
+		// (the compact-header variant is 40px, the default header is 33px). The
+		// constant only applies before the header has been laid out.
+		const getHeaderHeight = () => (headerElement.offsetHeight || MODAL_HEADER_HEIGHT);
 		const sash = disposables.add(new Sash(container, {
 			getVerticalSashLeft: () => sidebarWidth,
-			getVerticalSashTop: () => MODAL_HEADER_HEIGHT,
-			getVerticalSashHeight: () => (container.clientHeight - MODAL_HEADER_HEIGHT),
+			getVerticalSashTop: () => getHeaderHeight(),
+			getVerticalSashHeight: () => (container.clientHeight - getHeaderHeight()),
 		}, { orientation: Orientation.VERTICAL }));
 		if (!visible) {
 			sash.state = SashState.Disabled;

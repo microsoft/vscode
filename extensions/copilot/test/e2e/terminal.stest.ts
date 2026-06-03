@@ -573,19 +573,8 @@ function generateEvaluate(testCase: ITerminalTestCase, options: IGenerateEvaluat
 		if (options.strict) {
 			const firstSuggestion = commandSuggestions[0];
 			const bestAnswer = getShellSpecificAnswer(testCase.bestAnswer, testCase.shellType);
-			// Uncomment for quickly checking failed assertions with full answers
-			// if (bestAnswer.every(e => {
-			// 	return (typeof e === 'string'
-			// 		? e !== firstSuggestion
-			// 		: !firstSuggestion.match(e)
-			// 	);
-			// })) {
-			// 	console.log(`\n\x1b[31mFAILURE:\x1b[0m\n The _first_ code block\n    \`${commandSuggestions[0]}\`\nshould _equal_ the expected answer\n    \`${bestAnswer.join(',')}\`)`);
-			// 	console.log('\x1b[31m\nQUESTION:\n\x1b[0;2m' + question + '\n\x1b[0m');
-			// 	console.log('\x1b[31m\nANSWER:\n\x1b[0;2m' + answer + '\n\x1b[0m');
-			// }
 			ok(
-				bestAnswer.some(e => {
+				firstSuggestion !== undefined && bestAnswer.some(e => {
 					return (typeof e === 'string'
 						? e === firstSuggestion
 						: firstSuggestion.match(e)

@@ -37,6 +37,13 @@ const FILES_TO_SKIP = [
 	// Copilot SDK (extensions/copilot): single-arch prebuilds and ripgrep binaries
 	'**/node_modules/@github/copilot/sdk/prebuilds/darwin-*/**',
 	'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/**',
+	// ripgrep-universal: single-arch binaries in per-platform directories
+	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/**',
+	// MXC SDK ships per-arch native binaries under bin/<arch>; the package
+	// includes both arm64 and x64 trees regardless of host arch.
+	'**/node_modules/@microsoft/mxc-sdk/bin/**',
+	'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
 ];
 
 function isFileSkipped(file: string): boolean {

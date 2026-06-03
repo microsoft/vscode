@@ -363,6 +363,36 @@ export interface IChatWorkspaceEdit {
 	edits: IChatWorkspaceFileEdit[];
 }
 
+/**
+ * The kind of file operation an {@link IChatExternalEdit} represents.
+ */
+export type ChatExternalEditKind = 'create' | 'delete' | 'rename' | 'edit';
+
+/**
+ * A summary of a file edit that has been performed externally (i.e. by an
+ * agent or tool outside of chat's own editing pipeline). Carries everything
+ * needed to render a static "edit pill" without round-tripping through
+ * {@link IChatEditingSession} for diff computation: the producer already
+ * knows the URIs and diff stats up-front.
+ */
+export interface IChatExternalEdit {
+	kind: 'externalEdit';
+	/** The resulting file URI (after-URI for create/edit/rename, before-URI for delete). */
+	uri: URI;
+	/** The kind of file operation. */
+	editKind: ChatExternalEditKind;
+	/** For renames, the file URI before the operation. */
+	originalUri?: URI;
+	/** URI from which the "before" content can be read (for diff viewing). Absent for creates. */
+	beforeContentUri?: URI;
+	/** URI from which the "after" content can be read (for diff viewing). Absent for deletes. */
+	afterContentUri?: URI;
+	/** Pre-computed diff display metadata. */
+	diff?: { added: number; removed: number };
+	/** Optional undo-stop id (typically the tool call id) for grouping. */
+	undoStopId?: string;
+}
+
 export interface IChatConfirmation {
 	title: string;
 	message: string | IMarkdownString;
@@ -556,6 +586,10 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
+	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
+	requestAllowNetwork?: boolean;
+	/** The model-provided reason for requesting unrestricted network access within the sandbox */
+	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -1037,6 +1071,14 @@ export interface IChatDisabledClaudeHooksPart {
 
 /** A single approval option shown in the plan review dropdown button. */
 export interface IChatPlanApprovalAction {
+	/**
+	 * Stable identifier for matching the chosen action programmatically.
+	 * Unlike `label` this is not localized, so callers should compare
+	 * against `IChatPlanReviewResult.actionId` rather than `action`.
+	 * Optional for backwards-compatibility; omit for one-off actions
+	 * where the localized label is the only intended identifier.
+	 */
+	id?: string;
 	label: string;
 	description?: string;
 	default?: boolean;
@@ -1046,7 +1088,11 @@ export interface IChatPlanApprovalAction {
 
 /** The result of reviewing a plan. */
 export interface IChatPlanReviewResult {
+	/** The chosen action's localized `label`. */
 	action?: string;
+	/** The chosen action's stable `id`, if it had one. Prefer this over
+	 * `action` for programmatic comparisons. */
+	actionId?: string;
 	rejected: boolean;
 	/** Combined feedback string sent to the agent (overall comment + inline
 	 * comments, joined and formatted as markdown). */
@@ -1119,6 +1165,7 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
+	| IChatUsage
 	| IChatTreeData
 	| IChatMultiDiffData
 	| IChatMultiDiffDataSerialized
@@ -1135,6 +1182,7 @@ export type IChatProgress =
 	| IChatTextEdit
 	| IChatNotebookEdit
 	| IChatWorkspaceEdit
+	| IChatExternalEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
