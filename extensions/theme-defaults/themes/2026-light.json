@@ -306,6 +306,14 @@
 	"tokenColors": [
 		{
 			"scope": [
+				"entity.other.attribute-name"
+			],
+				"settings": {
+				"foreground": "#0550ae"
+			}
+		},
+		{
+			"scope": [
 				"comment",
 				"punctuation.definition.comment",
 				"string.comment"
