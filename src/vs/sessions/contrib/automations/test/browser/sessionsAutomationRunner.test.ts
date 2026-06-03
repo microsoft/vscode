@@ -175,4 +175,36 @@ suite('SessionsAutomationRunner', () => {
 		assert.strictEqual(runs[0].status, 'completed');
 		assert.strictEqual(runs[0].sessionId, undefined);
 	});
+
+	test('passes the captured providerId and sessionTypeId through to createAndSendNewChatRequest', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.nextSession = fakeSession('s1');
+
+		const a = await service.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: hourly(),
+			folderUri: FOLDER_A,
+			providerId: 'local-agent-host',
+			sessionTypeId: 'agent-host-copilotcli',
+		});
+		await runner.runOnce(a, 'schedule', 1);
+
+		assert.strictEqual(sessionsMgmt.calls.length, 1);
+		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
+			providerId: 'local-agent-host',
+			sessionTypeId: 'agent-host-copilotcli',
+		});
+	});
+
+	test('omits createOptions entirely when no provider/sessionType is captured', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.nextSession = fakeSession('s1');
+
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
+		await runner.runOnce(a, 'schedule', 1);
+
+		assert.strictEqual(sessionsMgmt.calls.length, 1);
+		assert.strictEqual(sessionsMgmt.calls[0].createOptions, undefined);
+	});
 });

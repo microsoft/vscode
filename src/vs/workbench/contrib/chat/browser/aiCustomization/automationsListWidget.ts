@@ -27,6 +27,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IAutomation, IAutomationRun, AutomationRunStatus, AutomationRunTrigger } from '../../common/automations/automation.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
+import { IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { IFolderChoice, showAutomationDialog } from '../automations/automationDialog.js';
 
 const $ = DOM.$;
@@ -76,6 +77,7 @@ export class AutomationsListWidget extends Disposable {
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IAutomationSessionTypeProvider private readonly sessionTypeProvider: IAutomationSessionTypeProvider,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -375,7 +377,7 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private async openCreateDialog(): Promise<void> {
-		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, {
+		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 		});
 		if (!result || result.kind !== 'create') {
@@ -394,7 +396,7 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private async openEditDialog(automation: IAutomation): Promise<void> {
-		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, {
+		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 			existing: automation,
 		});

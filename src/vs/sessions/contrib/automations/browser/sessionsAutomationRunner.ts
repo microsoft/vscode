@@ -12,7 +12,7 @@ import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Sessions-layer runner that turns an automation kickoff into a real
@@ -79,7 +79,14 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				background: true,
 			};
 
-			const session = await this.createSessionAndCapture(automation.folderUri, options);
+			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId || automation.sessionTypeId
+				? {
+					providerId: automation.providerId,
+					sessionTypeId: automation.sessionTypeId,
+				}
+				: undefined;
+
+			const session = await this.createSessionAndCapture(automation.folderUri, options, createOptions);
 
 			await this.automationService.updateRun(runId, {
 				status: 'completed',
@@ -107,6 +114,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 	private async createSessionAndCapture(
 		folderUri: URI,
 		options: ISendRequestOptions,
+		createOptions?: ICreateNewSessionOptions,
 	): Promise<ISession | undefined> {
 		let captured: ISession | undefined;
 		const subscription: IDisposable = this.sessionsManagementService.onDidSendRequest(e => {
@@ -115,7 +123,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 			}
 		});
 		try {
-			await this.sessionsManagementService.createAndSendNewChatRequest(folderUri, options);
+			await this.sessionsManagementService.createAndSendNewChatRequest(folderUri, options, createOptions);
 		} finally {
 			subscription.dispose();
 		}

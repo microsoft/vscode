@@ -53,6 +53,22 @@ export interface IAutomation {
 	 */
 	readonly folderUri: URI;
 
+	/**
+	 * Identifier of the sessions provider that should serve the scheduled
+	 * run (e.g. `local-agent-host`, `copilot-chat`). Omitted on automations
+	 * created before the picker existed; the runner then falls back to the
+	 * workspace's default provider.
+	 */
+	readonly providerId?: string;
+
+	/**
+	 * Identifier of the session type to create within {@link providerId}.
+	 * Captured alongside {@link providerId} when the user picks a session
+	 * type in the create/edit dialog so scheduled runs spin up the same
+	 * kind of session every time.
+	 */
+	readonly sessionTypeId?: string;
+
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;
 

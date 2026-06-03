@@ -16,6 +16,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
+import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 
 const $ = DOM.$;
 
@@ -70,6 +71,7 @@ export async function showAutomationDialog(
 	layoutService: ILayoutService,
 	hostService: IHostService,
 	fileDialogService: IFileDialogService,
+	sessionTypeProvider: IAutomationSessionTypeProvider,
 	options: IShowAutomationDialogOptions,
 ): Promise<IAutomationDialogResult | undefined> {
 	const disposables = new DisposableStore();
@@ -89,6 +91,8 @@ export async function showAutomationDialog(
 		minute: initial?.schedule.scheduleMinute ?? 0,
 		day: initial?.schedule.scheduleDay ?? 1,
 		folderUri: initialFolder,
+		providerId: initial?.providerId,
+		sessionTypeId: initial?.sessionTypeId,
 		modelId: initial?.modelId,
 		mode: initial?.mode,
 		enabled: initial?.enabled ?? true,
@@ -127,7 +131,7 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				renderForm(form, state, options, disposables, validation, () => revalidate(), fileDialogService);
+				renderForm(form, state, options, disposables, validation, () => revalidate(), fileDialogService, sessionTypeProvider);
 				revalidate = () => updateSaveButtonState(saveButton, state, validation, form);
 				revalidate();
 			},
@@ -162,6 +166,8 @@ export async function showAutomationDialog(
 				prompt: state.prompt,
 				schedule,
 				folderUri: state.folderUri,
+				providerId: state.providerId ?? null,
+				sessionTypeId: state.sessionTypeId ?? null,
 				modelId: state.modelId ?? null,
 				mode: state.mode ?? null,
 				enabled: state.enabled,
@@ -174,6 +180,8 @@ export async function showAutomationDialog(
 			prompt: state.prompt,
 			schedule,
 			folderUri: state.folderUri,
+			providerId: state.providerId,
+			sessionTypeId: state.sessionTypeId,
 			modelId: state.modelId,
 			mode: state.mode,
 			enabled: state.enabled,
@@ -192,6 +200,8 @@ interface IFormState {
 	minute: number;
 	day: number;
 	folderUri: URI | undefined;
+	providerId: string | undefined;
+	sessionTypeId: string | undefined;
 	modelId: string | undefined;
 	mode: string | undefined;
 	enabled: boolean;
@@ -211,6 +221,7 @@ function renderForm(
 	validation: IValidationState,
 	revalidate: () => void,
 	fileDialogService: IFileDialogService,
+	sessionTypeProvider: IAutomationSessionTypeProvider,
 ): void {
 	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
@@ -351,6 +362,7 @@ function renderForm(
 		}
 		revalidate();
 		folderError.textContent = validation.folderError ?? '';
+		refreshSessionTypeSelect();
 	}));
 
 	disposables.add(DOM.addStandardDisposableListener(browseButton, 'click', async () => {
@@ -373,7 +385,69 @@ function renderForm(
 		folderSelect.value = pickedUri.toString();
 		revalidate();
 		folderError.textContent = validation.folderError ?? '';
+		refreshSessionTypeSelect();
 	}));
+
+	// --- Session type (recomputed when folder changes) ---
+	// Captures `providerId` + `sessionTypeId` so scheduled runs spin up the
+	// same kind of session every time (e.g. always Copilot CLI on a given
+	// remote host), regardless of which provider happens to be the
+	// workspace default when the run fires. Hidden when no folder is
+	// selected yet or when the active providers cannot serve the folder.
+	const sessionTypeRow = DOM.append(form, $('.automation-form-row'));
+	DOM.append(sessionTypeRow, $('label.automation-form-label', { for: 'automation-session-type' }, localize('automation.form.sessionType', "Session type")));
+	const sessionTypeSelect = DOM.append(sessionTypeRow, $('select.automation-form-select', { id: 'automation-session-type' })) as HTMLSelectElement;
+
+	let availableSessionTypes: readonly IAutomationSessionTypeChoice[] = [];
+
+	const sessionTypeKey = (choice: { providerId: string; sessionTypeId: string }): string => `${choice.providerId}|${choice.sessionTypeId}`;
+
+	const refreshSessionTypeSelect = () => {
+		DOM.clearNode(sessionTypeSelect);
+		availableSessionTypes = state.folderUri ? sessionTypeProvider.getSessionTypesForFolder(state.folderUri) : [];
+		if (availableSessionTypes.length === 0) {
+			sessionTypeRow.style.display = 'none';
+			// When no session types are known, fall back to whatever the
+			// workspace default ends up being at run time.
+			state.providerId = undefined;
+			state.sessionTypeId = undefined;
+			return;
+		}
+		sessionTypeRow.style.display = '';
+		const currentKey = state.providerId && state.sessionTypeId
+			? sessionTypeKey({ providerId: state.providerId, sessionTypeId: state.sessionTypeId })
+			: undefined;
+		let selectedKey: string | undefined;
+		for (const choice of availableSessionTypes) {
+			const key = sessionTypeKey(choice);
+			const label = choice.description ? `${choice.label} — ${choice.description}` : choice.label;
+			const optEl = DOM.append(sessionTypeSelect, $('option', { value: key }, label)) as HTMLOptionElement;
+			if (key === currentKey) {
+				optEl.selected = true;
+				selectedKey = key;
+			}
+		}
+		if (!selectedKey) {
+			// Either nothing was previously selected, or the previous
+			// pick is no longer valid for this folder. Drop down to the
+			// first available choice so the runner always has an explicit
+			// provider/sessionType pair to use.
+			const first = availableSessionTypes[0];
+			state.providerId = first.providerId;
+			state.sessionTypeId = first.sessionTypeId;
+			sessionTypeSelect.value = sessionTypeKey(first);
+		}
+	};
+
+	disposables.add(DOM.addStandardDisposableListener(sessionTypeSelect, 'change', () => {
+		const [providerId, sessionTypeId] = sessionTypeSelect.value.split('|', 2);
+		if (providerId && sessionTypeId) {
+			state.providerId = providerId;
+			state.sessionTypeId = sessionTypeId;
+		}
+	}));
+
+	refreshSessionTypeSelect();
 
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
