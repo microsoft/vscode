@@ -10,6 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
+import { Schemas } from '../../../base/common/network.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
@@ -659,13 +660,13 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				const current = this._stateManager.getSessionState(sessionKey)?._meta;
-				// Skip the action if the computed git state hasn't changed; this is
+				const currentGitState = readSessionGitState(current);
+				// Skip the meta action if the computed git state hasn't changed; this is
 				// called after every turn, so deduping avoids needless action churn.
-				if (objectEquals(readSessionGitState(current), gitState)) {
-					return;
+				if (!objectEquals(currentGitState, gitState)) {
+					const next = withSessionGitState(current, gitState);
+					this._stateManager.setSessionMeta(sessionKey, next);
 				}
-				const next = withSessionGitState(current, gitState);
-				this._stateManager.setSessionMeta(sessionKey, next);
 				this._updateBranchChangesetDescription(sessionKey, gitState);
 			},
 			e => {
@@ -1194,6 +1195,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (attachment.type === MessageAttachmentKind.Resource && this._isRewritableAttachment(attachment, attachmentsRootStr)) {
 				const originalUri = URI.parse(attachment.uri);
+				// If the attachment references a file that already exists on the agent
+				// host side, leave it untouched rather than snapshotting a client copy (#319314).
+				if (originalUri.scheme === Schemas.file && await this._fileExistsSafe(originalUri)) {
+					return attachment;
+				}
+
 				const bytes = await this._readClientResource(originalUri, clientId);
 				const basename = this._attachmentBasename(attachment.label, getMediaMime(originalUri.path));
 				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
@@ -1202,6 +1209,18 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
 		}
 		return attachment;
+	}
+
+	/**
+	 * Like {@link IFileService.exists} but never throws (e.g. when no provider
+	 * is registered for the URI scheme), returning `false` in that case.
+	 */
+	private async _fileExistsSafe(uri: URI): Promise<boolean> {
+		try {
+			return await this._fileService.exists(uri);
+		} catch {
+			return false;
+		}
 	}
 
 	/**

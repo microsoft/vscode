@@ -80,4 +80,3 @@ export function resolveAgentHostAgent(
 	}
 	return storedAgentUri ? agents.find(a => a.uri === storedAgentUri) : undefined;
 }
-

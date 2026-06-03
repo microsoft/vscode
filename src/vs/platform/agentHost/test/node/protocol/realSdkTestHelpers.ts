@@ -103,6 +103,8 @@ export interface IRealSdkProviderConfig {
 	 * the Claude provider.
 	 */
 	readonly claudeSdkPath?: string;
+	/** Optional path to a locally installed `codex` binary. Forwarded to `startRealServer`. */
+	readonly codexBinaryPath?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
 	 * working directory to a `.worktrees/...` path on materialization.
@@ -307,6 +309,9 @@ export async function driveTurnToCompletion(c: TestProtocolClient, session: stri
 			continue;
 		}
 
+
+		const action = getActionEnvelope(notification).action as { turnId: string };
+		assert.strictEqual(action.turnId, turnId);
 		break;
 	}
 
@@ -469,7 +474,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 		setup(async function () {
 			this.timeout(60_000);
-			server = await startRealServer({ claudeSdkPath: config.claudeSdkPath });
+			server = await startRealServer({ claudeSdkPath: config.claudeSdkPath, codexBinaryPath: config.codexBinaryPath });
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		});
@@ -510,7 +515,9 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const sessionUri = await createRealSession(client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(tmpdir()).toString());
 			dispatchTurn(client, sessionUri, 'turn-1', 'Say exactly "hello" and nothing else', 1);
 
-			await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+			const complete = await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+			const completeAction = getActionEnvelope(complete).action as { turnId: string };
+			assert.strictEqual(completeAction.turnId, 'turn-1');
 
 			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
 			assert.ok(responseParts.length > 0, 'should have received at least one response part');
