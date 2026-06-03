@@ -2559,8 +2559,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// `changes.changesets` carries the catalogue (counts + URI
 			// templates). The chip aggregate is recomputed from those counts
 			// here; per-file detail is not part of this notification path.
-			if (changes.changesets !== undefined && cached.setChangesSummary(changes.changesets)) {
-				didChange = true;
+			if (changes.changesets !== undefined) {
+				cached.updateChangesets(changes.changesets);
+				if (cached.setChangesSummary(changes.changesets)) {
+					didChange = true;
+				}
 			}
 
 			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
