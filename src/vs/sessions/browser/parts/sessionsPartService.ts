@@ -114,13 +114,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	/** Safety net so the new-session view is never suppressed indefinitely. */
 	private readonly _restoreSuppressTimeout = this._register(new MutableDisposable<IDisposable>());
 
-	/**
-	 * Session id (or `undefined` for the new-session slot) that focus was last
-	 * moved into in response to an active-session change. Tracks the active id
-	 * so unrelated visibility updates don't re-focus and steal focus.
-	 */
-	private _focusedActiveSessionId: string | undefined;
-
+	private _focusedActiveSessionId: string | undefined | null = null;
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService
