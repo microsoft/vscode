@@ -1563,3 +1563,264 @@ pane is first mounted. View switches inside the modal are not animated. */
 	line-height: 1.4;
 	margin: 0;
 }
+
+.automations-list-widget .automations-empty-state .automations-empty-cta {
+	margin-top: 16px;
+	min-width: 160px;
+	align-self: center;
+}
+
+/* Header */
+.automations-list-widget .automations-header {
+	padding: 16px 24px 12px;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.automations-list-widget .automations-header-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.automations-list-widget .automations-header-title {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	margin: 0;
+}
+
+.automations-list-widget .automations-header-subtitle {
+	font-size: var(--vscode-agents-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
+	margin: 4px 0 0;
+}
+
+.automations-list-widget .automations-new-button {
+	min-width: 140px;
+	flex: 0 0 auto;
+}
+
+/* When the widget is empty, hide the header so the empty-state CTA reads
+ * as the primary action and there is not a duplicate New button. */
+.automations-list-widget.automations-empty .automations-header {
+	display: none;
+}
+
+/* List */
+.automations-list-widget .automations-list {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	overflow: auto;
+}
+
+.automations-list-widget .automations-row {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 12px 24px;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.automations-list-widget .automations-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-list-widget .automations-row-disabled {
+	opacity: 0.6;
+}
+
+.automations-list-widget .automations-row-main {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-row-name {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	word-break: break-word;
+}
+
+.automations-list-widget .automations-row-disabled-badge {
+	font-size: 11px;
+	font-weight: 400;
+	padding: 1px 6px;
+	border-radius: 3px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.automations-list-widget .automations-row-meta {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	flex-wrap: wrap;
+}
+
+.automations-list-widget .automations-row-meta-sep {
+	opacity: 0.6;
+}
+
+.automations-list-widget .automations-row-prompt {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	word-break: break-word;
+}
+
+.automations-list-widget .automations-row-actions {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+	align-items: center;
+	flex: 0 0 auto;
+}
+
+.automations-list-widget .automations-row-action-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.automations-list-widget .automations-row-action-button:hover:not(:disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-list-widget .automations-row-action-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-list-widget .automations-row-action-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Dialog */
+.automation-dialog .dialog-body .dialog-message-container,
+.automation-dialog .dialog-body .dialog-message-detail {
+	display: none;
+}
+
+.automation-dialog .dialog-shadow .dialog-box {
+	min-width: 480px;
+	max-width: 640px;
+}
+
+.automation-dialog-body {
+	padding: 0;
+}
+
+.automation-form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 8px 0;
+}
+
+.automation-form-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.automation-form-row.automation-form-checkbox-row {
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.automation-form-row.automation-form-time-row,
+.automation-form-row.automation-form-day-row {
+	flex-direction: column;
+}
+
+.automation-form-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.automation-form-checkbox-label {
+	font-size: var(--vscode-agents-fontSize-body1);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.automation-form-input,
+.automation-form-select,
+.automation-form-textarea {
+	font-family: inherit;
+	font-size: var(--vscode-agents-fontSize-body1);
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 2px;
+	padding: 4px 6px;
+	box-sizing: border-box;
+	width: 100%;
+}
+
+.automation-form-textarea {
+	resize: vertical;
+	min-height: 80px;
+}
+
+.automation-form-input:focus,
+.automation-form-select:focus,
+.automation-form-textarea:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.automation-form-time-fields {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.automation-form-time-input {
+	width: 64px;
+	flex: 0 0 auto;
+}
+
+.automation-form-time-sep {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.automation-form-error {
+	font-size: 11px;
+	color: var(--vscode-errorForeground);
+	min-height: 1em;
+}
+
+.automation-form-invalid .automation-form-error:empty {
+	min-height: 0;
+}

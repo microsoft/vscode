@@ -927,7 +927,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Container for Automations content
 		if (hasSections.has(AICustomizationManagementSection.Automations)) {
 			this.automationsContentContainer = DOM.append(contentInner, $('.automations-content-container'));
-			this.automationsListWidget = this.editorDisposables.add(new AutomationsListWidget());
+			this.automationsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(AutomationsListWidget));
 			this.automationsContentContainer.appendChild(this.automationsListWidget.element);
 		}
 
