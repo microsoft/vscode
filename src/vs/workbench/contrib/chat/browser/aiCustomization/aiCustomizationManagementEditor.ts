@@ -334,6 +334,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private harnessDropdownLabel: HTMLElement | undefined;
 	private sidebarHeaderContainer: HTMLElement | undefined;
 	private homeButton: HTMLElement | undefined;
+	private homeButtonIcon: HTMLElement | undefined;
 	private homeButtonLabel: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
@@ -600,6 +601,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
 			this.harnessContextKey.set(activeId);
+			this.updateHomeButtonHarnessPresentation();
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
@@ -628,9 +630,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Home/overview button
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
+		homeButton.classList.add('sidebar-harness-home-button');
 		homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, localize('homeButtonTooltip', "Back to overview")));
-		const homeIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
+		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
 		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
@@ -638,6 +641,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
 		}));
+		this.updateHomeButtonHarnessPresentation();
 
 		// Harness dropdown (shown when multiple harnesses available)
 		//this.createHarnessDropdown(headerRow);
@@ -700,6 +704,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const harnessVisible = this.harnessDropdownContainer && this.harnessDropdownContainer.style.display !== 'none';
 		this.homeButtonLabel.style.display = harnessVisible ? 'none' : '';
 		this.homeButton.style.flex = harnessVisible ? '' : '1';
+	}
+
+	private updateHomeButtonHarnessPresentation(): void {
+		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel || this.isHarnessSelectorEnabled) {
+			return;
+		}
+
+		const descriptor = this.harnessService.getActiveDescriptor();
+		if (!descriptor) {
+			this.homeButtonIcon.className = 'sidebar-home-icon';
+			this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
+			this.homeButtonLabel.textContent = localize('overview', "Overview");
+			this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
+			this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
+			return;
+		}
+
+		this.homeButtonIcon.className = 'sidebar-home-icon';
+		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(descriptor.icon));
+		this.homeButtonLabel.textContent = descriptor.label;
+		this.homeButton.setAttribute('aria-label', localize('homeButtonWithHarness', "{0}, Back to overview", descriptor.label));
+		this.homeButton.title = localize('homeButtonTooltipWithHarness', "Current harness: {0}. Click to go to overview", descriptor.label);
 	}
 
 	private updateHarnessDropdown(): void {

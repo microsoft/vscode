@@ -20,12 +20,6 @@ export interface ITerminalSandboxResolvedNetworkDomains {
 export const enum TerminalSandboxPrerequisiteCheck {
 	Config = 'config',
 	Dependencies = 'dependencies',
-	Bubblewrap = 'bubblewrap',
-}
-
-export const enum TerminalSandboxPreCheckRemediation {
-	InstallUbuntuAppArmorProfile = 'installUbuntuAppArmorProfile',
-	DisableUbuntuUserNamespaceRestriction = 'disableUbuntuUserNamespaceRestriction',
 }
 
 export interface ITerminalSandboxPrerequisiteCheckResult {
@@ -33,8 +27,6 @@ export interface ITerminalSandboxPrerequisiteCheckResult {
 	sandboxConfigPath: string | undefined;
 	failedCheck: TerminalSandboxPrerequisiteCheck | undefined;
 	missingDependencies?: string[];
-	remediations?: readonly TerminalSandboxPreCheckRemediation[];
-	detail?: string;
 }
 
 export interface ITerminalSandboxWrapResult {
@@ -124,7 +116,6 @@ export interface ITerminalSandboxService {
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
 	getMissingSandboxDependencies(): Promise<string[]>;
 	installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;
-	runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;
 }
 
 export class NullTerminalSandboxService implements ITerminalSandboxService {
@@ -171,10 +162,6 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 	}
 
 	async installMissingSandboxDependencies(): Promise<ISandboxDependencyInstallResult> {
-		return { exitCode: undefined };
-	}
-
-	async runSandboxRemediation(): Promise<ISandboxDependencyInstallResult> {
 		return { exitCode: undefined };
 	}
 }

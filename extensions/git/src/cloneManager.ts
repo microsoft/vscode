@@ -9,7 +9,7 @@ import * as os from 'os';
 import { pickRemoteSource } from './remoteSource';
 import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode';
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { TelemetryReporter } from '@vscode/extension-telemetry';
 import { Model } from './model';
 
 type ApiPostCloneAction = 'none';

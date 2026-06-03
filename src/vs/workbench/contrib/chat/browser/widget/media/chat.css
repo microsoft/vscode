@@ -873,6 +873,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		travel speed roughly constant regardless of input width — wider
 		inputs would otherwise feel sluggish at a fixed duration. */
 	--chat-input-anim-duration: 4s;
+	/* Allow host surfaces (like inactive sessions) to tone down the animation
+		accent without overriding the global chat theme token. */
+	--chat-input-working-border-color1: var(--vscode-chat-inputWorkingBorderColor1);
 }
 
 /* Prevent contents from covering border corners. Not applied in compact mode
@@ -929,9 +932,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		so the rest of the border stays invisible. */
 	background: conic-gradient(from var(--chat-input-anim-angle),
 			transparent 0deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
-			var(--vscode-chat-inputWorkingBorderColor1) 30deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
+			color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
+			var(--chat-input-working-border-color1) 30deg,
+			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 50deg,
 			transparent 90deg,
 			transparent 360deg);
 	-webkit-mask:
@@ -958,8 +961,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px;
 	background: conic-gradient(from var(--chat-input-anim-angle),
 			transparent 0deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
+			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--chat-input-working-border-color1) 35%, transparent) 50deg,
 			transparent 90deg,
 			transparent 360deg);
 	-webkit-mask:
