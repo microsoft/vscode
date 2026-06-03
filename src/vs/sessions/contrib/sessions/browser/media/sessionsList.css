@@ -118,7 +118,7 @@
 
 		> .codicon {
 			flex-shrink: 0;
-			font-size: var(--vscode-codiconFontSize-compact, 12px);
+			font-size: var(--vscode-codiconFontSize, 16px);
 			height: 16px;
 			display: flex;
 			align-items: center;
@@ -379,6 +379,10 @@
 		display: none;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
+		width: 22px;
+		height: 22px;
+		border-radius: 5px;
+		justify-content: center;
 	}
 }
 
@@ -391,6 +395,10 @@
 .monaco-list-row.focused .session-section .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
+}
+
+.monaco-list-row .session-section .session-section-chevron.collapsible:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .sessions-list-control {

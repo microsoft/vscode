@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
@@ -57,6 +58,15 @@ export interface ISessionTaskWithTarget {
 	readonly target: TaskStorageTarget;
 }
 
+/**
+ * Payload fired by {@link ISessionsTasksService.onDidRunTask} after a
+ * session task has been successfully dispatched to its runner.
+ */
+export interface ISessionTaskRunEvent {
+	readonly task: ITaskEntry;
+	readonly session: ISession;
+}
+
 interface ITasksJson {
 	version?: string;
 	tasks?: ITaskEntry[];
@@ -64,6 +74,13 @@ interface ITasksJson {
 
 export interface ISessionsTasksService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires after a session task has been successfully dispatched to its
+	 * runner via {@link runTask}. Does not fire when the task throws or when
+	 * no runner is registered for the session.
+	 */
+	readonly onDidRunTask: Event<ISessionTaskRunEvent>;
 
 	/**
 	 * Observable list of tasks with `inAgents: true`, automatically
@@ -173,6 +190,10 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
 	private static readonly _BROWSER_URLS_KEY = 'agentSessions.browserUrls';
 	private static readonly _PINNED_BROWSERS_KEY = 'agentSessions.pinnedBrowsers';
+
+	private readonly _onDidRunTask = this._register(new Emitter<ISessionTaskRunEvent>());
+	readonly onDidRunTask = this._onDidRunTask.event;
+
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	private readonly _pinnedTaskLabels: Map<string, string>;
@@ -370,6 +391,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 			return;
 		}
 		await runner.runTask(task, session);
+		this._onDidRunTask.fire({ task, session });
 	}
 
 	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined> {

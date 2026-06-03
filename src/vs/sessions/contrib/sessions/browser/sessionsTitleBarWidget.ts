@@ -38,16 +38,15 @@ import { buildSessionHoverContent, getSessionDiffStats } from './sessionHoverCon
 const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
 /**
- * Sessions Title Bar Widget - renders the active chat session title
+ * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
  *
- * Shows the current chat session label as a clickable pill with:
+ * Shows the current chat session as a clickable pill with:
  * - Kind icon at the beginning (provider type icon)
- * - Session title
  * - Repository folder name and active branch/worktree name when available
  *
  * Session actions (changes, terminal, etc.) are rendered via the
- * SessionTitleActions menu toolbar next to the session title.
+ * SessionTitleActions menu toolbar next to this widget.
  *
  * On click, opens the sessions picker.
  */
@@ -80,7 +79,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsManagementService.activeSession.read(reader);
 			if (sessionData) {
-				sessionData.title.read(reader);
 				sessionData.status.read(reader);
 				sessionData.workspace.read(reader);
 				sessionData.changes.read(reader);
@@ -151,14 +149,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				return;
 			}
 
-			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
 			const repoBranchLabel = this._getRepositoryBranchLabel();
 			const diffStats = this._getDiffStats();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}|${diffStats ? `${diffStats.insertions}/${diffStats.deletions}` : ''}`;
+			const renderState = `${icon?.id ?? ''}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}|${diffStats ? `${diffStats.insertions}/${diffStats.deletions}` : ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -176,10 +173,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;
 
-			// Session pill: icon + label + folder together
+			// Session pill: icon + folder together
 			const sessionPill = $('div.agent-sessions-titlebar-pill');
 
-			// Center group: icon + label + folder
+			// Center group: icon + folder
 			const centerGroup = $('div.agent-sessions-titlebar-center');
 
 			// Kind icon at the beginning
@@ -188,12 +185,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				centerGroup.appendChild(iconEl);
 			}
 
-			// Label
-			const labelEl = $('div.agent-sessions-titlebar-label');
-			labelEl.textContent = label;
-			centerGroup.appendChild(labelEl);
-
-			// Folder shown next to the title
+			// Folder shown next to the icon
 			if (repoLabel) {
 				const detailsEl = $('div.agent-sessions-titlebar-details');
 
@@ -266,17 +258,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		} finally {
 			this._isRendering = false;
 		}
-	}
-
-	/**
-	 * Get the label of the active chat session.
-	 */
-	private _getActiveSessionLabel(): string {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		if (sessionData) {
-			return sessionData.title.get() || localize('agentSessions.newSession', "New Session");
-		}
-		return localize('agentSessions.newSession', "New Session");
 	}
 
 	/**

@@ -15,7 +15,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { disposableTimeout } from '../../../base/common/async.js';
@@ -109,6 +109,7 @@ export class SessionsPart extends Part {
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
+	private readonly _sessionsFocusKey: IContextKey<boolean>;
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -133,7 +134,7 @@ export class SessionsPart extends Part {
 
 		// Bind context keys for compatibility with existing when-clauses
 		ActiveSessionsContext.bindTo(contextKeyService);
-		SessionsFocusContext.bindTo(contextKeyService);
+		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 	}
 
@@ -147,6 +148,12 @@ export class SessionsPart extends Part {
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
+
+		// Track keyboard focus within the sessions content so the `sessionsFocus`
+		// context key reflects whether a session (its chat view) currently has focus.
+		const focusTracker = this._register(trackFocus(contentArea));
+		this._register(focusTracker.onDidFocus(() => this._sessionsFocusKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this._sessionsFocusKey.set(false)));
 
 		// Progress bar pinned to the top of the content area (see sessionsPart.css
 		// rule `.part.sessionspart > .content > .monaco-progress-container`).
@@ -359,6 +366,39 @@ export class SessionsPart extends Part {
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._slots.find(s => s.boundSessionId === sessionId)?.view;
+	}
+
+	/**
+	 * Moves keyboard focus into the session view hosting the given session id (or
+	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
+	 * the grid when it is only partially visible. No-op if no matching slot exists.
+	 */
+	focusSession(sessionId: string | undefined): void {
+		const slot = this._slots.find(s => s.boundSessionId === sessionId);
+		if (!slot) {
+			return;
+		}
+		this._revealView(slot.view);
+		slot.view.focus();
+	}
+
+	/**
+	 * Ensures the given view is fully visible within the grid. The grid clips its
+	 * leaves (`overflow: hidden`) and lays them out side by side; when there are
+	 * more sessions than fit, the grid's split view overflows horizontally and
+	 * becomes scrollable, leaving views near the edges partially hidden. When the
+	 * target view is not fully visible, scroll it into view.
+	 */
+	private _revealView(view: SessionView): void {
+		if (!this._gridWidget) {
+			return;
+		}
+		const containerRect = this._gridWidget.element.getBoundingClientRect();
+		const viewRect = view.element.getBoundingClientRect();
+		const isFullyVisible = viewRect.left >= containerRect.left - 1 && viewRect.right <= containerRect.right + 1;
+		if (!isFullyVisible) {
+			view.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		}
 	}
 
 	/**
