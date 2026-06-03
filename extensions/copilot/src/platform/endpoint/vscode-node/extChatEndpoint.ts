@@ -321,7 +321,6 @@ function normalizeApiUsageTotal(prompt: number, completion: number, total: numbe
 	}
 	return Math.max(total, prompt + completion);
 }
-}
 
 function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
 	if (!isApiUsage(parsed)) {
@@ -360,7 +359,6 @@ function apiUsageFromLanguageModelUsagePart(usage: vscode.LanguageModelUsagePart
 			? { prompt_tokens_details: { cached_tokens: Math.max(0, cached) } }
 			: {}),
 	};
-}
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {

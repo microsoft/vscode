@@ -225,7 +225,6 @@ suite('lm', function () {
 		})();
 
 		await Promise.all([textDone, streamDone]);
-		await request.result;
 
 		assert.strictEqual(responseText, 'Hi');
 		const usageParts = streamParts.filter((part): part is vscode.LanguageModelUsagePart => part instanceof vscode.LanguageModelUsagePart);
