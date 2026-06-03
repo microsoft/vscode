@@ -41,6 +41,7 @@ interface ISerializedAutomation {
 	readonly sessionTypeId?: string;
 	readonly modelId?: string;
 	readonly mode?: string;
+	readonly permissionLevel?: string;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -129,6 +130,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			sessionTypeId: options.sessionTypeId,
 			modelId: options.modelId,
 			mode: options.mode,
+			permissionLevel: options.permissionLevel,
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
 			updatedAt: nowIso,
@@ -306,6 +308,7 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 		sessionTypeId: a.sessionTypeId,
 		modelId: a.modelId,
 		mode: a.mode,
+		permissionLevel: a.permissionLevel,
 		enabled: a.enabled,
 		createdAt: a.createdAt,
 		updatedAt: a.updatedAt,
@@ -325,6 +328,7 @@ function deserializeAutomation(s: ISerializedAutomation): IAutomation {
 		sessionTypeId: s.sessionTypeId,
 		modelId: s.modelId,
 		mode: s.mode,
+		permissionLevel: s.permissionLevel,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
 		updatedAt: s.updatedAt,
@@ -344,6 +348,7 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 		sessionTypeId: patch.sessionTypeId === null ? undefined : (patch.sessionTypeId ?? current.sessionTypeId),
 		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
 		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
+		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel ?? current.permissionLevel),
 		enabled: patch.enabled ?? current.enabled,
 	};
 }

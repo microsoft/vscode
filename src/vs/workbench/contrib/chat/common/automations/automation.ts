@@ -72,8 +72,21 @@ export interface IAutomation {
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;
 
-	/** Optional chat mode (`autopilot`, `interactive`, `plan`). */
+	/**
+	 * Optional builtin chat mode for the scheduled session — one of
+	 * `agent`, `ask`, `edit` (see `ChatModeKind`). When omitted the
+	 * provider's default applies. Custom modes are not yet supported here.
+	 */
 	readonly mode?: string;
+
+	/**
+	 * Optional permission level applied to the scheduled session — one of
+	 * `default`, `autoApprove`, `autopilot` (see `ChatPermissionLevel`).
+	 * Lets users opt scheduled runs into auto-approval without changing
+	 * the workspace-wide default. When omitted the provider's default
+	 * applies.
+	 */
+	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;
 

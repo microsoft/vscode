@@ -139,6 +139,30 @@ export interface ISessionsProvider {
 	setModel(sessionId: string, modelId: string): void;
 
 	/**
+	 * Set the chat mode for a new session, e.g. `agent`, `ask`, `edit`, or a
+	 * provider-specific mode id. Optional: providers that do not surface a
+	 * concept of "mode" can omit this. Callers must tolerate the method being
+	 * absent.
+	 *
+	 * @param sessionId The ID of the session.
+	 * @param modeId The mode identifier to apply (typically a value from
+	 * `ChatModeKind` or a provider-specific custom mode id).
+	 */
+	setMode?(sessionId: string, modeId: string): void;
+
+	/**
+	 * Set the permission level for a session — e.g. `default`, `autoApprove`,
+	 * `autopilot` (see `ChatPermissionLevel`). Optional: providers that do
+	 * not implement tool-permission gating can omit this. Callers must
+	 * tolerate the method being absent and tolerate the implementation
+	 * silently dropping unrecognised levels.
+	 *
+	 * @param sessionId The ID of the session.
+	 * @param level The permission level identifier to apply.
+	 */
+	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/**
 	 * Archive a session.
 	 * @param sessionId The ID of the session to archive.
 	 */

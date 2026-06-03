@@ -17,7 +17,7 @@ import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspa
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { localize } from '../../../../../nls.js';
@@ -729,6 +729,33 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 	}
 
+	/**
+	 * Applies a builtin chat mode (Agent/Ask/Edit) to the given new session.
+	 * Unknown modeIds are dropped silently so callers (notably the
+	 * Automations runner) can be tolerant of stored values from a
+	 * different/older provider.
+	 */
+	setMode(sessionId: string, modeId: string): void {
+		const mode = builtinChatModeById(modeId);
+		if (!mode) {
+			return;
+		}
+		const newSession = this._newSessions.get(sessionId);
+		newSession?.setMode(mode);
+	}
+
+	/**
+	 * Applies a permission level (`default`, `autoApprove`, `autopilot`) to
+	 * the given new session. Unknown values are dropped silently.
+	 */
+	setPermissionLevel(sessionId: string, level: string): void {
+		if (!isChatPermissionLevel(level)) {
+			return;
+		}
+		const newSession = this._newSessions.get(sessionId);
+		newSession?.setPermissionLevel(level);
+	}
+
 	// -- Session Actions --
 
 	async archiveSession(sessionId: string): Promise<void> {
@@ -1194,5 +1221,14 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			}
 		}
 		return chats[0].status.read(reader);
+	}
+}
+
+function builtinChatModeById(id: string): IChatMode | undefined {
+	switch (id) {
+		case ChatModeKind.Ask: return ChatMode.Ask;
+		case ChatModeKind.Edit: return ChatMode.Edit;
+		case ChatModeKind.Agent: return ChatMode.Agent;
+		default: return undefined;
 	}
 }

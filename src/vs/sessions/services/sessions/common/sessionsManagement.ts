@@ -54,6 +54,26 @@ export interface ICreateNewSessionOptions {
 	 * chosen provider advertises for the folder URI.
 	 */
 	readonly sessionTypeId?: string;
+	/**
+	 * Optional model identifier to apply to the new session via
+	 * {@link ISessionsProvider.setModel}. Ignored if the chosen provider
+	 * does not recognise the id.
+	 */
+	readonly modelId?: string;
+	/**
+	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
+	 * to apply via {@link ISessionsProvider.setMode}. Ignored if the chosen
+	 * provider does not support setting a mode or does not recognise the id.
+	 */
+	readonly modeId?: string;
+	/**
+	 * Optional permission level identifier (a value from
+	 * `ChatPermissionLevel`) to apply via
+	 * {@link ISessionsProvider.setPermissionLevel}. Ignored if the chosen
+	 * provider does not support permission gating or does not recognise the
+	 * value.
+	 */
+	readonly permissionLevel?: string;
 }
 
 export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));

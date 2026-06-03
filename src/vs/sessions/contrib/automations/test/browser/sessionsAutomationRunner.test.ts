@@ -194,6 +194,33 @@ suite('SessionsAutomationRunner', () => {
 		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
 			providerId: 'local-agent-host',
 			sessionTypeId: 'agent-host-copilotcli',
+			modelId: undefined,
+			modeId: undefined,
+			permissionLevel: undefined,
+		});
+	});
+
+	test('passes captured mode and permission level through to createAndSendNewChatRequest', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.nextSession = fakeSession('s1');
+
+		const a = await service.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: hourly(),
+			folderUri: FOLDER_A,
+			mode: 'agent',
+			permissionLevel: 'autopilot',
+		});
+		await runner.runOnce(a, 'schedule', 1);
+
+		assert.strictEqual(sessionsMgmt.calls.length, 1);
+		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
+			providerId: undefined,
+			sessionTypeId: undefined,
+			modelId: undefined,
+			modeId: 'agent',
+			permissionLevel: 'autopilot',
 		});
 	});
 

@@ -646,6 +646,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 
+		if (createOptions?.modelId) {
+			provider.setModel(session.sessionId, createOptions.modelId);
+		}
+		if (createOptions?.modeId) {
+			provider.setMode?.(session.sessionId, createOptions.modeId);
+		}
+		if (createOptions?.permissionLevel) {
+			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
+		}
+
 		try {
 			await this._sendNewChatRequestInBackground(provider, session, options);
 		} catch (e) {
