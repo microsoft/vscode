@@ -17,7 +17,6 @@ import { hasKey, isDefined, isObject, isString } from '../../../../base/common/t
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -34,7 +33,7 @@ import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type Tool
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
+import type { ICopilotPluginInfo, IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
@@ -254,7 +253,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 export interface IActiveClientSnapshot {
 	readonly clientId: string;
 	readonly tools: readonly ToolDefinition[];
-	readonly plugins: readonly IParsedPlugin[];
+	readonly plugins: readonly ICopilotPluginInfo[];
 }
 
 /**
