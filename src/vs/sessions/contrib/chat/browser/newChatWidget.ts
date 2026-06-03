@@ -423,6 +423,12 @@ export class NewChatWidget extends Disposable {
 		};
 
 		try {
+			// We deliberately don't capture `mode` or `permissionLevel` here.
+			// For agent-host providers, replaying `mode` via `setMode` clears
+			// the underlying AGENT_OPTION (which the session may have already
+			// initialized to a specific harness id), causing scheduled runs
+			// to fail with "fetch failed". Users can configure mode and
+			// permission level explicitly from the Automations editor.
 			await this.automationService.createAutomation({
 				name,
 				prompt: query,
@@ -431,7 +437,6 @@ export class NewChatWidget extends Disposable {
 				providerId: session.providerId,
 				sessionTypeId: session.sessionType,
 				modelId: session.modelId.get(),
-				mode: session.mode.get()?.id,
 				enabled: true,
 			});
 			this.notificationService.info(localize('newSessionKind.registered', "Registered \u201C{0}\u201D as a new automated task.", name));
