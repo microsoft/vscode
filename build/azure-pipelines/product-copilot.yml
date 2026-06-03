@@ -15,9 +15,13 @@ jobs:
         value: true
       - name: Codeql.SkipTaskAutoInjection
         value: true
-      # Bundled into vscode product, so externalize shared deps from extensions/node_modules/.
-      - name: VSCODE_USE_SHARED_EXTENSION_DEPS
-        value: true
+      # NOTE: Do not set VSCODE_USE_SHARED_EXTENSION_DEPS here. The Copilot
+      # extension ships as a standalone vsce-packaged VSIX built from its own
+      # dependency closure (extensions/copilot/package-lock.json), which can
+      # resolve to different patch versions than the product's shared
+      # extensions/node_modules/. Externalizing shared deps would make the
+      # extension load mismatched/absent modules at runtime and fail to
+      # activate, so the VSIX must stay self-contained (deps inlined).
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)
       outputs:
