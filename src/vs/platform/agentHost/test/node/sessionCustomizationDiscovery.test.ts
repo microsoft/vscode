@@ -101,6 +101,7 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 
 		const watchCalls: Array<{ resource: string; recursive: boolean }> = [];
 		const originalWatch = fileService.watch.bind(fileService);
+		disposables.add({ dispose: () => { fileService.watch = originalWatch as typeof fileService.watch; } });
 		fileService.watch = ((resource, options) => {
 			watchCalls.push({ resource: resource.toString(), recursive: options?.recursive === true });
 			return originalWatch(resource, options);
