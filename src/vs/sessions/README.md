@@ -8,7 +8,7 @@ The Agents Window (`Workbench`) provides a simplified, fixed-layout workbench ta
 
 - **Fixed layout** — Part positions are not configurable via settings
 - **Simplified chrome** — No activity bar, no status bar, no banner
-- **Chat-first UX** — Chat bar is a primary part alongside sidebar and auxiliary bar
+- **Sessions-first UX** — The Sessions Part is the primary content surface, hosting a grid of one or more session views (each rendering the active chat of its session) alongside the sidebar and auxiliary bar
 - **Modal editor** — Editors appear as modal overlays rather than in the main grid
 - **Session-aware titlebar** — Titlebar shows the active session, session picker, and signed-in account widget
 - **Provider model** — Session backends (local CLI, cloud, remote agent host) register as pluggable providers

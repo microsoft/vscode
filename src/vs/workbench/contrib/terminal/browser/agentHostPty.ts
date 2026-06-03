@@ -133,7 +133,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			//    where the terminal already exists, e.g. created by a tool)
 			if (!this._options?.attachOnly) {
 				await this._connection.createTerminal({
-					terminal: this._terminalUri.toString(),
+					channel: this._terminalUri.toString(),
 					claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
 					name: this._options?.name,
 					cwd: this._resolveCwdForProtocol(this._options?.cwd),
@@ -306,7 +306,8 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 		this._startBarrier.wait().then(() => {
 			this._connection.dispatch(
-				{ type: ActionType.TerminalInput, terminal: this._terminalUri.toString(), data },
+				this._terminalUri.toString(),
+				{ type: ActionType.TerminalInput, data },
 			);
 		});
 	}
@@ -319,7 +320,8 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		this._lastDimensions.rows = rows;
 		this._startBarrier.wait().then(() => {
 			this._connection.dispatch(
-				{ type: ActionType.TerminalResized, terminal: this._terminalUri.toString(), cols, rows },
+				this._terminalUri.toString(),
+				{ type: ActionType.TerminalResized, cols, rows },
 			);
 		});
 	}
@@ -349,7 +351,8 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	async clearBuffer(): Promise<void> {
 		// Send a clear action to the agent host
 		this._connection.dispatch(
-			{ type: ActionType.TerminalCleared, terminal: this._terminalUri.toString() },
+			this._terminalUri.toString(),
+			{ type: ActionType.TerminalCleared },
 		);
 	}
 

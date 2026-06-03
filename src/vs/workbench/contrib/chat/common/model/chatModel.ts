@@ -25,12 +25,12 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -203,7 +203,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatThinkingPart
 	| IChatHookPart
 	| IChatPullRequestContent
-	| IChatWorkspaceEdit;
+	| IChatWorkspaceEdit
+	| IChatExternalEdit;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -601,6 +602,7 @@ class AbstractResponse implements IResponse {
 				case 'pullRequest':
 				case 'undoStop':
 				case 'workspaceEdit':
+				case 'externalEdit':
 				case 'elicitation2':
 				case 'elicitationSerialized':
 				case 'thinking':
@@ -2053,13 +2055,14 @@ class InputModel implements IInputModel {
 	private readonly _state: ReturnType<typeof observableValue<IChatModelInputState | undefined>>;
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
-	constructor(initialState: IChatModelInputState | undefined) {
+	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService) {
 		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
 	}
 
 	setState(state: Partial<IChatModelInputState>): void {
 		const current = this._state.get();
+		_logChangesToStateModel(state, current, this.logger);
 		this._state.set({
 			// If current is undefined, provide defaults for required fields
 			attachments: [],
@@ -2408,7 +2411,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections,
 			permissionLevel: serializedInputState.permissionLevel,
-		});
+		}, this.logService);
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -3096,4 +3099,27 @@ export namespace ChatResponseResource {
 			index: Number(index),
 		};
 	}
+}
+
+function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
+	if (!canLog(logger.getLevel(), LogLevel.Info) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+		return;
+	}
+	const stack = new Error().stack;
+	const message = `[ChatModelChanged] ChatModel Input State model changed: ${newState?.selectedModel?.identifier} (was: ${oldState?.selectedModel?.identifier}) ${stack}`;
+	logger.info(message);
+}
+
+export function logChangesToStateModel(model: IInputModel | undefined, message: string, newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
+	if (!canLog(logger.getLevel(), LogLevel.Info)) {
+		return;
+	}
+	message = [message,
+		`model.selectedModel: ${model?.state.get()?.selectedModel?.identifier}`,
+		`new state: ${newState?.selectedModel?.identifier}`,
+		`old state: ${oldState?.selectedModel?.identifier}`,
+		new Error().stack
+	].join(', ');
+
+	logger.info(`[ChatModelChanged] Chat Model Changed,${message}`);
 }

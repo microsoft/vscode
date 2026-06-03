@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -23,7 +23,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, MessageAttachmentKind, SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -31,6 +31,7 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 
 /**
@@ -73,6 +74,7 @@ suite('AgentService (node dispatcher)', () => {
 			openDatabase: () => { throw new Error('not implemented'); },
 			tryOpenDatabase: async () => undefined,
 			deleteSessionData: async () => { },
+			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
@@ -114,7 +116,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
-				{ type: ActionType.SessionTurnStarted, session: session.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+				session.toString(),
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -123,7 +126,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			copilotAgent.fireProgress({
 				kind: 'action', session,
-				action: { type: ActionType.SessionResponsePart, session: session.toString(), turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
+				action: { type: ActionType.SessionResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
@@ -137,13 +140,13 @@ suite('AgentService (node dispatcher)', () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
 			try {
 				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
-				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), NULL_CHECKPOINT_SERVICE, rootConfigResource));
 				const agent = new MockAgent('copilot');
 				disposables.add(toDisposable(() => agent.dispose()));
 				svc.registerProvider(agent);
 
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
-				svc.dispatchAction({
+				svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
 					config: { customizations: [customization] },
 				}, 'test-client', 1);
@@ -169,7 +172,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.ok(persisted, 'should persist the root config change');
 			} finally {
-				rmSync(tempDir.fsPath, { recursive: true, force: true });
+				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
 		});
 	});
@@ -212,11 +215,11 @@ suite('AgentService (node dispatcher)', () => {
 
 		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
 			svc.dispatchAction(
+				session.toString(),
 				{
 					type: ActionType.SessionTurnStarted,
-					session: session.toString(),
 					turnId: 'turn-1',
-					userMessage: { text: 'hello', attachments: attachments as never },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
 				},
 				'test-client', 1,
 			);
@@ -299,6 +302,29 @@ suite('AgentService (node dispatcher)', () => {
 
 			const snapshot = await fileService.readFile(URI.parse(rewritten.uri));
 			assert.strictEqual(snapshot.value.toString(), 'hello world');
+		});
+
+		test('passes through existing file:// Resource attachments unchanged (#319314)', async () => {
+			const { svc, agent, session } = await setup();
+			// Register a file-scheme provider so the attachment URI resolves to
+			// an existing file on the agent host side.
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileUri = URI.from({ scheme: Schemas.file, path: '/host/source.txt' });
+			await fileService.writeFile(fileUri, VSBuffer.fromString('on host'));
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: fileUri.toString(),
+				label: 'source.txt',
+				displayKind: 'document',
+			}]);
+
+			assert.deepStrictEqual(agent.sendMessageCalls[0].attachments, [{
+				type: MessageAttachmentKind.Resource,
+				uri: fileUri.toString(),
+				label: 'source.txt',
+				displayKind: 'document',
+			}]);
 		});
 
 		test('preserves selection range on Resource rewrite', async () => {
@@ -481,6 +507,7 @@ suite('AgentService (node dispatcher)', () => {
 					dispose: () => { },
 				}),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -538,6 +565,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -553,19 +581,16 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.deepStrictEqual(sessions[0].changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/session`,
 					additions: 8,
 					deletions: 2,
 					files: 2,
 				},
 				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 			]);
 		});
@@ -583,6 +608,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -599,7 +625,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].changesets, undefined);
 		});
 
-		test('listSessions seeds the server-side changeset state from persisted diffs (so chip subscriptions resolve for unopened sessions)', async () => {
+		test('listSessions advertises persisted changeset counts without seeding state; changeset subscribe restores lazily', async () => {
 			const db = disposables.add(await SessionDatabase.open(':memory:'));
 			const persistedDiffs = [
 				{
@@ -618,6 +644,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -629,13 +656,24 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(agent);
 
-			await svc.listSessions();
+			const sessions = await svc.listSessions();
+			const changesetUri = buildSessionChangesetUri(sessionUri.toString());
 
-			// Even without any explicit `restoreSession` call, the
-			// changeset URI should be subscribable on the server side
-			// with the persisted files.
-			const snapshot = svc.stateManager.getSnapshot(`${sessionUri.toString()}/changeset/session`);
-			assert.ok(snapshot, 'expected listSessions to seed the changeset state');
+			assert.deepStrictEqual({
+				listCatalogueEntry: sessions[0].changesets?.find(c => c.uriTemplate === changesetUri),
+				listSeededSnapshot: svc.stateManager.getSnapshot(changesetUri),
+			}, {
+				listCatalogueEntry: {
+					label: 'Branch Changes',
+					uriTemplate: changesetUri,
+					additions: 5,
+					deletions: 2,
+					files: 1,
+				},
+				listSeededSnapshot: undefined,
+			});
+
+			const snapshot = await svc.subscribe(URI.parse(changesetUri), 'client-changeset');
 			const state = snapshot.state as { status: string; files: Array<{ id: string }> };
 			assert.strictEqual(state.status, 'ready');
 			assert.deepStrictEqual(state.files.map(f => f.id), ['file:///wd/a.ts']);
@@ -661,6 +699,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -675,36 +714,31 @@ suite('AgentService (node dispatcher)', () => {
 			// Seed live changeset state directly: a single file with
 			// different counts than the stale persisted blob.
 			const changesetUri = svc.stateManager.registerChangeset(buildSessionChangesetUri(sessionUri.toString()));
-			svc.stateManager.dispatchServerAction({
+			svc.stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetFileSet,
-				changeset: changesetUri,
 				file: {
 					id: 'file:///wd/live.ts',
-					edit: { after: { uri: 'file:///wd/live.ts', content: { uri: 'file:///wd/live.ts' } }, diff: { added: 1, removed: 0 } },
+					edit: { after: { uri: 'file:///wd/live.ts', content: { uri: 'file:///wd/live.ts' } }, diff: { added: 1, removed: 0 } }
 				},
 			});
-			svc.stateManager.dispatchServerAction({
+			svc.stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: changesetUri,
 				status: ChangesetStatus.Ready,
 			});
 
 			const sessions = await svc.listSessions();
 			assert.deepStrictEqual(sessions[0].changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: changesetUri,
 					additions: 1,
 					deletions: 0,
 					files: 1,
 				},
 				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 			]);
 		});
@@ -734,6 +768,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -749,9 +784,8 @@ suite('AgentService (node dispatcher)', () => {
 			// must be authoritative enough to suppress the persisted-diffs
 			// read.
 			const changesetUri = svc.stateManager.registerChangeset(buildSessionChangesetUri(sessionUri.toString()));
-			svc.stateManager.dispatchServerAction({
+			svc.stateManager.dispatchServerAction(changesetUri, {
 				type: ActionType.ChangesetStatusChanged,
-				changeset: changesetUri,
 				status: ChangesetStatus.Ready,
 			});
 
@@ -777,6 +811,7 @@ suite('AgentService (node dispatcher)', () => {
 				openDatabase: (): IReference<ISessionDatabase> => ({ object: db, dispose: () => { } }),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({ object: db, dispose: () => { } }),
 				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
 				cleanupOrphanedData: async () => { },
 				whenIdle: async () => { },
 			};
@@ -795,19 +830,16 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await svc.listSessions();
 			assert.deepStrictEqual(sessions[0].changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: `${sessionUri.toString()}/changeset/session`,
 					additions: 7,
 					deletions: 1,
 					files: 1,
 				},
 				{
-					label: 'This Turn',
-					uriTemplate: `${sessionUri.toString()}/changeset/turn/{turnId}`,
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+					description: 'Show uncommitted changes in this session',
 				},
 			]);
 		});
@@ -818,9 +850,8 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot' });
 
 			// Simulate immediate title change via state manager
-			service.stateManager.dispatchServerAction({
+			service.stateManager.dispatchServerAction(session.toString(), {
 				type: ActionType.SessionTitleChanged,
-				session: session.toString(),
 				title: 'User first message',
 			});
 
@@ -857,6 +888,12 @@ suite('AgentService (node dispatcher)', () => {
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
+				captureWorkingTreeAsTree: async () => undefined,
+				commitTree: async () => undefined,
+				updateRef: async () => { },
+				deleteRefs: async () => { },
+				revParse: async () => undefined,
+				computeFileDiffsBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -899,6 +936,12 @@ suite('AgentService (node dispatcher)', () => {
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
+				captureWorkingTreeAsTree: async () => undefined,
+				commitTree: async () => undefined,
+				updateRef: async () => { },
+				deleteRefs: async () => { },
+				revParse: async () => undefined,
+				computeFileDiffsBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -914,6 +957,97 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(localService.stateManager.getSessionState(session.toString())?._meta, undefined);
+		});
+
+		test('createSession strips git-only catalogue entries for non-git working directory', async () => {
+			const workingDirectory = URI.file('/workspace/not-a-repo');
+			const gitService = createNoopGitService();
+			// Probe runs but reports "not a git repo".
+			gitService.getSessionGitState = async () => undefined;
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.summary.changesets?.length, 0);
+		});
+
+		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: false,
+				branchName: 'main',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 0,
+			};
+			const gitService = createNoopGitService();
+			gitService.getSessionGitState = async () => gitState;
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.summary.changesets, [
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
+				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+			]);
+		});
+
+		test('createSession sets Branch Changes description from worktree branch info', async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: false,
+				branchName: 'feature/x',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 0,
+			};
+			const gitService = createNoopGitService();
+			gitService.getSessionGitState = async () => gitState;
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.summary.changesets, [
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
+				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+			]);
 		});
 
 		test('subscribe lazily attaches git state when an existing session has no _meta.git', async () => {
@@ -1021,7 +1155,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -1167,7 +1301,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state, 'session should be in state manager');
 			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
 			assert.strictEqual(state!.turns.length, 1);
-			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
+			assert.strictEqual(state!.turns[0].message.text, 'Hello');
 			const mdPart = state!.turns[0].responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
@@ -1347,7 +1481,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}`);
 
 			const turn = state!.turns[0];
-			assert.strictEqual(turn.userMessage.text, 'Review this code');
+			assert.strictEqual(turn.message.text, 'Review this code');
 
 			// The parent turn should only have the parent tool call — inner
 			// tool calls are excluded from the parent and belong to the
@@ -1398,8 +1532,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = service.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.userMessage.text.substring(0, 40)}"`).join(', ')}`);
-			assert.strictEqual(state!.turns[0].userMessage.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
+			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.message.text.substring(0, 40)}"`).join(', ')}`);
+			assert.strictEqual(state!.turns[0].message.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 
 			// Should have the parent subagent tool call with subagent content
@@ -1456,7 +1590,8 @@ suite('AgentService (node dispatcher)', () => {
 			// when the refcount reaches zero, otherwise we'd drop live state
 			// mid-response.
 			service.dispatchAction(
-				{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+				sessionResource.toString(),
+				{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
 
@@ -1634,15 +1769,20 @@ suite('AgentService (node dispatcher)', () => {
 			localService.unsubscribe(uncommittedUri, 'client-1');
 		});
 
-		test('addSubscriber for non-uncommitted resources does NOT trigger a refresh', async () => {
+		test('addSubscriber for the session URI or session-changeset URI triggers a static refresh', async () => {
+			// The Agents Window subscribes to the session URI (list /
+			// detail) rather than to either of the static changeset URIs
+			// directly, so the chip would never refresh on session open
+			// without this trigger. Subscribing to the session-changeset
+			// URI from any other client must also fire its own refresh.
 			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd-refresh-2' });
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectory };
 
-			const computeCalls: { baseBranch: string | undefined }[] = [];
+			const computeCalls: { wd: string; baseBranch: string | undefined }[] = [];
 			const gitService = createNoopGitService();
-			gitService.computeSessionFileDiffs = async (_wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
-				computeCalls.push({ baseBranch: opts.baseBranch });
+			gitService.computeSessionFileDiffs = async (wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
+				computeCalls.push({ wd: wd.toString(), baseBranch: opts.baseBranch });
 				return undefined;
 			};
 
@@ -1653,16 +1793,16 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionChangesetUri = URI.parse(buildSessionChangesetUri(sessionResource.toString()));
 
 			localService.addSubscriber(sessionChangesetUri, 'client-1');
-			localService.addSubscriber(sessionResource, 'client-1');
+			localService.addSubscriber(sessionResource, 'client-2');
 			await new Promise(r => setTimeout(r, 20));
 
 			assert.ok(
-				!computeCalls.some(c => c.baseBranch === undefined),
-				`non-uncommitted subscriptions must not trigger an uncommitted git diff, got: ${JSON.stringify(computeCalls)}`,
+				computeCalls.some(c => c.wd === workingDirectory.toString()),
+				`session-URI / session-changeset subscriptions must trigger a git diff against the working dir, got: ${JSON.stringify(computeCalls)}`,
 			);
 
 			localService.unsubscribe(sessionChangesetUri, 'client-1');
-			localService.unsubscribe(sessionResource, 'client-1');
+			localService.unsubscribe(sessionResource, 'client-2');
 		});
 
 		test('restoreSession drains a pending uncommitted refresh deferred by an earlier addSubscriber', async () => {
@@ -1758,11 +1898,13 @@ suite('AgentService (node dispatcher)', () => {
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
-					{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+					sessionResource.toString(),
+					{ type: ActionType.SessionTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
-					{ type: ActionType.SessionTurnComplete, session: sessionResource.toString(), turnId: 'turn-1' },
+					sessionResource.toString(),
+					{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
 					'client-1', 2,
 				);
 
@@ -1927,21 +2069,22 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
+			// The session has no working directory, so `_attachGitState`
+			// treats it as transient and does NOT strip the two git-only
+			// catalogue entries. The Branch Changes entry receives the
+			// persisted diff counts seeded by the changeset coordinator.
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/session`,
 					additions: 5,
 					deletions: 2,
 					files: 1,
+					label: 'Branch Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/session`,
 				},
 				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
+					description: 'Show uncommitted changes in this session',
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
 			]);
 
@@ -1975,20 +2118,19 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`
-			// (entries with no counts) — but no files were seeded.
+			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`.
+			// The session has no working directory, so `_attachGitState` does
+			// NOT strip the git-only entries — they remain advertised but
+			// without counts until a real compute lands.
 			assert.deepStrictEqual(state!.summary.changesets, [
 				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-				{
-					label: 'Session Changes',
+					label: 'Branch Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/session`,
 				},
 				{
-					label: 'This Turn',
-					uriTemplate: `${sessionResource.toString()}/changeset/turn/{turnId}`,
+					description: 'Show uncommitted changes in this session',
+					label: 'Uncommitted Changes',
+					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
 				},
 			]);
 
@@ -2153,10 +2295,13 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		function defaultCatalogue(sessionStr: string) {
+			// These tests have no working directory resolved, so
+			// `_attachGitState` treats it as transient and does NOT strip
+			// the two git-only entries. All three default entries are
+			// advertised (without counts) until a real compute lands.
 			return [
-				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted` },
-				{ label: 'Session Changes', uriTemplate: `${sessionStr}/changeset/session` },
-				{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
+				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
+				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			];
 		}
 
@@ -2186,7 +2331,7 @@ suite('AgentService (node dispatcher)', () => {
 			sourceState.turns = [{
 				id: sourceTurnId,
 				state: TurnState.Complete,
-				userMessage: { text: 'hi' },
+				message: { text: 'hi', origin: { kind: MessageKind.User } },
 				responseParts: [],
 				usage: undefined,
 			}];

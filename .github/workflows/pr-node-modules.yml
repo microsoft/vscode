@@ -251,7 +251,6 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-
           for ($i = 1; $i -le 5; $i++) {
             try {
               exec { npm ci }

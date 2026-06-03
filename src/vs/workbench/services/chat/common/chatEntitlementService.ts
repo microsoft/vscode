@@ -193,6 +193,13 @@ export interface IChatEntitlementService {
 	readonly anonymous: boolean;
 	readonly anonymousObs: IObservable<boolean>;
 
+	acceptQuotas(quotas: IQuotas): void;
+
+	/**
+	 * Clear all quota state.
+	 */
+	clearQuotas(): void;
+
 	markAnonymousRateLimited(): void;
 
 	/**
@@ -567,7 +574,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+		const sessionRateLimitChanged = oldQuota.sessionRateLimit?.percentRemaining !== quotas.sessionRateLimit?.percentRemaining;
+		const weeklyRateLimitChanged = oldQuota.weeklyRateLimit?.percentRemaining !== quotas.weeklyRateLimit?.percentRemaining;
+
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || sessionRateLimitChanged || weeklyRateLimitChanged || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
@@ -613,8 +623,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			? this._quotas.premiumChat.hasQuota === false
 			: this._quotas.premiumChat?.percentRemaining === 0;
 		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+		const isManagedPlan = this.entitlement === ChatEntitlement.Business || this.entitlement === ChatEntitlement.Enterprise;
 
-		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
+		// For Business/Enterprise users, hasQuota === false is the authoritative signal
+		// that the org has blocked usage, regardless of additionalUsageEnabled.
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && (isManagedPlan || !additionalUsageEnabled)));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -750,6 +763,13 @@ export interface IQuotaSnapshot {
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
+	readonly quotaRemaining?: number;
+}
+
+export interface IRateLimitSnapshot {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly resetDate?: string;
 }
 
 interface IQuotas {
@@ -764,6 +784,9 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+
+	readonly sessionRateLimit?: IRateLimitSnapshot;
+	readonly weeklyRateLimit?: IRateLimitSnapshot;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -806,13 +829,15 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 
+			const parsedQuotaRemaining = rawQuotaSnapshot.quota_remaining !== undefined ? Number(rawQuotaSnapshot.quota_remaining) : undefined;
 			const quotaSnapshot: IQuotaSnapshot = {
 				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 				unlimited: rawQuotaSnapshot.unlimited,
 				hasQuota: rawQuotaSnapshot.has_quota,
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
-				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				entitlement: parsedEntitlement !== undefined && Number.isFinite(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isFinite(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
 			};
 
 			switch (quotaType) {

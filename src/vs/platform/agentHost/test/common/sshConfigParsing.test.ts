@@ -137,6 +137,7 @@ suite('SSH Config Parsing', () => {
 				user: 'admin',
 				port: 22,
 				identityFile: ['~/.ssh/id_rsa', '~/.ssh/id_ed25519'],
+				identityAgent: undefined,
 				forwardAgent: false,
 			});
 		});
@@ -151,6 +152,16 @@ suite('SSH Config Parsing', () => {
 
 			const result = parseSSHGOutput(output);
 			assert.strictEqual(result.forwardAgent, true);
+		});
+
+		test('parses identityagent', () => {
+			const output = [
+				'hostname example.com',
+				'user admin',
+				'identityagent //./pipe/pageant.user.1234',
+			].join('\n');
+
+			assert.strictEqual(parseSSHGOutput(output).identityAgent, '//./pipe/pageant.user.1234');
 		});
 
 		test('parses non-standard port', () => {
@@ -213,6 +224,7 @@ suite('SSH Config Parsing', () => {
 				user: undefined,
 				port: 22,
 				identityFile: [],
+				identityAgent: undefined,
 				forwardAgent: false,
 			});
 		});

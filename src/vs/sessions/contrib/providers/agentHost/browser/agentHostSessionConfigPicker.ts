@@ -14,7 +14,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -107,8 +107,15 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		description: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: item.value === currentValue ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
+}
+
+function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
+	if (typeof currentValue === 'boolean') {
+		return currentValue === (itemValue === 'true');
+	}
+	return itemValue === currentValue;
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -153,9 +160,8 @@ function hasShownAutoApproveWarning(value: string): boolean {
 }
 
 /**
- * Filters out autopilot if disabled, and marks bypass/autopilot as disabled
- * if enterprise policy restricts auto-approval. Returns the filtered items
- * and policy state.
+ * Marks bypass/autopilot as disabled if enterprise policy restricts
+ * auto-approval. Returns the items and policy state.
  */
 function applyAutoApproveFiltering(
 	items: readonly IConfigPickerItem[],
@@ -165,10 +171,8 @@ function applyAutoApproveFiltering(
 	if (property !== SessionConfigKey.AutoApprove) {
 		return { items, policyRestricted: false };
 	}
-	const isAutopilotEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 	const policyRestricted = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-	const filtered = isAutopilotEnabled ? items : items.filter(item => item.value !== 'autopilot');
-	return { items: filtered, policyRestricted };
+	return { items, policyRestricted };
 }
 
 /**
@@ -252,10 +256,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
-			if (session) {
-				session.loading.read(reader);
-			}
+			this._sessionsManagementService.activeSession.read(reader);
 			this._renderConfigPickers();
 		}));
 
@@ -305,19 +306,16 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// non-mutable properties like `isolation` must remain visible and
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
+		// Disable interactions while a resolve is in flight. Schema is
+		// preserved so chips stay visible. Not `session.loading` —
+		// that also covers the required-values-missing state where
+		// chips must remain interactive.
+		const isLoading = provider.isSessionConfigResolving(session.sessionId).get();
 
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
 		for (const [property, schema] of properties) {
-			// Only render pickers for properties we know how to present. Today
-			// that's string properties with either a static `enum` or a
-			// dynamic enum sourced via `getSessionConfigCompletions`.
-			// Anything else (objects, arrays, free-form strings, numbers,
-			// booleans) has no enumerable choice set and is edited through
-			// the JSONC settings editor instead.
-			const hasStaticEnum = !!schema.enum && schema.enum.length > 0;
-			const hasDynamicEnum = !!schema.enumDynamic;
-			if (schema.type !== 'string' || (!hasStaticEnum && !hasDynamicEnum)) {
+			if (!this._isPickable(schema)) {
 				continue;
 			}
 			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
@@ -341,9 +339,29 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
+			// `renderPickerTrigger`'s `disabled` flag means "read-only"
+			// (renders a `<span>` with `aria-readonly`). The resolving
+			// state is transient and uses `.disabled` on the slot (see
+			// CSS in `chatWidget.css`) + `aria-disabled` on the trigger,
+			// keeping it focusable and using correct ARIA semantics. The
+			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			if (!isReadOnly && isLoading) {
+				slot.classList.add('disabled');
+				trigger.setAttribute('aria-disabled', 'true');
+			}
 			this._renderTrigger(trigger, property, schema, value, isReadOnly);
 		}
+	}
+
+	private _isPickable(schema: SessionConfigPropertySchema): boolean {
+		if (schema.type === 'boolean') {
+			return true;
+		}
+		if (schema.type !== 'string') {
+			return false;
+		}
+		return !!schema.enumDynamic || (Array.isArray(schema.enum) && schema.enum.length > 0);
 	}
 
 	/**
@@ -404,9 +422,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		trigger.setAttribute('aria-label', isReadOnly
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
-		if (!isReadOnly) {
-			dom.append(trigger, renderIcon(Codicon.chevronDown));
-		}
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
@@ -414,7 +429,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
-
+		// Mobile bottom-sheet override dispatches through this entry
+		// point, so guard here for both invocation paths.
+		if (provider.isSessionConfigResolving(sessionId).get()) {
+			return;
+		}
 
 		const rawItems = await this._getItems(provider, sessionId, property, schema);
 		const { items, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
@@ -448,10 +467,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					}
 				}
 
-				provider.setSessionConfigValue(sessionId, property, item.value).catch(() => { /* best-effort */ });
+				const nextValue = schema.type === 'boolean' ? item.value === 'true' : item.value;
+				provider.setSessionConfigValue(sessionId, property, nextValue).catch(() => { /* best-effort */ });
 			},
 			onFilter: schema.enumDynamic
-				? query => this._filterDelayer.trigger(async () => toActionItems(property, await this._getItems(provider, sessionId, property, schema, query), provider.getSessionConfig(sessionId)?.values[property]))
+				? query => this._filterDelayer.trigger(async () => {
+					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
+					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property], filteredPolicyRestricted);
+				})
 				: undefined,
 			onHide: () => trigger.focus(),
 		};
@@ -473,6 +497,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		if (schema.type === 'boolean') {
+			return [
+				{ value: 'true', label: localize('agentHostSessionConfig.boolean.true', "On") },
+				{ value: 'false', label: localize('agentHostSessionConfig.boolean.false', "Off") },
+			];
+		}
 		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
@@ -496,6 +526,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (schema.type === 'boolean') {
+			return value === true
+				? localize('agentHostSessionConfig.boolean.onLabel', "On")
+				: localize('agentHostSessionConfig.boolean.offLabel', "Off");
+		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
@@ -806,7 +841,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				return undefined;
 			}
 			const pickerOptions: IChatInputPickerOptions = {
-				hideChevrons: observableValue('hideChevrons', false),
+				compact: constObservable(true),
 			};
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,
