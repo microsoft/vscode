@@ -142,6 +142,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
 		this._onDidChangeModelProxyAvailability.dispose();
+		for (const [, data] of this._pendingRequest) {
+			data.cancelListener.dispose();
+		}
+		this._pendingRequest.clear();
 		for (const [, cts] of this._pendingCancelTokens) {
 			cts.dispose();
 		}
