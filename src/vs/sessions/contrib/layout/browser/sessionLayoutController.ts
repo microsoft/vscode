@@ -19,9 +19,10 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
@@ -66,7 +67,7 @@ export class LayoutController extends Disposable {
 	private readonly _useModalConfigObs;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@IChatService private readonly _chatService: IChatService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -456,24 +457,14 @@ export class LayoutController extends Disposable {
 			: 'empty';
 
 		return this._workingSetSequencer.queue(async () => {
-			// Switching the active session must never reveal the main editor area
-			// (or restore editors into it) while modal-only mode is in effect — the
-			// outer autorun already guards against this, but `useModal` may have
-			// flipped to 'all' between this call being queued and now.
-			const isModal = this._useModalConfigObs.get() === 'all';
-
-			if (workingSet === 'empty') {
+			// Applying a working set must never change the visibility of the
+			// editor part — the editor part visibility is controlled by the user
+			// (and by direct editor open/close events outside this path).
+			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+			try {
 				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-				return;
-			}
-
-			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-			}
-
-			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			} finally {
+				suppression.dispose();
 			}
 		});
 	}

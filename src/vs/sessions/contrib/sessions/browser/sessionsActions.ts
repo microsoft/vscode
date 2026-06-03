@@ -9,13 +9,14 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -381,5 +382,29 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 		accessor.get(ISessionsManagementService).setActive(session);
+	}
+});
+
+// -- Close Editor Area (Watermark Toolbar) --
+
+registerAction2(class CloseEditorAreaAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.closeEditorArea',
+			title: localize2('closeEditorArea', "Close Editor Area"),
+			icon: Codicon.close,
+			category: SessionsCategories.Sessions,
+			menu: {
+				id: MenuId.EditorGroupWatermarkToolbar,
+				group: 'navigation',
+				order: 10,
+				when: IsSessionsWindowContext,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 	}
 });
