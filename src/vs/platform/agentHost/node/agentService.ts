@@ -22,14 +22,14 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -54,7 +54,6 @@ import { AgentHostSessionGitStateService } from './agentHostSessionGitStateServi
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { equals as objectEquals } from '../../../base/common/objects.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -679,87 +678,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionGitStateService.attachGitState(session, workingDirectory).then(
 			gitState => {
 				if (!gitState) {
-					this._stripGitOnlyChangesetEntries(sessionKey);
 					return;
 				}
 				this._changesetOperationContributionService.updateOperations(sessionKey, gitState);
-				const current = this._stateManager.getSessionState(sessionKey)?._meta;
-				const currentGitState = readSessionGitState(current);
-				// Skip the meta action if the computed git state hasn't changed; this is
-				// called after every turn, so deduping avoids needless action churn.
-				if (!objectEquals(currentGitState, gitState)) {
-					const next = withSessionGitState(current, gitState);
-					this._stateManager.setSessionMeta(sessionKey, next);
-				}
-				this._updateBranchChangesetDescription(sessionKey, gitState);
 			},
 			e => {
 				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);
 			},
 		);
-	}
-
-	/**
-	 * Drops the `Branch Changes` and `Uncommitted Changes` entries from
-	 * the session's catalogue. Called only when the git probe has
-	 * definitively determined the working directory is not a git repo.
-	 * An absent / unresolved working directory is treated as transient
-	 * and does NOT trigger a strip — see {@link _attachGitState}.
-	 * Backing per-changeset states (registered unconditionally) are left
-	 * in place — only the catalogue advertisements are stripped.
-	 */
-	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
-		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
-		if (!current || current.length === 0) {
-			return;
-		}
-		const branchUri = buildSessionChangesetUri(sessionKey);
-		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
-		const filtered = current.filter(c => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
-		if (filtered.length === current.length) {
-			return;
-		}
-		this._stateManager.setSessionChangesets(sessionKey, filtered);
-	}
-
-	/**
-	 * Patches the `Branch Changes` catalogue entry's `description` to
-	 * `${branchName} → ${baseBranchName}` once the git probe resolves
-	 * both names (typical worktree-isolation case). No-ops when the
-	 * entry has already been stripped (non-git working dir), when the
-	 * branch info is incomplete, or when the description is unchanged.
-	 * The count-refresh path in `AgentHostChangesetService` preserves
-	 * extra fields via spread, so the description survives subsequent
-	 * compute passes without further plumbing.
-	 */
-	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
-		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
-		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
-		if (!current || current.length === 0) {
-			return;
-		}
-		const branchUri = buildSessionChangesetUri(sessionKey);
-		let changed = false;
-		const next = current.map(c => {
-			if (c.uriTemplate !== branchUri) {
-				return c;
-			}
-			if (c.description === description) {
-				return c;
-			}
-			changed = true;
-			if (description === undefined) {
-				const { description: _omit, ...rest } = c;
-				return rest;
-			}
-			return { ...c, description };
-		});
-		if (!changed) {
-			return;
-		}
-		this._stateManager.setSessionChangesets(sessionKey, next);
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
