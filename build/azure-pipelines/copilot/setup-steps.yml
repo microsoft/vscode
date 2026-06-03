@@ -55,7 +55,6 @@ steps:
   - script: npm ci --ignore-scripts --no-workspaces
     workingDirectory: $(Build.SourcesDirectory)
     displayName: Install vscode dependencies
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
 
   - script: npm ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot

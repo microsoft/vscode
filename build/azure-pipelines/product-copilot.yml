@@ -15,6 +15,9 @@ jobs:
         value: true
       - name: Codeql.SkipTaskAutoInjection
         value: true
+      # Bundled into vscode product, so externalize shared deps from extensions/node_modules/.
+      - name: VSCODE_USE_SHARED_EXTENSION_DEPS
+        value: true
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)
       outputs:
