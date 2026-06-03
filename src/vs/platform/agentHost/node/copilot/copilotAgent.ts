@@ -961,7 +961,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const snapshot = await activeClient.snapshot(customizationDirectory);
 		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
+		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager, workingDirectory);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const resolvedAgentName = provisional.agent ? await this._resolveAgentName(provisional.sessionUri, snapshot, provisional.agent) : undefined;
@@ -1571,7 +1571,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session's permission/hook callbacks, so it can be called lazily
 	 * inside the {@link SessionWrapperFactory}.
 	 */
-	private _buildSessionConfig(snapshot: IActiveClientSnapshot, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
+	private _buildSessionConfig(snapshot: IActiveClientSnapshot, shellManager: ShellManager, workingDirectory: URI | undefined): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
 		const plugins = snapshot.plugins;
 
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
@@ -1583,6 +1583,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				onUserInputRequest: callbacks.onUserInputRequest,
 				onElicitationRequest: callbacks.onElicitationRequest,
 				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
+				enableConfigDiscovery: true,
+				workingDirectory: workingDirectory?.fsPath,
 				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
 				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
@@ -1650,7 +1652,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfig = this._buildSessionConfig(snapshot, shellManager);
+		const sessionConfig = this._buildSessionConfig(snapshot, shellManager, workingDirectory);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const config = await sessionConfig(callbacks);
