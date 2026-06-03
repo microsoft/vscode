@@ -441,3 +441,31 @@
 .action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
 	visibility: visible;
 }
+
+/* Inline automation schedule pickers — rendered next to the session-config
+ * toolbar when the kind picker is set to "automation". They reuse the
+ * existing `.sessions-chat-picker-slot` styling so they match the look of
+ * the permission picker sitting alongside them. */
+.sessions-chat-toolbar-extension-slot {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.sessions-chat-automation-schedule {
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	min-width: 0;
+}
+
+.sessions-chat-automation-schedule .sessions-chat-picker-slot {
+	min-width: 0;
+}
+
+.sessions-chat-automation-time-slot,
+.sessions-chat-automation-day-slot {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}

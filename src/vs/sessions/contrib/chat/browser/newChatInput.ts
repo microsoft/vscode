@@ -9,7 +9,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -163,6 +163,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
+			/**
+			 * Called once with a slot rendered next to the session-config
+			 * toolbar (mode/model/permission pickers). Used by the new-chat
+			 * widget to host the automation schedule pickers, which appear
+			 * when the kind picker is toggled to "automation".
+			 */
+			renderToolbarSlot?: (slot: HTMLElement) => IDisposable;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -464,6 +471,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this._modelPickerInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
+
+		// Optional inline slot for callers (the new-chat widget) to render
+		// additional pickers — currently used for the automation schedule
+		// controls. Placed before the spacer so the slot sits with the rest
+		// of the config controls rather than next to the send button.
+		if (this.options.renderToolbarSlot) {
+			const slot = dom.append(toolbar, dom.$('.sessions-chat-toolbar-extension-slot'));
+			this._register(this.options.renderToolbarSlot(slot));
+		}
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 

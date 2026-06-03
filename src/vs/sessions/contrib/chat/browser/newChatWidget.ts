@@ -22,11 +22,11 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NewSessionKind, NewSessionKindPicker } from './newSessionKindPicker.js';
+import { AutomationSchedulePicker } from './automationSchedulePicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 
 // #region --- New Chat Widget ---
 
@@ -35,6 +35,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _kindPicker: NewSessionKindPicker;
+	private readonly _schedulePicker: AutomationSchedulePicker;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Tracks an in-flight wait for a provider's session types to become available. */
@@ -66,6 +67,11 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
 		this._kindPicker = this._register(this.instantiationService.createInstance(NewSessionKindPicker));
+		this._schedulePicker = this._register(this.instantiationService.createInstance(AutomationSchedulePicker));
+		this._schedulePicker.setVisible(this._kindPicker.kind === NewSessionKind.Automation);
+		this._register(this._kindPicker.onDidChangeKind(kind => {
+			this._schedulePicker.setVisible(kind === NewSessionKind.Automation);
+		}));
 		this._register(this._pendingSessionTypeWait);
 
 		const canSendRequest = derived(reader => {
@@ -88,6 +94,7 @@ export class NewChatWidget extends Disposable {
 			loading,
 			renderSessionTypePickerInControls: false,
 			supportsBackground: true,
+			renderToolbarSlot: slot => this._schedulePicker.render(slot),
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
@@ -415,12 +422,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		const name = this._deriveAutomationName(query);
-		const schedule: IAutomationSchedule = {
-			interval: 'daily',
-			scheduleHour: 9,
-			scheduleMinute: 0,
-			scheduleDay: 1,
-		};
+		const schedule = this._schedulePicker.currentSchedule.get();
 
 		try {
 			// We deliberately don't capture `mode` or `permissionLevel` here.
