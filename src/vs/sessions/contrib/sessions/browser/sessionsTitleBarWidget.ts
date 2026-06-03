@@ -74,14 +74,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session or its data changes
+		// Re-render when the active session's title or workspace changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsManagementService.activeSession.read(reader);
 			if (sessionData) {
 				sessionData.title.read(reader);
-				sessionData.status.read(reader);
 				sessionData.workspace.read(reader);
-				sessionData.changes.read(reader);
 			}
 			this._lastRenderState = undefined;
 			this._render();

@@ -87,6 +87,8 @@ export class ChatCompositeBar extends Disposable {
 		this._container.appendChild(this._tabsRow);
 
 		this._tabsContainer = $('.chat-composite-bar-tabs');
+		this._tabsContainer.setAttribute('role', 'tablist');
+		this._tabsContainer.setAttribute('aria-label', localize('chatTabsAriaLabel', "Chats"));
 		this._tabsScrollbar = this._register(new ScrollableElement(this._tabsContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Hidden,

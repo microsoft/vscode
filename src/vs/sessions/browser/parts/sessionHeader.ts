@@ -41,6 +41,7 @@ export class SessionHeader extends Disposable {
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _inlineToolbar: MenuWorkbenchToolBar;
 	private readonly _inlineToolbarContainer: HTMLElement;
+	private readonly _titleActionsEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _session: IActiveSession | undefined;
@@ -96,6 +97,7 @@ export class SessionHeader extends Disposable {
 
 		const titleActions = $('.chat-composite-bar-title-actions');
 		titleRow.appendChild(titleActions);
+		this._titleActionsEl = titleActions;
 
 		this._inlineToolbarContainer = $('.chat-composite-bar-inline-toolbar');
 		this._inlineToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._inlineToolbarContainer, Menus.SessionBarInlineToolbar, {
@@ -134,6 +136,16 @@ export class SessionHeader extends Disposable {
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
 			if (!session || !e.dataTransfer) {
+				e.preventDefault();
+				return;
+			}
+
+			// Don't initiate a drag when the gesture starts inside one of the
+			// header toolbars (Run, Open in VS Code, New Chat). A small pointer
+			// move during a button click would otherwise start a session drag
+			// and swallow the click.
+			const target = e.target as Node | null;
+			if (target && (this._titleActionsEl.contains(target) || this._inlineToolbarContainer.contains(target))) {
 				e.preventDefault();
 				return;
 			}
