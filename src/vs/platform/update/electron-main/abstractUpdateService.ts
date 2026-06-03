@@ -69,6 +69,31 @@ export function getUpdateRequestHeaders(productVersion: string): Record<string, 
 	return undefined;
 }
 
+// test-workbench_change start
+/**
+ * Enhances update request headers with employee ID from TSCode OAuth.
+ * This is async because it needs to read from storage.
+ */
+export async function enhanceUpdateRequestHeadersWithEmployeeId(
+	headers: Record<string, string> | undefined,
+	storageService: IApplicationStorageMainService
+): Promise<Record<string, string> | undefined> {
+	const result = { ...headers };
+
+	try {
+		await storageService.whenReady;
+		const employeeId = storageService.get('tscode-oauth.employeeId', StorageScope.APPLICATION);
+		if (employeeId && typeof employeeId === 'string') {
+			result['X-Employee-ID'] = employeeId;
+		}
+	} catch (error) {
+		// 静默失败，不影响更新流程
+	}
+
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+// test-workbench_change end
+
 export type UpdateErrorClassification = {
 	owner: 'joaomoreno';
 	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
@@ -142,10 +167,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
 	protected async initialize(): Promise<void> {
-		if (!this.environmentMainService.isBuilt) {
+		// test-workbench_change start
+		const allowSourceUpdateTest = isWindows && process.env['TSCODE_ENABLE_SOURCE_UPDATE_TEST'] === '1';
+		if (!this.environmentMainService.isBuilt && !allowSourceUpdateTest) {
 			this.setState(State.Disabled(DisablementReason.NotBuilt));
 			return; // updates are never enabled when running out of sources
 		}
+		// test-workbench_change end
 
 		await this.trackVersionChange();
 
@@ -455,7 +483,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
-		const headers = getUpdateRequestHeaders(this.productService.version);
+		// test-workbench_change start
+		const baseHeaders = getUpdateRequestHeaders(this.productService.version);
+		const headers = await enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService);
+		// test-workbench_change end
 		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
 
 		try {

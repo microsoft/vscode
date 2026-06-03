@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灰度发布管理后台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .controls {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .controls h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #555;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-info {
+            background: #4299e1;
+            color: white;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .status-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-card h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .status-value {
+            color: #333;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .badge-danger {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .badge-warning {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .badge-info {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .message.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border-left: 4px solid #f56565;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #000;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .tab.active {
+            color: #000;
+            font-weight: 700;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .refresh-btn {
+            float: right;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .list-group {
+            list-style: none;
+        }
+
+        .list-item {
+            padding: 12px;
+            background: #f7fafc;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .list-item .remove-btn {
+            padding: 4px 12px;
+            font-size: 12px;
+            background: #f56565;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .list-item .remove-btn:hover {
+            background: #e53e3e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 灰度发布管理后台</h1>
+            <p>管理版本灰度发布、白名单、黑名单等配置</p>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('status')">📊 发布状态</button>
+            <button class="tab" onclick="switchTab('rollout')">🎯 灰度控制</button>
+            <button class="tab" onclick="switchTab('rollback')">🔙 版本回滚</button>
+            <button class="tab" onclick="switchTab('upload')">📤 上传更新</button>
+            <button class="tab" onclick="switchTab('whitelist')">✅ 白名单</button>
+            <button class="tab" onclick="switchTab('blacklist')">🚫 黑名单</button>
+        </div>
+
+        <!-- 发布状态 Tab -->
+        <div id="status-tab" class="tab-content active">
+            <div class="controls">
+                <h2>
+                    发布状态总览
+                    <button class="btn btn-info refresh-btn" onclick="loadAllStatus()">
+                        <span>🔄</span> 刷新
+                    </button>
+                </h2>
+                <div class="form-group">
+                    <label>选择平台</label>
+                    <select id="status-platform" onchange="loadAllStatus()">
+                        <option value="">-- 选择平台 --</option>
+                        <option value="win32-x64-user/stable" selected>Windows x64 Stable</option>
+                        <option value="win32-x64-user/insider">Windows x64 Insider</option>
+                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="status-container" class="status-grid"></div>
+        </div>
+
+        <!-- 灰度控制 Tab -->
+        <div id="rollout-tab" class="tab-content">
+            <div class="controls">
+                <h2>🎯 灰度发布控制</h2>
+
+                <div class="form-group">
+                    <label>平台/质量级别</label>
+                    <select id="rollout-platform" onchange="loadRolloutStages()">
+                        <option value="win32-x64-user/stable">Windows x64 Stable</option>
+                        <option value="win32-x64-user/insider">Windows x64 Insider</option>
+                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                    </select>
+                </div>
+
+                <!-- test-workbench_change: 显示从 product.json 读取的版本信息 -->
+                <div class="form-group">
+                    <label>目标版本（从 product.json 自动读取）</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="target-version-display" readonly style="flex: 1; background: #f5f5f5; cursor: not-allowed;" placeholder="点击按钮加载...">
+                        <button class="btn btn-info" onclick="loadAndDisplayProductInfo()" style="white-space: nowrap;">
+                            <span>📄</span> 加载版本信息
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>目标 Commit（从 product.json 自动读取）</label>
+                    <input type="text" id="target-commit-display" readonly style="background: #f5f5f5; cursor: not-allowed;" placeholder="点击上方按钮加载...">
+                </div>
+                <!-- test-workbench_change end -->
+
+                <div class="form-group">
+                    <label>灰度发布阶段</label>
+                    <div id="rollout-stages-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+                        <p style="color: #999; margin: 0;">请先选择平台并加载状态...</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>手动设置灰度百分比 (%)</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="manual-rollout-percentage" min="0" max="100" step="1" value="10" style="flex: 1;">
+                        <button class="btn btn-primary" onclick="startRollout()" style="width: auto; padding: 10px 20px;">
+                            <span>🚀</span> 开始灰度
+                        </button>
+                    </div>
+                    <p style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                        💡 提示：也可以点击上方阶段列表直接切换到指定阶段
+                    </p>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-warning" onclick="pauseRollout()">
+                        <span>⏸️</span> 暂停
+                    </button>
+                    <button class="btn btn-warning" onclick="resumeRollout()">
+                        <span>▶️</span> 恢复
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 版本回滚 Tab -->
+        <div id="rollback-tab" class="tab-content">
+            <div class="controls">
+                <h2>🔙 版本回滚管理</h2>
+
+                <div class="form-group">
+                    <label>回滚状态</label>
+                    <div id="rollback-status-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+                        <p style="color: #999; margin: 0;">加载中...</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>备份版本信息</label>
+                    <div id="backup-version-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+                        <p style="color: #999; margin: 0;">加载中...</p>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-danger" onclick="enableRollback()">
+                        <span>🔙</span> 启用回滚
+                    </button>
+                    <button class="btn btn-success" onclick="disableRollback()">
+                        <span>✅</span> 禁用回滚
+                    </button>
+                    <button class="btn btn-primary" onclick="loadRollbackStatus()">
+                        <span>🔄</span> 刷新状态
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上传更新 Tab -->
+        <div id="upload-tab" class="tab-content">
+            <div class="controls">
+                <h2>📤 上传更新包</h2>
+                <div class="form-group">
+                    <label>选择文件</label>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">
+                        上传新版本的更新包，当前版本将自动备份到 backup 目录
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label>TestAgentStudio.exe</label>
+                    <input type="file" id="upload-exe-file" accept=".exe" style="padding: 8px;">
+                </div>
+
+                <div class="form-group">
+                    <label>product.json</label>
+                    <input type="file" id="upload-product-file" accept=".json" style="padding: 8px;">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="uploadPackage()">
+                        <span>📤</span> 上传更新包
+                    </button>
+                </div>
+
+                <div id="upload-status" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- 白名单 Tab -->
+        <div id="whitelist-tab" class="tab-content">
+            <div class="controls">
+                <h2>✅ 白名单管理</h2>
+
+                <div class="form-group">
+                    <label>平台/质量级别</label>
+                    <select id="whitelist-platform" onchange="loadWhitelist()">
+                        <option value="win32-x64-user/stable">Windows x64 Stable</option>
+                        <option value="win32-x64-user/insider">Windows x64 Insider</option>
+                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>客户端 IP 地址</label>
+                    <input type="text" id="whitelist-ip" placeholder="例如: 192.168.1.100">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="addToWhitelist()">
+                        <span>➕</span> 添加到白名单
+                    </button>
+                </div>
+
+                <div id="whitelist-container" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- 黑名单 Tab -->
+        <div id="blacklist-tab" class="tab-content">
+            <div class="controls">
+                <h2>🚫 黑名单管理</h2>
+
+                <div class="form-group">
+                    <label>平台/质量级别</label>
+                    <select id="blacklist-platform" onchange="loadBlacklist()">
+                        <option value="win32-x64-user/stable">Windows x64 Stable</option>
+                        <option value="win32-x64-user/insider">Windows x64 Insider</option>
+                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>客户端 IP 地址</label>
+                    <input type="text" id="blacklist-ip" placeholder="例如: 192.168.1.200">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-danger" onclick="addToBlacklist()">
+                        <span>➕</span> 添加到黑名单
+                    </button>
+                </div>
+
+                <div id="blacklist-container" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 切换 Tab
+        function switchTab(tabName) {
+            // 隐藏所有 tab 内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // 移除所有 tab 的 active 状态
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // 显示选中的 tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            event.target.classList.add('active');
+
+            // 切换到白名单或黑名单 Tab 时自动加载列表
+            if (tabName === 'whitelist') {
+                loadWhitelist();
+            } else if (tabName === 'blacklist') {
+                loadBlacklist();
+            }
+        }
+
+        // 显示消息
+        function showMessage(text, type = 'success') {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type} show`;
+
+            setTimeout(() => {
+                messageEl.classList.remove('show');
+            }, 5000);
+        }
+
+        // API 请求封装
+        async function apiRequest(url, method = 'GET', body = null) {
+            try {
+                // 获取 Token
+                const token = localStorage.getItem('admin_token');
+
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+
+                // 添加认证 Token
+                if (token) {
+                    options.headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(url, options);
+
+                // 检查是否需要重新登录
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || '请求失败');
+                }
+
+                return data;
+            } catch (error) {
+                showMessage(`错误: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // test-workbench_change: 从 product.json 读取版本信息并显示
+        async function loadAndDisplayProductInfo() {
+            try {
+                const data = await apiRequest('/admin/product-info', 'GET');
+
+                if (data.found) {
+                    // 显示版本和 commit
+                    document.getElementById('target-version-display').value = data.gitVersion || '';
+                    document.getElementById('target-commit-display').value = data.commit || '';
+
+                    showMessage(`✅ 已从 product.json 读取: ${data.gitVersion}`, 'success');
+                } else {
+                    showMessage('❌ 未找到 product.json 文件', 'error');
+                }
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+        // test-workbench_change end
+
+        // test-workbench_change: 开始灰度发布（不再需要 version 和 commit 参数）
+        async function startRollout() {
+            const platform = document.getElementById('rollout-platform').value;
+            const percentage = parseFloat(document.getElementById('manual-rollout-percentage').value);
+
+            // 验证百分比
+            if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+                showMessage('请输入有效的百分比 (0-100)', 'error');
+                return;
+            }
+
+            // 确认操作
+            if (!confirm(`确定要开始灰度发布吗？\n\n平台: ${platform}\n灰度比例: ${percentage}%`)) {
+                return;
+            }
+
+            const data = await apiRequest('/admin/rollout/config', 'POST', {
+                platform_quality: platform,
+                rollout_percentage: percentage
+            });
+
+            showMessage(`✅ ${data.message} (版本: ${data.target_version})`, 'success');
+
+            // 更新显示的版本信息
+            document.getElementById('target-version-display').value = data.target_version || '';
+            document.getElementById('target-commit-display').value = data.target_commit || '';
+
+            loadAllStatus();
+            loadRolloutStages();
+        }
+        // test-workbench_change end
+
+        // 推进阶段
+        async function advanceStage() {
+            const platform = document.getElementById('rollout-platform').value;
+
+            const data = await apiRequest('/admin/rollout/advance', 'POST', {
+                platform_quality: platform
+            });
+
+            showMessage(`✅ ${data.message}`, 'success');
+            loadAllStatus();
+        }
+
+        // 暂停灰度
+        async function pauseRollout() {
+            const platform = document.getElementById('rollout-platform').value;
+
+            const data = await apiRequest('/admin/rollout/pause', 'POST', {
+                platform_quality: platform,
+                pause: true
+            });
+
+            showMessage(`⏸️ ${data.message}`, 'success');
+            loadAllStatus();
+        }
+
+        // 恢复灰度
+        async function resumeRollout() {
+            const platform = document.getElementById('rollout-platform').value;
+
+            const data = await apiRequest('/admin/rollout/pause', 'POST', {
+                platform_quality: platform,
+                pause: false
+            });
+
+            showMessage(`▶️ ${data.message}`, 'success');
+            loadAllStatus();
+        }
+
+        // 紧急回滚（启用版本回滚功能）
+        // 启用回滚（启用版本回滚功能）
+        async function enableRollback() {
+            if (!confirm(`确定要启用版本回滚功能吗？\n\n所有客户端将回退到备份版本！`)) {
+                return;
+            }
+
+            const data = await apiRequest('/admin/rollback/toggle', 'POST', {
+                enabled: true
+            });
+
+            showMessage(`🔙 ${data.message}`, data.status === 'warning' ? 'warning' : 'success');
+            loadRollbackStatus();
+        }
+
+        // 禁用回滚（禁用版本回滚功能）
+        async function disableRollback() {
+            if (!confirm(`确定要禁用版本回滚功能吗？\n\n客户端将恢复正常的灰度发布流程。`)) {
+                return;
+            }
+
+            const data = await apiRequest('/admin/rollback/toggle', 'POST', {
+                enabled: false
+            });
+
+            showMessage(`✅ ${data.message}`, 'success');
+            loadRollbackStatus();
+        }
+
+        // 加载回滚状态
+        async function loadRollbackStatus() {
+            const statusDisplay = document.getElementById('rollback-status-display');
+            const backupDisplay = document.getElementById('backup-version-display');
+
+            try {
+                const data = await apiRequest('/admin/rollback/status', 'GET');
+
+                // 显示回滚状态
+                const statusBadge = data.enabled
+                    ? '<span class="badge badge-danger">🔙 已启用</span>'
+                    : '<span class="badge badge-success">✅ 已禁用</span>';
+
+                const statusMessage = data.enabled
+                    ? '回滚功能已启用，所有已更新客户端将收到备份版本的回滚更新'
+                    : '回滚功能已禁用，客户端按正常灰度发布流程更新';
+
+                statusDisplay.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        ${statusBadge}
+                        <span style="color: #666;">${statusMessage}</span>
+                    </div>
+                    <p style="margin: 5px 0; color: #999; font-size: 0.9em;">
+                        状态: ${data.status}
+                    </p>
+                `;
+
+                // 显示备份版本信息
+                if (data.backup_versions && Object.keys(data.backup_versions).length > 0) {
+                    let backupHtml = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+
+                    for (const [platform, info] of Object.entries(data.backup_versions)) {
+                        backupHtml += `
+                            <div style="
+                                padding: 12px;
+                                background: white;
+                                border-left: 3px solid #2196f3;
+                                border-radius: 4px;
+                            ">
+                                <div style="font-weight: bold; color: #333; margin-bottom: 8px;">
+                                    📦 ${platform}
+                                </div>
+                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 0.9em;">
+                                    <span style="color: #666;">版本:</span>
+                                    <span style="color: #1976d2; font-family: monospace;">${info.version || 'N/A'}</span>
+
+                                    <span style="color: #666;">Commit:</span>
+                                    <span style="color: #1976d2; font-family: monospace;">${info.commit ? info.commit.substring(0, 8) : 'N/A'}</span>
+
+                                    <span style="color: #666;">文件:</span>
+                                    <span style="color: #333;">${info.filename || 'N/A'}</span>
+
+                                    <span style="color: #666;">大小:</span>
+                                    <span style="color: #333;">${info.fileSize ? (info.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    backupHtml += '</div>';
+                    backupDisplay.innerHTML = backupHtml;
+                } else {
+                    backupDisplay.innerHTML = `
+                        <div style="padding: 15px; text-align: center; color: #999;">
+                            <p style="margin: 0;">⚠️ 未找到备份版本</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.9em;">
+                                请先在"📤 上传更新" Tab 中上传新版本，系统会自动创建备份
+                            </p>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                statusDisplay.innerHTML = `
+                    <p style="color: #f44336; margin: 0;">❌ 加载失败: ${error.message}</p>
+                `;
+                backupDisplay.innerHTML = `
+                    <p style="color: #f44336; margin: 0;">❌ 加载失败</p>
+                `;
+            }
+        }
+
+        // 上传更新包
+        async function uploadPackage() {
+            const exeFileInput = document.getElementById('upload-exe-file');
+            const productFileInput = document.getElementById('upload-product-file');
+            const statusDiv = document.getElementById('upload-status');
+
+            // 验证文件是否选择
+            if (!exeFileInput.files || exeFileInput.files.length === 0) {
+                showMessage('请选择 TestAgentStudio.exe 文件', 'error');
+                return;
+            }
+
+            if (!productFileInput.files || productFileInput.files.length === 0) {
+                showMessage('请选择 product.json 文件', 'error');
+                return;
+            }
+
+            const exeFile = exeFileInput.files[0];
+            const productFile = productFileInput.files[0];
+
+            // 确认上传
+            if (!confirm(`确定要上传新版本吗？\n\n当前版本将被备份到 backup 目录。\n\nEXE 文件: ${exeFile.name} (${(exeFile.size / 1024 / 1024).toFixed(2)} MB)\nJSON 文件: ${productFile.name}`)) {
+                return;
+            }
+
+            // 显示上传进度
+            statusDiv.innerHTML = `
+                <div style="padding: 15px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #2196f3;">
+                    <p style="margin: 0; color: #1976d2;">⏳ 正在上传文件，请稍候...</p>
+                </div>
+            `;
+
+            try {
+                // 获取 Token
+                const token = localStorage.getItem('admin_token');
+
+                // 创建 FormData
+                const formData = new FormData();
+                formData.append('exe_file', exeFile);
+                formData.append('product_file', productFile);
+
+                // 发送请求
+                const response = await fetch('/admin/upload-package', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                // 检查是否需要重新登录
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '上传失败');
+                }
+
+                const data = await response.json();
+
+                // 显示成功信息
+                statusDiv.innerHTML = `
+                    <div style="padding: 15px; background: #f1f8e9; border-radius: 4px; border-left: 3px solid #4caf50;">
+                        <h3 style="margin: 0 0 10px 0; color: #388e3c;">✅ 上传成功</h3>
+                        <p style="margin: 5px 0;"><strong>新版本:</strong> ${data.new_version.version}</p>
+                        <p style="margin: 5px 0;"><strong>Commit:</strong> ${data.new_version.commit}</p>
+                        <p style="margin: 5px 0;"><strong>日期:</strong> ${data.new_version.date}</p>
+                        <p style="margin: 5px 0;"><strong>备份位置:</strong> ${data.backup_info.backup_location}</p>
+                        <p style="margin: 5px 0;"><strong>备份文件:</strong> ${data.backup_info.files_moved.join(', ')}</p>
+                    </div>
+                `;
+
+                showMessage('✅ 更新包上传成功', 'success');
+
+                // 清空文件选择
+                exeFileInput.value = '';
+                productFileInput.value = '';
+
+                // 刷新状态
+                loadAllStatus();
+
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div style="padding: 15px; background: #ffebee; border-radius: 4px; border-left: 3px solid #f44336;">
+                        <h3 style="margin: 0 0 10px 0; color: #c62828;">❌ 上传失败</h3>
+                        <p style="margin: 0; color: #d32f2f;">${error.message}</p>
+                    </div>
+                `;
+                showMessage(`上传失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 添加到白名单
+        async function addToWhitelist() {
+            const platform = document.getElementById('whitelist-platform').value;
+            const ip = document.getElementById('whitelist-ip').value.trim();
+
+            if (!ip) {
+                showMessage('请输入 IP 地址', 'error');
+                return;
+            }
+
+            const data = await apiRequest('/admin/rollout/whitelist', 'POST', {
+                platform_quality: platform,
+                ip: ip
+            });
+
+            showMessage(`✅ ${data.message}`, 'success');
+            document.getElementById('whitelist-ip').value = '';
+            loadWhitelist();
+        }
+
+        // 添加到黑名单
+        async function addToBlacklist() {
+            const platform = document.getElementById('blacklist-platform').value;
+            const ip = document.getElementById('blacklist-ip').value.trim();
+
+            if (!ip) {
+                showMessage('请输入 IP 地址', 'error');
+                return;
+            }
+
+            const data = await apiRequest('/admin/rollout/blacklist', 'POST', {
+                platform_quality: platform,
+                ip: ip
+            });
+
+            showMessage(`✅ ${data.message}`, 'success');
+            document.getElementById('blacklist-ip').value = '';
+            loadBlacklist();
+        }
+
+        // 加载发布状态
+        async function loadAllStatus() {
+            const platform = document.getElementById('status-platform').value;
+
+            if (!platform) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest(`/admin/rollout/status/${platform}`);
+                displayStatus(data);
+            } catch (error) {
+                document.getElementById('status-container').innerHTML =
+                    '<div class="status-card"><p style="color: #999;">暂无数据或加载失败</p></div>';
+            }
+        }
+
+        // 显示状态
+        function displayStatus(data) {
+            const container = document.getElementById('status-container');
+
+            const enabledBadge = data.enabled
+                ? '<span class="badge badge-success">已启用</span>'
+                : '<span class="badge badge-danger">已禁用</span>';
+
+            const pausedBadge = data.paused
+                ? '<span class="badge badge-warning">已暂停</span>'
+                : '<span class="badge badge-success">运行中</span>';
+
+            const rollbackBadge = data.enable_rollback
+                ? '<span class="badge badge-danger">🔙 回滚中</span>'
+                : '';
+
+            container.innerHTML = `
+                <div class="status-card">
+                    <h3>${data.platform_quality}</h3>
+                    <div class="status-item">
+                        <span class="status-label">状态</span>
+                        <span class="status-value">${enabledBadge} ${pausedBadge} ${rollbackBadge}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">目标版本</span>
+                        <span class="status-value">${data.target_version || 'N/A'}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">目标 Commit</span>
+                        <span class="status-value">${data.target_commit || 'N/A'}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">灰度比例</span>
+                        <span class="status-value">${data.rollout_percentage}%</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">当前阶段</span>
+                        <span class="status-value">${data.current_stage + 1} / ${data.stages.length}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">白名单数量</span>
+                        <span class="status-value">${data.whitelist_count}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">黑名单数量</span>
+                        <span class="status-value">${data.blacklist_count}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">更新时间</span>
+                        <span class="status-value">${new Date(data.updated_at).toLocaleString('zh-CN')}</span>
+                    </div>
+                </div>
+            `;
+
+            // 同时更新灰度控制区域的阶段显示
+            updateRolloutStagesDisplay(data);
+        }
+
+        // 加载灰度发布阶段信息
+        async function loadRolloutStages() {
+            const platform = document.getElementById('rollout-platform').value;
+            const stagesDisplay = document.getElementById('rollout-stages-display');
+
+            if (!platform) {
+                stagesDisplay.innerHTML = '<p style="color: #999; margin: 0;">请先选择平台...</p>';
+                return;
+            }
+
+            try {
+                const data = await apiRequest(`/admin/rollout/status/${platform}`);
+                updateRolloutStagesDisplay(data);
+            } catch (error) {
+                stagesDisplay.innerHTML = '<p style="color: #f44336; margin: 0;">加载失败或配置不存在</p>';
+            }
+        }
+
+        // 更新阶段显示
+        function updateRolloutStagesDisplay(data) {
+            const stagesDisplay = document.getElementById('rollout-stages-display');
+
+            if (!data || !data.stages) {
+                stagesDisplay.innerHTML = '<p style="color: #999; margin: 0;">暂无阶段信息</p>';
+                return;
+            }
+
+            let stagesHtml = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+            data.stages.forEach((stage, index) => {
+                const isCurrent = index === data.current_stage;
+                const isPassed = index < data.current_stage;
+
+                let statusIcon = '';
+                let statusColor = '#999';
+
+                if (isPassed) {
+                    statusIcon = '✅';
+                    statusColor = '#4caf50';
+                } else if (isCurrent) {
+                    statusIcon = '▶️';
+                    statusColor = '#2196f3';
+                } else {
+                    statusIcon = '⏸️';
+                    statusColor = '#999';
+                }
+
+                const bgColor = isCurrent ? '#e3f2fd' : (isPassed ? '#f1f8e9' : '#fafafa');
+                const borderColor = isCurrent ? '#2196f3' : (isPassed ? '#4caf50' : '#ddd');
+
+                stagesHtml += `
+                    <div
+                        onclick="switchToStage(${index})"
+                        style="
+                            padding: 10px;
+                            background: ${bgColor};
+                            border-left: 3px solid ${borderColor};
+                            border-radius: 4px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        "
+                        onmouseover="this.style.opacity='0.8'; this.style.transform='translateX(5px)';"
+                        onmouseout="this.style.opacity='1'; this.style.transform='translateX(0)';"
+                    >
+                        <span style="color: ${statusColor}; font-weight: ${isCurrent ? 'bold' : 'normal'};">
+                            ${statusIcon} 阶段 ${index + 1}: ${stage.percentage}%
+                        </span>
+                        <span style="color: #666; font-size: 0.9em;">
+                            持续 ${stage.duration_hours} 小时
+                        </span>
+                    </div>
+                `;
+            });
+
+            stagesHtml += '</div>';
+            stagesHtml += `<p style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                当前进度: 阶段 ${data.current_stage + 1} / ${data.stages.length} (${data.rollout_percentage}%)
+                <br><span style="color: #999; font-size: 0.85em;">💡 点击任意阶段可直接切换</span>
+            </p>`;
+
+            stagesDisplay.innerHTML = stagesHtml;
+        }
+
+        // 切换到指定阶段
+        async function switchToStage(stageIndex) {
+            const platform = document.getElementById('rollout-platform').value;
+
+            if (!platform) {
+                showMessage('请先选择平台', 'error');
+                return;
+            }
+
+            // 确认对话框
+            if (!confirm(`确定要切换到阶段 ${stageIndex + 1} 吗？\n\n这将立即改变灰度发布的百分比。`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/rollout/switch-stage', 'POST', {
+                    platform_quality: platform,
+                    stage_index: stageIndex
+                });
+
+                showMessage(`✅ ${data.message}`, 'success');
+                loadAllStatus();
+                loadRolloutStages();
+            } catch (error) {
+                showMessage(`切换阶段失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 加载白名单
+        async function loadWhitelist() {
+            const platform = document.getElementById('whitelist-platform').value;
+
+            try {
+                const data = await apiRequest(`/admin/rollout/status/${platform}`);
+                const container = document.getElementById('whitelist-container');
+
+                if (data.whitelist && data.whitelist.length > 0) {
+                    container.innerHTML = `
+                        <h3 style="margin-bottom: 10px; color: #333;">白名单列表 (${data.whitelist.length})</h3>
+                        <ul class="list-group">
+                            ${data.whitelist.map(ip => `
+                                <li class="list-item">
+                                    <span>${ip}</span>
+                                    <button class="remove-btn" onclick="removeFromWhitelist('${platform}', '${ip}')">
+                                        🗑️ 删除
+                                    </button>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `;
+                } else {
+                    container.innerHTML = '<p style="color: #999;">白名单为空</p>';
+                }
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 从白名单删除
+        async function removeFromWhitelist(platform, ip) {
+            if (!confirm(`确定要从白名单中删除 ${ip} 吗？`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/rollout/whitelist', 'POST', {
+                    platform_quality: platform,
+                    ip: ip,
+                    action: 'remove'
+                });
+
+                showMessage(`✅ ${data.message}`, 'success');
+                loadWhitelist();
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 加载黑名单
+        async function loadBlacklist() {
+            const platform = document.getElementById('blacklist-platform').value;
+
+            try {
+                const data = await apiRequest(`/admin/rollout/status/${platform}`);
+                const container = document.getElementById('blacklist-container');
+
+                if (data.blacklist && data.blacklist.length > 0) {
+                    container.innerHTML = `
+                        <h3 style="margin-bottom: 10px; color: #333;">黑名单列表 (${data.blacklist.length})</h3>
+                        <ul class="list-group">
+                            ${data.blacklist.map(ip => `
+                                <li class="list-item">
+                                    <span>${ip}</span>
+                                    <button class="remove-btn" onclick="removeFromBlacklist('${platform}', '${ip}')">
+                                        🗑️ 删除
+                                    </button>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `;
+                } else {
+                    container.innerHTML = '<p style="color: #999;">黑名单为空</p>';
+                }
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 从黑名单删除
+        async function removeFromBlacklist(platform, ip) {
+            if (!confirm(`确定要从黑名单中删除 ${ip} 吗？`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/rollout/blacklist', 'POST', {
+                    platform_quality: platform,
+                    ip: ip,
+                    action: 'remove'
+                });
+
+                showMessage(`✅ ${data.message}`, 'success');
+                loadBlacklist();
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('灰度发布管理后台已加载');
+
+            // 检查登录状态
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
+                alert('请先登录');
+                window.location.href = '/static/login.html';
+                return;
+            }
+
+            // 验证 Token 是否有效
+            try {
+                const response = await fetch('/admin/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+
+                const data = await response.json();
+
+                if (!data.valid) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+            } catch (error) {
+                console.error('验证失败:', error);
+                alert('验证失败，请重新登录');
+                window.location.href = '/static/login.html';
+                return;
+            }
+
+            // 自动加载默认平台的状态
+            loadAllStatus();
+
+            // 自动加载灰度发布阶段信息
+            loadRolloutStages();
+
+            // 自动加载回滚状态
+            loadRollbackStatus();
+        });
+    </script>
+</body>
+</html>

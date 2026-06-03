@@ -12,6 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const TSCODE_BASE_URL = 'https://testhub.paas.cmbchina.cn';
 export const TSCODE_GATEWAY_BASE_URL = 'https://testhub-gateway.paas.cmbchina.cn'; // test-workbench_change
 export const TSCODE_SECRET_STORAGE_KEY = 'tscode-oauth.accessToken';
+export const TSCODE_EMPLOYEE_ID_STORAGE_KEY = 'tscode-oauth.employeeId'; // test-workbench_change
 
 // test-workbench_change start
 // Controlled via product.json field "tsCodeAuthMockEnabled"

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD5 密码加密工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f1f8e9;
+            border-radius: 6px;
+            border-left: 3px solid #4caf50;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result h3 {
+            margin: 0 0 10px 0;
+            color: #388e3c;
+            font-size: 16px;
+        }
+
+        .result .md5-value {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            color: #1976d2;
+            word-break: break-all;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .copy-btn {
+            padding: 8px 16px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .copy-btn:hover {
+            background: #388e3c;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            border-left: 3px solid #2196f3;
+        }
+
+        .info h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+            font-size: 16px;
+        }
+
+        .info p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .info code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d32f2f;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 MD5 密码加密工具</h1>
+            <p>用于生成管理员密码的 MD5 哈希值</p>
+        </div>
+
+        <div class="form-group">
+            <label for="password">输入密码</label>
+            <input
+                type="text"
+                id="password"
+                placeholder="请输入要加密的密码"
+                autocomplete="off"
+            >
+        </div>
+
+        <button class="btn" onclick="generateMD5()">
+            生成 MD5
+        </button>
+
+        <div id="result" class="result">
+            <h3>✅ MD5 哈希值</h3>
+            <div class="md5-value" id="md5-value"></div>
+            <button class="copy-btn" onclick="copyMD5()">📋 复制到剪贴板</button>
+        </div>
+
+        <div class="info">
+            <h3>📝 使用说明</h3>
+            <p>1. 在上方输入框中输入您想要设置的管理员密码</p>
+            <p>2. 点击"生成 MD5"按钮</p>
+            <p>3. 复制生成的 MD5 哈希值</p>
+            <p>4. 将哈希值粘贴到 <code>.env</code> 文件的 <code>ADMIN_PASSWORD_MD5</code> 配置项中</p>
+            <p>5. 重启服务器使配置生效</p>
+        </div>
+
+        <div class="footer">
+            <a href="/static/login.html">← 返回登录页面</a>
+        </div>
+    </div>
+
+    <script>
+        const passwordInput = document.getElementById('password');
+        const resultDiv = document.getElementById('result');
+        const md5ValueDiv = document.getElementById('md5-value');
+
+        // 回车键生成
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                generateMD5();
+            }
+        });
+
+        async function generateMD5() {
+            const password = passwordInput.value.trim();
+
+            if (!password) {
+                alert('请输入密码');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/md5', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: password })
+                });
+
+                if (!response.ok) {
+                    throw new Error('生成失败');
+                }
+
+                const data = await response.json();
+
+                // 显示结果
+                md5ValueDiv.textContent = data.md5;
+                resultDiv.classList.add('show');
+
+            } catch (error) {
+                alert('生成 MD5 失败: ' + error.message);
+            }
+        }
+
+        function copyMD5() {
+            const md5Value = md5ValueDiv.textContent;
+
+            // 复制到剪贴板
+            navigator.clipboard.writeText(md5Value).then(() => {
+                alert('✅ MD5 已复制到剪贴板');
+            }).catch(() => {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = md5Value;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('✅ MD5 已复制到剪贴板');
+            });
+        }
+    </script>
+</body>
+</html>
