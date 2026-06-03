@@ -661,7 +661,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			style: HoverStyle.Pointer,
 		}));
 
-		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
+		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>]);
 
 		// Keep the full-resolution image available as a fallback for the hover
 		// preview, but only decode it lazily if the downscaled thumbnail fails.
@@ -689,7 +689,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		// only once, and the UI keeps a small object URL for steady-state rendering.
 		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
 		const renderPreviewImage = async () => {
-			const thumbnail = await createImageThumbnail(data, 'image/png', IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
+			const thumbnail = await createImageThumbnail(data, undefined, IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
 			if (disposable.isDisposed) {
 				return;
 			}
