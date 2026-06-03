@@ -48,6 +48,16 @@ export abstract class TypeScriptServiceContribution implements vscode.Disposable
 		return this._isActivated;
 	}
 
+	protected getDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+		let document: vscode.TextDocument | undefined;
+		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
+			document = vscode.window.activeTextEditor.document;
+		} else {
+			document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
+		}
+		return document;
+	}
+
 	private async doIsTypeScriptActivated(languageId: string): Promise<boolean> {
 		let activated = false;
 

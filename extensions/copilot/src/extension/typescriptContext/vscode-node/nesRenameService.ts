@@ -268,16 +268,6 @@ export class NesRenameContribution extends TypeScriptServiceContribution {
 		}
 	}
 
-	private getDocument(uri: vscode.Uri, token?: vscode.CancellationToken): vscode.TextDocument | undefined {
-		let document: vscode.TextDocument | undefined;
-		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
-			document = vscode.window.activeTextEditor.document;
-		} else {
-			document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
-		}
-		return document;
-	}
-
 	private async getUserParams(): Promise<{ document: vscode.TextDocument; position: vscode.Position; oldName: string; newName: string } | undefined> {
 		if (vscode.window.activeTextEditor === undefined) {
 			return undefined;

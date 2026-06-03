@@ -53,6 +53,7 @@ import { ToolsContribution } from '../../tools/vscode-node/tools';
 import { OTelChatDebugLogProviderContribution } from '../../trajectory/vscode-node/otelChatDebugLogProvider';
 import { InlineCompletionContribution } from '../../typescriptContext/vscode-node/languageContextService';
 import { NesRenameContribution } from '../../typescriptContext/vscode-node/nesRenameService';
+import { CodeUsageContribution } from '../../typescriptContext/vscode-node/codeUsageService';
 import * as workspaceIndexingContribution from '../../workspaceChunkSearch/vscode-node/workspaceChunkSearch.contribution';
 import { WorkspaceRecorderFeature } from '../../workspaceRecorder/vscode-node/workspaceRecorderFeature';
 import vscodeContributions from '../vscode/contributions';
@@ -105,6 +106,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(SessionStoreTracker),
 	sessionSyncContribution,
 	asContributionFactory(BYOKContrib),
+	asContributionFactory(CodeUsageContribution),
 ];
 
 /**

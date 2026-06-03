@@ -5,7 +5,7 @@
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
-import { ErrorCode, RenameKind, type CachedContextRunnableResult, type CodeUsage, type CodeUsageRequest, type CodeUsageResponse, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
+import { ErrorCode, RenameKind, type CachedContextRunnableResult, type CodeUsage, type CodeUsageRequest, type CodeUsageResponse, type CodeUsages, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
 const ts = TS();
 
@@ -259,7 +259,7 @@ const nesRenameHandler = (request: NesRenameRequest): NesRenameHandlerResponse =
 	return { response: { groups: result }, responseRequired: true };
 };
 
-const codeUsageHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse => {
+const codeUsagesHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse => {
 	const input = resolveInput(request.arguments, 0);
 	if (FailedHandlerResponse.is(input)) {
 		return input;
@@ -267,7 +267,7 @@ const codeUsageHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse =
 
 	const { languageService, file, pos } = input;
 
-	let result: CodeUsage[];
+	let result: CodeUsages;
 	try {
 		result = getCodeUsages(languageServerSession!, languageService, file, pos);
 	} catch (error) {
@@ -277,7 +277,7 @@ const codeUsageHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse =
 			return { response: { error: ErrorCode.exception, message: 'Unknown error' }, responseRequired: true };
 		}
 	}
-	return { response: { usages: result }, responseRequired: true };
+	return { response: result, responseRequired: true };
 };
 
 export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
@@ -299,7 +299,7 @@ export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
 					info.session.addProtocolHandler('_.copilot.context', computeContextHandler);
 					info.session.addProtocolHandler('_.copilot.prepareNesRename', prepareNesRenameHandler);
 					info.session.addProtocolHandler('_.copilot.postNesRename', nesRenameHandler);
-					info.session.addProtocolHandler('_.copilot.codeUsage', codeUsageHandler);
+					info.session.addProtocolHandler('_.copilot.codeUsages', codeUsagesHandler);
 				}
 
 			} catch (e) {

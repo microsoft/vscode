@@ -26,6 +26,7 @@ import { ISearchService, QueryType, resultIsMatch } from '../../../../services/s
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 export const UsagesToolId = 'vscode_listCodeUsages';
 
@@ -50,9 +51,29 @@ const StaticModelDescription = BaseModelDescription + `
 
 If the file's language has no reference provider registered, the tool returns an error.`;
 
+type FilePath = string;
+
+interface LineRange {
+	start: number;
+	end: number;
+}
+
+interface CodeUsage {
+	file: FilePath;
+	line: number;
+	parents?: LineRange[];
+}
+
+interface CodeUsages {
+	definitions?: CodeUsage[];
+	references?: CodeUsage[];
+	implementations?: CodeUsage[];
+}
+
 export class UsagesTool extends Disposable implements IToolImpl {
 
 	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IModelService private readonly _modelService: IModelService,
 		@ISearchService private readonly _searchService: ISearchService,
@@ -143,6 +164,10 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			}
 
 			const position = new Position(lineNumber, column);
+
+			const codeUsages = await this._commandService.executeCommand<CodeUsages | null>('github.copilot.codeUsages', ref.object.textEditorModel.uri, position);
+			if (codeUsages !== null) {
+			}
 
 			// --- query references, definitions, implementations in parallel ---
 			const [definitions, references, implementations] = await Promise.all([

@@ -10,6 +10,12 @@ import type { CodeUsage, CodeUsages, FilePath, LineRange } from './protocol';
 import type { ComputeContextSession } from './contextProvider';
 import tss, { type TokenInfo } from './typescripts';
 
+enum CodeUsageKind {
+	Declaration = 'declaration',
+	Reference = 'reference',
+	Implementation = 'implementation'
+}
+
 export function getCodeUsages(session: ComputeContextSession, languageService: tt.LanguageService, document: FilePath, position: number): CodeUsages {
 	const program = languageService.getProgram();
 	if (!program) {
@@ -19,9 +25,10 @@ export function getCodeUsages(session: ComputeContextSession, languageService: t
 	if (!sourceFile) {
 		throw new Error('No source file available');
 	}
-	const definitions: Map<string, CodeUsage> = new Map();
-	const references: Map<string, CodeUsage> = new Map();
-	const implementations: Map<string, CodeUsage> = new Map();
+	const seen: Set<string> = new Set();
+	const definitions: CodeUsage[] = [];
+	const references: CodeUsage[] = [];
+	const implementations: CodeUsage[] = [];
 	const result: CodeUsages = {};
 	for (const ls of session.getLanguageServices(sourceFile)) {
 		const refs = ls.findReferences(document, position);
@@ -29,49 +36,55 @@ export function getCodeUsages(session: ComputeContextSession, languageService: t
 			for (const referencedSymbol of refs) {
 				const definition = referencedSymbol.definition;
 				if (definition) {
-					getCodeUsage(definitions, program, definition.fileName, definition.textSpan.start);
-				}
-				for (const reference of referencedSymbol.references) {
-					getCodeUsage(references, program, reference.fileName, reference.textSpan.start);
+					getCodeUsage(seen, definitions, CodeUsageKind.Declaration, program, definition.fileName, definition.textSpan.start);
 				}
 			}
 		}
 		const impls = languageService.getImplementationAtPosition(document, position);
 		if (impls) {
 			for (const implementation of impls) {
-				getCodeUsage(implementations, program, implementation.fileName, implementation.textSpan.start);
+				getCodeUsage(seen, implementations, CodeUsageKind.Implementation, program, implementation.fileName, implementation.textSpan.start);
+			}
+		}
+		if (refs) {
+			for (const referencedSymbol of refs) {
+				for (const reference of referencedSymbol.references) {
+					getCodeUsage(seen, references, CodeUsageKind.Reference, program, reference.fileName, reference.textSpan.start);
+				}
 			}
 		}
 	}
-	if (definitions.size > 0) {
-		result.definitions = Array.from(definitions.values());
+	if (definitions.length > 0) {
+		result.definitions = definitions;
 	}
-	if (references.size > 0) {
-		result.references = Array.from(references.values());
+	if (references.length > 0) {
+		result.references = references;
 	}
-	if (implementations.size > 0) {
-		result.implementations = Array.from(implementations.values());
+	if (implementations.length > 0) {
+		result.implementations = implementations;
 	}
 	return result;
 }
 
-function getCodeUsage(collection: Map<string, CodeUsage>, program: tt.Program, fileName: FilePath, pos: number): void {
+function getCodeUsage(seen: Set<string>, collection: CodeUsage[], kind: CodeUsageKind, program: tt.Program, fileName: FilePath, pos: number): void {
 	const sourceFile = program.getSourceFile(fileName);
 	if (!sourceFile) {
 		return;
 	}
 	const key = `${fileName}:${pos}`;
-	if (!collection.has(key)) {
-		const parentRanges = getParentRanges(sourceFile, pos);
-		collection.set(key, {
-			file: fileName,
-			line: sourceFile.getLineAndCharacterOfPosition(pos).line,
-			parents: parentRanges
-		});
+	if (seen.has(key)) {
+		return;
 	}
+	seen.add(key);
+	const parentRanges = getParentRanges(sourceFile, pos, kind);
+	collection.push({
+		file: fileName,
+		line: sourceFile.getLineAndCharacterOfPosition(pos).line,
+		parents: parentRanges
+	});
 }
 
-function getParentRanges(sourceFile: tt.SourceFile, position: number): LineRange[] | undefined {
+function getParentRanges(sourceFile: tt.SourceFile, position: number, kind: CodeUsageKind): LineRange[] | undefined {
 	const tokenInfo: TokenInfo = tss.getRelevantTokens(sourceFile, position);
 	const node = tokenInfo.touching ?? tokenInfo.token;
 	if (!node) {
@@ -88,7 +101,7 @@ function getParentRanges(sourceFile: tt.SourceFile, position: number): LineRange
 			break;
 		}
 
-		if (isNamedStructuralEntity(parent)) {
+		if (isNamedStructuralEntity(parent, kind)) {
 			result.push(toLineRange(
 				sourceFile.getLineAndCharacterOfPosition(parent.getStart(sourceFile)).line,
 				sourceFile.getLineAndCharacterOfPosition(parent.getEnd()).line
@@ -98,14 +111,17 @@ function getParentRanges(sourceFile: tt.SourceFile, position: number): LineRange
 	return result.length > 0 ? result : undefined;
 }
 
-function isNamedStructuralEntity(node: tt.Node): boolean {
+function isNamedStructuralEntity(node: tt.Node, kind: CodeUsageKind): boolean {
 	return (ts.isFunctionDeclaration(node)
+		|| ts.isConstructorDeclaration(node)
 		|| ts.isMethodDeclaration(node)
+		|| (ts.isMethodSignature(node) && kind === CodeUsageKind.Declaration)
 		|| ts.isPropertyDeclaration(node)
-		|| ts.isPropertySignature(node)
+		|| (ts.isPropertySignature(node) && kind === CodeUsageKind.Declaration)
 		|| ts.isGetAccessorDeclaration(node)
 		|| ts.isSetAccessorDeclaration(node)
 		|| ts.isClassDeclaration(node)
+		|| ts.isInterfaceDeclaration(node)
 		|| ts.isModuleDeclaration(node))
 		&& !!node.name;
 }
