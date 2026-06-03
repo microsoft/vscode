@@ -11,7 +11,6 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { AutomationService } from '../../../../../workbench/contrib/chat/browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISession, IChat } from '../../../../services/sessions/common/session.js';
@@ -68,18 +67,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 }
 
-class FakeWorkspaceContextService extends mock<IWorkspaceContextService>() {
-
-	folders: URI[] = [];
-
-	override getWorkspace(): IWorkspace {
-		const folders: IWorkspaceFolder[] = this.folders.map((uri, i) =>
-			upcastPartial<IWorkspaceFolder>({ uri, index: i, name: `f${i}` }),
-		);
-		return upcastPartial<IWorkspace>({ folders });
-	}
-}
-
 function fakeSession(sessionId: string): ISession {
 	return upcastPartial<ISession>({ sessionId });
 }
@@ -94,17 +81,15 @@ suite('SessionsAutomationRunner', () => {
 		const service = teardown.add(new AutomationService(storage, log));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		teardown.add({ dispose: () => sessionsMgmt.dispose() });
-		const workspace = new FakeWorkspaceContextService();
-		const runner = new SessionsAutomationRunner(service, sessionsMgmt, workspace, log);
-		return { service, sessionsMgmt, workspace, runner };
+		const runner = new SessionsAutomationRunner(service, sessionsMgmt, log);
+		return { service, sessionsMgmt, runner };
 	}
 
 	test('creates a session for the automation prompt and marks the run completed', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_A];
+		const { service, sessionsMgmt, runner } = setup();
 		sessionsMgmt.nextSession = fakeSession('s1');
 
-		const a = await service.createAutomation({ name: 'A', prompt: 'do the thing', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'do the thing', schedule: hourly(), folderUri: FOLDER_A });
 		await runner.runOnce(a, 'schedule', 99);
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
@@ -120,9 +105,8 @@ suite('SessionsAutomationRunner', () => {
 		assert.strictEqual(runs[0].leaderWindowId, 99);
 	});
 
-	test('prefers the automation folder over the workspace folder', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_A];
+	test('always uses the automation folder regardless of the current workspace', async () => {
+		const { service, sessionsMgmt, runner } = setup();
 		sessionsMgmt.nextSession = fakeSession('s1');
 
 		const a = await service.createAutomation({
@@ -136,38 +120,11 @@ suite('SessionsAutomationRunner', () => {
 		assert.strictEqual(sessionsMgmt.calls[0].folderUri.toString(), FOLDER_B.toString());
 	});
 
-	test('falls back to the first workspace folder when the automation has none', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_B, FOLDER_A];
-		sessionsMgmt.nextSession = fakeSession('s1');
-
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
-		await runner.runOnce(a, 'schedule', 1);
-
-		assert.strictEqual(sessionsMgmt.calls[0].folderUri.toString(), FOLDER_B.toString());
-	});
-
-	test('marks the run failed when no folder can be resolved', async () => {
-		const { service, sessionsMgmt, runner } = setup();
-		// workspace.folders left empty; no automation.folderUri.
-
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
-		await runner.runOnce(a, 'schedule', 1);
-
-		assert.strictEqual(sessionsMgmt.calls.length, 0);
-		const runs = service.runs.get();
-		assert.strictEqual(runs.length, 1);
-		assert.strictEqual(runs[0].status, 'failed');
-		assert.ok(runs[0].errorMessage);
-		assert.match(runs[0].errorMessage!, /workspace folder/i);
-	});
-
 	test('marks the run failed when createAndSendNewChatRequest throws', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_A];
+		const { service, sessionsMgmt, runner } = setup();
 		sessionsMgmt.nextError = new Error('provider offline');
 
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await runner.runOnce(a, 'schedule', 1);
 
 		const runs = service.runs.get();
@@ -177,10 +134,9 @@ suite('SessionsAutomationRunner', () => {
 	});
 
 	test('skips when another active run exists for the same automation', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_A];
+		const { service, sessionsMgmt, runner } = setup();
 
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await service.recordRunStart(a.id, 'manual', 1);
 		await runner.runOnce(a, 'schedule', 2);
 
@@ -192,12 +148,11 @@ suite('SessionsAutomationRunner', () => {
 	});
 
 	test('marks the run failed when the cancellation token is already cancelled', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_A];
+		const { service, sessionsMgmt, runner } = setup();
 		const cts = new CancellationTokenSource();
 		cts.cancel();
 
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await runner.runOnce(a, 'schedule', 1, cts.token);
 
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
@@ -209,11 +164,10 @@ suite('SessionsAutomationRunner', () => {
 	});
 
 	test('completes the run even when no session was captured from onDidSendRequest', async () => {
-		const { service, sessionsMgmt, workspace, runner } = setup();
-		workspace.folders = [FOLDER_A];
+		const { service, sessionsMgmt, runner } = setup();
 		sessionsMgmt.emitNewSession = false;
 
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await runner.runOnce(a, 'schedule', 1, CancellationToken.None);
 
 		const runs = service.runs.get();

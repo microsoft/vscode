@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -17,12 +18,14 @@ import { NullHoverService } from '../../../../../../platform/hover/test/browser/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { IWorkspaceContextService, IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
 import { AutomationService } from '../../../browser/automations/automationService.js';
 import { IAutomation, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
 import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../../common/automations/automationService.js';
+
+const FOLDER = URI.parse('file:///workspace');
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -54,8 +57,28 @@ class FakeDialogService extends mock<IDialogService>() {
 }
 
 class FakeWorkspaceContextService extends mock<IWorkspaceContextService>() {
+
+	private readonly _onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
+	override readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
+
+	private _folders: IWorkspaceFolder[];
+
+	constructor(folders: readonly URI[] = [FOLDER]) {
+		super();
+		this._folders = folders.map((uri, i) => upcastPartial<IWorkspaceFolder>({ uri, name: `folder-${i}`, index: i }));
+	}
+
 	override getWorkspace(): IWorkspace {
-		return upcastPartial<IWorkspace>({ folders: [] });
+		return upcastPartial<IWorkspace>({ folders: this._folders });
+	}
+
+	setFolders(uris: readonly URI[]): void {
+		this._folders = uris.map((uri, i) => upcastPartial<IWorkspaceFolder>({ uri, name: `folder-${i}`, index: i }));
+		this._onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+	}
+
+	dispose(): void {
+		this._onDidChangeWorkspaceFolders.dispose();
 	}
 }
 
@@ -75,14 +98,16 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(IAutomationRunner, runner);
 		instantiation.stub(IDialogService, dialog);
 		instantiation.stub(IHoverService, NullHoverService);
-		instantiation.stub(IWorkspaceContextService, new FakeWorkspaceContextService());
+		const workspace = new FakeWorkspaceContextService();
+		teardown.add({ dispose: () => workspace.dispose() });
+		instantiation.stub(IWorkspaceContextService, workspace);
 		instantiation.stub(IKeybindingService, upcastPartial<IKeybindingService>({}));
 		instantiation.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: document.createElement('div') }));
 		instantiation.stub(IHostService, upcastPartial<IHostService>({}));
 		instantiation.stub(ILogService, log);
 
 		const widget = teardown.add(instantiation.createInstance(AutomationsListWidget));
-		return { widget, service, runner, dialog };
+		return { widget, service, runner, dialog, workspace };
 	}
 
 	test('renders empty state when there are no automations', () => {
@@ -95,8 +120,8 @@ suite('AutomationsListWidget', () => {
 
 	test('renders one row per automation', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly() });
-		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly() });
+		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly(), folderUri: FOLDER });
 
 		const rows = widget.element.querySelectorAll('.automations-row');
 		assert.strictEqual(rows.length, 2);
@@ -109,7 +134,7 @@ suite('AutomationsListWidget', () => {
 
 	test('shows a "Disabled" badge on disabled rows', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'D', prompt: 'p', schedule: hourly(), enabled: false });
+		await service.createAutomation({ name: 'D', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: false });
 
 		const badge = widget.element.querySelector('.automations-row-disabled-badge');
 		assert.ok(badge, 'expected disabled badge');
@@ -118,7 +143,7 @@ suite('AutomationsListWidget', () => {
 
 	test('Run now button invokes the runner with trigger=manual', async () => {
 		const { widget, service, runner } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		const button = widget.element.querySelector('.automations-row .automations-row-action-button') as HTMLButtonElement;
 		button.click();
@@ -133,7 +158,7 @@ suite('AutomationsListWidget', () => {
 
 	test('toggle button flips enabled state', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), enabled: true });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
 
 		// Buttons are ordered: Run Now, Toggle, Edit, Delete.
 		const buttons = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
@@ -149,7 +174,7 @@ suite('AutomationsListWidget', () => {
 
 	test('delete button only deletes when confirmation is confirmed', async () => {
 		const { widget, service, dialog } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		dialog.confirmResult = false;
 		const deleteButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[3] as HTMLButtonElement;
@@ -163,7 +188,7 @@ suite('AutomationsListWidget', () => {
 
 	test('delete button removes the automation when confirmation is accepted', async () => {
 		const { widget, service, dialog } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		dialog.confirmResult = true;
 		const deleteButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[3] as HTMLButtonElement;
@@ -183,8 +208,8 @@ suite('AutomationsListWidget', () => {
 		const seen: number[] = [];
 		teardown.add(widget.onDidChangeItemCount(c => seen.push(c)));
 
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
-		await service.createAutomation({ name: 'B', prompt: 'p', schedule: hourly() });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'B', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		assert.ok(seen.length >= 2, `expected at least 2 emissions, got ${seen.length}`);
 		assert.strictEqual(seen[seen.length - 1], 2);
@@ -192,7 +217,7 @@ suite('AutomationsListWidget', () => {
 
 	test('fireItemCount reflects current service size', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		let captured = -1;
 		teardown.add(widget.onDidChangeItemCount(c => { captured = c; }));
@@ -203,7 +228,7 @@ suite('AutomationsListWidget', () => {
 
 	test('history panel is hidden by default and toggled by the history button', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		assert.strictEqual(widget.element.querySelectorAll('.automations-row-history').length, 0);
 
@@ -233,7 +258,7 @@ suite('AutomationsListWidget', () => {
 
 	test('history panel renders empty-state when there are no runs', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
 		historyButton.click();
@@ -247,7 +272,7 @@ suite('AutomationsListWidget', () => {
 
 	test('history panel renders run rows with status and trigger', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		// Record three runs in different states.
 		const r1 = await service.recordRunStart(a.id, 'schedule', 1);
@@ -278,7 +303,7 @@ suite('AutomationsListWidget', () => {
 
 	test('history panel re-renders when run state changes after a run is added', async () => {
 		const { widget, service } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
 		historyButton.click();

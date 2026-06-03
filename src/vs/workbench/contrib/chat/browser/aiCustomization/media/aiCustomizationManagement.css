@@ -1941,3 +1941,17 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automation-form-invalid .automation-form-error:empty {
 	min-height: 0;
 }
+
+.automation-form-empty {
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+	padding: 6px 0;
+}
+
+.automations-list-widget .automations-row-folder {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 240px;
+}

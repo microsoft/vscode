@@ -43,6 +43,7 @@ suite('AutomationsAccessibilityHelp', () => {
 		assert.match(content, /Run now/);
 		assert.match(content, /Show history/);
 		assert.match(content, /Create\/Edit Dialog/);
+		assert.match(content, /Workspace folder/);
 		assert.match(content, /Run History/);
 		assert.match(content, /accessibility\.verbosity\.automations/);
 		provider.dispose();

@@ -46,8 +46,12 @@ export interface IAutomation {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 
-	/** Workspace folder the spawned session should open in. */
-	readonly folderUri?: URI;
+	/**
+	 * Workspace folder the spawned session should open in. Required —
+	 * automations always run in a specific folder so the launched
+	 * session has the right project context.
+	 */
+	readonly folderUri: URI;
 
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;

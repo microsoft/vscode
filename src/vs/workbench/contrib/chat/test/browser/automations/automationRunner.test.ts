@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { PlaceholderAutomationRunner } from '../../../browser/automations/automationRunner.js';
 import { AutomationService } from '../../../browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
+
+const FOLDER = URI.parse('file:///workspace');
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -30,7 +33,7 @@ suite('PlaceholderAutomationRunner', () => {
 
 	test('runs a single automation to completion and records the run', async () => {
 		const { service, runner } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		await runner.runOnce(a, 'schedule', 42);
 
 		const runs = service.runs.get();
@@ -44,7 +47,7 @@ suite('PlaceholderAutomationRunner', () => {
 
 	test('skips when another active run exists for the same automation', async () => {
 		const { service, runner } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		await service.recordRunStart(a.id, 'manual', 1);
 		await runner.runOnce(a, 'schedule', 42);
 
@@ -56,7 +59,7 @@ suite('PlaceholderAutomationRunner', () => {
 
 	test('does not throw if the automation is deleted mid-run', async () => {
 		const { service, runner } = setup();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly() });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		await service.deleteAutomation(a.id);
 		await runner.runOnce(a, 'manual', 1);
 		// The run starts but recordRunStart should throw "Automation not found";
