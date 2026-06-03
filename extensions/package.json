@@ -4,20 +4,7 @@
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "@octokit/rest": "^21.1.1",
-    "@vscode/extension-telemetry": "^1.5.1",
-    "dompurify": "^3.4.1",
-    "jsonc-parser": "^3.3.1",
-    "markdown-it": "^14.1.1",
-    "minimatch": "^10.2.1",
-    "picomatch": "^2.3.2",
-    "request-light": "^0.8.0",
-    "tunnel": "^0.0.6",
-    "typescript": "^6.0.3",
-    "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-tas-client": "^0.1.84",
-    "vscode-uri": "^3.1.0",
-    "which": "^4.0.0"
+    "typescript": "^6.0.3"
   },
   "scripts": {
     "postinstall": "node ./postinstall.mjs"
