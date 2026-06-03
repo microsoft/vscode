@@ -1144,6 +1144,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
+		// [AUTORUN-REG] Log the moment the model->view autorun is registered, so we can see
+		// whether widget.viewModel still points at the OUTGOING session at registration time
+		// (which would cause the very first run to be flagged stale and skipped).
+		logChangesToStateModel(this._inputModel, `[AUTORUN-REG] registering model->view autorun for ${forSessionResource.toString()}, widgetSession=${this._currentSessionKey}, widgetViewModelSession=${this._widget?.viewModel?.model.sessionResource?.toString()}, isStaleAtRegistration=${!!this._widget?.viewModel?.model.sessionResource && !isEqual(this._widget.viewModel.model.sessionResource, forSessionResource)}, model.state.selectedModel=${model.state.get()?.selectedModel?.identifier}, _currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, undefined, undefined, this.logService);
+
 		// Observe changes from model and sync to view
 		this._modelSyncDisposables.add(autorun(reader => {
 			let state = model.state.read(reader);
@@ -1157,9 +1162,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the outgoing session.
 			const widgetSessionResource = this._widget?.viewModel?.model.sessionResource;
 			const isStaleSession =
-				!!widgetSessionResource && !isEqual(widgetSessionResource, forSessionResource);
+				!!this._inputModelSessionResource && !isEqual(this._inputModelSessionResource, forSessionResource);
 			if (isStaleSession) {
-				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource.toString()})`;
+				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource?.toString()}, ${this._inputModelSessionResource?.toString()} is old)`;
 			}
 			// Untracked read: we only want a snapshot for the log, not a dependency
 			// that would re-trigger this autorun.
@@ -1234,20 +1239,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state?.selectedModel) {
 				const allModels = this.getAllMergedModels();
 				const sessionType = getChatSessionType(forSessionResource);
-				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
+				const currentLm = this._currentLanguageModel.get();
+				const syncResult = resolveModelFromSyncState(state.selectedModel, currentLm, allModels, sessionType, {
 					location: this.location,
 					currentModeKind: this.currentModeKind,
 					sessionType,
 				});
+				// [RESOLVE] Log the inputs and decided action regardless of branch so we can confirm
+				// _syncFromModel actually ran for this session and what it decided.
+				logChangesToStateModel(this._inputModel, `[RESOLVE] _syncFromModel resolveModelFromSyncState for ${forSessionResource.toString()} in ${this._currentSessionKey}: stateModel=${state.selectedModel.identifier} currentLm=${currentLm?.identifier} sessionType=${sessionType} -> action=${syncResult.action}`, state, undefined, this.logService);
 				if (syncResult.action === 'apply') {
-					logChangesToStateModel(this._inputModel, `_syncFromModel: applying selected model from input state for ${forSessionResource.toString()} in ${this._currentSessionKey}`, state, undefined, this.logService);
 					this.setCurrentLanguageModel(state.selectedModel);
 				} else if (syncResult.action === 'default') {
-					logChangesToStateModel(this._inputModel, `_syncFromModel: state.selectedModel rejected by resolveModelFromSyncState, falling back to default for ${forSessionResource.toString()} in ${this._currentSessionKey} (rejected=${state.selectedModel.identifier}, sessionType=${sessionType}, currentModeKind=${this.currentModeKind})`, state, undefined, this.logService);
 					this.setCurrentLanguageModelToDefault();
-				} else {
-					// 'keep' - the existing _currentLanguageModel matches state.selectedModel.
-					logChangesToStateModel(this._inputModel, `_syncFromModel: keep (state.selectedModel matches current) for ${forSessionResource.toString()} in ${this._currentSessionKey}`, state, undefined, this.logService);
 				}
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,

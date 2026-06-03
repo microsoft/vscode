@@ -61,22 +61,6 @@ import { ChatMode } from '../chatModes.js';
 
 const serializedChatKey = 'interactive.sessions';
 
-/**
- * True when the user has typed text or attached non-trivial context to the input
- * but not yet sent it. Used to decide whether an external session needs metadata
- * persisted on dispose so the draft survives switching sessions.
- */
-function hasDraftInput(model: ChatModel): boolean {
-	const state = model.inputModel.state.get();
-	if (!state) {
-		return false;
-	}
-	if (state.inputText.trim().length > 0) {
-		return true;
-	}
-	return state.attachments.length > 0;
-}
-
 class CancellableRequest implements IDisposable {
 	private readonly _yieldRequested: ISettableObservable<boolean> = observableValue(this, false);
 
@@ -207,7 +191,7 @@ export class ChatService extends Disposable implements IChatService {
 						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && (model.getRequests().length > 0 || hasDraftInput(model))) {
+				} else if (!localSessionId && (model.getRequests().length > 0)) {
 					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
 					// External sessions: persist metadata when there are requests, OR when the
 					// user has typed/attached unsent input we need to restore on next open.
