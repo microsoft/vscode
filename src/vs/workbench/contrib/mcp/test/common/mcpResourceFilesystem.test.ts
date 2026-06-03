@@ -25,6 +25,14 @@ import { McpService } from '../../common/mcpService.js';
 import { IMcpService } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
+import { IMcpAllowListService, McpAllowListState } from '../../../../../platform/mcp/common/mcpAllowListService.js';
+
+const mcpAllowlistService: IMcpAllowListService = {
+	_serviceBrand: undefined,
+	state: McpAllowListState.NotApplicable,
+	waitForReady: () => Promise.resolve(),
+	isAllowed: () => true,
+};
 
 
 suite('Workbench - MCP - ResourceFilesystem', () => {
@@ -50,7 +58,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService));
+		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService, mcpAllowlistService));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(

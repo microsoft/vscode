@@ -49,6 +49,27 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	};
 }
 
+/**
+ * An enterprise MCP registry entry from the `copilot/mcp_registry` response
+ * that signals GitHub-native enterprise allowlist enforcement.
+ */
+export interface IMcpAllowlistEntry {
+	/** The enterprise registry base URL (e.g., "https://registry.github.com/mcp") */
+	readonly registryUrl: string;
+	/** The registry access level */
+	readonly registryAccess: 'allow_all' | 'registry_only';
+	/** The owner (org or enterprise) login */
+	readonly ownerLogin: string;
+	/** The owner (org or enterprise) numeric ID */
+	readonly ownerId: number;
+	/** The owner type (e.g., "Organization") */
+	readonly ownerType: string;
+	/** Parent enterprise login, if the owner is an org under an enterprise */
+	readonly parentLogin: string | null;
+	/** Priority for evaluation ordering */
+	readonly priority: number;
+}
+
 export interface IPolicyData {
 	readonly mcp?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
@@ -56,6 +77,9 @@ export interface IPolicyData {
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
+  
+	/** Enterprise MCP allowlist entries discovered from `copilot/mcp_registry`. */
+	readonly mcpAllowlistEntries?: readonly IMcpAllowlistEntry[];
 
 	/**
 	 * Enterprise-managed plugin enablement, delivered via the Copilot

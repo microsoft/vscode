@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IMcpAllowlistEntry, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -81,6 +81,11 @@ interface IMcpRegistryProvider {
 		readonly type: string;
 		readonly parent_login: string | null;
 		readonly priority: number;
+	};
+	readonly capabilities?: {
+		readonly registry_type: string;
+		readonly required_auth?: readonly string[];
+		readonly required_context?: readonly string[];
 	};
 }
 
@@ -597,9 +602,32 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
 					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
 					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
+
+					// Extract enterprise allowlist entries from all registries
+					const allRegistries = mcpRegistryResult?.data?.allRegistries;
+					if (allRegistries && allRegistries.length > 0) {
+						const allowlistEntries: IMcpAllowlistEntry[] = [];
+						for (const registry of allRegistries) {
+							if (registry.capabilities?.registry_type === 'github_enterprise' && registry.owner) {
+								allowlistEntries.push({
+									registryUrl: registry.url,
+									registryAccess: registry.registry_access,
+									ownerLogin: registry.owner.login,
+									ownerId: registry.owner.id,
+									ownerType: registry.owner.type,
+									parentLogin: registry.owner.parent_login ?? null,
+									priority: registry.owner.priority,
+								});
+							}
+						}
+						policyData.mcpAllowlistEntries = allowlistEntries.length > 0 ? allowlistEntries : undefined;
+					}
+					// When using cached registry data, allRegistries is not available —
+					// preserve the existing mcpAllowlistEntries from the cached policyData.
 				} else {
 					policyData.mcpRegistryUrl = undefined;
 					policyData.mcpAccess = undefined;
+					policyData.mcpAllowlistEntries = undefined;
 				}
 			}
 			if (managedSettingsResult?.data) {
@@ -771,17 +799,20 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return { data: undefined, fetchedAt: Date.now() };
 	}
 
-	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: (IMcpRegistryProvider & { allRegistries?: ReadonlyArray<IMcpRegistryProvider> }) | null; fetchedAt: number } | undefined> {
 		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
-			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
+			const policyData = accountPolicyData.policyData;
+			const data: IMcpRegistryProvider | null = policyData.mcpRegistryUrl && policyData.mcpAccess
+				? { url: policyData.mcpRegistryUrl, registry_access: policyData.mcpAccess }
+				: null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
 		}
 		const data = await this.requestMcpRegistryProvider(sessions);
 		return !isUndefined(data) ? { data, fetchedAt: Date.now() } : undefined;
 	}
 
-	private async requestMcpRegistryProvider(sessions: AuthenticationSession[]): Promise<IMcpRegistryProvider | null | undefined> {
+	private async requestMcpRegistryProvider(sessions: AuthenticationSession[]): Promise<(IMcpRegistryProvider & { allRegistries?: ReadonlyArray<IMcpRegistryProvider> }) | null | undefined> {
 		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
 			this.logService.debug('[DefaultAccount] No MCP registry data URL found');
@@ -807,7 +838,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			const data = await asJson<IMcpRegistryResponse>(response);
 			if (data) {
 				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
-				return data.mcp_registries[0] ?? null;
+				const primary = data.mcp_registries[0];
+				if (!primary) {
+					return null;
+				}
+				// Return primary registry with all registries attached for enterprise allowlist extraction
+				return { ...primary, allRegistries: data.mcp_registries };
 			}
 			this.logService.debug('No MCP registry providers content found in response');
 			return null;

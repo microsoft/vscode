@@ -93,6 +93,7 @@
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/copilot": "1.0.55-3",
     "@github/copilot-sdk": "1.0.0-beta.8",
+    "@github/mcp-registry": "^0.1.6",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",

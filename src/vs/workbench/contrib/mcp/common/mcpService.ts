@@ -10,6 +10,7 @@ import { autorun, derived, IObservable, IReader, ISettableObservable, ITransacti
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMcpAllowListService } from '../../../../platform/mcp/common/mcpAllowListService.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -45,6 +46,7 @@ export class McpService extends Disposable implements IMcpService {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IMcpAllowListService private readonly _mcpAllowlistService: IMcpAllowListService,
 	) {
 		super();
 
@@ -103,6 +105,14 @@ export class McpService extends Disposable implements IMcpService {
 
 	private async _autostart(autoStartConfig: McpAutoStartValue, state: ISettableObservable<IAutostartResult>, token: CancellationToken) {
 		await this._activateCollections();
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		// Wait for the enterprise allowlist to be ready before starting servers,
+		// so we don't attempt to start servers that will be blocked.
+		await this._mcpAllowlistService.waitForReady(token);
 
 		if (token.isCancellationRequested) {
 			return;
