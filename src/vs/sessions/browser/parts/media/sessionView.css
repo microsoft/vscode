@@ -12,17 +12,30 @@
  * across the multi-session grid so attention stays on the active session.
  * ------------------------------------------------------------------------- */
 
+/* Transitions apply to both active and inactive states so controls fade
+ * smoothly in either direction. Only declared when the user has not requested
+ * reduced motion so we never need to unset them. */
+@media (prefers-reduced-motion: no-preference) {
+	.session-view .chat-composite-bar-inline-toolbar,
+	.session-view .chat-composite-bar-toolbar,
+	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
+	.session-view .interactive-session .chat-secondary-toolbar,
+	.session-view .interactive-session .chat-attachments-container,
+	.session-view .interactive-session .interactive-input-followups,
+	.session-view .interactive-session .chat-editor-container {
+		transition: opacity 0.15s ease;
+	}
+
+	.session-view .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+		transition: filter 0.15s ease, opacity 0.15s ease;
+	}
+}
+
 /* Quiet the session toolbar controls in the top-right of inactive sessions so
  * the active session's controls stand out, while keeping them legible. */
 .session-view:not(.is-active) .chat-composite-bar-inline-toolbar,
 .session-view:not(.is-active) .chat-composite-bar-toolbar {
 	opacity: 0.6;
-	transition: opacity 0.15s ease;
-}
-
-.session-view.is-active .chat-composite-bar-inline-toolbar,
-.session-view.is-active .chat-composite-bar-toolbar {
-	transition: opacity 0.15s ease;
 }
 
 /* Keep the mode/model/harness pickers legible (but non-interactive) in inactive
@@ -31,7 +44,6 @@
 .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	opacity: 0.6;
 	pointer-events: none;
-	transition: opacity 0.15s ease;
 }
 
 /* Fade out the controls that sit below the input box (secondary toolbar,
@@ -41,34 +53,18 @@
 .session-view:not(.is-active) .interactive-session .interactive-input-followups {
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity 0.15s ease;
 }
 
 /* Fade out the placeholder text (rendered as an editor decoration inside the
  * chat editor) for inactive sessions. */
 .session-view:not(.is-active) .interactive-session .chat-editor-container {
 	opacity: 0.4;
-	transition: opacity 0.15s ease;
 }
 
 /* Desaturate the send button so it reads as muted while still discoverable. */
 .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	filter: grayscale(1);
 	opacity: 0.6;
-	transition: filter 0.15s ease, opacity 0.15s ease;
-}
-
-/* Smoothly restore controls when the session becomes active again. */
-.session-view.is-active .interactive-session .chat-input-toolbars > .chat-input-toolbar,
-.session-view.is-active .interactive-session .chat-secondary-toolbar,
-.session-view.is-active .interactive-session .chat-attachments-container,
-.session-view.is-active .interactive-session .interactive-input-followups,
-.session-view.is-active .interactive-session .chat-editor-container {
-	transition: opacity 0.15s ease;
-}
-
-.session-view.is-active .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
-	transition: filter 0.15s ease, opacity 0.15s ease;
 }
 
 /* While a session is inactive or fading in, suppress the focus border so it
@@ -99,15 +95,4 @@
 .session-view:not(.is-active) .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor :is(.synthetic-focus, [tabindex]:focus, textarea:focus),
 .session-view.activating .interactive-session .chat-input-container:not(.working) .interactive-input-editor .monaco-editor :is(.synthetic-focus, [tabindex]:focus, textarea:focus) {
 	outline-color: transparent !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
-	.session-view .interactive-session .chat-secondary-toolbar,
-	.session-view .interactive-session .chat-attachments-container,
-	.session-view .interactive-session .interactive-input-followups,
-	.session-view .interactive-session .chat-editor-container,
-	.session-view .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
-		transition: none;
-	}
 }
