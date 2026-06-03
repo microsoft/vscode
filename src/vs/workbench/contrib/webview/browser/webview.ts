@@ -129,8 +129,8 @@ export interface WebviewContentOptions {
 	 * This blocks keypress events that are triggered by scripts. Webviews should not allow untrusted scripts
 	 * to be run, so this is more of a defense-in-depth measure.
 	 *
-	 * There are valid reasons to enable this, such when a webview embeds an iframe. In those cases, keypress events would
-	 * normally be eaten by the iframe, so the inner iframe needs to forward keypress event to the parent webview,
+	 * There are valid reasons to enable this, such as when a webview embeds an iframe. In those cases, keyboard events can
+	 * be eaten by the iframe, so the inner iframe needs to forward keyboard events to the parent webview,
 	 * which then needs to forward them to the workbench.
 	 */
 	readonly forwardUntrustedKeypressEvents?: boolean;
