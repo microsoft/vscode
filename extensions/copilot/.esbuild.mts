@@ -15,6 +15,14 @@ const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
 const sourceMapOutDir = './dist-sourcemaps';
 
+/** Mark packages `external` only if a shared copy exists in
+ *  `extensions/node_modules/` (in-tree vscode build). Standalone marketplace
+ *  builds don't have it, so packages stay inlined and the .vsix is self-contained. */
+function sharedRuntimeExternal(packages: string[]): string[] {
+	const sharedRoot = path.join(REPO_ROOT, '..', 'node_modules');
+	return packages.filter(name => fs.existsSync(path.join(sharedRoot, ...name.split('/'), 'package.json')));
+}
+
 const baseBuildOptions = {
 	bundle: true,
 	logLevel: 'info',
@@ -42,17 +50,18 @@ const baseNodeBuildOptions = {
 		'sqlite3',
 		'node-pty', // Required by @github/copilot
 		'@github/copilot',
-		// Subset of the shared production deps declared in `extensions/package.json`
-		// that copilot actually imports. Resolved from `extensions/node_modules/`
-		// at runtime in the product.
-		'@vscode/extension-telemetry',
-		'@microsoft/1ds-core-js',
-		'@microsoft/1ds-post-js',
-		'dompurify',
-		'jsonc-parser',
-		'markdown-it',
-		'minimatch',
-		'vscode-tas-client',
+		// Shared deps from `extensions/package.json` — externalized only in the
+		// in-tree vscode build (see `sharedRuntimeExternal`).
+		...sharedRuntimeExternal([
+			'@vscode/extension-telemetry',
+			'@microsoft/1ds-core-js',
+			'@microsoft/1ds-post-js',
+			'dompurify',
+			'jsonc-parser',
+			'markdown-it',
+			'minimatch',
+			'vscode-tas-client',
+		]),
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',
