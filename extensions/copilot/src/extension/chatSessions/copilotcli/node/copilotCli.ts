@@ -200,7 +200,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
 				const models = this._resolvedModelInfos ?? [];
-				if (!models.length) {
+				if (models.length) {
 					return models;
 				}
 				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
