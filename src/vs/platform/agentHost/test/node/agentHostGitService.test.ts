@@ -246,20 +246,22 @@ suite('AgentHostGitService', () => {
 			assert.deepStrictEqual(diffs, [
 				{
 					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts') } },
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts') } },
+					after: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts') } },
 					diff: { added: 5, removed: 2 },
 				},
 				{
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
+					before: undefined,
+					after: { uri: 'file:///repo/added.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
 					diff: { added: 10, removed: 0 },
 				},
 				{
 					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts') } },
+					after: undefined,
 					diff: { added: 0, removed: 7 },
 				},
 				{
 					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts') } },
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts') } },
+					after: { uri: 'file:///repo/new/path.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts') } },
 					diff: { added: 3, removed: 3 },
 				},
 			]);
