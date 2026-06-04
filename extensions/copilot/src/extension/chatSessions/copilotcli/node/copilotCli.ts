@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -47,6 +47,10 @@ export interface CopilotCLIModelInfo {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly defaultContextMax?: number;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly maxContextWindowTokens: number;
@@ -169,6 +173,10 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 					inputCost: pricing?.default.inputPrice,
 					outputCost: pricing?.default.outputPrice,
 					cacheCost: pricing?.default.cachePrice,
+					longContextInputCost: pricing?.longContext?.inputPrice,
+					longContextOutputCost: pricing?.longContext?.outputPrice,
+					longContextCacheCost: pricing?.longContext?.cachePrice,
+					defaultContextMax: pricing?.default.contextMax,
 					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
 					maxOutputTokens: model.capabilities.limits.max_output_tokens,
 					maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
@@ -191,7 +199,12 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				return this._resolvedModelInfos ?? [];
+				const models = this._resolvedModelInfos ?? [];
+				if (models.length) {
+					return models;
+				}
+				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
+				return autoModelEnabled ? [buildAutoModel()] : [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -222,9 +235,12 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				inputCost: model.inputCost,
 				outputCost: model.outputCost,
 				cacheCost: model.cacheCost,
+				longContextInputCost: model.longContextInputCost,
+				longContextOutputCost: model.longContextOutputCost,
+				longContextCacheCost: model.longContextCacheCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
+				...buildConfigurationSchema(model, isReasoningEffortEnabled),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
@@ -264,17 +280,17 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	};
 }
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): vscode.LanguageModelConfigurationSchema | undefined {
-	const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
-	if (effortLevels.length === 0) {
-		return;
-	}
+export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-	const defaultEffort = modelInfo.defaultReasoningEffort;
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
-	return {
-		properties: {
-			[COPILOT_CLI_REASONING_EFFORT_PROPERTY]: {
+	// Reasoning effort config
+	if (isReasoningEffortEnabled) {
+		const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
+		if (effortLevels.length > 0) {
+			const defaultEffort = modelInfo.defaultReasoningEffort;
+			properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
 				type: 'string',
 				title: l10n.t('Thinking Effort'),
 				enum: effortLevels,
@@ -291,9 +307,37 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): vscode.Langua
 				}),
 				default: defaultEffort,
 				group: 'navigation',
-			}
+			};
 		}
-	};
+	}
+
+	// Context size config — only when CAPI provides a default context max,
+	// indicating a meaningful distinction between default and long context tiers.
+	const defaultContextMax = modelInfo.defaultContextMax;
+	const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
+	if (defaultContextMax && defaultContextMax < fullMax) {
+		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
+			|| modelInfo.longContextOutputCost !== undefined;
+		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+			type: 'number',
+			title: l10n.t('Context Size'),
+			enum: [defaultContextMax, fullMax],
+			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+			enumDescriptions: [
+				l10n.t('Default'),
+				hasLongContextSurcharge
+					? l10n.t('Longer sessions')
+					: l10n.t('Longer sessions without compaction'),
+			],
+			default: defaultContextMax,
+			group: 'tokens',
+		};
+	}
+
+	if (Object.keys(properties).length === 0) {
+		return {};
+	}
+	return { configurationSchema: { properties } };
 }
 
 /** An agent with its source URI preserved for UI and cross-referencing. */
@@ -605,12 +649,17 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			};
 		}
 
+		const { resolveAuthInfoFromToken } = await this.getPackage();
 		const copilotToken = await this.authentService.getGitHubSession('any', { silent: true });
-		return {
-			type: 'token',
-			token: copilotToken?.accessToken ?? '',
-			host: 'https://github.com'
-		};
+		const userInfo = copilotToken ? await resolveAuthInfoFromToken(copilotToken?.accessToken) : undefined;
+		if (!userInfo) {
+			return {
+				type: 'token',
+				token: copilotToken?.accessToken ?? '',
+				host: 'https://github.com'
+			};
+		}
+		return userInfo;
 	}
 }
 
@@ -631,4 +680,17 @@ async function checkFileExists(filePath: string): Promise<boolean> {
 export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly string[] }): boolean {
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
+}
+
+/**
+ * Maps a user-selected numeric context size to the SDK's context tier.
+ * Returns `'long_context'` when the selected size exceeds the default context
+ * max, `'default'` when it is within the default tier, or `undefined` when
+ * no context size was provided or the model has no tiered pricing.
+ */
+export function resolveContextTier(contextSize: unknown, modelInfo: CopilotCLIModelInfo | undefined): 'default' | 'long_context' | undefined {
+	if (typeof contextSize !== 'number' || !modelInfo?.defaultContextMax) {
+		return undefined;
+	}
+	return contextSize > modelInfo.defaultContextMax ? 'long_context' : 'default';
 }

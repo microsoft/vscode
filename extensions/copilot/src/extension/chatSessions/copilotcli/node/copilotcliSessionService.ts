@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AutoModeSessionManager as SDKAutoModeSessionManager, AutoModeSessionResult, internal, LocalSession, LocalSessionMetadata, Session, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { AutoModeSessionResult, internal, LocalSessionMetadata, AutoModeSessionManager as SDKAutoModeSessionManager, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
 import type { ChatCustomAgent, ChatRequest, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
+import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
@@ -41,17 +43,15 @@ import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeSer
 import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
-import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
-import { SessionIdForCLI } from '../common/utils';
+import { LocalSession, Session, SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
 import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from './mcpHandler';
-import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
@@ -257,6 +257,7 @@ export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
 	model?: string;
 	reasoningEffort?: string;
+	contextTier?: 'default' | 'long_context';
 	workspace: IWorkspaceInfo;
 	agent?: SweCustomAgent;
 	debugTargetSessionIds?: readonly string[];
@@ -778,24 +779,26 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					}
 				}));
 			}
-			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession));
+			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession.sessionId));
 			await Promise.all(promises);
 
 			if (sessionOptions.copilotUrl) {
-				sdkSession.setAuthInfo({
-					type: 'hmac',
-					hmac: 'empty',
-					host: 'https://github.com',
-					copilotUser: {
-						endpoints: {
-							api: sessionOptions.copilotUrl
+				sdkSession.updateOptions({
+					authInfo: {
+						type: 'hmac',
+						hmac: 'empty',
+						host: 'https://github.com',
+						copilotUser: {
+							endpoints: {
+								api: sessionOptions.copilotUrl
+							}
 						}
 					}
 				});
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 
-			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
+			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
 			session.object.add(mcpGateway);
 
 			// Set origin
@@ -953,6 +956,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
+		if (options.contextTier) {
+			allOptions.contextTier = options.contextTier;
+		}
 
 		const sandboxConfig = this.getSandboxConfig();
 		if (sandboxConfig) {
@@ -963,15 +969,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private getSandboxConfig(): SessionOptions['sandboxConfig'] {
-		// Team-internal ExP gate: when disabled, sandbox is force-off regardless of user setting.
-		if (!this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AgentSandboxEnabled, this._experimentationService)) {
+		const sandboxSetting = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.CLISandboxEnabled, this._experimentationService);
+		if (sandboxSetting === 'off') {
 			return undefined;
 		}
-		const sandboxSettingId = process.platform === 'win32' ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled';
-		const rawSandboxSetting = this.configurationService.getNonExtensionConfig<unknown>(sandboxSettingId);
-		const sandboxSetting = typeof rawSandboxSetting === 'string'
-			? rawSandboxSetting
-			: rawSandboxSetting === true ? 'on' : rawSandboxSetting === false ? 'off' : undefined;
 		const rawFileSystemSetting = this.configurationService.getNonExtensionConfig<unknown>('chat.agent.sandbox.fileSystem');
 		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
 			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
@@ -1014,8 +1015,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
 				}
-				await sessionManager.loadDeferredRepoHooks(sdkSession);
-				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
+				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
+				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
 				session.object.add(mcpGateway);
 				return session;
 			}
@@ -1083,7 +1084,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				// Agents from older requests isn't useful, hence to save time.
 				// Re-use the same custom agent from last request for all previous requests.
 				const modeInstructions = defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed });
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed, isUsingAutoModel: d.isUsingAutoModel });
 			}
 		}
 		const getVSCodeRequestId = (sdkRequestId: string) => {
@@ -1295,9 +1296,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return firstUserMessage;
 	}
 
-	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager): RefCountedSession {
-		sdkSession.setPermissionsRequired(true);
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, []);
+	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxEnabled: boolean): RefCountedSession {
+		sdkSession.permissions.setRequired({ required: true });
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxEnabled);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});
@@ -1596,9 +1597,7 @@ export function buildSandboxConfigForCLI(
 	fileSystemSetting: IAgentSandboxFileSystemSettings | undefined,
 	networkHosts?: { allowedHosts?: readonly string[]; blockedHosts?: readonly string[] },
 ): SessionOptions['sandboxConfig'] {
-	const sandboxEnabled = platform === 'win32'
-		? sandboxSetting === 'allowNetwork'
-		: sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
+	const sandboxEnabled = sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
 	if (!sandboxEnabled) {
 		return undefined;
 	}

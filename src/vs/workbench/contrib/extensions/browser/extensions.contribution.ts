@@ -5,7 +5,6 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IStringDictionary } from '../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -409,10 +408,6 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.enable', "When enabled, the extension will be enabled if it is installed but disabled. If the extension is already enabled, this has no effect."),
 							default: false
-						},
-						'context': {
-							'type': 'object',
-							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
 						}
 					}
 				}
@@ -428,7 +423,6 @@ CommandsRegistry.registerCommand({
 			donotSync?: boolean;
 			justification?: string | { reason: string; action: string };
 			enable?: boolean;
-			context?: IStringDictionary<any>;
 		}) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
@@ -446,13 +440,13 @@ CommandsRegistry.registerCommand({
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						installGivenVersion: !!version,
-						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
+						context: { [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 					});
 				} else {
 					await extensionsWorkbenchService.install(id, {
 						version,
 						installPreReleaseVersion: options?.installPreReleaseVersion,
-						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
+						context: { [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 						justification: options?.justification,
 						enable: options?.enable,
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */

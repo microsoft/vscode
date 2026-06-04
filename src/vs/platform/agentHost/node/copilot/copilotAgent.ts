@@ -10,9 +10,9 @@ import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
@@ -34,7 +34,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -50,6 +50,7 @@ import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirector
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -99,6 +100,8 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	const message = getErrorMessage(err);
 	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token)\b/i.test(message);
 }
+
+export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 
 /**
  * A session that has been requested by a client but has not yet been
@@ -512,21 +515,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			return originalSendRequest(method, params);
 		};
-
-		// Handle the inbound `exitPlanMode.request` RPC the CLI dispatches
-		// when the model invokes `exit_plan_mode`. Routing by `sessionId`
-		// hands the request off to the matching {@link CopilotAgentSession},
-		// which surfaces it as a {@link SessionInputRequest} and resolves
-		// this promise with the user's choice.
-		const handlerDisposable = connection.onRequest('exitPlanMode.request', async (params: IExitPlanModeRequestParams): Promise<IExitPlanModeResponse> => {
-			const session = this._sessions.get(params.sessionId);
-			if (!session) {
-				this._logService.warn(`[Copilot] exitPlanMode.request for unknown session ${params.sessionId}`);
-				return { approved: false };
-			}
-			return session.handleExitPlanModeRequest(params);
-		});
-		this._register(toDisposable(() => handlerDisposable.dispose()));
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -1005,7 +993,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const snapshot = await activeClient.snapshot(customizationDirectory);
 		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
+		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager, workingDirectory);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const resolvedAgentName = provisional.agent ? await this._resolveAgentName(provisional.sessionUri, snapshot, provisional.agent) : undefined;
@@ -1615,23 +1603,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session's permission/hook callbacks, so it can be called lazily
 	 * inside the {@link SessionWrapperFactory}.
 	 */
-	private _buildSessionConfig(snapshot: IActiveClientSnapshot, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
+	private _buildSessionConfig(snapshot: IActiveClientSnapshot, shellManager: ShellManager, workingDirectory: URI | undefined): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
 		const plugins = snapshot.plugins;
 
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
 			const disableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true;
 			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
-			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
+			// Rely on SDK to find all agents/skills & the like from the plugins instead of us feeding them.
+			// Else we could end up with duplicates or the like.
+			const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
+			const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 			return {
+				clientName: 'vscode',
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
 				onElicitationRequest: callbacks.onElicitationRequest,
-				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
-				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
+				hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), callbacks.hooks),
+				mcpServers: toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)),
+				onExitPlanModeRequest: callbacks.onExitPlanModeRequest,
+				workingDirectory: workingDirectory?.fsPath,
 				customAgents,
-				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				skillDirectories: toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),
 				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+				pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
+					.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 				tools: [...shellTools, ...callbacks.clientTools],
 				// Pass the GitHub token at the session level. The SDK's
 				// client-level `gitHubToken` authenticates the CLI process,
@@ -1694,7 +1690,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfig = this._buildSessionConfig(snapshot, shellManager);
+		const sessionConfig = this._buildSessionConfig(snapshot, shellManager, workingDirectory);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const config = await sessionConfig(callbacks);
@@ -1997,7 +1993,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 }
 
 interface IResolvedCustomization {
-	readonly customization: Customization;
+	readonly customization: PluginCustomization;
 	readonly pluginDir?: URI;
 	readonly plugin?: IParsedPlugin;
 }
@@ -2100,6 +2096,7 @@ function toDirectoryContentsType(type: DiscoveredType): ChildCustomizationType {
 		case DiscoveredType.Skill:
 			return CustomizationType.Skill;
 		case DiscoveredType.Instruction:
+		case DiscoveredType.AgentInstruction:
 			return CustomizationType.Rule;
 	}
 }
@@ -2124,8 +2121,18 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			name: resourceBasename(resourceDirname(file)),
 		};
 	}
+	if (type === DiscoveredType.Instruction) {
+		return {
+			type: CustomizationType.Rule,
+			id,
+			uri,
+			name: resourceBasename(file),
+		};
+	}
+	// agent instruction
 	return {
 		type: CustomizationType.Rule,
+		alwaysApply: true,
 		id,
 		uri,
 		name: resourceBasename(file),
@@ -2222,7 +2229,7 @@ class PluginController extends Disposable {
 	/**
 	 * Returns the current parsed plugins, awaiting any pending sync.
 	 */
-	public async getAppliedPlugins(directory: URI | undefined): Promise<readonly IParsedPlugin[]> {
+	public async getAppliedPlugins(directory: URI | undefined): Promise<readonly ICopilotPluginInfo[]> {
 		const entry = directory ? this._getOrCreateSessionEntry(directory) : undefined;
 		const [host, client] = await Promise.all([
 			this._hostSync.catch(err => {
@@ -2244,11 +2251,11 @@ class PluginController extends Disposable {
 			...host.filter(item =>
 				!!item.plugin
 				&& this._isEnabled(item.customization)
-			).map(item => item.plugin!),
+			).map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...client.filter(item =>
 				!!item.plugin
 				&& this._isEnabled(item.customization)
-			).map(item => item.plugin!),
+			).map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...sessionPlugins,
 		];
 	}
@@ -2369,12 +2376,12 @@ class PluginController extends Disposable {
 		return this._enablement.get(customization.uri) ?? customization.enabled;
 	}
 
-	private _applyEnablement(customization: Customization): Customization {
+	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
 		return customization.enabled === enabled ? customization : { ...customization, enabled };
 	}
 
-	private async _resolveConfiguredCustomization(customization: Customization): Promise<IResolvedCustomization> {
+	private async _resolveConfiguredCustomization(customization: PluginCustomization): Promise<IResolvedCustomization> {
 		const pluginDir = URI.parse(customization.uri);
 		const parsed = await this._tryParsePlugin(pluginDir);
 		if (!parsed) {
@@ -2398,7 +2405,7 @@ class PluginController extends Disposable {
 	}
 
 	private async _resolveSyncedCustomization(item: ISyncedCustomization, clientId: string): Promise<IResolvedCustomization> {
-		const baseCustomization: Customization = { ...item.customization, clientId };
+		const baseCustomization: PluginCustomization = { ...item.customization, clientId };
 		if (!item.pluginDir) {
 			return { customization: baseCustomization };
 		}
@@ -2448,7 +2455,7 @@ class ActiveClient {
 
 	constructor(
 		/** Resolves the current set of applied plugins. May block while a sync is in progress. */
-		private readonly _resolvePlugins: (directory: URI | undefined) => Promise<readonly IParsedPlugin[]>,
+		private readonly _resolvePlugins: (directory: URI | undefined) => Promise<readonly ICopilotPluginInfo[]>,
 	) { }
 
 	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {
