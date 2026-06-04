@@ -927,10 +927,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		for (const provider of this._linkProviders) {
 			promises.push(Promises.withAsyncBody(async r => {
-				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
-				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
-				if (!cancellationSource.token.isCancellationRequested) {
-					r({ provider, links });
+				const cancelSubscription = cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
+				try {
+					const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
+					if (!cancellationSource.token.isCancellationRequested) {
+						r({ provider, links });
+					}
+				} finally {
+					cancelSubscription.dispose();
 				}
 			}));
 		}

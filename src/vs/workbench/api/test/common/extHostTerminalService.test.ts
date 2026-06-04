@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import type * as vscode from 'vscode';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IShellLaunchConfigDto } from '../../../../platform/terminal/common/terminal.js';
 import { MainContext, MainThreadTerminalServiceShape } from '../../common/extHost.protocol.js';
 import { ArgumentProcessor, ExtHostCommands } from '../../common/extHostCommands.js';
 import { WorkerExtHostTerminalService } from '../../common/extHostTerminalService.js';
@@ -17,11 +18,13 @@ import { TestRPCProtocol } from './testRPCProtocol.js';
 suite('ExtHostTerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('$acceptTerminalClosed releases link cache and cancellation source', async () => {
+	test('$acceptTerminalClosed cancels in-flight link providers and clears the link cache', async () => {
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadTerminalService, new class extends mock<MainThreadTerminalServiceShape>() {
 			override async $registerProcessSupport(): Promise<void> { }
 			override async $sendProcessExit(): Promise<void> { }
+			override $startLinkProvider(): void { }
+			override $stopLinkProvider(): void { }
 		});
 
 		const commands = new class extends mock<ExtHostCommands>() {
@@ -33,25 +36,46 @@ suite('ExtHostTerminalService', () => {
 
 		const service = store.add(new WorkerExtHostTerminalService(commands, rpcProtocol, initData));
 
-		// Directly seed the per-terminal state that $provideLinks would populate, so the test
-		// focuses on the cleanup behaviour of $acceptTerminalClosed without standing up a real
-		// terminal and link provider.
-		const internals = service as unknown as {
-			_terminalLinkCache: Map<number, Map<number, unknown>>;
-			_terminalLinkCancellationSource: Map<number, CancellationTokenSource>;
-		};
-
 		const terminalId = 42;
-		const cts = new CancellationTokenSource();
-		internals._terminalLinkCache.set(terminalId, new Map([[1, {}]]));
-		internals._terminalLinkCancellationSource.set(terminalId, cts);
+		service.$acceptTerminalOpened(terminalId, undefined, 'test', {} as IShellLaunchConfigDto);
+		// $acceptTerminalClosed splices the terminal out of `_terminals` but doesn't dispose it,
+		// so register it with the test store to keep the leak detector quiet.
+		const terminal = service.getTerminalById(terminalId)!;
+		store.add(terminal);
 
-		assert.strictEqual(cts.token.isCancellationRequested, false);
+		// Link provider that only resolves when the cancellation token fires, so we can observe
+		// cancellation as the externally-visible effect of $acceptTerminalClosed.
+		let providerTokenCancelled = false;
+		let handledAfterClose = false;
+		const provider: vscode.TerminalLinkProvider = {
+			provideTerminalLinks(_ctx, token) {
+				return new Promise(resolve => {
+					store.add(token.onCancellationRequested(() => {
+						providerTokenCancelled = true;
+						resolve([{ startIndex: 0, length: 5, tooltip: 'x' }]);
+					}));
+				});
+			},
+			handleTerminalLink() {
+				handledAfterClose = true;
+			}
+		};
+		store.add(service.registerLinkProvider(provider));
 
+		const inFlight = service.$provideLinks(terminalId, 'hello');
 		await service.$acceptTerminalClosed(terminalId, undefined, TerminalExitReason.Unknown);
+		const firstLinks = await inFlight;
 
-		assert.strictEqual(internals._terminalLinkCache.has(terminalId), false, 'link cache entry should be removed');
-		assert.strictEqual(internals._terminalLinkCancellationSource.has(terminalId), false, 'cancellation source entry should be removed');
-		assert.strictEqual(cts.token.isCancellationRequested, true, 'cancellation source should be cancelled');
+		// Any cached links that might have been written before close should have been cleared, so
+		// $activateLink for a closed terminal is a no-op.
+		service.$activateLink(terminalId, 0);
+
+		// A subsequent $provideLinks for the same id sees a clean slate (terminal is gone -> []).
+		const linksAfterClose = await service.$provideLinks(terminalId, 'hello');
+
+		assert.deepStrictEqual(
+			{ providerTokenCancelled, firstLinks, linksAfterClose, handledAfterClose },
+			{ providerTokenCancelled: true, firstLinks: [], linksAfterClose: [], handledAfterClose: false }
+		);
 	});
 });
