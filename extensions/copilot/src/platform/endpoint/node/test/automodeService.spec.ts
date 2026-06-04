@@ -433,6 +433,24 @@ describe('AutomodeService', () => {
 			expect(secondResult).toBe(firstResult);
 		});
 
+		it('should fall back to first available model when the current provider is empty', async () => {
+			const openaiEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const chamomileEndpoint = createEndpoint('chamomile', '');
+
+			mockApiResponse(['chamomile'], 'token-empty-provider');
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test',
+				sessionId: 'session-empty-provider'
+			};
+
+			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			const secondResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			expect([firstResult.model, secondResult.model]).toEqual(['chamomile', 'chamomile']);
+		});
+
 		it('should fall back to first known endpoint when no available models match', async () => {
 			mockApiResponse(['unknown-model-1', 'unknown-model-2']);
 
