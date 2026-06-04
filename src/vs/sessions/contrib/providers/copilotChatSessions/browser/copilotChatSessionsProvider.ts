@@ -26,16 +26,17 @@ import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGrou
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1578,10 +1579,95 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
 	}
 
+	get onDidChangeModels(): Event<void> {
+		// Models can change because language models are (un)registered or because
+		// the extension host updates a cloud session's `models` option group.
+		return Event.signal(Event.any(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.chatSessionsService.onDidChangeOptionGroups
+		));
+	}
+
+	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const session = this.getSession(sessionId);
+		if (session instanceof RemoteNewSession) {
+			// Cloud sessions: models come from the extension-host `models` option
+			// group rather than from registered language models. Synthesize
+			// language-model metadata from each option item so the shared model
+			// picker widget can render them like regular language models.
+			const modelOption = session.getModelOptionGroup();
+			return modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
+		}
+
+		// CLI / Claude sessions: language models registered against the session's
+		// `targetChatSessionType`.
+		const sessionType = session?.sessionType;
+		if (!sessionType) {
+			return [];
+		}
+		return this.languageModelsService.getLanguageModelIds()
+			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
+				const metadata = this.languageModelsService.lookupLanguageModel(id);
+				return metadata && metadata.targetChatSessionType === sessionType ? { identifier: id, metadata } : undefined;
+			})
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+	}
+
+	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+		return {
+			useGroupedModelPicker: true,
+			showFeatured: true,
+			showUnavailableFeatured: false,
+			showManageModelsAction: false,
+		};
+	}
+
+	private _toSyntheticModel(item: IChatSessionProviderOptionItem): ILanguageModelChatMetadataAndIdentifier {
+		const modelMetadata = item.modelMetadata;
+		return {
+			identifier: item.id,
+			metadata: {
+				extension: new ExtensionIdentifier(''),
+				name: modelMetadata?.name ?? item.name,
+				id: modelMetadata?.id ?? item.id,
+				vendor: modelMetadata?.vendor ?? '',
+				version: modelMetadata?.version ?? '',
+				family: modelMetadata?.family ?? '',
+				tooltip: modelMetadata?.tooltip ?? item.tooltip,
+				pricing: modelMetadata?.pricing,
+				multiplierNumeric: modelMetadata?.multiplierNumeric,
+				inputCost: modelMetadata?.inputCost,
+				outputCost: modelMetadata?.outputCost,
+				cacheCost: modelMetadata?.cacheCost,
+				longContextInputCost: modelMetadata?.longContextInputCost,
+				longContextOutputCost: modelMetadata?.longContextOutputCost,
+				longContextCacheCost: modelMetadata?.longContextCacheCost,
+				priceCategory: modelMetadata?.priceCategory,
+				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
+				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
+				capabilities: modelMetadata?.capabilities ? {
+					vision: modelMetadata.capabilities.vision,
+					toolCalling: modelMetadata.capabilities.toolCalling,
+				} : undefined,
+				isUserSelectable: true,
+				isDefaultForLocation: {},
+			},
+		};
+	}
+
 	setModel(sessionId: string, modelId: string): void {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setModelId(modelId);
+			// Cloud sessions additionally persist the selection as the value of
+			// the `models` option group so the extension host honours it.
+			if (newSession instanceof RemoteNewSession) {
+				const modelOption = newSession.getModelOptionGroup();
+				const item = modelOption?.group.items.find(i => i.id === modelId);
+				if (item) {
+					newSession.setOptionValue(modelOption!.group.id, item);
+				}
+			}
 			return;
 		}
 
