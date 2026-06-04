@@ -45,7 +45,7 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../../services/s
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
-import { AgentHostChangeset, createChangesets } from './agentHostSessionChangesets.js';
+import { AgentHostCatalogChangeset, createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -318,14 +318,14 @@ export class AgentHostSessionAdapter implements ISession {
 		this.setChangesSummary(metadata.changesets);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const { changesSummary, changes } = this._createChangesObservable(sessionUri, isActiveSessionObs);
+		const { changesSummary, changes } = this._createChangesObs(sessionUri, isActiveSessionObs);
 		this.changesSummary = changesSummary;
 		this.changes = changes;
 
 		// Set the changesets from the catalogue. When the session is active,
 		// the changesets will be updated as some changeset details are being
 		// provided async (ex: description).
-		this.changesets = constObservable(createChangesets(this._options, isActiveSessionObs, metadata.changesets));
+		this.changesets = constObservable(createChangesets(sessionUri, this._options, isActiveSessionObs, metadata.changesets));
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -346,7 +346,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this.chats = this.mainChat.map(c => [c]);
 	}
 
-	private _createChangesObservable(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
+	private _createChangesObs(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
 		changesSummary: IObservable<ISessionChangesSummary | undefined>;
 		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	} {
@@ -550,7 +550,7 @@ export class AgentHostSessionAdapter implements ISession {
 			const existingChangeset = existingChangesets
 				.find(c => c.label === changeset.label);
 
-			if (!(existingChangeset instanceof AgentHostChangeset)) {
+			if (!(existingChangeset instanceof AgentHostCatalogChangeset)) {
 				continue;
 			}
 
@@ -1243,7 +1243,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected abstract resourceSchemeForProvider(provider: string): string;
 
-	/** Format the human-readable label for a session type entry (e.g. `Copilot [Local]`). */
+	/** Format the human-readable label for a session type entry (e.g. `Copilot CLI`). */
 	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
 
 	/**

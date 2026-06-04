@@ -1432,6 +1432,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let sessionPermissionLevel: string | undefined = undefined;
 		let sdkSessionId: string | undefined = undefined;
 		let activeSession: ICopilotCLISession | undefined;
+		let notifySessionChange = true;
 		try {
 
 			const initialOptions = chatSessionContext?.initialSessionOptions;
@@ -1622,6 +1623,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 			if (ex instanceof CopilotCLIQuotaExceededError) {
+				notifySessionChange = false;
 				return { errorDetails: { message: ex.message, isQuotaExceeded: true } };
 			}
 			throw ex;
@@ -1638,7 +1640,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				}
 			}
 			this.contentProvider.untrackActiveSession(sessionId, activeSession, sdkSessionId ? this.pendingRequestBySession.has(sdkSessionId) : false);
-			if (chatSessionContext?.chatSessionItem.resource) {
+			if (chatSessionContext?.chatSessionItem.resource && notifySessionChange) {
 				this.sessionItemProvider.notifySessionsChange();
 			}
 			disposables.dispose();
