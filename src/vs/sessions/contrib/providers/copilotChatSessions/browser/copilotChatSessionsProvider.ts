@@ -466,9 +466,23 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	setMode(mode: IChatMode | undefined): void {
 		if (this._mode?.id !== mode?.id) {
+			const wasCustom = !!this._mode && !this._mode.isBuiltin;
 			this._mode = mode;
-			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
-			this.setOption(AGENT_OPTION_ID, modeName ?? '');
+			// AGENT_OPTION_ID is overloaded: it stores either a custom mode
+			// name OR the chosen agent-harness id (e.g. 'copilot', 'claude').
+			// Only rewrite it when the mode change actually concerns the
+			// custom-mode dimension: switching TO a custom mode (stash its
+			// name) or switching FROM a previously-custom mode back to a
+			// built-in mode (clear the stashed name). Don't touch it on
+			// transitions that only involve built-in modes, otherwise we'd
+			// clobber the harness id that the user picked separately and
+			// scheduled re-runs would fail with "fetch failed" because the
+			// new session has no agent set.
+			if (mode && !mode.isBuiltin) {
+				this.setOption(AGENT_OPTION_ID, mode.name.get());
+			} else if (wasCustom) {
+				this.setOption(AGENT_OPTION_ID, '');
+			}
 		}
 	}
 

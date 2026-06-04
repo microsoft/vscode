@@ -1845,7 +1845,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 .automation-dialog .dialog-shadow .dialog-box {
-	min-width: 480px;
+	min-width: 520px;
 	max-width: 640px;
 }
 
@@ -1856,20 +1856,23 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automation-form {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 8px 0;
+	gap: 16px;
+	padding: 4px 2px 8px;
 }
 
 .automation-form-row {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 6px;
 }
 
 .automation-form-row.automation-form-checkbox-row {
 	flex-direction: row;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
+	margin-top: 4px;
+	padding-top: 12px;
+	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
 .automation-form-row.automation-form-time-row,
@@ -1878,13 +1881,21 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 .automation-form-label {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
 	font-weight: 600;
 	color: var(--vscode-foreground);
+	line-height: 1.4;
+}
+
+.automation-form-hint {
+	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	min-height: 1em;
 }
 
 .automation-form-checkbox-label {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
 	color: var(--vscode-foreground);
 	cursor: pointer;
 }
@@ -1893,25 +1904,34 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automation-form-select,
 .automation-form-textarea {
 	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body1);
-	color: var(--vscode-input-foreground);
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, transparent);
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	color: var(--vscode-settings-textInputForeground, var(--vscode-input-foreground));
+	background-color: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
+	border: 1px solid var(--vscode-settings-textInputBorder, var(--vscode-input-border, var(--vscode-contrastBorder, transparent)));
 	border-radius: 2px;
 	padding: 4px 6px;
 	box-sizing: border-box;
 	width: 100%;
+	min-height: 26px;
+}
+
+.automation-form-select {
+	color: var(--vscode-settings-dropdownForeground, var(--vscode-dropdown-foreground));
+	background-color: var(--vscode-settings-dropdownBackground, var(--vscode-dropdown-background));
+	border-color: var(--vscode-settings-dropdownBorder, var(--vscode-dropdown-border, var(--vscode-contrastBorder, transparent)));
 }
 
 .automation-form-textarea {
 	resize: vertical;
 	min-height: 80px;
+	line-height: 1.4;
 }
 
 .automation-form-input:focus,
 .automation-form-select:focus,
 .automation-form-textarea:focus {
-	outline: none;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 	border-color: var(--vscode-focusBorder);
 }
 
