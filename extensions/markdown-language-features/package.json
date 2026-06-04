@@ -237,22 +237,22 @@
           "command": "markdown.showPreviewToSide",
           "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "markdown.reopenAsPreview",
           "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "markdown.showSource",
           "when": "activeWebviewPanelId == 'markdown.preview'",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "markdown.reopenAsSource",
           "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "markdown.preview.refresh",
