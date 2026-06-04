@@ -661,9 +661,13 @@ export function summarizeStderrForError(stderr: string): string {
 	if (lines.length === 0) {
 		return '';
 	}
-	const last = lines[lines.length - 1];
 	const MAX = 200;
-	return last.length > MAX ? `${last.slice(0, MAX - 1)}…` : last;
+	const gitLfsMissing = lines.find(line =>
+		/\bgit-lfs\b/i.test(line) &&
+		/(command not found|not recognized|no such file)/i.test(line)
+	);
+	const summary = gitLfsMissing ?? lines[lines.length - 1];
+	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
 }
 
 /**

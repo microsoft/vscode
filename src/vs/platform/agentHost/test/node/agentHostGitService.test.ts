@@ -296,6 +296,19 @@ suite('AgentHostGitService', () => {
 			);
 		});
 
+		test('keeps missing git-lfs error over the later generic fatal line', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			const stderr = [
+				"Preparing worktree (new branch 'agents/example')",
+				'git-lfs filter-process: git-lfs: command not found',
+				'fatal: the remote end hung up unexpectedly',
+			].join('\n');
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '--no-track', '-b', 'agents/example', '/tmp/worktree', 'origin/main'], 60_000, false, err, stderr),
+				'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
+			);
+		});
+
 		test('falls back to error message when there is no signal or exit code', () => {
 			const err = new Error('spawn git ENOENT');
 			assert.strictEqual(
