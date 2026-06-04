@@ -15,6 +15,7 @@ import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr, IOTe
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { MarkdownSegmentSeparator } from '../../../../util/common/markdownSegmentSeparator';
 import { ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseThinkingProgressPart, LanguageModelTextPart, type ChatHookType } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTracker';
@@ -52,6 +53,11 @@ export interface MessageHandlerState {
 	 *  content-sensitive in `gatedAttrs`). Common code cannot import from node
 	 *  directly, so the function is threaded through state. */
 	readonly extractToolParameters: (toolName: string, input: unknown) => { attrs: Record<string, string>; gatedAttrs: Record<string, string> };
+	/** Inserts `\n\n` between assistant text emissions whose segment key
+	 *  (`<message.uuid>:<contentIndex>`) differs. Without this, multiple
+	 *  text blocks in one assistant message (or text across consecutive
+	 *  assistant messages in one turn) fuse into a run-on paragraph. */
+	readonly assistantTextSegmentSeparator: MarkdownSegmentSeparator;
 }
 
 export interface MessageHandlerResult {
@@ -192,8 +198,15 @@ export function handleAssistantMessage(
 		? state.subagentTraceContexts.get(message.parent_tool_use_id)
 		: undefined) ?? state.parentTraceContext;
 
-	for (const item of message.message.content) {
+	for (let contentIndex = 0; contentIndex < message.message.content.length; contentIndex++) {
+		const item = message.message.content[contentIndex];
 		if (item.type === 'text') {
+			// Insert a paragraph separator between distinct text segments
+			// — both across consecutive assistant messages and across
+			// multiple text content blocks within a single message —
+			// so e.g. commentary text and final-answer text don't fuse
+			// (`"...wiring:Now add..."`).
+			state.assistantTextSegmentSeparator.onSegment(`${message.uuid}:${contentIndex}`);
 			stream.markdown(item.text);
 		} else if (item.type === 'thinking') {
 			stream.push(new ChatResponseThinkingProgressPart(item.thinking));

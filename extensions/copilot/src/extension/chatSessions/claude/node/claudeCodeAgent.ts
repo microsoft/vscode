@@ -16,6 +16,7 @@ import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { extractToolParameters } from '../../../../platform/otel/node/extractToolParameters';
+import { MarkdownSegmentSeparator } from '../../../../util/common/markdownSegmentSeparator';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -626,6 +627,16 @@ export class ClaudeCodeSession extends Disposable {
 		const otelHookSpans = new Map<string, ISpanHandle>();
 		const hookStartTimes = new Map<string, number>();
 		const subagentTraceContexts = new Map<string, TraceContext>();
+		// Tracks assistant text segment transitions across the lifetime of
+		// this _processMessages loop. See MarkdownSegmentSeparator for the
+		// underlying invariant; in Claude's case the segment key is
+		// `<message.uuid>:<contentIndex>` so distinct text blocks within a
+		// message (or across consecutive messages in one turn) don't fuse
+		// into a single run-on paragraph.
+		const assistantTextSegmentSeparator = new MarkdownSegmentSeparator(() => {
+			const currentRequest = this._currentRequest;
+			currentRequest?.stream.markdown('\n\n');
+		});
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			const toolStartTimes = new Map<string, number>();
@@ -670,6 +681,7 @@ export class ClaudeCodeSession extends Disposable {
 						parentTraceContext: this._otelTracker.traceContext,
 						subagentTraceContexts,
 						extractToolParameters,
+						assistantTextSegmentSeparator,
 					});
 				} catch (dispatchError) {
 					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {

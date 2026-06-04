@@ -23,6 +23,7 @@ import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestL
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
+import { MarkdownSegmentSeparator } from '../../../../util/common/markdownSegmentSeparator';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Codicon } from '../../../../util/vs/base/common/codicons';
@@ -1214,6 +1215,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
+		// Inserts `\n\n` between assistant text emissions whose `messageId`
+		// differs — i.e. when the CLI emits a new assistant message in the
+		// same turn (e.g. text → tool_call → more text, or two distinct
+		// phases). Without this the markdown chunks fuse into a run-on
+		// paragraph like `"...wiring:Now add..."`. Streaming deltas that
+		// share a `messageId` are unaffected.
+		const assistantTextSegmentSeparator = new MarkdownSegmentSeparator(() => requestStream?.markdown('\n\n'));
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
 			if (token.isCancellationRequested || !requestStream) {
@@ -1420,6 +1428,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (event.data.parentToolCallId) {
 						return;
 					}
+					assistantTextSegmentSeparator.onSegment(event.data.messageId);
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
 					wroteResponseContent = true;
@@ -1434,6 +1443,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
+					assistantTextSegmentSeparator.onSegment(event.data.messageId);
 					wroteResponseContent = true;
 					requestStream?.markdown(event.data.content);
 				}

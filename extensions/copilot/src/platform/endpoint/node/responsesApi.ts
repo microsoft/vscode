@@ -6,6 +6,7 @@
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
 import { Response } from '../../../platform/networking/common/fetcherService';
+import { MarkdownSegmentSeparator } from '../../../util/common/markdownSegmentSeparator';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { binaryIndexOf } from '../../../util/vs/base/common/buffer';
@@ -1024,10 +1025,18 @@ export class OpenAIResponsesProcessor {
 	private sawCompactionMessage = false;
 	private latestCompactionOutputIndex: number | undefined;
 	private latestCompactionItem: OpenAIContextManagementResponse | undefined;
-	/** Tracks the output_index of the last text delta to detect output item boundaries */
-	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
+
+	/**
+	 * Inserts `\n\n` when streamed text crosses output-item boundaries so
+	 * that e.g. phase commentary and the phase final answer don't fuse
+	 * into a single run-on paragraph. Keyed on `output_index`. The actual
+	 * emission is wired up lazily on the first text delta, since the
+	 * `onProgress` callback is recreated per `push(...)` call but always
+	 * forwards to the same underlying `_onProgress` for the stream.
+	 */
+	private textSegmentSeparator: MarkdownSegmentSeparator | undefined;
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1102,10 +1111,10 @@ export class OpenAIResponsesProcessor {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
 				// When text arrives from a new output item, emit a paragraph
 				// separator so that e.g. commentary and final text don't fuse.
-				if (this.lastTextDeltaOutputIndex !== undefined && capiChunk.output_index !== this.lastTextDeltaOutputIndex) {
-					onProgress({ text: '\n\n' });
+				if (!this.textSegmentSeparator) {
+					this.textSegmentSeparator = new MarkdownSegmentSeparator(() => onProgress({ text: '\n\n' }));
 				}
-				this.lastTextDeltaOutputIndex = capiChunk.output_index;
+				this.textSegmentSeparator.onSegment(capiChunk.output_index);
 				const haystack = new Lazy(() => new TextEncoder().encode(capiChunk.delta));
 				return onProgress({
 					text: capiChunk.delta,

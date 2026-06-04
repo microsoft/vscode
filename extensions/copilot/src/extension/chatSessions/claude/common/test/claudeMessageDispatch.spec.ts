@@ -12,6 +12,7 @@ import { IOTelService, type ISpanHandle } from '../../../../../platform/otel/com
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { ITelemetryService, type TelemetryEventMeasurements, type TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
+import { MarkdownSegmentSeparator } from '../../../../../util/common/markdownSegmentSeparator';
 import type { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IToolsService } from '../../../../tools/common/toolsService';
@@ -105,7 +106,7 @@ function createRequestContext(): MessageHandlerRequestContext {
 	};
 }
 
-function createState(): MessageHandlerState {
+function createState(stream?: vscode.ChatResponseStream): MessageHandlerState {
 	return {
 		unprocessedToolCalls: new Map(),
 		toolStartTimes: new Map(),
@@ -114,6 +115,9 @@ function createState(): MessageHandlerState {
 		hookStartTimes: new Map(),
 		subagentTraceContexts: new Map(),
 		extractToolParameters: stubExtractToolParameters,
+		// Mirror production wiring: separator emits via stream.markdown so
+		// tests can assert on the existing spy.
+		assistantTextSegmentSeparator: new MarkdownSegmentSeparator(() => stream?.markdown('\n\n')),
 	};
 }
 
@@ -370,7 +374,7 @@ describe('dispatchMessage', () => {
 		services = createTestServices();
 		accessor = createAccessor(services);
 		request = createRequestContext();
-		state = createState();
+		state = createState(request.stream);
 	});
 
 	it('dispatches assistant messages', () => {
@@ -412,7 +416,7 @@ describe('handleAssistantMessage', () => {
 		services = createTestServices();
 		accessor = createAccessor(services);
 		request = createRequestContext();
-		state = createState();
+		state = createState(request.stream);
 	});
 
 	it('skips synthetic messages', () => {
@@ -537,6 +541,48 @@ describe('handleAssistantMessage', () => {
 		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
 		expect(request.stream.markdown).not.toHaveBeenCalled();
 	});
+
+	// The bug we're guarding against: when an SDKAssistantMessage carries
+	// multiple text content blocks, or when several SDKAssistantMessages
+	// arrive in one turn, the previous code forwarded each `item.text`
+	// to `stream.markdown(...)` with no separator. Distinct text fragments
+	// thus fused into a single run-on paragraph (e.g. `"...wiring:Now
+	// add..."`). We now key the segment on `<message.uuid>:<contentIndex>`
+	// and insert `\n\n` whenever it changes.
+	describe('assistant text segment separation', () => {
+
+		const markdownCalls = (req: MessageHandlerRequestContext) =>
+			(req.stream.markdown as ReturnType<typeof vi.fn>).mock.calls.map(c => c[0] as string).join('');
+
+		it('inserts a paragraph separator between text blocks inside one assistant message', () => {
+			handleAssistantMessage(
+				makeAssistantMessage([
+					{ type: 'text', text: 'wiring:', citations: null },
+					{ type: 'text', text: 'Now add', citations: null },
+				]),
+				accessor, TEST_SESSION_ID, request, state,
+			);
+			expect(markdownCalls(request)).toBe('wiring:\n\nNow add');
+		});
+
+		it('inserts a paragraph separator between consecutive assistant messages in the same turn', () => {
+			const first = makeAssistantMessage([{ type: 'text', text: 'wiring:', citations: null }]);
+			const second = makeAssistantMessage([{ type: 'text', text: 'Now add', citations: null }]);
+			// Distinct uuids → distinct segment keys → separator.
+			(second as { uuid: string }).uuid = 'ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee';
+			handleAssistantMessage(first, accessor, TEST_SESSION_ID, request, state);
+			handleAssistantMessage(second, accessor, TEST_SESSION_ID, request, state);
+			expect(markdownCalls(request)).toBe('wiring:\n\nNow add');
+		});
+
+		it('does not prepend a separator before the very first text emission', () => {
+			handleAssistantMessage(
+				makeAssistantMessage([{ type: 'text', text: 'Hello', citations: null }]),
+				accessor, TEST_SESSION_ID, request, state,
+			);
+			expect(markdownCalls(request)).toBe('Hello');
+		});
+	});
 });
 
 // #endregion
@@ -553,7 +599,7 @@ describe('handleUserMessage', () => {
 		services = createTestServices();
 		accessor = createAccessor(services);
 		request = createRequestContext();
-		state = createState();
+		state = createState(request.stream);
 	});
 
 	it('processes tool_result blocks that match unprocessed tool calls', () => {
@@ -821,7 +867,7 @@ describe('handleHookResponse', () => {
 		services = createTestServices();
 		accessor = createAccessor(services);
 		request = createRequestContext();
-		state = createState();
+		state = createState(request.stream);
 	});
 
 	it('ends the OTel span with OK on success', () => {
