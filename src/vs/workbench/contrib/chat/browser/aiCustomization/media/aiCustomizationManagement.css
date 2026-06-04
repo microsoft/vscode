@@ -1598,8 +1598,9 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 .automations-list-widget .automations-new-button {
-	min-width: 140px;
+	width: auto;
 	flex: 0 0 auto;
+	padding: 4px 14px;
 }
 
 /* When the widget is empty, hide the header so the empty-state CTA reads
