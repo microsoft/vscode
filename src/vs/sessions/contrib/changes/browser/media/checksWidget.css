@@ -101,6 +101,10 @@
 	line-height: 1;
 }
 
+.ci-status-widget-count-badge span:not(.codicon) {
+	opacity: 0.7;
+}
+
 .ci-status-widget-count-badge .codicon {
 	font-size: 16px;
 }
