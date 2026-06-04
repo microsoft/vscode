@@ -19,12 +19,13 @@ import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/con
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsNavigation } from './sessionNavigation.js';
+import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -36,6 +37,9 @@ const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
  * listeners — alive indefinitely.
  */
 const RESTORE_SESSION_WAIT_TIMEOUT = 30_000;
+
+/** Maximum number of recently opened sessions reported by {@link SessionsManagementService.getRecentlyOpenedSessions}. */
+const MAX_RECENTLY_OPENED_SESSIONS = 10;
 
 /**
  * Persisted state for a session.
@@ -118,6 +122,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	private readonly _navigation: SessionsNavigation;
+	/**
+	 * The single source of truth for session recency (most-recently-opened
+	 * first), persisted across restarts. Both the recent-sessions picker (via
+	 * {@link getRecentlyOpenedSessions}) and {@link SessionsNavigation} build on
+	 * top of it.
+	 */
+	private readonly _recencyHistory: SessionsRecencyHistory;
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -173,13 +184,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
 		this._sessionTypes = this._collectSessionTypes();
 
-		// Session navigation history
+		// Session recency history — the single source of truth for "recently
+		// opened" ordering, shared by the picker and navigation.
+		this._recencyHistory = this._register(new SessionsRecencyHistory(
+			this.storageService,
+			this.logService,
+		));
+
+		// Session navigation history (Back/Forward) builds on the recency history.
 		this._navigation = this._register(new SessionsNavigation(
 			this,
+			this._recencyHistory,
 			contextKeyService,
 			this.logService,
 		));
 		this._register(this.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
+		this._register(this.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.sessionResource.toString() === session.resource.toString())));
 
 		this._register(autorun(reader => {
 			const activeSession = this._visibility.activeSession.read(reader);
@@ -365,6 +385,37 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.getSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 		);
+	}
+
+	getRecentlyOpenedSessions(): IRecentlyOpenedSessions {
+		const seen = new Set<string>();
+		const recent: ISession[] = [];
+
+		// Sessions in recency order (most-recently-opened first), deduplicated by
+		// session so a session with multiple opened chats appears only once and
+		// capped at the most recent {@link MAX_RECENTLY_OPENED_SESSIONS}.
+		for (const entry of this._recencyHistory.entries) {
+			if (recent.length >= MAX_RECENTLY_OPENED_SESSIONS) {
+				break;
+			}
+			const key = entry.sessionResource.toString();
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			const session = this.getSession(entry.sessionResource);
+			if (session) {
+				recent.push(session);
+			}
+		}
+
+		// Sessions that have not been included in the recently opened group,
+		// sorted by most recently updated first.
+		const other = this.getSessions()
+			.filter(s => !seen.has(s.resource.toString()))
+			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime());
+
+		return { recent, other };
 	}
 
 	getAllSessionTypes(): ISessionType[] {

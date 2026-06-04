@@ -34,7 +34,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -1949,7 +1949,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 }
 
 interface IResolvedCustomization {
-	readonly customization: Customization;
+	readonly customization: PluginCustomization;
 	readonly pluginDir?: URI;
 	readonly plugin?: IParsedPlugin;
 }
@@ -2332,12 +2332,12 @@ class PluginController extends Disposable {
 		return this._enablement.get(customization.uri) ?? customization.enabled;
 	}
 
-	private _applyEnablement(customization: Customization): Customization {
+	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
 		return customization.enabled === enabled ? customization : { ...customization, enabled };
 	}
 
-	private async _resolveConfiguredCustomization(customization: Customization): Promise<IResolvedCustomization> {
+	private async _resolveConfiguredCustomization(customization: PluginCustomization): Promise<IResolvedCustomization> {
 		const pluginDir = URI.parse(customization.uri);
 		const parsed = await this._tryParsePlugin(pluginDir);
 		if (!parsed) {
@@ -2361,7 +2361,7 @@ class PluginController extends Disposable {
 	}
 
 	private async _resolveSyncedCustomization(item: ISyncedCustomization, clientId: string): Promise<IResolvedCustomization> {
-		const baseCustomization: Customization = { ...item.customization, clientId };
+		const baseCustomization: PluginCustomization = { ...item.customization, clientId };
 		if (!item.pluginDir) {
 			return { customization: baseCustomization };
 		}

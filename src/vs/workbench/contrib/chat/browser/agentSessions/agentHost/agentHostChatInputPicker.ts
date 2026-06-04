@@ -34,6 +34,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -127,20 +128,6 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 	}
 	slot.classList.toggle('disabled', disabled);
 	return trigger;
-}
-
-function toBackendSessionUri(sessionResource: URI): URI | undefined {
-	const scheme = sessionResource.scheme;
-	const prefix = 'agent-host-';
-	if (!scheme.startsWith(prefix)) {
-		return undefined;
-	}
-	const provider = scheme.substring(prefix.length);
-	if (!provider) {
-		return undefined;
-	}
-	const rawId = sessionResource.path.replace(/^\//, '');
-	return URI.from({ scheme: provider, path: `/${rawId}` });
 }
 
 /**
@@ -248,7 +235,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const backendSession = provisionalBackend
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
@@ -433,7 +420,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schema) {
 				return undefined;
 			}
-			const backendSession = toBackendSessionUri(sessionResource);
+			const backendSession = toAgentHostBackendSessionUri(sessionResource);
 			if (!backendSession) {
 				return undefined;
 			}
@@ -517,7 +504,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const backendSession = this._subRef.value?.backendSession
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 		if (schema.enumDynamic && backendSession) {
 			try {
 				const result = await this._agentHostService.sessionConfigCompletions({
