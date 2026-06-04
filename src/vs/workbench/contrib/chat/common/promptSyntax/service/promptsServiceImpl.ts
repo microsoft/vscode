@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptSourceFolder, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CONFIG_FOLDER, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptSourceFolder, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
@@ -83,6 +83,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Cached instructions.
 	 */
 	private readonly cachedInstructions: CachedPromise<IInstructionDiscoveryInfo>;
+
+	/**
+	 * Synchronous mirror of the names exposed by {@link getPromptSlashCommands},
+	 * maintained for {@link hasPromptSlashCommand} so callers (e.g. the chat request
+	 * parser) can disambiguate `<cmd>:<sub>` vs bare `<cmd>` without an async hop.
+	 */
+	private readonly knownPromptSlashCommandNames = new Set<string>();
 
 	/**
 	 * Cache for parsed prompt files keyed by URI.
@@ -497,6 +504,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return command.match(/^[\p{L}\d_\-\.:]+$/u) !== null;
 	}
 
+	public hasPromptSlashCommand(name: string): boolean {
+		if (!this.knownPromptSlashCommandsHydrationStarted) {
+			this.knownPromptSlashCommandsHydrationStarted = true;
+			this.refreshKnownPromptSlashCommandNames();
+			this._register(this.onDidChangeSlashCommands(() => this.refreshKnownPromptSlashCommandNames()));
+		}
+		return this.knownPromptSlashCommandNames.has(name);
+	}
+
+	private knownPromptSlashCommandsHydrationStarted = false;
+
+	private refreshKnownPromptSlashCommandNames(): void {
+		this.getPromptSlashCommands(CancellationToken.None).then(commands => {
+			this.knownPromptSlashCommandNames.clear();
+			for (const cmd of commands) {
+				this.knownPromptSlashCommandNames.add(cmd.name);
+			}
+		}, () => { /* discovery failures already logged; sync cache stays as-is */ });
+	}
+
 	public async resolvePromptSlashCommand(name: string, sessionType: string | undefined, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {
 		const commands = await this.getPromptSlashCommands(token);
 		const command = commands.find(cmd => cmd.name === name && matchesSessionType(cmd.sessionTypes, sessionType));
@@ -699,8 +726,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!useCopilotInstructionsFiles) {
 			logger?.logInfo('Copilot instructions files are disabled via configuration.');
 		} else {
-			const githubConfigFiles = [{ fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd }];
-			promises.push(this.fileLocator.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, githubConfigFiles, token, resolvedAgentFiles));
+			const copilotInstructionsFile = { fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd };
+			promises.push(this.fileLocator.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, [copilotInstructionsFile], token, resolvedAgentFiles)); // copilot-instructions.md in .github folder under workspace root
+			promises.push(this.fileLocator.findFilesInRoots([await this.pathService.userHome()], COPILOT_CONFIG_FOLDER, [copilotInstructionsFile], token, resolvedAgentFiles)); // copilot-instructions.md in ~/.copilot folder
 		}
 
 		promises.push(this.fileLocator.findFilesInRoots(rootFolders, undefined, rootFiles, token, resolvedAgentFiles));
@@ -1468,5 +1496,4 @@ export namespace CustomAgent {
 
 	}
 }
-
 

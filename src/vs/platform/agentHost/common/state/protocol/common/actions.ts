@@ -10,11 +10,13 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
 import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
 import type { TerminalDataAction, TerminalInputAction, TerminalResizedAction, TerminalClaimedAction, TerminalTitleChangedAction, TerminalCwdChangedAction, TerminalExitedAction, TerminalClearedAction, TerminalCommandDetectionAvailableAction, TerminalCommandExecutedAction, TerminalCommandFinishedAction } from '../channels-terminal/actions.js';
+
+import type { ResourceWatchChangedAction } from '../channels-resource-watch/actions.js';
 
 // ─── Action Type Enum ────────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ export const enum ActionType {
 	SessionCustomizationsChanged = 'session/customizationsChanged',
 	SessionCustomizationToggled = 'session/customizationToggled',
 	SessionCustomizationUpdated = 'session/customizationUpdated',
+	SessionCustomizationRemoved = 'session/customizationRemoved',
 	SessionTruncated = 'session/truncated',
 	SessionIsReadChanged = 'session/isReadChanged',
 	SessionIsArchivedChanged = 'session/isArchivedChanged',
@@ -83,6 +86,7 @@ export const enum ActionType {
 	TerminalCommandDetectionAvailable = 'terminal/commandDetectionAvailable',
 	TerminalCommandExecuted = 'terminal/commandExecuted',
 	TerminalCommandFinished = 'terminal/commandFinished',
+	ResourceWatchChanged = 'resourceWatch/changed',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -155,6 +159,7 @@ export type StateAction =
 	| SessionCustomizationsChangedAction
 	| SessionCustomizationToggledAction
 	| SessionCustomizationUpdatedAction
+	| SessionCustomizationRemovedAction
 	| SessionTruncatedAction
 	| SessionIsReadChangedAction
 	| SessionIsArchivedChangedAction
@@ -177,4 +182,5 @@ export type StateAction =
 	| TerminalClearedAction
 	| TerminalCommandDetectionAvailableAction
 	| TerminalCommandExecutedAction
-	| TerminalCommandFinishedAction;
+	| TerminalCommandFinishedAction
+	| ResourceWatchChangedAction;

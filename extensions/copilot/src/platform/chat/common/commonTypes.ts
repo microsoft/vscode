@@ -386,6 +386,8 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 			args: ['https://support.github.com/contact'],
 			comment: [`{Locked=']({'}`]
 		});
+	} else if (fetchResult.capiError?.code === 'additional_spend_limit_reached') {
+		return l10n.t(`You've reached your additional usage limit for your plan. Upgrade your plan to keep going.`);
 	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
 		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
@@ -422,7 +424,8 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 		case ChatFetchResponseType.QuotaExceeded:
 			details = {
 				message: getQuotaHitMessage(fetchResult, copilotPlan, isUsageBasedBilling, quotaResetDate),
-				isQuotaExceeded: true
+				isQuotaExceeded: true,
+				...(fetchResult.capiError?.code && { code: fetchResult.capiError.code }),
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
