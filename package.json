@@ -63,6 +63,7 @@
     "update-distro": "node build/npm/update-distro.ts",
     "update-agent-host-sdks": "node build/npm/update-agent-host-sdks.ts",
     "check-agent-host-sdks": "node build/npm/update-agent-host-sdks.ts --check",
+    "check-agent-host-sdks-versions": "node build/npm/update-agent-host-sdks.ts --check --versions-only",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
     "compile-cli": "npm run gulp compile-cli",

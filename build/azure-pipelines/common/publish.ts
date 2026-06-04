@@ -313,7 +313,7 @@ function getCertificatesFromPFX(pfx: string): string[] {
 	}
 }
 
-class ESRPReleaseService {
+export class ESRPReleaseService {
 
 	static async create(
 		log: (...args: unknown[]) => void,
@@ -825,7 +825,7 @@ function getRealType(type: string) {
 	}
 }
 
-async function withLease<T>(client: BlockBlobClient, fn: () => Promise<T>) {
+export async function withLease<T>(client: BlockBlobClient, fn: () => Promise<T>) {
 	const lease = client.getBlobLeaseClient();
 
 	for (let i = 0; i < 360; i++) { // Try to get lease for 30 minutes

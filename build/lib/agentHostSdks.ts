@@ -8,8 +8,8 @@ import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
 import os from 'os';
 import path from 'path';
-import { ZipFile } from 'yazl';
 import { createWriteStream } from 'fs';
+import type { ZipFile } from 'yazl';
 
 /**
  * Shared build-time logic for packaging the agent host SDKs (Codex / Claude)
@@ -143,14 +143,14 @@ export function fetchSdkForTarget(sdk: AgentHostSdkId, version: string, target: 
 /** Locates the on-disk codex native executable inside a fetched bundle. */
 function findCodexExecutable(nodeModulesDir: string, target: IAgentHostSdkTarget): string {
 	const binaryName = target.npmOs === 'win32' ? 'codex.exe' : 'codex';
-	const found = findFile(nodeModulesDir, binaryName, dir => path.basename(dir).startsWith('@openai'));
+	const found = findFile(nodeModulesDir, binaryName);
 	if (!found) {
 		throw new Error(`Could not locate '${binaryName}' in fetched codex bundle for ${target.platform}`);
 	}
 	return found;
 }
 
-function findFile(root: string, name: string, dirFilter?: (dir: string) => boolean): string | undefined {
+function findFile(root: string, name: string): string | undefined {
 	const stack = [root];
 	while (stack.length) {
 		const dir = stack.pop()!;
@@ -163,15 +163,56 @@ function findFile(root: string, name: string, dirFilter?: (dir: string) => boole
 				continue;
 			}
 			if (isDir) {
-				if (!dirFilter || dirFilter(full) || dir === root || full.includes(`${path.sep}@`) || full.includes('codex')) {
-					stack.push(full);
-				}
+				stack.push(full);
 			} else if (entry === name) {
 				return full;
 			}
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Smoke check: assert a fetched native binary actually matches the target
+ * os/arch (a wrong-platform binary would silently ship and fail at runtime).
+ * Validates the executable container magic (Mach-O / ELF / PE) and, where the
+ * format encodes it, the architecture. Cross-arch safe — reads bytes only.
+ */
+function validateNativeBinaryHeader(binaryPath: string, target: IAgentHostSdkTarget): void {
+	const head = readFileSync(binaryPath).subarray(0, 64);
+	const fail = (reason: string): never => {
+		throw new Error(`Native binary validation failed for ${target.platform} (${binaryPath}): ${reason}`);
+	};
+
+	if (target.npmOs === 'darwin') {
+		// Mach-O: 0xFEEDFACF (64-bit LE) with cputype at offset 4.
+		const magic = head.readUInt32LE(0);
+		if (magic !== 0xFEEDFACF && magic !== 0xCFFAEDFE) {
+			fail('expected a Mach-O binary');
+		}
+		const cpuType = head.readUInt32LE(4);
+		const CPU_ARCH_ABI64 = 0x01000000;
+		const expected = target.npmCpu === 'arm64' ? (12 | CPU_ARCH_ABI64) : (7 | CPU_ARCH_ABI64); // ARM64 / x86_64
+		if (cpuType !== expected) {
+			fail(`Mach-O cputype ${cpuType} does not match ${target.npmCpu}`);
+		}
+	} else if (target.npmOs === 'linux') {
+		// ELF: 0x7F 'E' 'L' 'F', e_machine at offset 18 (LE).
+		if (!(head[0] === 0x7F && head[1] === 0x45 && head[2] === 0x4C && head[3] === 0x46)) {
+			fail('expected an ELF binary');
+		}
+		const eMachine = head.readUInt16LE(18);
+		const EM = { x64: 0x3E, arm64: 0xB7, arm: 0x28 } as const;
+		if (eMachine !== EM[target.npmCpu]) {
+			fail(`ELF e_machine 0x${eMachine.toString(16)} does not match ${target.npmCpu}`);
+		}
+	} else if (target.npmOs === 'win32') {
+		// PE: 'MZ' DOS header; deep machine check would require parsing the PE
+		// header offset — the magic alone is a sufficient sanity gate here.
+		if (!(head[0] === 0x4D && head[1] === 0x5A)) {
+			fail('expected a PE (MZ) binary');
+		}
+	}
 }
 
 /**
@@ -188,12 +229,19 @@ export async function packageSdkBundle(sdk: AgentHostSdkId, version: string, tar
 	let manifest: Record<string, string>;
 	if (sdk === 'codex') {
 		const exec = findCodexExecutable(nodeModulesDir, target);
+		validateNativeBinaryHeader(exec, target);
 		const rel = path.relative(path.dirname(nodeModulesDir), exec);
 		manifest = { kind: 'codex', version, exec: toPosix(rel) };
 	} else {
-		manifest = { kind: 'claude', version, packageRoot: 'node_modules/@anthropic-ai/claude-agent-sdk' };
+		const packageRoot = 'node_modules/@anthropic-ai/claude-agent-sdk';
+		const mainEntry = path.join(path.dirname(nodeModulesDir), packageRoot, 'sdk.mjs');
+		if (!existsSync(mainEntry)) {
+			throw new Error(`claude bundle for ${target.platform} is missing its JS entry (${packageRoot}/sdk.mjs)`);
+		}
+		manifest = { kind: 'claude', version, packageRoot };
 	}
 
+	const { ZipFile } = await import('yazl');
 	const zip = new ZipFile();
 	addDirDeterministic(zip, nodeModulesDir, 'node_modules');
 	zip.addBuffer(Buffer.from(JSON.stringify(manifest), 'utf8'), 'agent-host-sdk.json', { mtime: FIXED_MTIME, mode: 0o644 });
@@ -243,11 +291,11 @@ function toPosix(p: string): string {
 	return p.split(path.sep).join('/');
 }
 
-export function withTempDir<T>(prefix: string, fn: (dir: string) => T): T {
+export async function withTempDir<T>(prefix: string, fn: (dir: string) => T | Promise<T>): Promise<T> {
 	const dir = path.join(os.tmpdir(), `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 	mkdirSync(dir, { recursive: true });
 	try {
-		return fn(dir);
+		return await fn(dir);
 	} finally {
 		if (existsSync(dir)) {
 			rmSync(dir, { recursive: true, force: true });
