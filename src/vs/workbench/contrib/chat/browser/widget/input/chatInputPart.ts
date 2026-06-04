@@ -378,6 +378,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
+	setHistoryKey(historyKey: string | undefined): void {
+		this.history.setHistoryKey(historyKey);
+	}
+
 	readonly dnd: ChatDragAndDrop;
 
 	private history: ChatHistoryNavigator;

@@ -327,25 +327,25 @@ export class CIStatusWidget extends Disposable {
 
 		if (counts.running > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-running'));
-			badge.appendChild(renderIcon(Codicon.circleFilled));
+			badge.appendChild(renderIcon(Codicon.circleFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.running}`;
 		}
 
 		if (counts.failed > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-failure'));
-			badge.appendChild(renderIcon(Codicon.error));
+			badge.appendChild(renderIcon(Codicon.errorCompact));
 			dom.append(badge, $('span')).textContent = `${counts.failed}`;
 		}
 
 		if (counts.pending > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-pending'));
-			badge.appendChild(renderIcon(Codicon.circleFilled));
+			badge.appendChild(renderIcon(Codicon.circleFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.pending}`;
 		}
 
 		if (counts.successful > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-success'));
-			badge.appendChild(renderIcon(Codicon.passFilled));
+			badge.appendChild(renderIcon(Codicon.passFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.successful}`;
 		}
 	}

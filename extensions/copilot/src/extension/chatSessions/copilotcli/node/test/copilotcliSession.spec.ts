@@ -1818,6 +1818,31 @@ describe('CopilotCLISession', () => {
 			resolveSend!();
 			await requestPromise;
 		});
+
+		it('does NOT insert a separator when messageId is undefined on both sides (legacy)', async () => {
+			// Defensive regression test: if an SDK build ever emits message
+			// events without a `messageId`, we should fall back to the
+			// pre-fix behavior (no separator) rather than inserting one
+			// between every chunk — that would produce spurious blank
+			// paragraphs.
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Legacy' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: undefined });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: undefined });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output).not.toContain('\n\n');
+
+			resolveSend!();
+			await requestPromise;
+		});
 	});
 
 	describe('/compact command', () => {
