@@ -20,7 +20,7 @@ import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/bro
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -114,6 +114,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this.textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
 			this._textFileService.files.onDidChangeDirty,
 			item => item.resource.toString(),
+			uri => uri.toString()
+		);
+		this.textResourceConfigurationServiceOnDidChange = new ResourceConfigurationEventDispatcher(
+			this._textResourceConfigurationService.onDidChangeConfiguration,
 			uri => uri.toString()
 		);
 		this._isDirtyObservables = mapObservableArrayCached(this, this.resources.map(r => r ?? []), res => {
@@ -217,11 +221,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 						...computeOptions(textResourceConfigurationService.getValue(uri)),
 					} satisfies IDiffEditorOptions;
 				},
-				onOptionsDidChange: h => this._textResourceConfigurationService.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(uri, 'editor') || e.affectsConfiguration(uri, 'diffEditor')) {
-						h();
-					}
-				}),
+				onOptionsDidChange: this.textResourceConfigurationServiceOnDidChange.filteredEvent(uri),
 			};
 			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
@@ -264,6 +264,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	public readonly resources;
 
 	private readonly textFileServiceOnDidChange;
+	private readonly textResourceConfigurationServiceOnDidChange;
 
 	private readonly _isDirtyObservables;
 	private readonly _isDirtyObservable;
@@ -359,6 +360,64 @@ class FastEventDispatcher<T, TKey> {
 		if (bucket) {
 			for (const listener of bucket) {
 				listener(e);
+			}
+		}
+	};
+}
+
+/**
+ * Dispatches resource-specific configuration changes through a single upstream listener.
+ */
+export class ResourceConfigurationEventDispatcher {
+	private _count = 0;
+	private readonly _buckets = new Map<string, { readonly resource: URI; readonly listeners: Set<() => void> }>();
+
+	private _eventSubscription: IDisposable | undefined;
+
+	constructor(
+		private readonly _event: Event<ITextResourceConfigurationChangeEvent>,
+		private readonly _keyToString: (resource: URI) => string,
+	) {
+	}
+
+	public filteredEvent(filter: URI): Event<void> {
+		return listener => {
+			const key = this._keyToString(filter);
+			let bucket = this._buckets.get(key);
+			if (!bucket) {
+				bucket = { resource: filter, listeners: new Set() };
+				this._buckets.set(key, bucket);
+			}
+			bucket.listeners.add(listener);
+
+			this._count++;
+			if (this._count === 1) {
+				this._eventSubscription = this._event(this._handleEventChange);
+			}
+
+			return {
+				dispose: () => {
+					bucket!.listeners.delete(listener);
+					if (bucket!.listeners.size === 0) {
+						this._buckets.delete(key);
+					}
+					this._count--;
+
+					if (this._count === 0) {
+						this._eventSubscription?.dispose();
+						this._eventSubscription = undefined;
+					}
+				}
+			};
+		};
+	}
+
+	private readonly _handleEventChange = (e: ITextResourceConfigurationChangeEvent) => {
+		for (const bucket of this._buckets.values()) {
+			if (e.affectsConfiguration(bucket.resource, 'editor') || e.affectsConfiguration(bucket.resource, 'diffEditor')) {
+				for (const listener of bucket.listeners) {
+					listener();
+				}
 			}
 		}
 	};
