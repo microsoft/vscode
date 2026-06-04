@@ -49,7 +49,7 @@ class ToggleDevToolsAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleDevToolsAction.ID,
-			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
+			title: localize2('browser.toggleDevToolsAction', 'Developer Tools'),
 			category: BrowserActionCategory,
 			icon: Codicon.developerTools,
 			f1: true,

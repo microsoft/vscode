@@ -24,7 +24,6 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -708,8 +707,6 @@ BrowserEditor.registerContribution(BrowserEditorEmulationSupport);
 
 /**
  * Toggle the emulation toolbar (engages or disables device emulation).
- * Available via F1 and on the main action bar. While the toolbar is visible,
- * Escape also runs this action; the toolbar's close button uses the same id.
  */
 class ToggleBrowserEmulationAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.toggleDeviceEmulation';
@@ -717,7 +714,7 @@ class ToggleBrowserEmulationAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleBrowserEmulationAction.ID,
-			title: localize2('browser.toggleDeviceEmulation', 'Toggle Device Emulation'),
+			title: localize2('browser.toggleDeviceEmulation', 'Device Emulation'),
 			category: BrowserActionCategory,
 			icon: Codicon.deviceMobile,
 			f1: true,
@@ -728,11 +725,6 @@ class ToggleBrowserEmulationAction extends Action2 {
 				group: BrowserActionGroup.Tools,
 				order: 3,
 				isHiddenByDefault: true,
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
 			},
 		});
 	}

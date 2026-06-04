@@ -308,8 +308,6 @@ class ToggleFavoriteAction extends Action2 {
 			toggled: {
 				condition: CONTEXT_BROWSER_URL_IS_FAVORITED,
 				icon: Codicon.starFull,
-				title: localize('browser.removeFavoriteAction', "Remove from Favorites"),
-				tooltip: localize('browser.removeFavorite', "Remove from Favorites"),
 			},
 			menu: {
 				id: MenuId.BrowserActionsToolbar,

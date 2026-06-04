@@ -59,7 +59,8 @@
 		flex: 1;
 		display: flex;
 		align-items: center;
-		min-width: 0;
+		box-sizing: border-box;
+		min-width: 220px;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
 		border-radius: var(--vscode-cornerRadius-medium);
