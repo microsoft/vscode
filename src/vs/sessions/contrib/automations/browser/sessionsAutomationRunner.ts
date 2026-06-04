@@ -89,6 +89,8 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				}
 				: undefined;
 
+			this.logService.trace(`[SessionsAutomationRunner] running ${automation.id}: provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
+
 			const session = await this.createSessionAndCapture(automation.folderUri, options, createOptions);
 
 			await this.automationService.updateRun(runId, {
