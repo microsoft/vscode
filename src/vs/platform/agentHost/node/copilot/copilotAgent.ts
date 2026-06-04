@@ -471,12 +471,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			return originalSendRequest(method, params);
 		};
-
-		// Handle the inbound `exitPlanMode.request` RPC the CLI dispatches
-		// when the model invokes `exit_plan_mode`. Routing by `sessionId`
-		// hands the request off to the matching {@link CopilotAgentSession},
-		// which surfaces it as a {@link SessionInputRequest} and resolves
-		// this promise with the user's choice.
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
