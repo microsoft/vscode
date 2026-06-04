@@ -18,7 +18,7 @@ import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
 import { parseSuggestedEdit, processAllRows } from './replayRecording';
 import { generateAllResponses, generateResponse, IResponseGenerationInput } from './responseStep';
-import { streamJsonArrayElements } from './streamJsonArray';
+import { streamJsonRecords } from './streamJsonRecords';
 
 function logErrors(errors: readonly { error: string }[], verbose: boolean, log: (...ps: any[]) => void): void {
 	if (errors.length > 0 && verbose) {
@@ -209,7 +209,7 @@ async function writeChunkFiles(inputPath: string, chunkPaths: string[], chunkSiz
 	let countInChunk = 0;
 	let index = 0;
 
-	for await (const record of streamJsonArrayElements(inputPath)) {
+	for await (const record of streamJsonRecords(inputPath)) {
 		const w = Math.min(Math.floor(index / chunkSize), chunkPaths.length - 1);
 		if (w !== current) {
 			if (stream) {
@@ -246,7 +246,7 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 	// memory. Node's readFile rejects files larger than 2 GiB and V8 strings have a
 	// maximum length of ~512 MiB, so large inputs cannot be read as a single string.
 	let totalRecords = 0;
-	for await (const _record of streamJsonArrayElements(inputPath)) {
+	for await (const _record of streamJsonRecords(inputPath)) {
 		totalRecords++;
 	}
 

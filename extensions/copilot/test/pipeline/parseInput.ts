@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAlternativeAction } from '../../src/extension/inlineEdits/node/nextEditProviderTelemetry';
-import { streamJsonArrayElements } from './streamJsonArray';
+import { streamJsonRecords } from './streamJsonRecords';
 
 /**
  * A single row from the JSON input.
@@ -77,7 +77,7 @@ export async function loadAndParseInput(inputPath: string, verbose = false): Pro
 	const errors: { rowIndex: number; error: string }[] = [];
 
 	let i = 0;
-	for await (const record of streamJsonArrayElements<Record<string, string>>(inputPath)) {
+	for await (const record of streamJsonRecords<Record<string, string>>(inputPath)) {
 		const rowIndex = i++;
 		try {
 			rows.push(parseInputRecord(record, rowIndex));

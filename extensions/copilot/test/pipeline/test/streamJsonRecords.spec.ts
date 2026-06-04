@@ -1,0 +1,105 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { streamJsonRecords } from '../streamJsonRecords';
+
+describe('streamJsonRecords', () => {
+	let tmpDir: string;
+
+	beforeEach(async () => {
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'stream-json-records-'));
+	});
+
+	afterEach(async () => {
+		await fs.rm(tmpDir, { recursive: true, force: true });
+	});
+
+	async function collect<T>(contents: string): Promise<T[]> {
+		const inputPath = path.join(tmpDir, 'input.json');
+		await fs.writeFile(inputPath, contents);
+		const result: T[] = [];
+		for await (const element of streamJsonRecords<T>(inputPath)) {
+			result.push(element);
+		}
+		return result;
+	}
+
+	describe('JSON array', () => {
+		test('parses an array of objects, primitives and nested structures', async () => {
+			const value = [
+				{ a: 1, b: 'two', c: [1, 2, { d: true }] },
+				42,
+				'a string with ] , { } chars',
+				null,
+				[1, [2, [3]]],
+				{ nested: { deep: { value: 'x] [, {}' } } },
+			];
+			const result = await collect(JSON.stringify(value, null, 2));
+			expect(result).toEqual(value);
+		});
+
+		test('handles escaped quotes and special characters inside strings', async () => {
+			const value = [
+				{ s: 'quote: \" bracket: ] comma: , brace: }' },
+				'line\nbreak\ttab\\backslash',
+			];
+			const result = await collect(JSON.stringify(value));
+			expect(result).toEqual(value);
+		});
+
+		test('returns nothing for an empty array', async () => {
+			expect(await collect('[]')).toEqual([]);
+			expect(await collect('   [   ]   ')).toEqual([]);
+		});
+	});
+
+	describe('JSON Lines', () => {
+		test('parses one object per line', async () => {
+			const value = [
+				{ a: 1, b: 'two' },
+				{ a: 2, b: 'three', nested: { x: [1, 2] } },
+				{ a: 3 },
+			];
+			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'));
+			expect(result).toEqual(value);
+		});
+
+		test('handles a trailing newline and blank lines', async () => {
+			const value = [{ a: 1 }, { a: 2 }];
+			const contents = `${JSON.stringify(value[0])}\n\n${JSON.stringify(value[1])}\n`;
+			const result = await collect(contents);
+			expect(result).toEqual(value);
+		});
+
+		test('handles CRLF line endings and leading whitespace', async () => {
+			const value = [{ a: 1 }, { a: 2 }];
+			const contents = `   ${JSON.stringify(value[0])}\r\n${JSON.stringify(value[1])}\r\n`;
+			const result = await collect(contents);
+			expect(result).toEqual(value);
+		});
+
+		test('parses a single object without a trailing newline', async () => {
+			expect(await collect('{"a":1}')).toEqual([{ a: 1 }]);
+		});
+
+		test('handles brackets and commas inside string values', async () => {
+			const value = [{ s: 'a [ ] , { } b' }, { s: 'second' }];
+			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'));
+			expect(result).toEqual(value);
+		});
+	});
+
+	test('returns nothing for an empty or whitespace-only file', async () => {
+		expect(await collect('')).toEqual([]);
+		expect(await collect('   \n  \t ')).toEqual([]);
+	});
+
+	test('throws on malformed input', async () => {
+		await expect(collect('not json')).rejects.toThrow();
+	});
+});
