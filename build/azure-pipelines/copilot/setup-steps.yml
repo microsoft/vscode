@@ -25,6 +25,11 @@ steps:
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Setup distro auth (non-Windows)
 
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
+    workingDirectory: $(Build.SourcesDirectory)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
   - task: Cache@2
     inputs:
       key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
@@ -46,6 +51,22 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
     displayName: Extract copilot build cache
+
+  - script: |
+      set -e
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
 
   - script: npm ci
     workingDirectory: build
