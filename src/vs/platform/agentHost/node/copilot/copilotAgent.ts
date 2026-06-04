@@ -1573,7 +1573,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				onElicitationRequest: callbacks.onElicitationRequest,
 				onExitPlanModeRequest: callbacks.onExitPlanModeRequest,
 				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
-				enableConfigDiscovery: true,
 				workingDirectory: workingDirectory?.fsPath,
 				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
