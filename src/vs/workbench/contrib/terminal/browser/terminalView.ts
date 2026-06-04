@@ -515,7 +515,16 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			const labelNodes = renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)).map(node => {
+				if (typeof node === 'string') {
+					const span = dom.$('span');
+					span.className = 'single-terminal-tab-label';
+					span.textContent = node;
+					return span;
+				}
+				return node;
+			});
+			dom.reset(label, ...labelNodes);
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
