@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { getClientArea } from '../../../base/browser/dom.js';
@@ -12,8 +12,7 @@ import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { autorun } from '../../../base/common/observable.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 
@@ -30,30 +29,6 @@ export interface IToggleMaximizeSessionEvent {
 
 export interface ISessionsPartService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Wires the part to the {@link ISessionsManagementService} so that changes to
-	 * the visible and active sessions are reflected in the UI (including moving
-	 * focus into the active session when it changes). Must be called after the
-	 * part has been added to the DOM via {@link SessionsPart.create}.
-	 */
-	init(): void;
-
-	/**
-	 * Marks the start of the on-startup session restore. While restoring, the
-	 * part suppresses the empty new-session view so it does not flash before the
-	 * persisted sessions are laid out. The workbench brackets its call to
-	 * {@link ISessionsManagementService.restoreVisibleSessions} with this and
-	 * {@link endSessionRestore}. A safety timeout ensures the new-session view is
-	 * never suppressed indefinitely if a persisted session never resurfaces.
-	 */
-	beginSessionRestore(): void;
-
-	/**
-	 * Marks the end of the on-startup session restore (see
-	 * {@link beginSessionRestore}), allowing the empty new-session view to show.
-	 */
-	endSessionRestore(): void;
 
 	/**
 	 * Toggles the maximized state of the session view hosting the given session
@@ -105,19 +80,15 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
 	/**
-	 * `true` while the on-startup restore is in progress. View-owned UI state
-	 * used to suppress the empty new-session view until the restored sessions
-	 * are laid out (see {@link beginSessionRestore}).
+	 * Session id (or `undefined` for the new-session slot) that focus was last
+	 * moved into in response to an active-session change. Tracks the active id
+	 * so unrelated visibility updates don't re-focus and steal focus.
 	 */
-	private readonly _restoring = observableValue<boolean>(this, false);
+	private _focusedActiveSessionId: string | undefined;
 
-	/** Safety net so the new-session view is never suppressed indefinitely. */
-	private readonly _restoreSuppressTimeout = this._register(new MutableDisposable<IDisposable>());
-
-	private _focusedActiveSessionId: string | undefined | null = null;
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService
 	) {
 		super();
 
@@ -125,17 +96,11 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		const isPhoneLayout = width < 640;
 
 		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
-	}
 
-	init(): void {
-		// Reflect changes to the visible-sessions model in the grid. Active session
-		// is read from the same autorun so the part can mark the active slot in a
-		// single reconciliation pass.
 		this._register(autorun(reader => {
-			const visible = this.sessionsManagementService.visibleSessions.read(reader);
-			const active = this.sessionsManagementService.activeSession.read(reader);
-			const restoring = this._restoring.read(reader);
-			this._mainPart.updateVisibleSessions(visible, active, restoring);
+			const visible = sessionsManagementService.visibleSessions.read(reader);
+			const active = sessionsManagementService.activeSession.read(reader);
+			this._mainPart.updateVisibleSessions(visible, active);
 
 			// Move keyboard focus into the active session whenever it changes
 			// (e.g. after opening, switching to, or restoring a session) so the
@@ -147,7 +112,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 			const activeId = active?.sessionId;
 			if (activeId !== this._focusedActiveSessionId) {
 				this._focusedActiveSessionId = activeId;
-				this._mainPart.focusSessionIfNotFocused(activeId);
+				this._mainPart.focusSession(activeId);
 			}
 		}));
 
@@ -155,23 +120,11 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		// the active session. The id is guaranteed to correspond to a session in
 		// the visibility model (the part only fires for non-placeholder slots).
 		this._register(this._mainPart.onDidFocusSession(sessionId => {
-			const session = this.sessionsManagementService.visibleSessions.get().find(s => s?.sessionId === sessionId);
+			const session = sessionsManagementService.visibleSessions.get().find(s => s?.sessionId === sessionId);
 			if (session) {
-				this.sessionsManagementService.setActive(session);
+				sessionsManagementService.setActive(session);
 			}
 		}));
-	}
-
-	beginSessionRestore(): void {
-		this._restoring.set(true, undefined);
-		// Never suppress the new-session view forever if a persisted session
-		// never resurfaces (e.g. it was deleted while the window was closed).
-		this._restoreSuppressTimeout.value = disposableTimeout(() => this._restoring.set(false, undefined), 5000);
-	}
-
-	endSessionRestore(): void {
-		this._restoreSuppressTimeout.clear();
-		this._restoring.set(false, undefined);
 	}
 
 	toggleMaximizeSession(session: IActiveSession | undefined): void {

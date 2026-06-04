@@ -279,7 +279,7 @@ suite('SessionsManagementService', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(
 			'agentSessions.activeSessionStates',
-			JSON.stringify([{ sessionResource: targetSession.resource.toString(), isActive: true }]),
+			JSON.stringify([{ sessionResource: targetSession.resource.toString(), visibleOrder: 0, isActive: true }]),
 			1 /* StorageScope.WORKSPACE */,
 			1 /* StorageTarget.MACHINE */,
 		);
@@ -469,55 +469,6 @@ suite('SessionsManagementService', () => {
 			visible: ['a', 'b', 'c'],
 			sticky: [true, false, false],
 			active: 'b',
-		});
-	});
-
-	test('restoreVisibleSessions restores an active new-session slot alongside pinned sessions', async () => {
-		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
-		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
-		const sessions = [sessionA, sessionB];
-
-		const provider = new class extends TestSessionsProvider {
-			constructor() { super(sessionA); }
-			override getSessions(): ISession[] { return sessions; }
-		};
-
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const storage = disposables.add(new InMemoryStorageService());
-		// Persisted grid: [A (sticky), B] with the empty new-session slot active.
-		storage.store(
-			'agentSessions.activeSessionStates',
-			JSON.stringify([
-				{ sessionResource: sessionA.resource.toString(), visibleOrder: 0, isSticky: true, isActive: false },
-				{ sessionResource: sessionB.resource.toString(), visibleOrder: 1, isSticky: false, isActive: false },
-			]),
-			1 /* StorageScope.WORKSPACE */,
-			1 /* StorageTarget.MACHINE */,
-		);
-		storage.store('agentSessions.newSessionSlotActive', true, 1 /* StorageScope.WORKSPACE */, 1 /* StorageTarget.MACHINE */);
-
-		instantiationService.stub(IStorageService, storage);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
-		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
-		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
-		instantiationService.stub(IAgentSessionsService, new TestAgentSessionsService());
-		instantiationService.stub(IProgressService, new TestProgressService());
-		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-			override readonly onDidSubmitRequest = Event.None;
-		});
-
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-
-		await service.restoreVisibleSessions();
-
-		assert.deepStrictEqual({
-			visible: service.visibleSessions.get().map(s => s?.sessionId ?? null),
-			active: service.activeSession.get()?.sessionId ?? null,
-		}, {
-			visible: ['a', 'b', null],
-			active: null,
 		});
 	});
 
