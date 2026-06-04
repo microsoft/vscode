@@ -53,6 +53,80 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		return uri;
 	}
 
+	test('discovers supported agent instruction files in workspace roots', async () => {
+		const wsCopilotInstructions = await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		const wsGeminiInstructions = await seed('/workspace/GEMINI.md', 'workspace gemini instructions');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = (await discovery.directories())
+			.flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })))
+			.filter(entry => entry.type === DiscoveredType.AgentInstruction)
+			.map(entry => entry.uri.toString())
+			.sort((a, b) => a.localeCompare(b));
+
+		assert.deepStrictEqual(files, [
+			wsCopilotInstructions.toString(),
+			wsGeminiInstructions.toString(),
+		].sort((a, b) => a.localeCompare(b)));
+	});
+
+	test('does not discover agent instruction files outside supported roots', async () => {
+		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		await seed('/workspace/docs/AGENTS.md', 'unsupported root');
+		await seed('/workspace/.claude/GEMINI.md', 'unsupported filename in .claude');
+		await seed('/home/copilot-instructions.md', 'unsupported home root');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = (await discovery.directories())
+			.flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })))
+			.filter(entry => entry.type === DiscoveredType.AgentInstruction)
+			.map(entry => entry.uri.toString())
+			.sort((a, b) => a.localeCompare(b));
+
+		assert.deepStrictEqual(files, [
+			URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/copilot-instructions.md' }).toString(),
+		]);
+	});
+
+	test('installs watchers for roots that contain discovered customizations', async () => {
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+		await seed('/workspace/.github/skills/bar/SKILL.md', 'workspace skill');
+		await seed('/workspace/.github/instructions/rules.instructions.md', 'workspace instruction');
+		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		await seed('/workspace/.claude/CLAUDE.md', 'workspace claude instruction');
+		await seed('/home/.copilot/agents/user.agent.md', 'user agent');
+		await seed('/home/.agents/skills/user-skill/SKILL.md', 'user skill');
+		await seed('/home/.copilot/instructions/user.instructions.md', 'user instruction');
+		await seed('/home/.copilot/copilot-instructions.md', 'user copilot instructions');
+
+		const watchCalls: Array<{ resource: string; recursive: boolean }> = [];
+		const originalWatch = fileService.watch.bind(fileService);
+		disposables.add({ dispose: () => { fileService.watch = originalWatch as typeof fileService.watch; } });
+		fileService.watch = ((resource, options) => {
+			watchCalls.push({ resource: resource.toString(), recursive: options?.recursive === true });
+			return originalWatch(resource, options);
+		}) as typeof fileService.watch;
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.directories();
+
+		const watched = new Map<string, boolean>();
+		for (const call of watchCalls) {
+			const previous = watched.get(call.resource);
+			watched.set(call.resource, previous === true || call.recursive);
+		}
+		assert.strictEqual(watched.get(workspace.toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.claude').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'agents').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'skills').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'instructions').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'agents').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.agents', 'skills').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'instructions').toString()), true);
+	});
+
 	test('discovers agents, skills, and instructions across workspace and home roots', async () => {
 		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
 		const wsSkill = await seed('/workspace/.github/skills/bar/SKILL.md', 'skill body');

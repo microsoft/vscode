@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, TerminalSandboxService, type ISandboxDependencyInstallTerminal } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -23,7 +22,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -161,7 +160,6 @@ suite('TerminalSandboxService - network domains', () => {
 		callCount = 0;
 		status: ISandboxDependencyStatus = {
 			bubblewrapInstalled: true,
-			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
 		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
@@ -304,7 +302,6 @@ suite('TerminalSandboxService - network domains', () => {
 	test('should report dependency prereq failures', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: false,
-			bubblewrapUsable: false,
 			socatInstalled: true,
 		};
 
@@ -316,58 +313,6 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
-	});
-
-	test('should report repair actions when Ubuntu AppArmor remediation is supported', async () => {
-		sandboxHelperService.status = {
-			bubblewrapInstalled: true,
-			bubblewrapUsable: false,
-			bubblewrapError: 'No permissions to create namespace',
-			supportsUbuntuAppArmorRemediation: true,
-			socatInstalled: true,
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const result = await sandboxService.checkForSandboxingPrereqs();
-
-		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
-		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
-		strictEqual(result.detail, 'No permissions to create namespace');
-	});
-
-	test('should run approved Ubuntu bubblewrap remediation commands', async () => {
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
-			let sentCommand: string | undefined;
-			const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
-			const terminal: ISandboxDependencyInstallTerminal = {
-				sendText: async command => {
-					sentCommand = command;
-					commandFinishedEmitter.fire({ exitCode: 0 });
-				},
-				focus: () => { },
-				capabilities: {
-					get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
-					onDidAddCapability: Event.None,
-				},
-				onDidInputData: Event.None,
-				onDisposed: Event.None,
-			};
-			const result = await sandboxService.runSandboxRemediation(remediation, undefined, CancellationToken.None, {
-				createTerminal: async () => terminal,
-				focusTerminal: async () => { },
-			});
-			strictEqual(result.exitCode, 0);
-			return sentCommand;
-		};
-
-		deepStrictEqual([
-			await runAndCapture(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile),
-			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction),
-		], [
-			'sudo apt update && sudo apt install -y apparmor-profiles apparmor-utils && sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict',
-			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
-		]);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {
@@ -656,7 +601,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should allow reads and writes from workspace storage', async () => {
+	test('should reallow reads from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
@@ -674,6 +619,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
 		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
+		ok(config.filesystem.allowWrite.includes(expectedWorkspaceStoragePath), 'Sandbox config should allow writes to workspace storage');
 	});
 
 	test('should only add command-specific allow-list paths for the current command details', async () => {
@@ -938,6 +884,22 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(wrapResult.command.includes(expectedWrappedCwd), `Sandboxed command should restore the original cwd before running the user command. Actual: ${wrapResult.command}`);
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
 	});
+
+	if (OS === OperatingSystem.Linux) {
+		test('should apply ELECTRON_RUN_AS_NODE to the sandbox runtime after the Linux temp-dir cd', async () => {
+			remoteAgentService.remoteEnvironment = null;
+			const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+			await sandboxService.getSandboxConfigPath();
+
+			const wrapResult = await sandboxService.wrapCommand('head -1 /etc/shells', false, 'bash', URI.file('/workspace-one'));
+			const expectedWrappedCwd = String.raw`-c 'cd '\''/workspace-one'\'' && head -1 /etc/shells'`;
+
+			ok(wrapResult.command.startsWith(`cd '${sandboxService.getTempDir()?.path}'; ELECTRON_RUN_AS_NODE=1 PATH="$PATH:`), 'ELECTRON_RUN_AS_NODE should apply to the sandbox runtime, not the temp-dir cd');
+			ok(!wrapResult.command.startsWith('ELECTRON_RUN_AS_NODE=1 cd '), 'ELECTRON_RUN_AS_NODE should not apply to the temp-dir cd command');
+			ok(wrapResult.command.includes(expectedWrappedCwd), `Sandboxed command should restore the original cwd before running the user command. Actual: ${wrapResult.command}`);
+			strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
+		});
+	}
 
 	test('should preserve TMPDIR when unsandboxed execution is requested', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));

@@ -136,9 +136,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly remoteAddress: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
-	private _outputChannelId: string | undefined;
-	get outputChannelId(): string | undefined { return this._outputChannelId; }
-
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
@@ -351,11 +348,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionStatus.set(status, undefined);
 	}
 
-	/** Set the output channel ID for this provider's IPC log. */
-	setOutputChannelId(id: string): void {
-		this._outputChannelId = id;
-	}
-
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths happen silently in the background.
@@ -366,6 +358,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+		if (!pending) {
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}
 	}
 
 	/**
@@ -415,10 +410,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
-		if (this._newSession) {
-			// Setter on the MutableDisposable handles disposal of the old value.
-			this._newSession = undefined;
-		}
+		this._disposeAllNewSessions();
 
 		if (this._sessionTypes.length > 0) {
 			this._sessionTypes = [];

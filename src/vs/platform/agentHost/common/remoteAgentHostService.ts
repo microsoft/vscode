@@ -176,6 +176,10 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	}
 }
 
+export function remoteAgentHostLogOutputChannelId(address: string): string {
+	return `agentHost.otlp.${address}`;
+}
+
 export const enum RemoteAgentHostInputValidationError {
 	Empty = 'empty',
 	Invalid = 'invalid',
@@ -252,8 +256,13 @@ export interface IRemoteAgentHostService {
 	 * Callers should put any teardown that needs to happen on entry removal
 	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
 	 * into this disposable, so a single removal path tears down the whole stack.
+	 *
+	 * `status` defaults to `connected`. Pass `incompatible` when the managed
+	 * transport is alive but the protocol handshake rejected the client version;
+	 * this keeps recovery actions (such as server upgrade) addressable without
+	 * exposing the connection as ready for session traffic.
 	 */
-	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo>;
+	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable, status?: RemoteAgentHostConnectionStatus): Promise<IRemoteAgentHostConnectionInfo>;
 
 	/**
 	 * Force the protocol client at `address` (if any) to treat its

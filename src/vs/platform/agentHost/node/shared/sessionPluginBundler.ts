@@ -26,11 +26,12 @@ const MANIFEST_CONTENT = JSON.stringify({
  * Maps a {@link DiscoveredType} to the plugin sub-directory under which that
  * component type lives in the Open Plugin format.
  */
-function pluginDirForType(type: DiscoveredType): string {
+function pluginDirForType(type: DiscoveredType): string | undefined {
 	switch (type) {
 		case DiscoveredType.Agent: return 'agents';
 		case DiscoveredType.Skill: return 'skills';
 		case DiscoveredType.Instruction: return 'rules';
+		case DiscoveredType.AgentInstruction: return undefined;
 	}
 }
 
@@ -101,6 +102,9 @@ export class SessionPluginBundler extends Disposable {
 
 		for (const discoveredDirectory of directories) {
 			const dir = pluginDirForType(discoveredDirectory.type);
+			if (!dir) {
+				continue; // do not bundle agent instructions
+			}
 			for (const file of discoveredDirectory.files) {
 				const fileName = basename(file);
 
