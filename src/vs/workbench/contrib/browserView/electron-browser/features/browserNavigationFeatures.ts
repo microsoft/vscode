@@ -114,7 +114,7 @@ class BrowserNavigationBar extends Disposable {
 					getAvailableWidth: () => {
 						const toolbarBounds = this.element.getBoundingClientRect();
 						const urlBarBounds = this._urlBar.element.getBoundingClientRect();
-						return Math.max(0, toolbarBounds.right - urlBarBounds.left - 220 - 24 /* 8px padding on both sides plus 8px gap */);
+						return Math.max(0, toolbarBounds.right - urlBarBounds.left - 220 - 24 /* 220px min width, 8px padding on both sides plus 8px gap */);
 					}
 				},
 			}
