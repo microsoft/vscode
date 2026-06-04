@@ -1849,29 +1849,39 @@ pane is first mounted. View switches inside the modal are not animated. */
 	max-width: 640px;
 }
 
+/*
+ * Push the form into the .dialog-message-row's column so the scrollbar
+ * (when it has to appear) tracks the row's right edge instead of
+ * overlapping inputs. Inputs get padding-right so a visible scrollbar
+ * doesn't cover their right border.
+ */
 .automation-dialog-body {
 	padding: 0;
+}
+
+.automation-dialog .dialog-body .dialog-message-row .dialog-message-container {
+	padding-right: 6px;
 }
 
 .automation-form {
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
-	padding: 4px 2px 8px;
+	gap: 10px;
+	padding: 2px 2px 4px;
 }
 
 .automation-form-row {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 4px;
 }
 
 .automation-form-row.automation-form-checkbox-row {
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
-	margin-top: 4px;
-	padding-top: 12px;
+	margin-top: 2px;
+	padding-top: 10px;
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
@@ -1923,7 +1933,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 
 .automation-form-textarea {
 	resize: vertical;
-	min-height: 80px;
+	min-height: 60px;
 	line-height: 1.4;
 }
 
