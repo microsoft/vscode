@@ -6,7 +6,8 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent, reset } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../base/common/observable.js';
@@ -18,11 +19,13 @@ import { IActiveSession, ISessionsManagementService } from '../../services/sessi
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { isAgentHostProviderId } from '../../common/agentHostSessionsProvider.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
@@ -80,6 +83,8 @@ export class SessionHeader extends Disposable {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 	) {
@@ -153,6 +158,30 @@ export class SessionHeader extends Disposable {
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
 
 		this._registerDragSource();
+		this._registerContextMenu();
+	}
+
+	private _registerContextMenu(): void {
+		this._register(addDisposableListener(this._container, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			const session = this._session;
+			if (!session) {
+				return;
+			}
+
+			let anchor: HTMLElement | StandardMouseEvent = this._container;
+			if (isMouseEvent(e)) {
+				anchor = new StandardMouseEvent(getWindow(this._container), e);
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+			this._contextMenuService.showContextMenu({
+				menuId: Menus.SessionHeaderContext,
+				menuActionOptions: { shouldForwardArgs: true, arg: session },
+				getAnchor: () => anchor,
+				contextKeyService: this._contextKeyService
+			});
+		}));
 	}
 
 	private _registerDragSource(): void {

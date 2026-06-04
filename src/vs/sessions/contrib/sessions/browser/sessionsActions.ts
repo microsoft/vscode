@@ -9,7 +9,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -403,18 +403,37 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 	}
 });
 
+MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
+	command: {
+		id: 'sessions.chatCompositeBar.togglePin',
+		title: localize('chatCompositeBar.pinView', "Pin View"),
+		toggled: {
+			condition: SessionIsStickyContext,
+			title: localize('chatCompositeBar.unpinView', "Unpin View"),
+		},
+	},
+	group: '1_view',
+	order: 1,
+	when: SessionIsCreatedContext,
+});
+
 registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.close',
 			title: localize2('chatCompositeBar.close', "Close"),
 			icon: Codicon.close,
-			menu: {
+			menu: [{
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
 				group: '1_session',
 				order: 30,
-			},
+			}, {
+				id: Menus.SessionHeaderContext,
+				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+				group: '1_view',
+				order: 2,
+			}],
 		});
 	}
 
