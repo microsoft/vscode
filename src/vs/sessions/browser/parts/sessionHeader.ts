@@ -260,6 +260,7 @@ export class SessionHeader extends Disposable {
 			hasMeta = true;
 		}
 
+		this._metaRow.style.display = hasMeta ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 
