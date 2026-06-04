@@ -18,6 +18,7 @@ import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
 import { parseSuggestedEdit, processAllRows } from './replayRecording';
 import { generateAllResponses, generateResponse, IResponseGenerationInput } from './responseStep';
+import { streamJsonArrayElements } from './streamJsonArray';
 
 function logErrors(errors: readonly { error: string }[], verbose: boolean, log: (...ps: any[]) => void): void {
 	if (errors.length > 0 && verbose) {
@@ -188,6 +189,51 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 }
 
 /**
+ * Splits the records of the JSON array at `inputPath` into contiguous per-worker
+ * chunk files, each written incrementally as a JSON array. Streaming keeps memory
+ * usage bounded to a single record regardless of total input size.
+ */
+async function writeChunkFiles(inputPath: string, chunkPaths: string[], chunkSize: number): Promise<void> {
+	const writeTo = (stream: fs.WriteStream, data: string): Promise<void> =>
+		new Promise<void>((resolve, reject) => {
+			stream.write(data, err => err ? reject(err) : resolve());
+		});
+	const endStream = (stream: fs.WriteStream, data: string): Promise<void> =>
+		new Promise<void>((resolve, reject) => {
+			stream.on('error', reject);
+			stream.end(data, () => resolve());
+		});
+
+	let current = -1;
+	let stream: fs.WriteStream | undefined;
+	let countInChunk = 0;
+	let index = 0;
+
+	for await (const record of streamJsonArrayElements(inputPath)) {
+		const w = Math.min(Math.floor(index / chunkSize), chunkPaths.length - 1);
+		if (w !== current) {
+			if (stream) {
+				await endStream(stream, ']');
+			}
+			stream = fs.createWriteStream(chunkPaths[w]);
+			await writeTo(stream, '[');
+			current = w;
+			countInChunk = 0;
+		}
+		if (countInChunk > 0) {
+			await writeTo(stream!, ',');
+		}
+		await writeTo(stream!, JSON.stringify(record));
+		countInChunk++;
+		index++;
+	}
+
+	if (stream) {
+		await endStream(stream, ']');
+	}
+}
+
+/**
  * Run the pipeline in parallel by splitting input across N child processes.
  * Each child runs the single-process pipeline on its chunk independently.
  */
@@ -196,37 +242,53 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 	const inputPath = nesDatagenOpts.input;
 	const verbose = !!opts.verbose;
 
-	const contents = await fs.promises.readFile(inputPath, 'utf8');
-	const records = JSON.parse(contents) as unknown[];
-	const numWorkers = Math.max(1, Math.min(os.cpus().length, opts.parallelism, Math.ceil(records.length / 25)));
+	// Stream the input once to count records without loading the whole file into
+	// memory. Node's readFile rejects files larger than 2 GiB and V8 strings have a
+	// maximum length of ~512 MiB, so large inputs cannot be read as a single string.
+	let totalRecords = 0;
+	for await (const _record of streamJsonArrayElements(inputPath)) {
+		totalRecords++;
+	}
+
+	const numWorkers = Math.max(1, Math.min(os.cpus().length, opts.parallelism, Math.ceil(totalRecords / 25)));
 
 	console.log(`\n=== Pipeline (parallel: ${numWorkers} workers) ===`);
-	console.log(`  Input: ${inputPath} (${records.length} rows)\n`);
+	console.log(`  Input: ${inputPath} (${totalRecords} rows)\n`);
 
-	if (records.length === 0) {
+	if (totalRecords === 0) {
 		console.log(`  No records to process.`);
 		return;
 	}
 
-	const chunkSize = Math.ceil(records.length / numWorkers);
+	const chunkSize = Math.ceil(totalRecords / numWorkers);
 	const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nes-pipeline-'));
 
 	try {
+		const workers: { chunkPath: string; resultPath: string; start: number; count: number }[] = [];
+		for (let w = 0; w < numWorkers; w++) {
+			const start = w * chunkSize;
+			if (start >= totalRecords) {
+				break;
+			}
+			const end = Math.min(start + chunkSize, totalRecords);
+			workers.push({
+				chunkPath: path.join(tmpDir, `chunk_${w}.json`),
+				resultPath: path.join(tmpDir, `result_${w}.json`),
+				start,
+				count: end - start,
+			});
+		}
+
+		// Distribute records into contiguous per-worker chunk files by streaming the
+		// input a second time, writing each chunk incrementally as a JSON array.
+		await writeChunkFiles(inputPath, workers.map(w => w.chunkPath), chunkSize);
+
 		const workerPromises: Promise<void>[] = [];
 		const resultPaths: string[] = [];
 
-		for (let w = 0; w < numWorkers; w++) {
-			const start = w * chunkSize;
-			const chunk = records.slice(start, start + chunkSize);
-			if (chunk.length === 0) {
-				continue;
-			}
-
-			const chunkPath = path.join(tmpDir, `chunk_${w}.json`);
-			const resultPath = path.join(tmpDir, `result_${w}.json`);
+		for (let w = 0; w < workers.length; w++) {
+			const { chunkPath, resultPath, start, count } = workers[w];
 			resultPaths.push(resultPath);
-
-			await fs.promises.writeFile(chunkPath, JSON.stringify(chunk));
 
 			const args = [
 				'nes-datagen',
@@ -261,7 +323,7 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 
 				child.on('exit', (code) => {
 					if (code === 0) {
-						console.log(`  Worker ${workerIdx + 1}/${numWorkers} completed (${chunk.length} rows)`);
+						console.log(`  Worker ${workerIdx + 1}/${numWorkers} completed (${count} rows)`);
 						resolve();
 					} else {
 						reject(new Error(`Worker ${workerIdx} exited with code ${code}`));

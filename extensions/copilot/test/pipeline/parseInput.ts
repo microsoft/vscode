@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs/promises';
 import { IAlternativeAction } from '../../src/extension/inlineEdits/node/nextEditProviderTelemetry';
+import { streamJsonArrayElements } from './streamJsonArray';
 
 /**
  * A single row from the JSON input.
@@ -32,70 +32,66 @@ const requiredKeys = [
 ] as const;
 
 /**
- * Parse a JSON array of input entries into structured rows.
+ * Parse a single JSON input record into a structured row.
  */
-function parseInputJson(jsonContents: string): {
-	rows: IInputRow[];
-	errors: { rowIndex: number; error: string }[];
-} {
-	const records = JSON.parse(jsonContents) as Record<string, string>[];
-
-	const rows: IInputRow[] = [];
-	const errors: { rowIndex: number; error: string }[] = [];
-
-	for (let i = 0; i < records.length; i++) {
-		const record = records[i];
-		try {
-			for (const key of requiredKeys) {
-				if (!(key in record)) {
-					throw new Error(`Missing key: ${key}`);
-				}
-			}
-
-			const alternativeAction = JSON.parse(record['action']) as IAlternativeAction;
-			const prompt = JSON.parse(record['input']) as unknown[];
-			const postProcessingOutcome = JSON.parse(record['outcome']) as {
-				suggestedEdit: string;
-				isInlineCompletion: boolean;
-			};
-
-			if (!alternativeAction.recording) {
-				throw new Error('action.recording is missing');
-			}
-			if (!alternativeAction.recording.entries || alternativeAction.recording.entries.length === 0) {
-				throw new Error('action.recording.entries is empty');
-			}
-			if (!postProcessingOutcome.suggestedEdit) {
-				throw new Error('outcome.suggestedEdit is missing');
-			}
-
-			rows.push({
-				originalRowIndex: i,
-				suggestionStatus: record['status'],
-				alternativeAction,
-				prompt,
-				modelResponse: record['response'],
-				postProcessingOutcome,
-				activeDocumentLanguageId: record['language'],
-			});
-		} catch (e) {
-			errors.push({
-				rowIndex: i,
-				error: e instanceof Error ? e.message : String(e),
-			});
+function parseInputRecord(record: Record<string, string>, rowIndex: number): IInputRow {
+	for (const key of requiredKeys) {
+		if (!(key in record)) {
+			throw new Error(`Missing key: ${key}`);
 		}
 	}
 
-	return { rows, errors };
+	const alternativeAction = JSON.parse(record['action']) as IAlternativeAction;
+	const prompt = JSON.parse(record['input']) as unknown[];
+	const postProcessingOutcome = JSON.parse(record['outcome']) as {
+		suggestedEdit: string;
+		isInlineCompletion: boolean;
+	};
+
+	if (!alternativeAction.recording) {
+		throw new Error('action.recording is missing');
+	}
+	if (!alternativeAction.recording.entries || alternativeAction.recording.entries.length === 0) {
+		throw new Error('action.recording.entries is empty');
+	}
+	if (!postProcessingOutcome.suggestedEdit) {
+		throw new Error('outcome.suggestedEdit is missing');
+	}
+
+	return {
+		originalRowIndex: rowIndex,
+		suggestionStatus: record['status'],
+		alternativeAction,
+		prompt,
+		modelResponse: record['response'],
+		postProcessingOutcome,
+		activeDocumentLanguageId: record['language'],
+	};
 }
 
 export async function loadAndParseInput(inputPath: string, verbose = false): Promise<{
 	rows: IInputRow[];
 	errors: { rowIndex: number; error: string }[];
 }> {
-	const contents = await fs.readFile(inputPath, 'utf8');
-	if (verbose) {
-		console.log(`Read ${contents.length} chars from ${inputPath}`);
+	const rows: IInputRow[] = [];
+	const errors: { rowIndex: number; error: string }[] = [];
+
+	let i = 0;
+	for await (const record of streamJsonArrayElements<Record<string, string>>(inputPath)) {
+		const rowIndex = i++;
+		try {
+			rows.push(parseInputRecord(record, rowIndex));
+		} catch (e) {
+			errors.push({
+				rowIndex,
+				error: e instanceof Error ? e.message : String(e),
+			});
+		}
 	}
-	return parseInputJson(contents);
+
+	if (verbose) {
+		console.log(`Read ${i} records from ${inputPath}`);
+	}
+
+	return { rows, errors };
 }
