@@ -522,7 +522,7 @@ function networkRequest(
 		// pass the controller abort signal to the request
 		request.signal = abort.signal;
 	}
-	if (typeof endpoint.urlOrRequestMetadata === 'string') {
+	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
@@ -538,7 +538,7 @@ function networkRequest(
 		});
 		return requestPromise;
 	} else {
-		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
+		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata);
 	}
 }
 
