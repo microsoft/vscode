@@ -10,7 +10,7 @@ import { ConfigKey, IConfigurationService } from '../../../../../platform/config
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
-import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
+import { IRequestLogger, LoggedRequest } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
 import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
@@ -1842,6 +1842,43 @@ describe('CopilotCLISession', () => {
 
 			resolveSend!();
 			await requestPromise;
+		});
+
+		it('mirrors the separator into the logged assistant response so logs match the UI stream', async () => {
+			// Regression test: `assistantMessageChunks` is later joined and
+			// passed to `_logConversation` as the "Assistant Response". If
+			// the separator only writes to the stream, the log shows fused
+			// output like `"First.Second."` while the UI shows
+			// `"First.\n\nSecond."`. They must agree.
+			const loggedEntries: LoggedRequest[] = [];
+			requestLogger = new class extends NullRequestLogger {
+				override addEntry(entry: LoggedRequest): void { loggedEntries.push(entry); }
+			};
+
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two phases' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message', { content: 'First.', messageId: 'msg-a' });
+			sdkSession.emit('assistant.message', { content: 'Second.', messageId: 'msg-b' });
+			await new Promise(r => setTimeout(r, 0));
+
+			resolveSend!();
+			await requestPromise;
+
+			const conversationEntries = loggedEntries.filter(e => 'isConversationRequest' in e && (e as { isConversationRequest?: boolean }).isConversationRequest === true);
+			expect(conversationEntries.length).toBeGreaterThan(0);
+			// The final entry is the completion log (`_logConversation` after the
+			// request resolves); earlier entries are intermediate request logs
+			// that don't carry the assistant response.
+			const completionEntry = conversationEntries[conversationEntries.length - 1];
+			const markdown = (completionEntry as unknown as { markdownContent: string }).markdownContent;
+			expect(markdown).toContain('First.\n\nSecond.');
 		});
 	});
 

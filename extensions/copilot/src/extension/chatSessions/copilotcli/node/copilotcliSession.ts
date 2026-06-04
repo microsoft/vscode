@@ -1220,8 +1220,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		// same turn (e.g. text → tool_call → more text, or two distinct
 		// phases). Without this the markdown chunks fuse into a run-on
 		// paragraph like `"...wiring:Now add..."`. Streaming deltas that
-		// share a `messageId` are unaffected.
-		const assistantTextSegmentSeparator = new MarkdownSegmentSeparator(() => requestStream?.markdown('\n\n'));
+		// share a `messageId` are unaffected. The separator is mirrored
+		// into `assistantMessageChunks` so the request log's "Assistant
+		// Response" matches what the user actually saw in the stream.
+		const assistantTextSegmentSeparator = new MarkdownSegmentSeparator(() => {
+			requestStream?.markdown('\n\n');
+			assistantMessageChunks.push('\n\n');
+		});
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
 			if (token.isCancellationRequested || !requestStream) {
@@ -1441,9 +1446,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (event.data.parentToolCallId) {
 						return;
 					}
-					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
+					// Emit separator BEFORE pushing this message's content so
+					// both the stream and the log see `[..., '\n\n', content]`
+					// rather than `[..., content, '\n\n']`.
 					assistantTextSegmentSeparator.onSegment(event.data.messageId);
+					assistantMessageChunks.push(event.data.content);
 					wroteResponseContent = true;
 					requestStream?.markdown(event.data.content);
 				}
