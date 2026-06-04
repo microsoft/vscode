@@ -412,7 +412,18 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 	return target === Target.VSCode || target === Target.Undefined;
 }
 
-export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+/**
+ * Resolves the effective {@link Target} of a prompt file.
+ *
+ * `pluginTarget` is the target implied by the format of the plugin that
+ * contributed the file (e.g. {@link Target.Claude} for a Claude-format
+ * plugin installed via a marketplace or `chat.pluginLocations`). It is
+ * used as a fallback when the target cannot be determined from the file's
+ * on-disk location or its explicit `target` frontmatter, so that
+ * plugin-installed Claude files get the same `mapClaudeModels` /
+ * `mapClaudeTools` / `paths` handling as a hand-placed `.claude/` directory.
+ */
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI, pluginTarget?: Target): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
 		const parentDir = dirname(uri);
@@ -425,10 +436,16 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 				return target;
 			}
 		}
+		if (pluginTarget !== undefined && pluginTarget !== Target.Undefined) {
+			return pluginTarget;
+		}
 		return Target.Undefined;
 	} else if (promptType === PromptsType.instructions) {
 		if (isInClaudeRulesFolder(uri)) {
 			return Target.Claude;
+		}
+		if (pluginTarget !== undefined && pluginTarget !== Target.Undefined) {
+			return pluginTarget;
 		}
 	}
 	return Target.Undefined;

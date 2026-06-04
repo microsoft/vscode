@@ -36,7 +36,7 @@ import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, IConfiguredH
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
-import { type IParsedHookCommand } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { type IParsedHookCommand, PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -47,6 +47,17 @@ import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { ExtensionPromptFileService } from './extensionPromptFileService.js';
+
+/**
+ * Maps a plugin's detected on-disk format to the prompt {@link Target} its
+ * files should be parsed with. Only Claude-format plugins imply a non-default
+ * target; Copilot and Open Plugin formats already use VS Code semantics, so
+ * they fall back to {@link Target.Undefined} and the existing path/frontmatter
+ * resolution applies.
+ */
+function pluginFormatToTarget(format: PluginFormat): Target {
+	return format === PluginFormat.Claude ? Target.Claude : Target.Undefined;
+}
 
 /**
  * Provides prompt services.
@@ -263,6 +274,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						type,
 						name: getCanonicalPluginCommandId(plugin, item.name),
 						pluginUri: plugin.uri,
+						pluginTarget: pluginFormatToTarget(plugin.format),
 						source: PromptFileSource.Plugin,
 					});
 				}
@@ -614,13 +626,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 			try {
 				const ast = await this.parseNew(uri, token);
 
+				// Target implied by the contributing plugin's format (Claude-format
+				// plugins installed via marketplace / pluginLocations land outside
+				// `~/.claude/`, so the path-based detection in getTarget misses them).
+				const pluginTarget = promptPath.storage === PromptsStorage.plugin ? promptPath.pluginTarget : undefined;
+
 				// Parse hooks from the frontmatter if present
 				let hooks: ChatRequestHooks | undefined;
 				const hooksRaw = ast.header?.hooksRaw;
 				if (useChatHooks && isWorkspaceTrusted && hooksRaw) {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
-					const target = getTarget(PromptsType.agent, ast.header ?? promptPath.uri);
+					const target = getTarget(PromptsType.agent, ast.header ?? promptPath.uri, pluginTarget);
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 				const extra = {
@@ -629,6 +646,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					name: promptPath.name,
 					description: promptPath.description,
 					source: IAgentSource.fromPromptPath(promptPath),
+					pluginTarget,
 					enabled: isEnabled,
 				};
 				const agent = CustomAgent.fromParsedPromptFile(ast, extra);
@@ -1324,7 +1342,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parsedPromptFile = await this.parseNew(uri, token);
 				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
 				const description = parsedPromptFile?.header?.description ?? promptPath.description;
-				const pattern = evaluateApplyToPattern(parsedPromptFile.header, isInClaudeRulesFolder(uri));
+				// Treat rules from a Claude-format plugin as Claude rules even when they
+				// live outside `~/.claude/rules/`, so their `paths` frontmatter maps to
+				// the effective `applyTo` (defaulting to `**`) instead of being dropped.
+				const pluginTarget = promptPath.storage === PromptsStorage.plugin ? promptPath.pluginTarget : undefined;
+				const isClaudeRules = isInClaudeRulesFolder(uri) || pluginTarget === Target.Claude;
+				const pattern = evaluateApplyToPattern(parsedPromptFile.header, isClaudeRules);
 				files.push({
 					status: 'loaded',
 					pattern,
@@ -1441,7 +1464,7 @@ class ModelChangeTracker extends Disposable {
 }
 
 export namespace CustomAgent {
-	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined; enabled: boolean }): ICustomAgent {
+	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined; enabled: boolean; pluginTarget?: Target }): ICustomAgent {
 		const uri = ast.uri;
 		const { hooks, sessionTypes, enabled } = extra;
 
@@ -1473,7 +1496,7 @@ export namespace CustomAgent {
 
 		const name = ast.header?.name ?? extra.name ?? getCleanPromptName(uri);
 		const description = ast.header?.description ?? extra.description;
-		const target = getTarget(PromptsType.agent, ast.header ?? uri);
+		const target = getTarget(PromptsType.agent, ast.header ?? uri, extra.pluginTarget);
 
 		const source = extra.source;
 		if (!ast.header) {
