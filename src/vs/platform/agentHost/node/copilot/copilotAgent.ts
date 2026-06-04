@@ -1582,7 +1582,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
 			// Rely on SDK to find all agents/skills & the like from the plugins instead of us feeding them.
 			// Else we could end up with duplicates or the like.
-			const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir);
+			const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 			const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 			return {
 				clientName: 'vscode',
