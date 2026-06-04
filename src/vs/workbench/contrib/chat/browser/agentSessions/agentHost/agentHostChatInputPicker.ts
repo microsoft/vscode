@@ -159,14 +159,14 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 ]);
 
 /**
- * Whether the given `(property, schema)` pair will be rendered by a dedicated
- * chip widget on the secondary toolbar. Used by the generic-fallback chip
- * lane to decide whether to render a chip for `property`.
+ * Whether the given `(property, schema)` pair is handled outside the
+ * generic-fallback chip lane. This includes properties rendered by dedicated
+ * chip widgets and properties intentionally hidden from workbench chat.
  *
- * For most well-known keys this is purely a property-name check. AutoApprove
- * is special: only well-known schema shapes are claimed by the dedicated
- * picker; non-conforming schemas (e.g. Claude's approval mode) fall through
- * to the generic lane.
+ * For most well-known keys this is purely a property-name check. AutoApprove is
+ * special: only well-known schema shapes are claimed by the dedicated picker;
+ * non-conforming schemas (e.g. Claude's approval mode) fall through to the
+ * generic lane.
  */
 export function isClaimedByDedicatedPicker(property: string, schema: SessionConfigPropertySchema): boolean {
 	if (property === SessionConfigKey.AutoApprove) {
@@ -178,9 +178,8 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 /**
  * One workbench chat-input chip bound to a single agent-host session-config
  * property. Used both for dedicated well-known property chips
- * (`SessionConfigKey.Mode`, `.Isolation`, `.Branch`, `.AutoApprove`) and for
- * generic per-property chips advertised by an agent's config schema but not
- * known to VS Code.
+ * (`SessionConfigKey.Mode`, `.AutoApprove`) and for generic per-property chips
+ * advertised by an agent's config schema but not known to VS Code.
  */
 export class AgentHostChatInputPicker extends Disposable {
 
