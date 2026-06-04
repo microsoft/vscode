@@ -20,7 +20,7 @@ import { basename as resourceBasename, dirname as resourceDirname } from '../../
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parseAgentFile, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -2067,14 +2067,17 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			id,
 			uri,
 			name: agentInfo.name,
+			description: agentInfo.description,
 		};
 	}
 	if (type === DiscoveredType.Skill) {
+		const skillInfo = await parseSkillFile(file, fileService);
 		return {
 			type: CustomizationType.Skill,
 			id,
 			uri,
 			name: resourceBasename(resourceDirname(file)),
+			description: skillInfo.description,
 		};
 	}
 	if (type === DiscoveredType.Instruction) {
