@@ -100,7 +100,7 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
+				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
@@ -376,7 +376,8 @@ class OpenInExternalBrowserAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tools,
-				order: 3
+				order: 10,
+				isHiddenByDefault: true,
 			}
 		});
 	}
@@ -410,7 +411,8 @@ class OpenBrowserSettingsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Settings,
-				order: 2
+				order: 2,
+				isHiddenByDefault: true,
 			}
 		});
 	}
