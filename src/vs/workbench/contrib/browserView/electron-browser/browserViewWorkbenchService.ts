@@ -223,14 +223,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
-				const useProxy = this.willUseRemoteProxy();
-				const proxyId = useProxy ? String(this._mainWindowId) : undefined;
+				const proxyId = this.willUseRemoteProxy() ? String(this._mainWindowId) : undefined;
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
 						sessionOptions: {
-							scope: await this._resolveStorageScope(useProxy),
+							scope: await this._resolveStorageScope(),
 							proxyId
 						},
 						initialState: {
@@ -269,7 +268,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return { mainWindowId: this._mainWindowId };
 	}
 
-	private async _resolveStorageScope(useProxy: boolean): Promise<BrowserViewStorageScope> {
+	private async _resolveStorageScope(): Promise<BrowserViewStorageScope> {
 		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
 		) ?? 'default';
@@ -284,9 +283,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			// Always use ephemeral sessions for untrusted workspaces
 			dataStorage = BrowserViewStorageScope.Ephemeral;
 		} else if (dataStorage === 'default') {
-			// When proxying, default to workspace-scoped sessions
-			// to avoid polluting the global session with remote site data.
-			dataStorage = useProxy
+			// Workspace-scoped for remote workspaces.
+			dataStorage = this.environmentService.remoteAuthority
 				? BrowserViewStorageScope.Workspace
 				: BrowserViewStorageScope.Global;
 		}

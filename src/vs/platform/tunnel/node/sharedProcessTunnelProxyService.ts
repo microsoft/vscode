@@ -143,8 +143,18 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 			entry.refCount--;
 		}
 		if (entry.refCount === 0) {
-			entry.proxy?.dispose();
 			this._entries.delete(id);
+			if (entry.startPromise) {
+				// Proxy may still be starting; dispose whichever proxy
+				// the in-flight start produces so we don't leak a server
+				// that comes up after the last reference is gone.
+				void entry.startPromise.then(
+					() => entry.proxy?.dispose(),
+					() => { /* start already failed; nothing to dispose */ },
+				);
+			} else {
+				entry.proxy?.dispose();
+			}
 		}
 	}
 }

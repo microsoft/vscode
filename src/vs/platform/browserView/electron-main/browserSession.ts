@@ -249,7 +249,7 @@ export class BrowserSession {
 		return this._history;
 	}
 
-	/** Public remote interface owning theproxy lifecycle for this session. */
+	/** Public remote interface owning the proxy lifecycle for this session. */
 	get remote(): IBrowserSessionRemote {
 		return this._remote;
 	}

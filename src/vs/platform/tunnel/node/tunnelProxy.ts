@@ -247,6 +247,20 @@ export class TunnelProxy extends Disposable {
 			return;
 		}
 
+		// Plain HTTP forwarding only — HTTPS goes through CONNECT.
+		// In practice every HTTP/1.1 client (browsers included) uses
+		// CONNECT for HTTPS via a proxy, so an absolute-form `https:`
+		// URL here should never happen. Reject loudly rather than
+		// silently misforward it as plaintext (`http.request` to either
+		// the URL's port or default 80 would produce confusing failures
+		// or wrong content).
+		if (parsed.protocol !== 'http:') {
+			this._logService.warn(`[TunnelProxy] Rejecting non-HTTP forwarded request: ${req.method} ${req.url}`);
+			res.writeHead(400);
+			res.end();
+			return;
+		}
+
 		const host = parsed.hostname;
 		const port = parseInt(parsed.port, 10) || 80;
 

@@ -142,7 +142,7 @@ export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenc
 export interface IBrowserViewWorkbenchService {
 	readonly _serviceBrand: undefined;
 
-	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace. */
+	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace and the setting is enabled. */
 	willUseRemoteProxy(): boolean;
 
 	/**
