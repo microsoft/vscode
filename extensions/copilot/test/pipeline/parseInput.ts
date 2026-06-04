@@ -69,6 +69,15 @@ function parseInputRecord(record: Record<string, string>, rowIndex: number): IIn
 	};
 }
 
+/**
+ * Stream-parse the input file (JSON array or JSON Lines) and validate each
+ * record into an `IInputRow`. Records that fail validation are reported in
+ * `errors` (with their row index) rather than aborting the load.
+ *
+ * Note: this still accumulates the fully parsed rows into memory. For very
+ * large inputs (multi-GB), use `runInputPipelineParallel` so each worker only
+ * loads its assigned slice — the parent process never holds the whole dataset.
+ */
 export async function loadAndParseInput(inputPath: string, verbose = false): Promise<{
 	rows: IInputRow[];
 	errors: { rowIndex: number; error: string }[];

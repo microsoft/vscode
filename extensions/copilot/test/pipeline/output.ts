@@ -8,6 +8,7 @@ import * as path from 'path';
 import { IGeneratedPrompt } from './promptStep';
 import { IProcessedRow } from './replayRecording';
 import { IGeneratedResponse } from './responseStep';
+import { openWriteStream } from './writeStream';
 
 export interface IMessage {
 	readonly role: 'system' | 'user' | 'assistant';
@@ -119,6 +120,10 @@ export function resolveOutputPath(inputPath: string, explicitPath: string | unde
 /**
  * Write validated samples to a JSON file.
  * Samples are sorted by rowIndex for deterministic output.
+ *
+ * The output is written incrementally as a JSON array via a write stream — each
+ * sample is JSON-stringified individually, so a multi-GB output never has to be
+ * materialized as a single string (which would hit V8's ~512 MiB string limit).
  */
 export async function writeSamples(
 	outputPath: string,
@@ -141,17 +146,42 @@ export async function writeSamples(
 
 	validSamples.sort((a, b) => a.metadata.rowIndex - b.metadata.rowIndex);
 
-	const output = validSamples.map(sample => ({
-		messages: sample.messages.map(m => ({ role: m.role, content: m.content })),
-		metadata: sample.metadata,
-	}));
-	const content = JSON.stringify(output, null, 2);
-
 	const resolvedPath = path.resolve(outputPath);
 	await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
-	await fs.writeFile(resolvedPath, content, 'utf-8');
 
-	const fileSize = Buffer.byteLength(content, 'utf-8');
+	const writer = openWriteStream(resolvedPath);
+	let fileSize = 0;
+	const append = async (chunk: string) => {
+		await writer.write(chunk);
+		fileSize += Buffer.byteLength(chunk, 'utf-8');
+	};
+
+	try {
+		if (validSamples.length === 0) {
+			await append('[]');
+		} else {
+			await append('[\n');
+			for (let i = 0; i < validSamples.length; i++) {
+				const sample = validSamples[i];
+				const out = {
+					messages: sample.messages.map(m => ({ role: m.role, content: m.content })),
+					metadata: sample.metadata,
+				};
+				const formatted = JSON.stringify(out, null, 2)
+					.split('\n')
+					.map(line => '  ' + line)
+					.join('\n');
+				await append(formatted);
+				await append(i < validSamples.length - 1 ? ',\n' : '\n');
+			}
+			await append(']');
+		}
+		await writer.close();
+	} catch (err) {
+		try { await writer.close(); } catch { /* swallow secondary errors */ }
+		throw err;
+	}
+
 	const languageCounts = new Map<string, number>();
 	for (const sample of validSamples) {
 		const lang = sample.metadata.language || 'unknown';

@@ -19,6 +19,7 @@ import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
 import { parseSuggestedEdit, processAllRows } from './replayRecording';
 import { generateAllResponses, generateResponse, IResponseGenerationInput } from './responseStep';
 import { streamJsonRecords } from './streamJsonRecords';
+import { openWriteStream } from './writeStream';
 
 function logErrors(errors: readonly { error: string }[], verbose: boolean, log: (...ps: any[]) => void): void {
 	if (errors.length > 0 && verbose) {
@@ -194,42 +195,43 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
  * usage bounded to a single record regardless of total input size.
  */
 async function writeChunkFiles(inputPath: string, chunkPaths: string[], chunkSize: number): Promise<void> {
-	const writeTo = (stream: fs.WriteStream, data: string): Promise<void> =>
-		new Promise<void>((resolve, reject) => {
-			stream.write(data, err => err ? reject(err) : resolve());
-		});
-	const endStream = (stream: fs.WriteStream, data: string): Promise<void> =>
-		new Promise<void>((resolve, reject) => {
-			stream.on('error', reject);
-			stream.end(data, () => resolve());
-		});
-
-	let current = -1;
-	let stream: fs.WriteStream | undefined;
+	let currentChunk = -1;
+	let writer: ReturnType<typeof openWriteStream> | undefined;
 	let countInChunk = 0;
 	let index = 0;
 
-	for await (const record of streamJsonRecords(inputPath)) {
-		const w = Math.min(Math.floor(index / chunkSize), chunkPaths.length - 1);
-		if (w !== current) {
-			if (stream) {
-				await endStream(stream, ']');
+	try {
+		for await (const record of streamJsonRecords(inputPath)) {
+			const w = Math.min(Math.floor(index / chunkSize), chunkPaths.length - 1);
+			if (w !== currentChunk) {
+				if (writer) {
+					await writer.write(']');
+					await writer.close();
+				}
+				writer = openWriteStream(chunkPaths[w]);
+				await writer.write('[');
+				currentChunk = w;
+				countInChunk = 0;
 			}
-			stream = fs.createWriteStream(chunkPaths[w]);
-			await writeTo(stream, '[');
-			current = w;
-			countInChunk = 0;
+			if (countInChunk > 0) {
+				await writer!.write(',');
+			}
+			await writer!.write(JSON.stringify(record));
+			countInChunk++;
+			index++;
 		}
-		if (countInChunk > 0) {
-			await writeTo(stream!, ',');
-		}
-		await writeTo(stream!, JSON.stringify(record));
-		countInChunk++;
-		index++;
-	}
 
-	if (stream) {
-		await endStream(stream, ']');
+		if (writer) {
+			await writer.write(']');
+			await writer.close();
+			writer = undefined;
+		}
+	} finally {
+		// Best-effort close on the error path so the file descriptor is released
+		// before the caller proceeds to delete the tmp directory.
+		if (writer) {
+			try { await writer.close(); } catch { /* swallow secondary errors */ }
+		}
 	}
 }
 
@@ -338,15 +340,18 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 		const elapsed = formatElapsed(startTime);
 		console.log(`\n  All ${numWorkers} workers completed in ${elapsed}`);
 
-		// Merge results
+		// Merge results. Stream each worker's result file so a single large file
+		// (e.g. > 2 GiB / > V8 max-string-length) can be consumed without doing
+		// a whole-file readFile.
 		const allSamples: ISample[] = [];
 		for (const resultPath of resultPaths) {
 			try {
-				const content = await fs.promises.readFile(resultPath, 'utf8');
-				const samples = JSON.parse(content) as ISample[];
-				allSamples.push(...samples);
-			} catch {
-				console.error(`  Warning: could not read result file ${resultPath}`);
+				for await (const sample of streamJsonRecords<ISample>(resultPath)) {
+					allSamples.push(sample);
+				}
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				console.error(`  Warning: could not read result file ${resultPath}: ${message}`);
 			}
 		}
 
