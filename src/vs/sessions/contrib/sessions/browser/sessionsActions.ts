@@ -129,7 +129,9 @@ registerAction2(class GoBackAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
+				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
+				weight: KeybindingWeight.WorkbenchContrib + 1,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
@@ -169,7 +171,9 @@ registerAction2(class GoForwardAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
+				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
+				weight: KeybindingWeight.WorkbenchContrib + 1,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
