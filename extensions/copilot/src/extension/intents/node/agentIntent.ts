@@ -1025,6 +1025,34 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
+		// Verify the round exists in the conversation before async work.
+		if (toolCallRoundId) {
+			let roundExists = rounds.some(r => r.id === toolCallRoundId);
+			if (!roundExists) {
+				for (const turn of history) {
+					if (turn.rounds.some(r => r.id === toolCallRoundId)) {
+						roundExists = true;
+						break;
+					}
+				}
+			}
+			if (!roundExists) {
+				toolCallRoundId = undefined;
+			}
+		}
+
+		// If we couldn't determine a round id at kick-off, don't start a
+		// background summarization run.
+		if (!toolCallRoundId) {
+			const skipReason = rounds.length === 0 && history.length === 0
+				? 'no-conversation-history'
+				: rounds.length === 0
+					? 'no-current-rounds'
+					: 'round-not-found-in-conversation';
+			this.logService.debug(`[ConversationHistorySummarizer] skipping background compaction at kick-off (reason=${skipReason}, rounds=${rounds.length}, history=${history.length}, context=${(contextRatio * 100).toFixed(0)}%)`);
+			return;
+		}
+
 		// Build tool schemas matching the main agent loop so the prompt
 		// prefix (system + tools + messages) is identical for cache hits.
 		const availableTools = promptContext.tools?.availableTools;
@@ -1090,9 +1118,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const rawSummaryText = extractSummary(response.value);
 				if (rawSummaryText === undefined) {
 					throw new Error('Background summarization: no <summary> tags found in response');
-				}
-				if (!toolCallRoundId) {
-					throw new Error('Background summarization: no round ID to apply summary to');
 				}
 				// Flush the transcript before snapshotting the line count so
 				// the baked "N lines" hint matches the on-disk file at this
