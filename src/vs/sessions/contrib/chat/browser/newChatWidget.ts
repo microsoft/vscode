@@ -77,6 +77,7 @@ export class NewChatWidget extends Disposable {
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
+			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
 			renderSessionTypePickerInControls: false,
 			supportsBackground: true,
 		}));
