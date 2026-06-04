@@ -164,12 +164,6 @@
 	gap: 0;
 }
 
-.chat-composite-bar-inline-toolbar {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
 .chat-composite-bar-toolbar {
 	display: flex;
 	align-items: center;
@@ -177,8 +171,7 @@
 }
 
 /* Keep header toolbar buttons from dictating the row height */
-.chat-composite-bar-title-actions .action-item .action-label,
-.chat-composite-bar-meta-row .chat-composite-bar-inline-toolbar .action-item .action-label {
+.chat-composite-bar-title-actions .action-item .action-label {
 	height: 20px;
 	line-height: 20px;
 	padding: 0 2px;

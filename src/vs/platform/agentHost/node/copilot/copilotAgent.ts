@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
@@ -50,11 +50,14 @@ import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirector
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
 }
+
+export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 
 /**
  * A session that has been requested by a client but has not yet been
@@ -1570,6 +1573,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
 			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
 			return {
+				enableConfigDiscovery: true,
+				clientName: 'vscode',
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
 				onElicitationRequest: callbacks.onElicitationRequest,
@@ -1580,6 +1585,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
 				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+				pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
+					.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 				tools: [...shellTools, ...callbacks.clientTools],
 				// Pass the GitHub token at the session level. The SDK's
 				// client-level `gitHubToken` authenticates the CLI process,
@@ -2181,7 +2188,7 @@ class PluginController extends Disposable {
 	/**
 	 * Returns the current parsed plugins, awaiting any pending sync.
 	 */
-	public async getAppliedPlugins(directory: URI | undefined): Promise<readonly IParsedPlugin[]> {
+	public async getAppliedPlugins(directory: URI | undefined): Promise<readonly ICopilotPluginInfo[]> {
 		const entry = directory ? this._getOrCreateSessionEntry(directory) : undefined;
 		const [host, client] = await Promise.all([
 			this._hostSync.catch(err => {
@@ -2203,11 +2210,11 @@ class PluginController extends Disposable {
 			...host.filter(item =>
 				!!item.plugin
 				&& this._isEnabled(item.customization)
-			).map(item => item.plugin!),
+			).map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...client.filter(item =>
 				!!item.plugin
 				&& this._isEnabled(item.customization)
-			).map(item => item.plugin!),
+			).map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...sessionPlugins,
 		];
 	}
@@ -2407,7 +2414,7 @@ class ActiveClient {
 
 	constructor(
 		/** Resolves the current set of applied plugins. May block while a sync is in progress. */
-		private readonly _resolvePlugins: (directory: URI | undefined) => Promise<readonly IParsedPlugin[]>,
+		private readonly _resolvePlugins: (directory: URI | undefined) => Promise<readonly ICopilotPluginInfo[]>,
 	) { }
 
 	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {

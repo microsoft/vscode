@@ -412,7 +412,9 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 
-		this._createNewSession(folderUri, pick);
+		if (!this._store.isDisposed) {
+			this._createNewSession(folderUri, pick);
+		}
 	}
 
 	prefillInput(text: string): void {
