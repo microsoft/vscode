@@ -128,6 +128,22 @@ function formatAicPrice(price: number): string {
 }
 
 /**
+ * Formats a token count as a human-readable string (e.g. 128K, 1M, 2.5M).
+ */
+export function formatTokenCount(count: number): string {
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
+	} else if (count >= 1000) {
+		return `${Math.round(count / 1000)}K`;
+	}
+	return count.toString();
+}
+
+/**
  * Formats a compact pricing label for display in the model management column.
  * Shows input and output AICs per million tokens.
  */

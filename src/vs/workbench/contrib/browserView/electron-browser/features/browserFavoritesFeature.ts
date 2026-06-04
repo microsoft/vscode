@@ -139,6 +139,7 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 		this._suggestionProvider = {
 			label: localize('browser.favorites', "Favorites"),
 			order: 50,
+			actions: [],
 			onDidChange: this._onDidChangeState.event,
 			getSuggestions: async ({ input }) => {
 				const suggestions: IBrowserUrlSuggestion[] = [];
@@ -306,7 +307,7 @@ class AddFavoriteAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_URL_IS_FAVORITED.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 5,
 				when: CONTEXT_BROWSER_URL_IS_FAVORITED.negate(),
 			},
@@ -338,7 +339,7 @@ class RemoveFavoriteAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_URL_IS_FAVORITED),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 5,
 				when: CONTEXT_BROWSER_URL_IS_FAVORITED,
 			},

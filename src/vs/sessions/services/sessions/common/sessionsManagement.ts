@@ -10,7 +10,22 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions } from './sessionsProvider.js';
+import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+
+/**
+ * Options for sending a request through the sessions management service.
+ *
+ * Extends the provider-level {@link ISessionsProviderSendRequestOptions} with
+ * management-only concerns that the provider is not aware of.
+ */
+export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions {
+	/**
+	 * Start the session without navigating into it: the new-session composer
+	 * stays put and the started session shows up in the sessions list. Only
+	 * honored by {@link ISessionsManagementService.sendNewChatRequest}.
+	 */
+	readonly background?: boolean;
+}
 
 /**
  * A (provider, session-type) pair returned by
@@ -234,11 +249,12 @@ export interface ISessionsManagementService {
 	openChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/**
-	 * Restore the last active session from persisted state.
-	 * Waits until the session provider is available and then opens the session.
-	 * Falls back to the new-session view if the session is not found.
+	 * Restore the sessions that were visible in the grid from persisted state.
+	 * Restores their order, sticky (pinned) state and the active session,
+	 * waiting until each session's provider makes it available. Falls back to
+	 * the new-session view when nothing can be restored.
 	 */
-	restoreLastActiveSession(): Promise<void>;
+	restoreVisibleSessions(): Promise<void>;
 
 	/**
 	 * Switch to the new-session view.
@@ -265,8 +281,24 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Send a request, creating a new chat in the session.
+	 *
+	 * When {@link ISendRequestOptions.background} is set, the new-session view
+	 * is kept in place (the composer does not navigate into the started
+	 * session); the started session still appears in the sessions list.
 	 */
 	sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
+
+	/**
+	 * Create a new session for the given folder and send a chat request to it,
+	 * without navigating into the started session.
+	 *
+	 * The started session appears in the sessions list once the provider
+	 * commits it, while the user's current view is left untouched. Intended for
+	 * callers outside the new-session composer that want to kick off a session
+	 * programmatically. Rejects (after disposing the stranded draft) if the send
+	 * fails.
+	 */
+	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void>;
 
 	/**
 	 * Send a request for an existing chat within a session.
