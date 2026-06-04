@@ -426,6 +426,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
+			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
+			template.container.classList.toggle('unread', !isRead && !isArchived);
 		}));
 
 		// Title — reactive
