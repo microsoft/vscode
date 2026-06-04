@@ -9,6 +9,7 @@ import { CellOutputMetadata, hasKey, type CellMetadata } from './common';
 import { textMimeTypes, NotebookCellKindMarkup, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
 
 const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 export function createJupyterCellFromNotebookCell(
 	vscCell: NotebookCellData,
@@ -474,6 +475,59 @@ export function serializeNotebookToString(data: NotebookData): string {
 
 	return serializeNotebookToJSON(notebookContent, indentAmount);
 }
+
+export function serializeNotebookToBytes(data: NotebookData): Uint8Array {
+	const notebookContent = getNotebookMetadata(data);
+	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === 2)?.languageId;
+
+	const cells = data.cells
+		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
+		.map(pruneCell);
+
+	const indentAmount = data.metadata && typeof data.metadata.indentAmount === 'string' ?
+		data.metadata.indentAmount :
+		' ';
+
+	const chunks: Uint8Array[] = [];
+	let totalLength = 0;
+	const append = (value: string) => {
+		const chunk = textEncoder.encode(value);
+		chunks.push(chunk);
+		totalLength += chunk.byteLength;
+	};
+
+	append('{\n');
+	append(`${indentAmount}"cells": [`);
+	if (cells.length > 0) {
+		append('\n');
+		for (let i = 0; i < cells.length; i++) {
+			if (i > 0) {
+				append(',\n');
+			}
+			append(indentLines(JSON.stringify(sortObjectPropertiesRecursively(cells[i]), undefined, indentAmount), indentAmount + indentAmount));
+		}
+		append(`\n${indentAmount}`);
+	}
+	append('],\n');
+	append(`${indentAmount}"metadata": ${indentLines(JSON.stringify(sortObjectPropertiesRecursively(notebookContent.metadata || {}), undefined, indentAmount), indentAmount).trimStart()},\n`);
+	append(`${indentAmount}"nbformat": ${JSON.stringify(notebookContent.nbformat || defaultNotebookFormat.major)},\n`);
+	append(`${indentAmount}"nbformat_minor": ${JSON.stringify(notebookContent.nbformat_minor ?? defaultNotebookFormat.minor)}\n`);
+	append('}\n');
+
+	const result = new Uint8Array(totalLength);
+	let offset = 0;
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return result;
+}
+
+function indentLines(value: string, indent: string): string {
+	return value.split('\n').map(line => indent + line).join('\n');
+}
+
 function serializeNotebookToJSON(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): string {
 	// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
 	const sorted = sortObjectPropertiesRecursively(notebookContent);
