@@ -10,7 +10,7 @@ import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -471,21 +471,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			return originalSendRequest(method, params);
 		};
-
-		// Handle the inbound `exitPlanMode.request` RPC the CLI dispatches
-		// when the model invokes `exit_plan_mode`. Routing by `sessionId`
-		// hands the request off to the matching {@link CopilotAgentSession},
-		// which surfaces it as a {@link SessionInputRequest} and resolves
-		// this promise with the user's choice.
-		const handlerDisposable = connection.onRequest('exitPlanMode.request', async (params: IExitPlanModeRequestParams): Promise<IExitPlanModeResponse> => {
-			const session = this._sessions.get(params.sessionId);
-			if (!session) {
-				this._logService.warn(`[Copilot] exitPlanMode.request for unknown session ${params.sessionId}`);
-				return { approved: false };
-			}
-			return session.handleExitPlanModeRequest(params);
-		});
-		this._register(toDisposable(() => handlerDisposable.dispose()));
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
@@ -1591,6 +1576,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				onElicitationRequest: callbacks.onElicitationRequest,
 				hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), callbacks.hooks),
 				mcpServers: toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)),
+				onExitPlanModeRequest: callbacks.onExitPlanModeRequest,
 				workingDirectory: workingDirectory?.fsPath,
 				customAgents,
 				skillDirectories: toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),

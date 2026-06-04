@@ -2738,7 +2738,7 @@ suite('CopilotAgentSession', () => {
 
 			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams());
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
@@ -2777,7 +2777,7 @@ suite('CopilotAgentSession', () => {
 		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2796,7 +2796,7 @@ suite('CopilotAgentSession', () => {
 		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2815,7 +2815,7 @@ suite('CopilotAgentSession', () => {
 		test('declining the input request resolves with approved=false', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams());
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 
 			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
@@ -2826,7 +2826,7 @@ suite('CopilotAgentSession', () => {
 		test('exit_only resolves as approved + interactive without autoApproveEdits', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2845,7 +2845,7 @@ suite('CopilotAgentSession', () => {
 		test('freeform feedback alongside a selected action becomes a revision request', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2872,7 +2872,7 @@ suite('CopilotAgentSession', () => {
 		test('selectedAction not in offered actions falls back to recommendedAction', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2898,7 +2898,7 @@ suite('CopilotAgentSession', () => {
 			// SDK offered `exit_only` only and recommended a value not in
 			// the offered set. The client picked something invalid. With
 			// no usable selectedAction and no feedback, decline.
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2917,7 +2917,7 @@ suite('CopilotAgentSession', () => {
 		test('text answer with feedback becomes a revision request without selectedAction', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2944,7 +2944,7 @@ suite('CopilotAgentSession', () => {
 		test('whitespace-only freeform feedback is ignored', async () => {
 			const { session, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -3015,7 +3015,7 @@ suite('CopilotAgentSession', () => {
 			const response = await session.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
-			}));
+			}), { sessionId: 'test-session-1' });
 
 			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
 			// User-input request should NOT be surfaced to the client.
@@ -3033,7 +3033,7 @@ suite('CopilotAgentSession', () => {
 			const response = await session.handleExitPlanModeRequest(planRequestParams({
 				actions: ['interactive', 'exit_only'],
 				recommendedAction: 'autopilot_fleet',
-			}));
+			}), { sessionId: 'test-session-1' });
 
 			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
 		});
@@ -3043,7 +3043,7 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams());
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
 			// The user-input request fires — the user must respond.
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
