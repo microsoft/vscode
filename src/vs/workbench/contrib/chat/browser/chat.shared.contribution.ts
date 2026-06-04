@@ -1962,18 +1962,22 @@ class CopilotTelemetryContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this.updateCopilotTrackingId();
+		this.updateCommonProperties();
 
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			this.updateCopilotTrackingId();
+			this.updateCommonProperties();
 		}));
 	}
 
-	private updateCopilotTrackingId(): void {
+	private updateCommonProperties(): void {
 		const copilotTrackingId = this.chatEntitlementService.copilotTrackingId;
 		if (copilotTrackingId) {
 			// __GDPR__COMMON__ "common.copilotTrackingId" : { "endPoint": "GoogleAnalyticsID", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "The anonymized Copilot analytics tracking ID from the entitlement API." }
 			this.telemetryService.setCommonProperty('common.copilotTrackingId', copilotTrackingId);
+		}
+
+		if (this.chatEntitlementService.isInternal && !this.telemetryService.msftInternal) {
+			this.telemetryService.setCommonProperty('common.msftInternal', true);
 		}
 	}
 }
