@@ -298,14 +298,8 @@ export enum BrowserViewStorageScope {
 export interface IBrowserSessionOptions {
 	/** Storage / data-isolation scope for the session. */
 	scope: BrowserViewStorageScope;
-	/**
-	 * Remote authority whose tunnel proxy should be used for network
-	 * requests. When set, the main process acquires a reference to the
-	 * shared-process tunnel proxy for this authority and configures the
-	 * Electron session accordingly. The proxy is started on demand and
-	 * stopped when no view is using it anymore.
-	 */
-	proxyAuthority?: string;
+	/** ID of the shared-process tunnel proxy this session should use for network requests. */
+	proxyId?: string;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';

@@ -14,6 +14,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 	private readonly _container: HTMLElement;
@@ -75,7 +76,7 @@ BrowserEditor.registerContribution(BrowserRemoteIndicatorContribution);
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
-		'workbench.browser.enableRemoteProxy': {
+		[BrowserRemoteProxyEnabledSettingId]: {
 			type: 'boolean',
 			default: false,
 			tags: ['advanced', 'experimental'],

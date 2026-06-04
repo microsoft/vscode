@@ -58,7 +58,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
 	}
@@ -83,13 +83,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			ownerWindow.openedWorkspace?.id
 		);
 
-		// Acquire the proxy reference before creating the view so the
-		// Electron session is configured (or reconfigured) with the latest
-		// proxy URL/credentials. Acquisition is reference-counted by view
-		// id and survives across child views. The proxy id is window-scoped
-		// so two windows on the same remote get independent proxies.
-		const proxyId = options.sessionOptions.proxyAuthority ? String(ownerWindow.id) : undefined;
-		await browserSession.remote.acquire(id, proxyId);
+		// Acquire the proxy reference before creating the view so the Electron session
+		// is configured (or reconfigured) with the latest proxy URL/credentials.
+		await browserSession.remote.acquire(id, options.sessionOptions.proxyId);
 
 		const view = this.createBrowserView(id, options.owner, browserSession);
 
@@ -310,7 +306,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const browserSession = BrowserSession.getOrCreateWorkspace(
 			this.instantiationService,
 			workspaceId,
-			this.environmentMainService.workspaceStorageHome,
+			this.environmentMainService.workspaceStorageHome
 		);
 		browserSession.connectStorage(this.applicationStorageMainService);
 		await browserSession.clearData();
@@ -384,10 +380,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	/**
 	 * Create a browser view backed by the given {@link BrowserSession}.
-	 * Acquires a tunnel-proxy reference when the session is proxied;
-	 * the acquire is idempotent per view id (see {@link BrowserSessionRemote.acquire})
-	 * so it's safe even when the caller has already pre-acquired (as
-	 * {@link getOrCreateBrowserView} does for top-level views).
 	 */
 	private createBrowserView(id: string, owner: IBrowserViewOwner, browserSession: BrowserSession, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		if (this.browserViews.has(id)) {
@@ -399,12 +391,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			browserSession.history.setMaxEntries(this._configuration.maxHistoryEntries);
 		}
 
-		// Hold a ref to the tunnel proxy for as long as this view is
-		// alive. The session's remote module keeps the proxy up while
-		// any view (top-level, child, or context-menu-opened) is using
-		// it. Idempotent if the caller already acquired. For child views
-		// the parent has already chosen a proxy id (or none) on the
-		// session's remote module; reuse it so siblings share the proxy.
+		// Hold a ref to the tunnel proxy for as long as this view is alive.
 		void browserSession.remote.acquire(id, browserSession.remote.proxyId);
 
 		const view = this.instantiationService.createInstance(
@@ -459,7 +446,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	): Promise<BrowserView> {
 		const targetId = generateUuid();
-		const view = this.createBrowserView(targetId, owner, session || BrowserSession.getOrCreateEphemeral(this.instantiationService, targetId, undefined));
+		const view = this.createBrowserView(targetId, owner, session || BrowserSession.getOrCreateEphemeral(this.instantiationService, targetId));
 
 		if (url) {
 			void view.loadURL(url).catch(() => { });

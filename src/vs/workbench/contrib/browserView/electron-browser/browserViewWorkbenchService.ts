@@ -45,6 +45,7 @@ import { IRemoteAuthorityResolverService } from '../../../../platform/remote/com
  */
 export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
+export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -114,13 +115,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this.sendKeybindings();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
 
-		// Address pump: keep the shared-process tunnel proxy's address
-		// provider up to date with the resolved remote connection so the
-		// proxy can connect whenever the main process starts it. Runs
-		// unconditionally for remote workspaces — `setAddress` on the
-		// shared service is a no-op if the proxy has not been started
-		// yet and the address is stored for the next start. Started/stopped
-		// dynamically as the `enableRemoteProxy` setting toggles.
+		// Keep the shared-process tunnel proxy's address provider up to date
+		// so the proxy can connect whenever the main process starts it.
 		this._register(this._proxyAddressPump);
 		this._updateProxyAddressPump();
 
@@ -138,7 +134,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId)) {
 				this.sendConfiguration();
 			}
-			if (e.affectsConfiguration('workbench.browser.enableRemoteProxy')) {
+			if (e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
 				this._updateProxyAddressPump();
 			}
 		}));
@@ -188,14 +184,13 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this.environmentService.remoteAuthority) {
 			return false;
 		}
-		if (!this.configurationService.getValue<boolean>('workbench.browser.enableRemoteProxy')) {
+		if (!this.configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)) {
 			return false;
 		}
 		return true;
 	}
 
-	private readonly _proxyAddressPump = new MutableDisposable();
-
+	private readonly _proxyAddressPump = this._register(new MutableDisposable());
 	private _updateProxyAddressPump(): void {
 		const authority = this.environmentService.remoteAuthority;
 		if (!authority || !this.willUseRemoteProxy()) {
@@ -229,14 +224,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
 				const useProxy = this.willUseRemoteProxy();
-				const proxyAuthority = useProxy ? this.environmentService.remoteAuthority : undefined;
+				const proxyId = useProxy ? String(this._mainWindowId) : undefined;
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
 						sessionOptions: {
 							scope: await this._resolveStorageScope(useProxy),
-							proxyAuthority
+							proxyId
 						},
 						initialState: {
 							url: initialState?.url,

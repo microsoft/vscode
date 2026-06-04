@@ -142,7 +142,7 @@ export class BrowserSession {
 	/**
 	 * Get or create an ephemeral session for the given view / target id.
 	 */
-	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type: string | undefined): BrowserSession {
+	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string): BrowserSession {
 		if (type === 'workspace' || type === 'ephemeral') {
 			throw new Error(`Cannot create session with reserved type '${type}'`);
 		}
@@ -187,7 +187,7 @@ export class BrowserSession {
 			// fallthrough -- no workspace context -> ephemeral
 			case BrowserViewStorageScope.Ephemeral:
 			default:
-				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
 		}
 	}
 
@@ -212,6 +212,9 @@ export class BrowserSession {
 	private readonly _history: BrowserSessionHistory;
 	private readonly _remote: BrowserSessionRemote;
 
+	/**
+	 * @deprecated Don't use this directly. Create sessions via the static factory methods.
+	 */
 	constructor(
 		/**
 		 * Unique identifier for this session.  Derived from what makes the

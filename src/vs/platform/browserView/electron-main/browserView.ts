@@ -339,17 +339,17 @@ export class BrowserView extends Disposable {
 
 		this.session.trust.installCertErrorHandler(webContents);
 
-		// Automatically supply proxy auth credentials for the tunnel proxy.
-		if (this.session.remote.proxy) {
-			const { username, password } = this.session.remote.proxy.credentials;
-			const proxyPort = this.session.remote.proxy.port;
-			webContents.on('login', (event, _details, authInfo, callback) => {
+		webContents.on('login', (event, _details, authInfo, callback) => {
+			// Automatically supply proxy auth credentials for the tunnel proxy.
+			if (this.session.remote.proxy) {
+				const { username, password } = this.session.remote.proxy.credentials;
+				const proxyPort = this.session.remote.proxy.port;
 				if (authInfo.isProxy && authInfo.host === '127.0.0.1' && authInfo.port === proxyPort) {
 					event.preventDefault();
 					callback(username, password);
 				}
-			});
-		}
+			}
+		});
 
 		webContents.on('render-process-gone', (_event, details) => {
 			this._lastError = {
