@@ -1185,6 +1185,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			changes: primary.changes,
 			modelId: primary.modelId,
 			mode: primary.mode,
+			permissionLevel: primary.permissionLevel,
 			loading: primary.loading,
 			isArchived: primary.isArchived,
 			isRead: chatsObs.map((chats, reader) => chats.every(c => c.isRead.read(reader))),
