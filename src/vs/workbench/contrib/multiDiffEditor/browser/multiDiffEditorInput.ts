@@ -367,10 +367,11 @@ class FastEventDispatcher<T, TKey> {
 
 /**
  * Dispatches resource-specific configuration changes through a single upstream listener.
+ * @internal Exported for focused tests only.
  */
 export class ResourceConfigurationEventDispatcher {
 	private _count = 0;
-	private readonly _buckets = new Map<string, { readonly resource: URI; readonly listeners: Set<() => void> }>();
+	private readonly _buckets = new Map<string, { readonly resource: URI; readonly listeners: Set<IResourceConfigurationListener> }>();
 
 	private _eventSubscription: IDisposable | undefined;
 
@@ -381,23 +382,26 @@ export class ResourceConfigurationEventDispatcher {
 	}
 
 	public filteredEvent(filter: URI): Event<void> {
-		return listener => {
+		return (listener, thisArgs, disposables) => {
 			const key = this._keyToString(filter);
 			let bucket = this._buckets.get(key);
 			if (!bucket) {
 				bucket = { resource: filter, listeners: new Set() };
 				this._buckets.set(key, bucket);
 			}
-			bucket.listeners.add(listener);
+			const entry: IResourceConfigurationListener = { listener, thisArgs };
+			bucket.listeners.add(entry);
 
 			this._count++;
 			if (this._count === 1) {
 				this._eventSubscription = this._event(this._handleEventChange);
 			}
 
-			return {
+			const result: IDisposable = {
 				dispose: () => {
-					bucket!.listeners.delete(listener);
+					if (!bucket!.listeners.delete(entry)) {
+						return;
+					}
 					if (bucket!.listeners.size === 0) {
 						this._buckets.delete(key);
 					}
@@ -409,18 +413,33 @@ export class ResourceConfigurationEventDispatcher {
 					}
 				}
 			};
+			if (Array.isArray(disposables)) {
+				disposables.push(result);
+			} else {
+				disposables?.add(result);
+			}
+			return result;
 		};
 	}
 
 	private readonly _handleEventChange = (e: ITextResourceConfigurationChangeEvent) => {
 		for (const bucket of this._buckets.values()) {
 			if (e.affectsConfiguration(bucket.resource, 'editor') || e.affectsConfiguration(bucket.resource, 'diffEditor')) {
-				for (const listener of bucket.listeners) {
-					listener();
+				for (const { listener, thisArgs } of Array.from(bucket.listeners)) {
+					try {
+						listener.call(thisArgs, undefined);
+					} catch (err) {
+						onUnexpectedError(err);
+					}
 				}
 			}
 		}
 	};
+}
+
+interface IResourceConfigurationListener {
+	readonly listener: (e: void) => unknown;
+	readonly thisArgs: unknown;
 }
 
 function isUriDirty(onDidChangeDirty: FastEventDispatcher<ITextFileEditorModel, URI>, textFileService: ITextFileService, uri: URI) {

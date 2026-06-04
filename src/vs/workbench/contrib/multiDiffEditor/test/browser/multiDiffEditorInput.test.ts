@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -49,5 +50,56 @@ suite('Workbench - MultiDiffEditorInput', () => {
 
 		store.clear();
 		strictEqual(upstreamListeners, 0);
+	});
+
+	test('should support event disposables, thisArgs, duplicate listeners, and listener errors', () => {
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		let unexpectedErrors = 0;
+		setUnexpectedErrorHandler(() => unexpectedErrors++);
+
+		try {
+			let upstreamListeners = 0;
+			const emitter = disposables.add(new Emitter<ITextResourceConfigurationChangeEvent>({
+				onWillAddFirstListener: () => upstreamListeners++,
+				onDidRemoveLastListener: () => upstreamListeners--,
+			}));
+			const dispatcher = new ResourceConfigurationEventDispatcher(emitter.event, resource => resource.toString());
+			const store = disposables.add(new DisposableStore());
+			const resource = URI.file('/workspace/file.ts');
+			const event = dispatcher.filteredEvent(resource);
+
+			let duplicateCalls = 0;
+			const duplicateListener = () => duplicateCalls++;
+			event(duplicateListener, undefined, store);
+			event(duplicateListener, undefined, store);
+
+			const thisArg = { calls: 0 };
+			event(function (this: typeof thisArg) {
+				this.calls++;
+			}, thisArg, store);
+
+			let listenerAfterErrorCalls = 0;
+			event(() => {
+				throw new Error('expected');
+			}, undefined, store);
+			event(() => listenerAfterErrorCalls++, undefined, store);
+
+			strictEqual(upstreamListeners, 1);
+
+			emitter.fire({
+				affectedKeys: new Set(['editor.fontSize']),
+				affectsConfiguration: (changedResource, section) => section === 'editor' && changedResource?.toString() === resource.toString(),
+			});
+
+			strictEqual(duplicateCalls, 2);
+			strictEqual(thisArg.calls, 1);
+			strictEqual(unexpectedErrors, 1);
+			strictEqual(listenerAfterErrorCalls, 1);
+
+			store.clear();
+			strictEqual(upstreamListeners, 0);
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
 	});
 });
