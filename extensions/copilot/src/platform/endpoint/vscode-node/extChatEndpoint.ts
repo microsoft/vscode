@@ -45,6 +45,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
+	// Extension-contributed endpoints are not backed by the CAPI Copilot token; treat them as owning auth to opt out of token fallback and related tool gating.
 	public readonly ownsAuthorization = true;
 
 	constructor(
