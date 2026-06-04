@@ -6,7 +6,7 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, reset } from '../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { autorun, IReader } from '../../../base/common/observable.js';
@@ -356,11 +356,17 @@ export class SessionHeader extends Disposable {
 		}
 
 		const initialTitle = session.title.get();
+		// When the stored title is empty the header shows a localized fallback
+		// ("New Session"). Reflect that as a placeholder rather than seeding the
+		// input with it, so the user neither sees a blank field nor accidentally
+		// commits the fallback string.
+		const fallbackTitle = localize('agentSessions.newSession', "New Session");
 
 		const input = document.createElement('input');
 		input.type = 'text';
 		input.className = 'chat-composite-bar-session-title-input';
 		input.value = initialTitle;
+		input.placeholder = fallbackTitle;
 		input.setAttribute('aria-label', localize('renameSession.aria', "Rename session"));
 		input.spellcheck = false;
 
@@ -410,9 +416,11 @@ export class SessionHeader extends Disposable {
 			finish(false);
 		}));
 
-		// Swallow click/mousedown on the input so the title's click handler
-		// doesn't try to re-enter editing mode.
-		store.add(addDisposableListener(input, EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		// Swallow click/pointerdown on the input so the title's click handler
+		// doesn't try to re-enter editing mode. Use the generic mousedown
+		// helper which routes through `pointerdown` on iOS where mouse events
+		// don't fire.
+		store.add(addDisposableGenericMouseDownListener(input, e => e.stopPropagation()));
 		store.add(addDisposableListener(input, EventType.CLICK, e => e.stopPropagation()));
 	}
 
