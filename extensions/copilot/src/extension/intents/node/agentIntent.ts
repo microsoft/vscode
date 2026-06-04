@@ -1026,7 +1026,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		// Verify the round exists in the conversation before async work.
-		if (toolCallRoundId) {
+		if (toolCallRoundId != null) {
 			let roundExists = rounds.some(r => r.id === toolCallRoundId);
 			if (!roundExists) {
 				for (const turn of history) {
@@ -1043,12 +1043,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		// If we couldn't determine a round id at kick-off, don't start a
 		// background summarization run.
-		if (!toolCallRoundId) {
-			const skipReason = rounds.length === 0 && history.length === 0
-				? 'no-conversation-history'
-				: rounds.length === 0
-					? 'no-current-rounds'
-					: 'round-not-found-in-conversation';
+		if (toolCallRoundId == null) {
+			let skipReason: string;
+			if (rounds.length === 0 && history.length === 0) {
+				skipReason = 'no-conversation-history';
+			} else if (rounds.length === 0) {
+				skipReason = 'no-current-rounds';
+			} else {
+				skipReason = 'round-not-found-in-conversation';
+			}
 			this.logService.debug(`[ConversationHistorySummarizer] skipping background compaction at kick-off (reason=${skipReason}, rounds=${rounds.length}, history=${history.length}, context=${(contextRatio * 100).toFixed(0)}%)`);
 			return;
 		}
