@@ -21,7 +21,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -34,6 +34,53 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+
+/**
+ * Setting key that controls how the Customizations section in the Agents
+ * sidebar is presented and what happens when an entry is clicked.
+ *
+ * This setting is registered (and only meaningful) in the Agents app.
+ */
+export const SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING = 'sessions.customizations.sidebarMode';
+
+/**
+ * Presentation/click behavior for the Customizations section in the Agents sidebar.
+ * See {@link SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING}.
+ */
+export enum SessionsCustomizationsSidebarMode {
+	/** One item per category; click opens the welcome page. */
+	Welcome = 'welcome',
+	/** One item per category; click deep-links to that category. */
+	Section = 'section',
+	/** A single "Customizations" entry that opens the welcome page. */
+	Single = 'single',
+}
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'sessions',
+	properties: {
+		[SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING]: {
+			type: 'string',
+			tags: ['preview'],
+			enum: [
+				SessionsCustomizationsSidebarMode.Welcome,
+				SessionsCustomizationsSidebarMode.Section,
+				SessionsCustomizationsSidebarMode.Single,
+			],
+			enumDescriptions: [
+				localize('sessions.customizations.sidebarMode.welcome', "Show one item per customization category. Clicking a category opens the Customizations welcome page."),
+				localize('sessions.customizations.sidebarMode.section', "Show one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
+				localize('sessions.customizations.sidebarMode.single', "Show a single \"Customizations\" entry instead of one item per category. Clicking it opens the Customizations welcome page."),
+			],
+			description: localize('sessions.customizations.sidebarMode', "Controls how the Customizations section in the Agents sidebar is presented and what happens when an entry is clicked."),
+			default: SessionsCustomizationsSidebarMode.Welcome,
+		},
+	},
+});
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -45,6 +92,7 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	readonly isAutomations?: boolean;
 }
 
 /**
@@ -91,6 +139,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		modelSection: AICustomizationManagementSection.Hooks,
+	},
+	{
+		id: 'sessions.customization.automations',
+		label: localize('automations', "Automations"),
+		icon: automationIcon,
+		section: AICustomizationManagementSection.Automations,
+		isAutomations: true,
 	},
 	{
 		id: 'sessions.customization.mcpServers',
@@ -161,6 +216,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAutomationService private readonly _automationService: IAutomationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -218,6 +274,9 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
 			const toolSets = this._toolsService.toolSets.read(reader);
 			return countEnabledCustomizationTools(toolSets, state, reader);
+		}
+		if (this._config.isAutomations) {
+			return this._automationService.automations.read(reader).length;
 		}
 		return 0;
 	}
