@@ -9,8 +9,9 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter, AICustomizationSources, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { type AICustomizationSource, AICustomizationManagementSection, sectionToPromptType } from './aiCustomizationManagement.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, type ICustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAICustomizationItemSource } from './aiCustomizationItemSource.js';
 
 /**
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
@@ -34,7 +35,7 @@ export async function generateCustomizationDebugReport(
 	promptsService: IPromptsService,
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
-	promptsServiceItemProvider: ICustomizationItemProvider,
+	itemSource: IAICustomizationItemSource,
 	harnessService: ICustomizationHarnessService,
 	agentPluginService: IAgentPluginService,
 ): Promise<string> {
@@ -81,8 +82,7 @@ export async function generateCustomizationDebugReport(
 	// Stage 1: Provider output
 	if (extensionProvider) {
 		const providerLabel = 'Extension Provider';
-		const sessionResource = harnessService.activeSessionResource.get();
-		await appendProviderData(lines, extensionProvider, sessionResource, promptType, providerLabel);
+		await appendProviderData(lines, itemSource, promptType, providerLabel);
 	} else {
 		// Stage 2: Raw PromptsService data — always useful for diagnostics
 		lines.push('--- Stage 1: No provider available ---');
@@ -127,20 +127,19 @@ async function getPromptFilesByStorage(promptsService: IPromptsService, promptTy
 	return { localFiles, userFiles, extensionFiles };
 }
 
-async function appendProviderData(lines: string[], provider: ICustomizationItemProvider, sessionResource: URI, promptType: PromptsType, label: string): Promise<void> {
+async function appendProviderData(lines: string[], itemSource: IAICustomizationItemSource, promptType: PromptsType, label: string): Promise<void> {
 	lines.push(`--- Stage 1: Provider Output (${label}) ---`);
 
-	const allItems = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None);
-	if (!allItems) {
-		lines.push('  Provider returned undefined');
-		lines.push('');
-		return;
+	const allItems = await itemSource.fetchProviderItems();
+
+	if (allItems.length === 0) {
+		lines.push(`  Total items from provider: 0 (or provider returned undefined and the item source normalized it to an empty array)`);
+	} else {
+		lines.push(`  Total items from provider: ${allItems.length}`);
 	}
 
-	lines.push(`  Total items from provider: ${allItems.length}`);
-
 	// Group by type for summary
-	const byType = new Map<string, typeof allItems>();
+	const byType = new Map<string, ICustomizationItem[]>();
 	for (const item of allItems) {
 		const existing = byType.get(item.type) ?? [];
 		existing.push(item);

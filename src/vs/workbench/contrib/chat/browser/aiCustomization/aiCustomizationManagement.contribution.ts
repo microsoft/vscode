@@ -314,7 +314,7 @@ registerAction2(class extends Action2 {
 					type: 'question',
 				});
 				if (result.confirmed) {
-					plugin.remove();
+					plugin.remove?.();
 				}
 			}
 			return;
@@ -548,7 +548,7 @@ registerAction2(class extends Action2 {
 			type: 'question',
 		});
 		if (result.confirmed) {
-			plugin.remove();
+			plugin.remove?.();
 		}
 	}
 });

@@ -20,8 +20,7 @@ import { browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } f
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserZoomService, IBrowserZoomService, MATCH_WINDOW_ZOOM_LABEL } from '../../../browserView/common/browserZoomService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { BrowserEditor, BrowserEditorContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FOCUSED, IBrowserEditorWidgetContribution } from '../browserEditor.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IBrowserEditorWidget } from '../browserEditor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { getZoomLevel, onDidChangeZoomLevel } from '../../../../../base/browser/browser.js';
 import { zoomLevelToZoomFactor } from '../../../../../platform/window/common/window.js';
@@ -87,18 +86,18 @@ export class BrowserEditorZoomSupport extends BrowserEditorContribution {
 		this._zoomPill = this._register(new BrowserZoomPill());
 	}
 
-	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._zoomPill.element, order: 0 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PostUrl, element: this._zoomPill.element, order: 0 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._updateZoomContext(model);
 		store.add(model.onDidChangeZoom(() => {
 			this._updateZoomContext(model);
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._canZoomInContext.reset();
 		this._canZoomOutContext.reset();
 	}

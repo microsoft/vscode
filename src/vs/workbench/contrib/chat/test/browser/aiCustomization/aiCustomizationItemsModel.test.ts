@@ -756,4 +756,117 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(count.get(), 1, 'remote row is folded into the labelless local plugin via basename');
 		});
 	});
+
+	// Regression coverage for the agent-host harness path
+	// (`PureItemProviderItemSource`). The item-source caches the provider's
+	// items and applies each section's `promptType` filter at fetch time,
+	// so reading one section (e.g. Agents) must not poison the cached
+	// items for any other section (e.g. Instructions).
+	suite('agent host item source caches all types', () => {
+
+		let disposables: DisposableStore;
+		let instaService: TestInstantiationService;
+		let providerItems: ICustomizationItem[];
+
+		setup(() => {
+			disposables = new DisposableStore();
+			providerItems = [];
+
+			const sessionType = 'agent-host-test';
+			const provider: ICustomizationItemProvider = {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: () => Promise.resolve(providerItems.slice()),
+			};
+			const descriptor: IHarnessDescriptor = {
+				id: sessionType,
+				label: 'Agent Host Test',
+				icon: Codicon.settingsGear,
+				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [] }),
+				itemProvider: provider,
+			};
+			const sessionResource = URI.parse(`${sessionType}:///active-session`);
+			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
+
+			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(IPromptsService, {
+				onDidChangeCustomAgents: Event.None,
+				onDidChangeSlashCommands: Event.None,
+				onDidChangeSkills: Event.None,
+				onDidChangeHooks: Event.None,
+				onDidChangeInstructions: Event.None,
+				listPromptFiles: async () => [],
+				getCustomAgents: async () => [],
+				findAgentSkills: async () => [],
+				getHooks: async () => undefined,
+				getInstructionFiles: async () => [],
+				getDisabledPromptFiles: () => new ResourceSet(),
+			});
+			instaService.stub(IAICustomizationWorkspaceService, {
+				activeProjectRoot: observableValue('test', undefined),
+				getActiveProjectRoot: () => undefined,
+				managementSections: [AICustomizationManagementSection.Agents],
+				isSessionsWindow: false,
+				welcomePageFeatures: { showGettingStartedBanner: false },
+				getStorageSourceFilter: () => ({ sources: [] }),
+				getSkillUIIntegrations: () => new Map(),
+				hasOverrideProjectRoot: observableValue('test', false),
+				commitFiles: async () => { },
+				deleteFiles: async () => { },
+				generateCustomization: async () => { },
+				setOverrideProjectRoot: () => { },
+				clearOverrideProjectRoot: () => { },
+			});
+			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
+			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
+			instaService.stub(ICustomizationHarnessService, {
+				activeSessionResource,
+				activeHarness,
+				availableHarnesses,
+				setActiveSession: (next: URI) => activeSessionResource.set(next, undefined),
+				getStorageSourceFilter: () => ({ sources: [] }),
+				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
+				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
+				registerExternalHarness: () => ({ dispose() { } }),
+			});
+			instaService.stub(IAgentPluginService, {
+				plugins: observableValue<readonly IAgentPlugin[]>('plugins', []),
+				enablementModel: {
+					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					setEnabled: () => { },
+					remove: () => { },
+				},
+			});
+		});
+
+		teardown(() => disposables.dispose());
+
+		test('observing one section does not hide items of other sections', async () => {
+			providerItems = [
+				{ uri: URI.parse('agent-host://t/agents/coder.agent.md'), type: PromptsType.agent, name: 'coder', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true },
+				{ uri: URI.parse('agent-host://t/rules/style.instructions.md'), type: PromptsType.instructions, name: 'style', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+				{ uri: URI.parse('agent-host://t/skills/repo/SKILL.md'), type: PromptsType.skill, name: 'repo', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true },
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			// Observe the Agents section first — this primes the underlying
+			// cache. Then observe Instructions on the same model; the bug
+			// caused this second observation to see an empty list because
+			// the cache had already been normalized for `PromptsType.agent`.
+			const agentItems = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+			const instructionItems = model.getItems(AICustomizationManagementSection.Instructions);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Instructions);
+
+			assert.deepStrictEqual(
+				{
+					agents: agentItems.get().map(i => i.name).sort(),
+					instructions: instructionItems.get().map(i => i.name).sort(),
+				},
+				{
+					agents: ['coder'],
+					instructions: ['style'],
+				},
+			);
+		});
+	});
 });
