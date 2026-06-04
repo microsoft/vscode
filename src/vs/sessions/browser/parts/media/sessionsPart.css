@@ -42,11 +42,6 @@
 	z-index: 10;
 }
 
-/* While sessions are being restored on startup, hide the grid so the empty new-session view does not flash before the restored sessions are laid out. The progress bar (a sibling above) stays visible to indicate loading. */
-.monaco-workbench .part.sessionspart > .content > .restoring {
-	visibility: hidden;
-}
-
 .monaco-workbench .part.sessionspart .title-actions .actions-container {
 	justify-content: flex-end;
 }

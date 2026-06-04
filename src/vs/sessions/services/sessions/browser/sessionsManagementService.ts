@@ -26,7 +26,6 @@ import { SessionsNavigation } from './sessionNavigation.js';
 import { VisibleSessions } from './visibleSessions.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
-const NEW_SESSION_SLOT_ACTIVE_KEY = 'agentSessions.newSessionSlotActive';
 
 /**
  * Upper bound on how long restore waits for a persisted session to resurface
@@ -264,7 +263,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Track active chat changes to persist per-session state. The visible /
 		// active / sticky flags are snapshotted from the live grid at save time
-		// (see `_syncVisibilitySnapshot`); here we only remember the last active
+		// (see `_snapshotVisibleSessionStates`); here we only remember the last active
 		// chat so reopening the session restores its selected chat.
 		disposables.add(autorun(reader => {
 			const chat = activeSession.activeChat.read(reader);
@@ -953,56 +952,38 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _saveSessionStates(): void {
-		const newSessionSlotActive = this._syncVisibilitySnapshot();
-
-		const entries: ISessionState[] = [];
-		for (const [, state] of this._sessionStates) {
-			entries.push(state);
-		}
+		const entries = this._snapshotVisibleSessionStates();
 		this.storageService.store(ACTIVE_SESSION_STATES_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-
-		if (newSessionSlotActive) {
-			this.storageService.store(NEW_SESSION_SLOT_ACTIVE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(NEW_SESSION_SLOT_ACTIVE_KEY, StorageScope.WORKSPACE);
-		}
 	}
 
-	/**
-	 * Snapshot the live visibility model (order, sticky and active state) into
-	 * the persisted session states so the grid can be restored on reload.
-	 * Returns whether the empty (new-session) slot was the active slot.
-	 */
-	private _syncVisibilitySnapshot(): boolean {
-		// Reset the grid-derived flags; they are recomputed from the live grid.
-		for (const [, state] of this._sessionStates) {
-			state.isActive = false;
-			state.isSticky = false;
-			state.visibleOrder = undefined;
-		}
-
+	private _snapshotVisibleSessionStates(): ISessionState[] {
 		const activeId = this._visibility.activeSession.get()?.sessionId;
 		const visible = this._visibility.visibleSessions.get();
-		let newSessionSlotActive = false;
+		const entries: ISessionState[] = [];
 		visible.forEach((session, index) => {
 			if (!session) {
-				// The empty (new-session) slot has no persisted session state.
-				if (activeId === undefined) {
-					newSessionSlotActive = true;
-				}
 				return;
 			}
+
+			if (session.status.get() === SessionStatus.Untitled) {
+				this._sessionStates.delete(session.resource);
+				return;
+			}
+
+			// Keep the in-memory record up to date so the session's last active
+			// chat is remembered while reopening it within this window.
 			const existing = this._sessionStates.get(session.resource);
-			this._sessionStates.set(session.resource, {
-				...existing,
+			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
 				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
 				visibleOrder: index,
 				isSticky: session.sticky.get(),
 				isActive: session.sessionId === activeId,
-			});
+			};
+			this._sessionStates.set(session.resource, state);
+			entries.push(state);
 		});
-		return newSessionSlotActive;
+		return entries;
 	}
 
 	/**
@@ -1017,15 +998,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return states.sort((a, b) => (a.visibleOrder! - b.visibleOrder!));
-	}
-
-	private _getLastActiveSessionState(): ISessionState | undefined {
-		for (const [, state] of this._sessionStates) {
-			if (state.isActive) {
-				return state;
-			}
-		}
-		return undefined;
 	}
 
 	/**
@@ -1101,25 +1073,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			order: state.visibleOrder!,
 		}));
 
-		const newSessionSlotActive = this.storageService.getBoolean(NEW_SESSION_SLOT_ACTIVE_KEY, StorageScope.WORKSPACE, false);
-		if (newSessionSlotActive) {
-			// The empty slot's exact position is not persisted; restore it at the
-			// far right so it does not displace a restored session.
-			const order = (targets.reduce((max, t) => Math.max(max, t.order), -1)) + 1;
-			targets.push({ resource: undefined, isSticky: false, isActive: true, order });
-		}
-
-		// Backwards compatibility: fall back to the legacy single last-active
-		// session when no visibility snapshot was persisted.
 		if (targets.length === 0) {
-			const lastActive = this._getLastActiveSessionState();
-			if (lastActive) {
-				targets.push({ resource: URI.parse(lastActive.sessionResource), isSticky: false, isActive: true, order: 0 });
-			}
-		}
-
-		if (targets.length === 0) {
-			return;
+			targets.push({ resource: undefined, isSticky: false, isActive: true, order: 1 });
 		}
 
 		targets.sort((a, b) => a.order - b.order);
@@ -1283,4 +1238,4 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 }
 
-registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
+registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);
