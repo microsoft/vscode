@@ -373,11 +373,51 @@ suite('AgentHostTerminalContribution', () => {
 			source: 1, // ConfigurationTarget.USER
 			change: { keys: [AgentHostCustomTerminalToolEnabledSettingId], overrides: [] },
 		});
+		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
 		});
+	});
+
+	test('does not re-dispatch when another window changes the shared root config value (no schema change)', async () => {
+		const { agentHostService } = setup(disposables);
+
+		// Schema hydrates → initial push for defaultShell.
+		agentHostService.setRootState(rootStateWithDefaultShellKey());
+		await flush();
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+
+		// Another window writes a *different* value into the shared root config.
+		// The schema is unchanged - only the value differs. This must NOT trigger
+		// a re-push, otherwise two windows with different settings ping-pong
+		// forever (the loop this guards against).
+		const updated = rootStateWithDefaultShellKey();
+		updated.config!.values[AgentHostConfigKey.DefaultShell] = 'C:/other/window/shell.exe';
+		agentHostService.setRootState(updated);
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+	});
+
+	test('does not re-dispatch disableCustomTerminalTool on a value-only root-state change', async () => {
+		const { agentHostService } = setup(disposables);
+
+		// Schema hydrates with our preferred value already present → no push.
+		const rootState = rootStateWithDisableCustomTerminalToolKey();
+		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
+		agentHostService.setRootState(rootState);
+		await flush();
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
+
+		// Another window flips the shared value. Schema unchanged → no fight.
+		const updated = rootStateWithDisableCustomTerminalToolKey();
+		updated.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = true;
+		agentHostService.setRootState(updated);
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 	});
 });
 
