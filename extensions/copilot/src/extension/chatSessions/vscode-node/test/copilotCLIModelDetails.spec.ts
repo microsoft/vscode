@@ -9,7 +9,6 @@ import { MockChatSessionMetadataStore } from '../../common/test/mockChatSessionM
 import type { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import type { ICopilotCLIModels, CopilotCLIModelInfo } from '../../copilotcli/node/copilotCli';
 import type { ILogService } from '../../../../platform/log/common/logService';
-import { unescapeFragment } from 'ajv/dist/compile/util';
 
 const testModel: CopilotCLIModelInfo = {
 	id: 'claude-sonnet-4',
@@ -89,7 +88,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 		await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', copilotRequestId: 'sdk-1', toolIdEditMap: {} }]);
 
 		// persistCopilotCLIResponseModelId must merge responseModelId and creditsUsed into the same entry
-		await persistCopilotCLIResponseModelId('session-1', 'req-1', 'claude-sonnet-4.6', store, nullLog, 16.4);
+		await persistCopilotCLIResponseModelId('session-1', 'req-1', 'claude-sonnet-4.6', false, store, nullLog, 16.4);
 
 		const details = await store.getRequestDetails('session-1');
 		expect(details).toEqual([{
