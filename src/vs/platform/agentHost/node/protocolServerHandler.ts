@@ -34,7 +34,7 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -651,7 +651,8 @@ export class ProtocolServerHandler extends Disposable {
 			return false;
 		}
 		return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
-			&& part.toolCall.toolClientId === clientId
+			&& part.toolCall.contributor?.kind === ToolCallContributorKind.Client
+			&& part.toolCall.contributor.clientId === clientId
 			&& (part.toolCall.status === ToolCallStatus.Streaming || part.toolCall.status === ToolCallStatus.Running || part.toolCall.status === ToolCallStatus.PendingConfirmation));
 	}
 
@@ -695,7 +696,8 @@ export class ProtocolServerHandler extends Disposable {
 				continue;
 			}
 			const toolCall = part.toolCall;
-			if (toolCall.toolClientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
+			const toolContributor = toolCall.contributor;
+			if (toolContributor?.kind === ToolCallContributorKind.Client && toolContributor.clientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
 				const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
 				if (toolCall.status === ToolCallStatus.Streaming) {
 					this._stateManager.dispatchServerAction(session, {

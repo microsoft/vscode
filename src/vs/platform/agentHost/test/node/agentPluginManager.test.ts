@@ -13,7 +13,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
-import { customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
+import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 
@@ -100,7 +100,7 @@ suite('AgentPluginManager', () => {
 		test('fires progress callback with changed customization status', async () => {
 			await seedPluginDir('prog', { 'index.js': 'content' });
 
-			const progressCalls: Customization[] = [];
+			const progressCalls: PluginCustomization[] = [];
 			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], status => {
 				progressCalls.push(status);
 			});
@@ -174,7 +174,7 @@ suite('AgentPluginManager', () => {
 			const result = await manager2.syncCustomizations('test-client', [ref]);
 
 			// Should be loaded from cache (nonce match), not error
-			assert.strictEqual(result[0].customization.load?.kind, 'loaded');
+			assert.strictEqual((result[0].customization as PluginCustomization).load?.kind, 'loaded');
 			assert.ok(result[0].pluginDir);
 		});
 	});
