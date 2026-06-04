@@ -52,6 +52,15 @@ export interface ISessionsProvider {
 	readonly icon: ThemeIcon;
 
 	/**
+	 * Sort order that determines the precedence of this provider's session
+	 * types relative to other providers. Lower values are surfaced first;
+	 * providers with equal order keep their registration order. The default is
+	 * `0`. A provider may change this dynamically (e.g. based on a setting) and
+	 * fire `onDidChangeSessionTypes` to have consumers re-evaluate the order.
+	 */
+	readonly order: number;
+
+	/**
 	 * Session types supported by this provider. The provider is expected to update this list and fire `onDidChangeSessionTypes`
 	 */
 	readonly sessionTypes: readonly ISessionType[];
@@ -100,10 +109,22 @@ export interface ISessionsProvider {
 	/**
 	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
+	 * Multiple new sessions may be created and tracked concurrently; each is
+	 * identified by its `sessionId` and lives until it is either sent (graduating
+	 * into the session list) or disposed via {@link deleteNewSession}.
 	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
+
+	/**
+	 * Delete a new (untitled, not-yet-sent) session previously created via
+	 * {@link createNewSession}, removing it from the provider's tracking and
+	 * releasing any resources it eagerly acquired (e.g. a backend session).
+	 * No-op when the id is unknown or the session has already been sent.
+	 * @param sessionId The id of the new session to delete.
+	 */
+	deleteNewSession(sessionId: string): void;
 
 	/**
 	 * Get the session types supported for a given workspace URI.

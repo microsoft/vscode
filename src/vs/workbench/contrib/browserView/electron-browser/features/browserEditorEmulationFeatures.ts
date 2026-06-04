@@ -724,8 +724,8 @@ class ShowBrowserEmulationToolbarAction extends Action2 {
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Developer,
-				order: 10,
+				group: BrowserActionGroup.Tools,
+				order: 2,
 			},
 		});
 	}

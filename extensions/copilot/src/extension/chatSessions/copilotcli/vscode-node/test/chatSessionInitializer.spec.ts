@@ -19,7 +19,7 @@ import { IChatSessionWorkspaceFolderService } from '../../../common/chatSessionW
 import { IChatSessionWorktreeService } from '../../../common/chatSessionWorktreeService';
 import { FolderRepositoryInfo, IFolderRepositoryManager, IsolationMode } from '../../../common/folderRepositoryManager';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
-import { ICopilotCLIAgents, ICopilotCLIModels } from '../../../copilotcli/node/copilotCli';
+import { CopilotCLIModelInfo, ICopilotCLIAgents, ICopilotCLIModels } from '../../../copilotcli/node/copilotCli';
 import { ICopilotCLISession } from '../../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionService } from '../../../copilotcli/node/copilotcliSessionService';
 import { CopilotCLIChatSessionInitializer } from '../copilotCLIChatSessionInitializer';
@@ -73,6 +73,7 @@ class TestModels extends mock<ICopilotCLIModels>() {
 	declare readonly _serviceBrand: undefined;
 	override resolveModel = vi.fn(async (id: string) => id === 'known-model' ? 'resolved-model' : undefined);
 	override getDefaultModel = vi.fn(async () => 'default-model');
+	override getModels = vi.fn(async (): Promise<CopilotCLIModelInfo[]> => []);
 }
 
 class TestAgents extends mock<ICopilotCLIAgents>() {
@@ -217,6 +218,62 @@ describe('ChatSessionInitializer', () => {
 			const request = makeRequest({ model: undefined } as Partial<vscode.ChatRequest>);
 			const result = await initializer.resolveModel(request, CancellationToken.None);
 			expect(result).toEqual(expect.objectContaining({ model: 'default-model' }));
+		});
+
+		it('returns contextTier long_context when contextSize exceeds defaultContextMax', async () => {
+			const models = new TestModels();
+			models.getModels.mockResolvedValue([{
+				id: 'resolved-model',
+				name: 'Test Model',
+				maxContextWindowTokens: 200_000,
+				maxInputTokens: 200_000,
+				defaultContextMax: 128_000,
+			}]);
+			const { initializer } = createInitializer({ models });
+			const request = makeRequest({
+				model: { id: 'known-model' },
+				modelConfiguration: { contextSize: 200_000 },
+			} as unknown as Partial<vscode.ChatRequest>);
+
+			const result = await initializer.resolveModel(request, CancellationToken.None);
+			expect(result).toEqual(expect.objectContaining({ model: 'resolved-model', contextTier: 'long_context' }));
+		});
+
+		it('returns contextTier default when contextSize is within defaultContextMax', async () => {
+			const models = new TestModels();
+			models.getModels.mockResolvedValue([{
+				id: 'resolved-model',
+				name: 'Test Model',
+				maxContextWindowTokens: 200_000,
+				maxInputTokens: 200_000,
+				defaultContextMax: 128_000,
+			}]);
+			const { initializer } = createInitializer({ models });
+			const request = makeRequest({
+				model: { id: 'known-model' },
+				modelConfiguration: { contextSize: 128_000 },
+			} as unknown as Partial<vscode.ChatRequest>);
+
+			const result = await initializer.resolveModel(request, CancellationToken.None);
+			expect(result).toEqual(expect.objectContaining({ model: 'resolved-model', contextTier: 'default' }));
+		});
+
+		it('returns undefined contextTier when model has no defaultContextMax', async () => {
+			const models = new TestModels();
+			models.getModels.mockResolvedValue([{
+				id: 'resolved-model',
+				name: 'Test Model',
+				maxContextWindowTokens: 200_000,
+			}]);
+			const { initializer } = createInitializer({ models });
+			const request = makeRequest({
+				model: { id: 'known-model' },
+				modelConfiguration: { contextSize: 200_000 },
+			} as unknown as Partial<vscode.ChatRequest>);
+
+			const result = await initializer.resolveModel(request, CancellationToken.None);
+			expect(result).toEqual(expect.objectContaining({ model: 'resolved-model' }));
+			expect(result?.contextTier).toBeUndefined();
 		});
 	});
 

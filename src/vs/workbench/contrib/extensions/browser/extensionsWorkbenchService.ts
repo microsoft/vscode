@@ -1221,6 +1221,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	getAutoUpdateDelayRemaining(extension: IExtension): number {
+		// Extensions from publishers trusted by the product are auto updated without delay.
+		if (this.isFromTrustedPublisher(extension)) {
+			return 0;
+		}
 		const lastUpdated = extension.gallery?.lastUpdated;
 		if (!Number.isFinite(lastUpdated) || !lastUpdated) {
 			return 0;
@@ -1231,6 +1235,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return 0;
 		}
 		return Math.max(0, DELAYED_AUTO_UPDATE_PERIOD - elapsed);
+	}
+
+	private isFromTrustedPublisher(extension: IExtension): boolean {
+		const trustedPublishers = this.productService.trustedExtensionPublishers;
+		if (!trustedPublishers?.length) {
+			return false;
+		}
+		const publisher = extension.publisher.toLowerCase();
+		return trustedPublishers.includes(publisher)
+			|| trustedPublishers.includes(extension.publisherDisplayName.toLowerCase());
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
@@ -1542,8 +1556,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const needsReload = restartRequiredExtensions.some(e => e.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow);
 				computedNotificiations.push({
 					message: needsReload
-						? nls.localize('extensions need reload', "Extensions require a window reload to take effect.")
-						: nls.localize('extensions need restart', "Extensions require a restart to take effect."),
+						? nls.localize('extensions need reload', "Extensions require a window reload to apply updates.")
+						: nls.localize('extensions need restart', "All extensions require a restart to apply updates."),
 					severity: Severity.Info,
 					extensions: restartRequiredExtensions,
 					query: '@restartrequired',

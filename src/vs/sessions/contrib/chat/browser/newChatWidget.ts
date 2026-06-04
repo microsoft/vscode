@@ -74,10 +74,12 @@ export class NewChatWidget extends Disposable {
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
+			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
+			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
 			renderSessionTypePickerInControls: false,
+			supportsBackground: true,
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
@@ -329,16 +331,34 @@ export class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[]): Promise<void> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
 		const session = this.sessionsManagementService.activeSession.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return;
 		}
+
+		// Capture the composer's workspace/session-type selection before the
+		// send: a background send consumes the in-flight new session and resets
+		// the new-session view, so we re-seed a fresh pending session afterwards
+		// (see below) to keep the composer's pickers functional.
+		const reseedFolderUri = background ? this._workspacePicker.selectedFolderUri : undefined;
+		const reseedPick = background ? this._newChatInput.sessionTypePicker.selectedPick : undefined;
+
 		try {
-			await this.sessionsManagementService.sendNewChatRequest(session, { query, attachedContext });
+			await this.sessionsManagementService.sendNewChatRequest(session, { query, attachedContext, background });
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
+		}
+
+		// A background send graduated the composer's in-flight session and
+		// returned the view to a fresh (but session-less) new-session composer.
+		// The send now commits in the background, so reseed a replacement draft
+		// immediately — providers are multi-new-session aware, so the graduating
+		// session and this new draft coexist. This restores the
+		// session-type/model pickers for the next message.
+		if (background && reseedFolderUri) {
+			this._createNewSession(reseedFolderUri, reseedPick);
 		}
 	}
 
@@ -393,7 +413,9 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 
-		this._createNewSession(folderUri, pick);
+		if (!this._store.isDisposed) {
+			this._createNewSession(folderUri, pick);
+		}
 	}
 
 	prefillInput(text: string): void {

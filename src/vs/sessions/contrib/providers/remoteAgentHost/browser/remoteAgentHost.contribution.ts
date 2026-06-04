@@ -33,7 +33,6 @@ import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthent
 import { AgentHostLanguageModelProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { LoggingAgentConnection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -235,19 +234,14 @@ class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
 	readonly agents = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
-	readonly loggedConnection: LoggingAgentConnection;
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
 
 	constructor(
 		readonly name: string | undefined,
-		connection: IAgentConnection,
-		channelId: string,
-		channelLabel: string,
-		@IInstantiationService instantiationService: IInstantiationService,
+		readonly connection: IAgentConnection,
 	) {
 		super();
-		this.loggedConnection = this._register(instantiationService.createInstance(LoggingAgentConnection, connection, channelId, channelLabel));
 	}
 }
 
@@ -364,17 +358,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		this._reconnectSSHEntries();
 		void this._reconnectWSLEntriesIfRunning();
 
-		// Ensure every live connection is wired to its provider.
-		// This covers the case where a provider was recreated (e.g. name
-		// change) while a connection for that address already existed —
-		// we need to re-expose both the connection and the output channel,
-		// otherwise `Show Output` on the recreated provider would break.
+		// Ensure every live connection is wired to its provider. This covers
+		// the case where a provider was recreated (e.g. name change) while a
+		// connection for that address already existed.
 		for (const [address, connState] of this._connections) {
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			const provider = this._providerInstances.get(address);
 			if (provider) {
-				provider.setConnection(connState.loggedConnection, connectionInfo?.defaultDirectory);
-				provider.setOutputChannelId(connState.loggedConnection.channelId);
+				provider.setConnection(connState.connection, connectionInfo?.defaultDirectory);
 			}
 		}
 
@@ -938,12 +929,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const existing = this._connections.get(connectionInfo.address);
 			if (existing) {
 				const nameChanged = existing.name !== connectionInfo.name;
-				const clientIdChanged = existing.loggedConnection.clientId !== connectionInfo.clientId;
+				const clientIdChanged = existing.connection.clientId !== connectionInfo.clientId;
 
 				// If the name or clientId changed, tear down and re-register
 				if (nameChanged || clientIdChanged) {
-					this._logService.info(`[RemoteAgentHost] Reconnecting contribution for ${connectionInfo.address}: oldClientId=${existing.loggedConnection.clientId}, newClientId=${connectionInfo.clientId}, nameChanged=${nameChanged}`);
-					const oldClientId = existing.loggedConnection.clientId;
+					this._logService.info(`[RemoteAgentHost] Reconnecting contribution for ${connectionInfo.address}: oldClientId=${existing.connection.clientId}, newClientId=${connectionInfo.clientId}, nameChanged=${nameChanged}`);
+					const oldClientId = existing.connection.clientId;
 					this._connections.deleteAndDispose(connectionInfo.address);
 					this._setupConnection(connectionInfo);
 
@@ -979,9 +970,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const { address, name } = connectionInfo;
-		const channelLabel = `Agent Host IPC (${name || address})`;
-		const connState = this._instantiationService.createInstance(ConnectionState, name, connection, `agenthost.${connection.clientId}`, channelLabel);
-		const loggedConnection = connState.loggedConnection;
+		const connState = this._instantiationService.createInstance(ConnectionState, name, connection);
 		this._connections.set(address, connState);
 		const store = connState.store;
 
@@ -1004,26 +993,24 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		store.add(this._agentHostFileSystemService.registerAuthority(authority, connection));
 
 		// React to root state changes (agent discovery)
-		store.add(loggedConnection.rootState.onDidChange(rootState => {
-			this._handleRootStateChange(address, loggedConnection, rootState);
+		store.add(connection.rootState.onDidChange(rootState => {
+			this._handleRootStateChange(address, connection, rootState);
 		}));
 
 		// If root state is already available, process it immediately
-		const initialRootState = loggedConnection.rootState.value;
+		const initialRootState = connection.rootState.value;
 		if (initialRootState && !(initialRootState instanceof Error)) {
-			this._handleRootStateChange(address, loggedConnection, initialRootState);
+			this._handleRootStateChange(address, connection, initialRootState);
 		}
 
 		// Wire connection to existing sessions provider
 		const provider = this._providerInstances.get(address);
 		if (provider) {
-			provider.setConnection(loggedConnection, connectionInfo.defaultDirectory);
-			// Expose the output channel ID so the workspace picker can offer "Show Output"
-			provider.setOutputChannelId(loggedConnection.channelId);
+			provider.setConnection(connection, connectionInfo.defaultDirectory);
 		}
 	}
 
-	private _handleRootStateChange(address: string, loggedConnection: LoggingAgentConnection, rootState: RootState): void {
+	private _handleRootStateChange(address: string, connection: IAgentConnection, rootState: RootState): void {
 		const connState = this._connections.get(address);
 		if (!connState) {
 			return;
@@ -1040,13 +1027,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		// Authenticate using protectedResources from agent info
-		this._authenticateWithConnection(address, loggedConnection, rootState.agents)
+		this._authenticateWithConnection(address, connection, rootState.agents)
 			.catch(() => { /* best-effort */ });
 
 		// Register new agents, push model updates to existing ones
 		for (const agent of rootState.agents) {
 			if (!connState.agents.has(agent.provider)) {
-				this._registerAgent(address, loggedConnection, agent, connState.name);
+				this._registerAgent(address, connection, agent, connState.name);
 			} else {
 				const modelProvider = connState.modelProviders.get(agent.provider);
 				modelProvider?.updateModels(agent.models);
@@ -1054,7 +1041,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
-	private _registerAgent(address: string, loggedConnection: LoggingAgentConnection, agent: AgentInfo, configuredName: string | undefined): void {
+	private _registerAgent(address: string, connection: IAgentConnection, agent: AgentInfo, configuredName: string | undefined): void {
 		const connState = this._connections.get(address);
 		if (!connState) {
 			return;
@@ -1123,7 +1110,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const pluginController = agentStore.add(this._instantiationService.createInstance(RemoteAgentPluginController,
 			hostLabel,
 			sanitized,
-			loggedConnection,
+			connection,
 		));
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
@@ -1155,13 +1142,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			sessionType,
 			fullName: displayName,
 			description: agent.description,
-			connection: loggedConnection,
+			connection,
 			connectionAuthority: sanitized,
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
 			isNewSession,
-			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, loggedConnection, resources),
+			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
 		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -1182,9 +1169,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _authenticateAllConnections(): void {
 		for (const [address, connState] of this._connections) {
-			const rootState = connState.loggedConnection.rootState.value;
+			const rootState = connState.connection.rootState.value;
 			if (rootState && !(rootState instanceof Error)) {
-				this._authenticateWithConnection(address, connState.loggedConnection, rootState.agents).catch(() => { /* best-effort */ });
+				this._authenticateWithConnection(address, connState.connection, rootState.agents).catch(() => { /* best-effort */ });
 			}
 		}
 	}
@@ -1196,7 +1183,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Marks the matching provider's `authenticationPending` observable while
 	 * the auth pass is in flight so that sessions surface as still loading.
 	 */
-	private async _authenticateWithConnection(address: string, loggedConnection: LoggingAgentConnection, agents: readonly AgentInfo[]): Promise<void> {
+	private async _authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void> {
 		const providerId = `agenthost-${agentHostAuthority(address)}`;
 		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
@@ -1207,11 +1194,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				authenticationService: this._authenticationService,
 				logPrefix: '[RemoteAgentHost]',
 				logService: this._logService,
-				authenticate: request => loggedConnection.authenticate(request),
+				authenticate: request => connection.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
-			loggedConnection.logError('authenticateWithConnection', err);
 		} finally {
 			provider?.setAuthenticationPending(false);
 		}
@@ -1221,7 +1207,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Interactively prompt the user to authenticate when the server requires it.
 	 * Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(address: string, loggedConnection: LoggingAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
+	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
 		try {
 			return await resolveAuthenticationInteractively(protectedResources, {
@@ -1229,11 +1215,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				authenticationService: this._authenticationService,
 				logPrefix: '[RemoteAgentHost]',
 				logService: this._logService,
-				authenticate: request => loggedConnection.authenticate(request),
+				authenticate: request => connection.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[RemoteAgentHost] Interactive authentication failed', err);
-			loggedConnection.logError('resolveAuthenticationInteractively', err);
 		}
 		return false;
 	}
