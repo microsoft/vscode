@@ -326,6 +326,78 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- handleAction: generic /rename slash command ---------------------
+
+	suite('handleAction — /rename slash command', () => {
+
+		// `/rename` persists the new title, so these tests need a session data
+		// service whose `openDatabase` actually returns a database (the default
+		// null service throws).
+		function createRenameSideEffects(): AgentSideEffects {
+			return createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				onTurnComplete: () => { },
+			});
+		}
+
+		test('redirects /rename to a title change and completes the turn without calling the agent', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '/rename Renamed Session', origin: { kind: MessageKind.User } },
+			};
+			// Mirror production: the reducer applies the turn, then side effects run.
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(sessionUri.toString(), action);
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.sendMessageCalls, []);
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.summary.title, 'Renamed Session');
+			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+			const part = state?.turns.at(-1)?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.Markdown);
+			assert.strictEqual(part?.kind === ResponsePartKind.Markdown ? part.content : undefined, 'Renamed: Renamed Session');
+		});
+
+		test('/rename without a title completes the turn and leaves the title unchanged', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '/rename', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(sessionUri.toString(), action);
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.sendMessageCalls, []);
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.summary.title, 'Test');
+			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+		});
+
+		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '/renamed thing', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(sessionUri.toString(), action);
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: '/renamed thing', attachments: undefined }]);
+		});
+	});
+
 	// ---- immediate title on first turn -----------------------------------
 
 	suite('immediate title on first turn', () => {
@@ -795,6 +867,52 @@ suite('AgentSideEffects', () => {
 			// Queued message should be removed from state
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages, undefined);
+		});
+
+		test('intercepts queued /rename and drains the message queued behind it', () => {
+			setupSession();
+			// `/rename` persists the new title, so use a side effects instance
+			// whose `openDatabase` returns a real database (the suite default
+			// throws).
+			const renameSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				onTurnComplete: () => { },
+			});
+			disposables.add(renameSideEffects.registerProgressListener(agent));
+
+			// Queue a `/rename` followed by a normal message while a turn is active
+			startTurn('turn-1');
+			for (const msg of [
+				{ id: 'q-rename', text: '/rename Queued Title' },
+				{ id: 'q-after', text: 'after rename' },
+			]) {
+				const setAction = {
+					type: ActionType.SessionPendingMessageSet as const,
+					kind: PendingMessageKind.Queued,
+					id: msg.id,
+					message: { text: msg.text, origin: { kind: MessageKind.User } },
+				};
+				stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
+				renameSideEffects.handleAction(sessionUri.toString(), setAction);
+			}
+
+			// Fire idle → turn completes → `/rename` is consumed and intercepted,
+			// then the message queued behind it must be drained to the agent.
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: { type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+			});
+
+			// The `/rename` must not reach the agent; only the message behind it does
+			assert.strictEqual(agent.sendMessageCalls.length, 1);
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'after rename');
+
+			// Both queued messages should be drained from state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages, undefined);
+			assert.strictEqual(state?.summary.title, 'Queued Title');
 		});
 
 		test('does not consume queued message while a turn is active', () => {

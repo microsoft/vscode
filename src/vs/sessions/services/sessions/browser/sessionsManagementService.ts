@@ -15,6 +15,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
@@ -134,6 +136,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 	) {
 		super();
 
@@ -294,7 +297,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const disposables = new DisposableStore();
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			if (provider.onDidReplaceSession) {
-				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
+				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
 			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
@@ -303,9 +306,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private onDidReplaceSession(from: ISession, to: ISession): void {
+	private _handleDidReplaceSession(from: ISession, to: ISession): void {
 		this._visibility.updateSession(from, to);
-
+		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
