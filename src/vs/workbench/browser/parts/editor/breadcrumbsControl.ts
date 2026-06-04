@@ -237,10 +237,12 @@ export class BreadcrumbsControl {
 	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false, localize('breadcrumbsPossible', "Whether the editor can show breadcrumbs"));
 	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false, localize('breadcrumbsVisible', "Whether breadcrumbs are currently visible"));
 	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false, localize('breadcrumbsActive', "Whether breadcrumbs have focus"));
+	static readonly CK_BreadcrumbsHasSymbols = new RawContextKey('breadcrumbsHasSymbols', false, localize('breadcrumbsHasSymbols', "Whether breadcrumbs contain symbol items"));
 
 	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
+	private readonly _ckBreadcrumbsHasSymbols: IContextKey<boolean>;
 
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
@@ -305,6 +307,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
+		this._ckBreadcrumbsHasSymbols = BreadcrumbsControl.CK_BreadcrumbsHasSymbols.bindTo(this._contextKeyService);
 
 		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 
@@ -319,6 +322,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible.reset();
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
+		this._ckBreadcrumbsHasSymbols.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._cfTitleScrollbarSizing.dispose();
@@ -345,6 +349,7 @@ export class BreadcrumbsControl {
 
 		this._breadcrumbsDisposables.clear();
 		this._ckBreadcrumbsVisible.set(false);
+		this._ckBreadcrumbsHasSymbols.set(false);
 		this.domNode.classList.toggle('hidden', true);
 
 		if (!wasHidden) {
@@ -378,6 +383,7 @@ export class BreadcrumbsControl {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
+			this._ckBreadcrumbsHasSymbols.set(false);
 			if (!wasHidden) {
 				this.hide();
 				return true;
@@ -408,7 +414,9 @@ export class BreadcrumbsControl {
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement
+			const elements = model.getElements();
+			this._ckBreadcrumbsHasSymbols.set(elements.some(element => !(element instanceof FileElement)));
+			const items = elements.map(element => element instanceof FileElement
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
 			if (items.length === 0) {
@@ -961,13 +969,13 @@ registerAction2(class CopyBreadcrumbPath extends Action2 {
 			id: 'breadcrumbs.copyPath',
 			title: localize2('cmd.copyPath', "Copy Breadcrumbs Path"),
 			category: Categories.View,
-			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			precondition: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsHasSymbols),
 			f1: true,
 			menu: [{
 				id: MenuId.EditorTitleContext,
 				group: '1_cutcopypaste',
 				order: 100,
-				when: BreadcrumbsControl.CK_BreadcrumbsPossible
+				when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsPossible, BreadcrumbsControl.CK_BreadcrumbsHasSymbols)
 			}]
 		});
 	}
