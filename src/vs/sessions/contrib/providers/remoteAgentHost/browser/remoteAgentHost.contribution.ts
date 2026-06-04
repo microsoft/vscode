@@ -6,12 +6,14 @@
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, type IRemoteAgentHostWSLConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IWSLRemoteAgentHostService } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
@@ -74,6 +76,18 @@ const SSH_RECONNECT_PAUSE_AUTO_RESUME_MS = 5 * 60 * 1000; // 5 minutes
  * disconnected indefinitely.
  */
 const SSH_RECONNECT_PERIODIC_INTERVAL_MS = 60_000; // 1 minute
+
+/** Initial auto-reconnect delay for WSL. Mirrors SSH. */
+const WSL_RECONNECT_INITIAL_DELAY = 1000;
+const WSL_RECONNECT_MAX_DELAY = 30_000;
+const WSL_RECONNECT_MAX_ATTEMPTS = 10;
+const WSL_RECONNECT_PAUSE_AUTO_RESUME_MS = 5 * 60 * 1000;
+/**
+ * Background poll for `wsl --list --running` so a user-initiated WSL boot
+ * can be detected and a stored entry reconnected without waiting for an
+ * unrelated event.
+ */
+const WSL_RUNNING_POLL_MS = 5 * 60 * 1000;
 
 /**
  * Per-host SSH auto-reconnect state. Owned by {@link RemoteAgentHostContribution._sshReconnectStates}
@@ -157,6 +171,64 @@ export async function disconnectSSHEntry(
 	await sshService.disconnect(sshConnectionKey(connection));
 }
 
+/**
+ * Per-distro WSL auto-reconnect state. Intentionally mirrors
+ * {@link SSHReconnectState} — kept as a twin (rather than a shared base) so
+ * the two backoff state machines remain independent and the call sites stay
+ * readable.
+ */
+export class WSLReconnectState extends Disposable {
+	private readonly _timer = this._register(new MutableDisposable());
+
+	attempts = 0;
+	paused = false;
+	pausedAt = 0;
+
+	get hasPendingTimer(): boolean {
+		return !!this._timer.value;
+	}
+
+	scheduleRetry(delayMs: number, handler: () => void): void {
+		this._timer.value = disposableTimeout(() => {
+			this._timer.value = undefined;
+			handler();
+		}, delayMs);
+	}
+
+	cancelTimer(): void {
+		this._timer.clear();
+	}
+
+	resetForResume(): void {
+		this.attempts = 0;
+		this.paused = false;
+		this._timer.clear();
+	}
+}
+
+export function shouldPauseWSLReconnectAfterFailure(err: unknown): boolean {
+	return isCancellationError(err);
+}
+
+/** Address is the natural key — WSL distros are unique per machine. */
+export function wslConnectionKey(connection: IRemoteAgentHostWSLConnection): string {
+	return connection.address;
+}
+
+/**
+ * Sequence the steps to disconnect a WSL-backed remote agent host entry.
+ * Mirrors {@link disconnectSSHEntry}: tear down the stored entry first so the
+ * subsequent close event from the WSL service can't trip auto-reconnect.
+ */
+export async function disconnectWSLEntry(
+	connection: IRemoteAgentHostWSLConnection,
+	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
+	wslService: Pick<IWSLRemoteAgentHostService, 'disconnect'>,
+): Promise<void> {
+	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
+	await wslService.disconnect(connection.distro);
+}
+
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
@@ -192,10 +264,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/** Per-address sessions provider, registered for all configured entries. */
 	private readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
-	private readonly _pendingSSHReconnects = new Set<string>();
+	/**
+	 * In-flight reconnect attempts keyed by host id (`sshConfigHost` for SSH,
+	 * `distro` for WSL). Stores the {@link _attemptManagedReconnect} promise
+	 * so concurrent on-demand callers (e.g. a user click on "Select..." while
+	 * the periodic poll is already reconnecting) join the existing attempt
+	 * rather than racing it.
+	 */
+	private readonly _pendingSSHReconnects = new Map<string, Promise<void>>();
 
 	/** Per-host SSH auto-reconnect state (timer + attempts + paused). */
 	private readonly _sshReconnectStates = this._register(new DisposableMap<string, SSHReconnectState>());
+
+	private readonly _pendingWSLReconnects = new Map<string /* distro */, Promise<void>>();
+	/** Per-distro WSL auto-reconnect state (timer + attempts + paused). */
+	private readonly _wslReconnectStates = this._register(new DisposableMap<string /* distro */, WSLReconnectState>());
+	/** Distros that were running at the last poll; used to detect newly-running distros. */
+	private _lastKnownRunningDistros = new Set<string>();
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -210,6 +295,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 		@ISSHRemoteAgentHostService private readonly _sshService: ISSHRemoteAgentHostService,
+		@IWSLRemoteAgentHostService private readonly _wslService: IWSLRemoteAgentHostService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -220,8 +306,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Reconcile providers when configured entries change
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostAutoConnectSettingId)) {
-				// User changed config — give paused SSH auto-reconnect a fresh chance.
+				// User changed config — give paused auto-reconnect a fresh chance.
 				this._resumeSSHReconnects();
+				this._resumeWSLReconnects();
 				this._reconcile();
 			}
 		}));
@@ -231,6 +318,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			// New/removed connection — paused auto-reconnect may have been
 			// caused by a transient outage that's now resolved.
 			this._resumeSSHReconnects();
+			this._resumeWSLReconnects();
 			this._reconcile();
 		}));
 
@@ -254,12 +342,21 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			},
 			SSH_RECONNECT_PERIODIC_INTERVAL_MS,
 		);
+
+		// Dedicated WSL backstop: catches user-initiated WSL boots even when
+		// no other event fires. Cheap (`wsl --list --running --quiet`) so the
+		// 5-minute cadence has no measurable cost.
+		this._register(new IntervalTimer()).cancelAndSet(
+			() => void this._reconnectWSLEntriesIfRunning(),
+			WSL_RUNNING_POLL_MS,
+		);
 	}
 
 	private _reconcile(): void {
 		this._reconcileProviders();
 		this._reconcileConnections();
 		this._reconnectSSHEntries();
+		void this._reconnectWSLEntriesIfRunning();
 
 		// Ensure every live connection is wired to its provider. This covers
 		// the case where a provider was recreated (e.g. name change) while a
@@ -321,12 +418,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _createProvider(entry: IRemoteAgentHostEntry): void {
 		const address = getEntryAddress(entry);
 		const sshConnection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
-		const connectOnDemand = sshConnection
-			? () => this._connectSSHOnDemand(sshConnection, entry.name, address)
-			: undefined;
-		const disconnectOnDemand = sshConnection
-			? () => this._disconnectSSHOnDemand(sshConnection)
-			: undefined;
+		const wslConnection = entry.connection.type === RemoteAgentHostEntryType.WSL ? entry.connection : undefined;
+		let connectOnDemand: (() => Promise<void>) | undefined;
+		let disconnectOnDemand: (() => Promise<void>) | undefined;
+		if (sshConnection) {
+			connectOnDemand = () => this._connectSSHOnDemand(sshConnection, entry.name, address);
+			disconnectOnDemand = () => this._disconnectSSHOnDemand(sshConnection);
+		} else if (wslConnection) {
+			// WSL: explicit user click should boot a stopped distro
+			// (`wsl.exe -d <distro>` boots it). The "never auto-boot"
+			// rule only applies to the periodic auto-reconnect path.
+			connectOnDemand = () => this._connectWSLOnDemand(wslConnection, entry.name);
+			disconnectOnDemand = () => this._disconnectWSLOnDemand(wslConnection);
+		}
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
 			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand, disconnectOnDemand });
@@ -419,6 +523,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		if (this._pendingSSHReconnects.has(sshConfigHost)) {
+			await this._pendingSSHReconnects.get(sshConfigHost)!.catch(() => undefined);
 			return;
 		}
 		this._sshReconnectStates.get(sshConfigHost)?.resetForResume();
@@ -433,69 +538,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private async _attemptSSHReconnect(sshConfigHost: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
-		this._pendingSSHReconnects.add(sshConfigHost);
-		const state = this._getOrCreateSSHReconnectState(sshConfigHost);
-		const attempt = state.attempts;
-		const provider = this._providerInstances.get(address);
-		if (options.userInitiated) {
-			provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
-		}
-		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost} (attempt ${attempt + 1})`);
-		try {
-			await this._sshService.reconnect(sshConfigHost, name);
-			this._pendingSSHReconnects.delete(sshConfigHost);
-			this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
-		} catch (err) {
-			this._pendingSSHReconnects.delete(sshConfigHost);
-			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
-				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-				return;
-			}
-			if (options.userInitiated) {
-				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
-			}
-			if (shouldPauseSSHReconnectAfterFailure(err)) {
-				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after user cancellation`);
-				provider?.unpublishCachedSessions();
-				const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
-				liveState.paused = true;
-				liveState.pausedAt = Date.now();
-				return;
-			}
-			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
-			// Surface protocol-version mismatches on the provider so the
-			// workspace picker can show the host's message and the user
-			// can read it. Other errors stay as the existing disconnected
-			// state.
-			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
-			if (incompatible) {
-				provider?.setConnectionStatus(incompatible);
-				// Don't keep retrying on incompatible — user needs to
-				// upgrade/downgrade. Drop retry state instead of pausing.
-				this._sshReconnectStates.deleteAndDispose(sshConfigHost);
-				return;
-			}
-			// Host is unreachable — unpublish any cached sessions we
-			// were showing so the UI doesn't list stale entries for a
-			// host we cannot currently reach.
-			provider?.unpublishCachedSessions();
-
-			// State may have been cleared (e.g. host removed) while the
-			// reconnect was in flight — re-resolve to be safe.
-			const liveState = this._getOrCreateSSHReconnectState(sshConfigHost);
-			liveState.attempts = attempt + 1;
-			if (liveState.attempts >= SSH_RECONNECT_MAX_ATTEMPTS) {
-				this._logService.info(`[RemoteAgentHost] Pausing SSH auto-reconnect for ${sshConfigHost} after ${liveState.attempts} consecutive failures`);
-				liveState.paused = true;
-				liveState.pausedAt = Date.now();
-				return;
-			}
-			if (options.userInitiated) {
-				return;
-			}
-			this._scheduleSSHReconnect(sshConfigHost, name, address, liveState);
-		}
+		await this._attemptManagedReconnect({
+			kind: 'SSH',
+			key: sshConfigHost,
+			address,
+			userInitiated: !!options.userInitiated,
+			maxAttempts: SSH_RECONNECT_MAX_ATTEMPTS,
+			shouldPause: shouldPauseSSHReconnectAfterFailure,
+			pending: this._pendingSSHReconnects,
+			states: this._sshReconnectStates,
+			getOrCreateState: key => this._getOrCreateSSHReconnectState(key),
+			doConnect: () => this._sshService.reconnect(sshConfigHost, name).then(() => undefined),
+			schedule: state => this._scheduleSSHReconnect(sshConfigHost, name, address, state as SSHReconnectState),
+		});
 	}
 
 	private _scheduleSSHReconnect(sshConfigHost: string, name: string, address: string, state: SSHReconnectState): void {
@@ -548,6 +603,298 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		if (resumed > 0) {
 			this._logService.info(`[RemoteAgentHost] Resuming SSH auto-reconnect for ${resumed} paused host(s)`);
+		}
+	}
+
+	/**
+	 * Re-establish WSL connections for configured entries whose distro is
+	 * already running. Never auto-boots a distro; only acts on user-initiated
+	 * boots observed via {@link IWSLRemoteAgentHostService.listRunningDistros}.
+	 * Mirrors the shape of {@link _reconnectSSHEntries}, with an added
+	 * running-distro gate.
+	 */
+	private async _reconnectWSLEntriesIfRunning(): Promise<void> {
+		if (!isWindows) {
+			return;
+		}
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			this._wslReconnectStates.clearAndDisposeAll();
+			return;
+		}
+
+		const running = new Set<string>(await this._wslService.listRunningDistros().catch(() => []));
+		const newlyRunning: string[] = [];
+		for (const distro of running) {
+			if (!this._lastKnownRunningDistros.has(distro)) {
+				newlyRunning.push(distro);
+			}
+		}
+		this._lastKnownRunningDistros = running;
+		if (newlyRunning.length > 0) {
+			this._logService.info(`[RemoteAgentHost] Newly running WSL distro(s): ${newlyRunning.join(', ')}`);
+		}
+
+		const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
+		const entries = this._getConfiguredWSLEntries();
+		const stillConfigured = new Set<string>();
+		for (const entry of entries) {
+			stillConfigured.add(entry.distro);
+			if (!running.has(entry.distro)) {
+				continue;
+			}
+			const hasConnection = this._remoteAgentHostService.connections.some(
+				c => c.address === entry.address && RemoteAgentHostConnectionStatus.isConnected(c.status)
+			);
+			if (hasConnection) {
+				this._wslReconnectStates.deleteAndDispose(entry.distro);
+				continue;
+			}
+			if (this._pendingWSLReconnects.has(entry.distro)) {
+				this._logService.trace(`[RemoteAgentHost] WSL reconnect for ${entry.distro}: reconnect already in progress, skipping`);
+				continue;
+			}
+			const state = this._wslReconnectStates.get(entry.distro);
+			if (state?.hasPendingTimer) {
+				this._logService.trace(`[RemoteAgentHost] WSL reconnect for ${entry.distro}: retry timer already scheduled, skipping`);
+				continue;
+			}
+			if (state?.paused) {
+				const pausedMs = Date.now() - state.pausedAt;
+				if (pausedMs < WSL_RECONNECT_PAUSE_AUTO_RESUME_MS) {
+					this._logService.trace(`[RemoteAgentHost] WSL reconnect for ${entry.distro}: paused (${Math.round(pausedMs / 1000)}s ago), skipping`);
+					continue;
+				}
+				this._logService.info(`[RemoteAgentHost] WSL reconnect for ${entry.distro}: auto-resuming after ${Math.round(pausedMs / 1000)}s pause`);
+				state.resetForResume();
+			}
+			if (!autoConnect) {
+				this._logService.trace(`[RemoteAgentHost] WSL reconnect for ${entry.distro}: auto-connect disabled, skipping`);
+				continue;
+			}
+			void this._attemptWSLReconnect(entry.distro, entry.name, entry.address);
+		}
+
+		// Drop retry state for distros that are no longer configured.
+		for (const distro of [...this._wslReconnectStates.keys()]) {
+			if (!stillConfigured.has(distro)) {
+				this._wslReconnectStates.deleteAndDispose(distro);
+			}
+		}
+	}
+
+	private _getConfiguredWSLEntries(): readonly { distro: string; name: string; address: string }[] {
+		const result: { distro: string; name: string; address: string }[] = [];
+		for (const entry of this._remoteAgentHostService.configuredEntries) {
+			if (entry.connection.type === RemoteAgentHostEntryType.WSL) {
+				result.push({ distro: entry.connection.distro, name: entry.name, address: entry.connection.address });
+			}
+		}
+		return result;
+	}
+
+	private async _attemptWSLReconnect(distro: string, name: string, address: string, options: { userInitiated?: boolean } = {}): Promise<void> {
+		await this._attemptManagedReconnect({
+			kind: 'WSL',
+			key: distro,
+			address,
+			userInitiated: !!options.userInitiated,
+			maxAttempts: WSL_RECONNECT_MAX_ATTEMPTS,
+			shouldPause: shouldPauseWSLReconnectAfterFailure,
+			pending: this._pendingWSLReconnects,
+			states: this._wslReconnectStates,
+			getOrCreateState: key => this._getOrCreateWSLReconnectState(key),
+			// WSL-specific gate: never auto-boot a stopped distro. The
+			// gate is skipped on user-initiated attempts (the user
+			// explicitly clicked Reconnect — `wsl.exe -d <distro>` will
+			// boot the distro on their behalf). When the gate triggers
+			// we return WITHOUT incrementing `attempts` so a long stop
+			// doesn't burn the retry budget.
+			preCheck: async userInitiated => {
+				if (userInitiated) {
+					return undefined;
+				}
+				const stillConfigured = this._remoteAgentHostService.configuredEntries.some(
+					e => e.connection.type === RemoteAgentHostEntryType.WSL && e.connection.distro === distro
+				);
+				if (!stillConfigured) {
+					this._wslReconnectStates.deleteAndDispose(distro);
+					return { skip: true };
+				}
+				const running = new Set<string>(await this._wslService.listRunningDistros().catch(() => []));
+				this._lastKnownRunningDistros = running;
+				if (!running.has(distro)) {
+					return { skip: true, reason: `distro ${distro} not running` };
+				}
+				return undefined;
+			},
+			doConnect: () => this._wslService.reconnect(distro, name).then(() => undefined),
+			schedule: state => this._scheduleWSLReconnect(distro, name, address, state as WSLReconnectState),
+		});
+	}
+
+	private async _connectWSLOnDemand(connection: IRemoteAgentHostWSLConnection, name: string): Promise<void> {
+		const inFlight = this._pendingWSLReconnects.get(connection.distro);
+		if (inFlight) {
+			await inFlight.catch(() => undefined);
+			return;
+		}
+		this._wslReconnectStates.get(connection.distro)?.resetForResume();
+		await this._attemptWSLReconnect(connection.distro, name, connection.address, { userInitiated: true });
+	}
+
+	private async _disconnectWSLOnDemand(connection: IRemoteAgentHostWSLConnection): Promise<void> {
+		this._wslReconnectStates.deleteAndDispose(connection.distro);
+		await disconnectWSLEntry(connection, this._remoteAgentHostService, this._wslService);
+	}
+
+	/**
+	 * Shared retry-loop body for managed-reconnect entries (SSH, WSL).
+	 *
+	 * Both SSH and WSL want identical handling of `connecting`/`disconnected`/
+	 * `incompatible` provider status, cached-session unpublishing on failure,
+	 * pause-on-cancel, and pause-after-max-attempts. The differences are
+	 * type-specific: SSH has no pre-check, WSL gates on
+	 * `listRunningDistros`. The pre-check returns `{ skip: true }` to bail
+	 * out without incrementing the attempt counter (so a long-stopped WSL
+	 * distro can't burn the retry budget); SSH passes no pre-check at all.
+	 */
+	private async _attemptManagedReconnect(opts: {
+		readonly kind: 'SSH' | 'WSL';
+		readonly key: string;
+		readonly address: string;
+		readonly userInitiated: boolean;
+		readonly maxAttempts: number;
+		readonly shouldPause: (err: unknown) => boolean;
+		readonly pending: Map<string, Promise<void>>;
+		readonly states: DisposableMap<string, SSHReconnectState | WSLReconnectState>;
+		readonly getOrCreateState: (key: string) => SSHReconnectState | WSLReconnectState;
+		readonly preCheck?: (userInitiated: boolean) => Promise<{ readonly skip: boolean; readonly reason?: string } | undefined>;
+		readonly doConnect: () => Promise<void>;
+		readonly schedule: (state: SSHReconnectState | WSLReconnectState) => void;
+	}): Promise<void> {
+		// Wrap the body so we can store our own promise in `opts.pending` for
+		// concurrent on-demand callers to join. The inner IIFE keeps the
+		// existing control flow intact; only the bookkeeping moves out.
+		const runPromise = (async () => {
+			const state = opts.getOrCreateState(opts.key);
+			const attempt = state.attempts;
+			const provider = this._providerInstances.get(opts.address);
+			if (opts.userInitiated) {
+				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			}
+			this._logService.info(`[RemoteAgentHost] Re-establishing ${opts.kind} connection for ${opts.key} (attempt ${attempt + 1})`);
+			try {
+				if (opts.preCheck) {
+					const result = await opts.preCheck(opts.userInitiated);
+					if (result?.skip) {
+						if (result.reason) {
+							this._logService.info(`[RemoteAgentHost] ${opts.kind} reconnect for ${opts.key}: ${result.reason}; skipping`);
+						}
+						return;
+					}
+				}
+				await opts.doConnect();
+				opts.states.deleteAndDispose(opts.key);
+				this._logService.info(`[RemoteAgentHost] ${opts.kind} connection re-established for ${opts.key}`);
+			} catch (err) {
+				if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+					opts.states.deleteAndDispose(opts.key);
+					return;
+				}
+				if (opts.userInitiated) {
+					provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+				}
+				if (opts.shouldPause(err)) {
+					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after user cancellation`);
+					provider?.unpublishCachedSessions();
+					const liveState = opts.getOrCreateState(opts.key);
+					liveState.paused = true;
+					liveState.pausedAt = Date.now();
+					return;
+				}
+				this._logService.error(`[RemoteAgentHost] ${opts.kind} reconnect failed for ${opts.key}`, err);
+				// Surface protocol-version mismatches on the provider so the
+				// workspace picker can show the host's message and the user
+				// can read it. Other errors stay as the existing disconnected
+				// state.
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				if (incompatible) {
+					provider?.setConnectionStatus(incompatible);
+					// Don't keep retrying on incompatible — user needs to
+					// upgrade/downgrade. Drop retry state instead of pausing.
+					opts.states.deleteAndDispose(opts.key);
+					return;
+				}
+				// Host is unreachable — unpublish any cached sessions we
+				// were showing so the UI doesn't list stale entries for a
+				// host we cannot currently reach.
+				provider?.unpublishCachedSessions();
+				// State may have been cleared (e.g. host removed) while the
+				// reconnect was in flight — re-resolve to be safe.
+				const liveState = opts.getOrCreateState(opts.key);
+				liveState.attempts = attempt + 1;
+				if (liveState.attempts >= opts.maxAttempts) {
+					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after ${liveState.attempts} consecutive failures`);
+					liveState.paused = true;
+					liveState.pausedAt = Date.now();
+					return;
+				}
+				if (opts.userInitiated) {
+					return;
+				}
+				opts.schedule(liveState);
+			}
+		})();
+		opts.pending.set(opts.key, runPromise);
+		try {
+			await runPromise;
+		} finally {
+			opts.pending.delete(opts.key);
+		}
+	}
+
+	private _scheduleWSLReconnect(distro: string, name: string, address: string, state: WSLReconnectState): void {
+		const delay = Math.min(WSL_RECONNECT_INITIAL_DELAY * Math.pow(2, state.attempts - 1), WSL_RECONNECT_MAX_DELAY);
+		this._logService.info(`[RemoteAgentHost] Scheduling WSL reconnect for ${distro} in ${delay}ms (attempt ${state.attempts + 1}/${WSL_RECONNECT_MAX_ATTEMPTS})`);
+		state.scheduleRetry(delay, () => {
+			if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+				this._wslReconnectStates.deleteAndDispose(distro);
+				return;
+			}
+			if (!this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
+				return;
+			}
+			const live = this._remoteAgentHostService.connections.find(c => c.address === address);
+			if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
+				this._wslReconnectStates.deleteAndDispose(distro);
+				return;
+			}
+			if (this._pendingWSLReconnects.has(distro)) {
+				return;
+			}
+			void this._attemptWSLReconnect(distro, name, address);
+		});
+	}
+
+	private _getOrCreateWSLReconnectState(distro: string): WSLReconnectState {
+		let state = this._wslReconnectStates.get(distro);
+		if (!state) {
+			state = new WSLReconnectState();
+			this._wslReconnectStates.set(distro, state);
+		}
+		return state;
+	}
+
+	private _resumeWSLReconnects(): void {
+		let resumed = 0;
+		for (const [, state] of this._wslReconnectStates) {
+			if (state.paused) {
+				state.resetForResume();
+				resumed++;
+			}
+		}
+		if (resumed > 0) {
+			this._logService.info(`[RemoteAgentHost] Resuming WSL auto-reconnect for ${resumed} paused distro(s)`);
 		}
 	}
 
@@ -959,7 +1306,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 // Side-effect registrations for the remote agent host feature
 import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
-import '../../agentHost/browser/agentHostModelPicker.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { Codicon } from '../../../../../base/common/codicons.js';

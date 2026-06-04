@@ -8,14 +8,14 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../base/co
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent, reset } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { autorun, IReader } from '../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { ThemeIcon, themeColorFromId } from '../../../base/common/themables.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { localize } from '../../../nls.js';
-import { SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -57,6 +57,8 @@ export class SessionHeader extends Disposable {
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
+	private readonly _readStateSignal: IObservable<void>;
+
 	get element(): HTMLElement {
 		return this._container;
 	}
@@ -74,8 +76,11 @@ export class SessionHeader extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 	) {
 		super();
+
+		this._readStateSignal = observableSignalFromEvent(this, this._sessionsListModelService.onDidChange);
 
 		this._container = $('.chat-composite-bar.session-header-bar');
 
@@ -209,6 +214,7 @@ export class SessionHeader extends Disposable {
 		}
 
 		store.add(autorun(reader => {
+			this._readStateSignal.read(reader);
 			this._updateHeader(session, reader);
 		}));
 
@@ -220,10 +226,10 @@ export class SessionHeader extends Disposable {
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
 		// Session icon — mirror the status-based icon shown in the sessions list.
 		const status = session.status.read(reader);
-		const isRead = session.isRead.read(reader);
+		const isRead = this._sessionsListModelService.isSessionRead(session);
 		const isArchived = session.isArchived.read(reader);
 		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
-		const icon = this._getStatusIcon(status, isRead, isArchived, pullRequestIcon);
+		const icon = this._sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
 		this._iconEl.className = 'chat-composite-bar-session-icon';
 		this._iconEl.classList.add(...ThemeIcon.asClassNameArray(icon));
 		this._iconEl.style.color = icon.color ? asCssVariable(icon.color.id) : '';
@@ -291,31 +297,6 @@ export class SessionHeader extends Disposable {
 
 		this._metaRow.style.display = hasMeta ? '' : 'none';
 		this._onDidChangeHeight.fire();
-	}
-
-	/**
-	 * The status-based icon shown next to the session title. Mirrors the icon logic used by
-	 * the sessions list (`SessionsListRenderer.getStatusIcon`) so both surfaces stay in sync.
-	 * Replicated inline because the list renderer lives in the `contrib/` layer, which the
-	 * core `browser/parts/` layer must not import from.
-	 */
-	private _getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
-		switch (status) {
-			case SessionStatus.InProgress:
-				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput:
-				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error:
-				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
-			default:
-				if (pullRequestIcon) {
-					return pullRequestIcon;
-				}
-				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-		}
 	}
 
 	private _setVisible(visible: boolean): void {

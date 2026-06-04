@@ -15,6 +15,7 @@ export const ActiveSessionWorkspaceIsVirtualContext = new RawContextKey<boolean>
 export const IsActiveSessionArchivedContext = new RawContextKey<boolean>('isActiveSessionArchived', false, localize('isActiveSessionArchived', "Whether the active session is archived (marked as done)"));
 export const ActiveSessionHasGitRepositoryContext = new RawContextKey<boolean>('activeSessionHasGitRepository', false, localize('activeSessionHasGitRepository', "Whether the active session has an associated git repository"));
 export const ActiveSessionHasGitSyncActionRunningContext = new RawContextKey<boolean>('activeSessionHasGitSyncActionRunning', false, localize('activeSessionHasGitSyncActionRunning', "Whether the active session has a git sync action currently running"));
+export const ActiveSessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('activeSessionUsesCombinedConfigPicker', false, localize('activeSessionUsesCombinedConfigPicker', "Whether the active session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessionProviderId', '', localize('chatSessionProviderId', "The provider ID of a session in context menu overlays"));
 export const ChatSessionTypeContext = new RawContextKey<string>('chatSessionType', '', localize('chatSessionType', "The session type of a session in context menu overlays"));
 
