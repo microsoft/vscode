@@ -39,8 +39,6 @@ export class SessionHeader extends Disposable {
 	private readonly _titleEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
-	private readonly _inlineToolbar: MenuWorkbenchToolBar;
-	private readonly _inlineToolbarContainer: HTMLElement;
 	private readonly _titleActionsEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -99,19 +97,15 @@ export class SessionHeader extends Disposable {
 		titleRow.appendChild(titleActions);
 		this._titleActionsEl = titleActions;
 
-		this._inlineToolbarContainer = $('.chat-composite-bar-inline-toolbar');
-		this._inlineToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._inlineToolbarContainer, Menus.SessionBarInlineToolbar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-		}));
-
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
 		titleActions.appendChild(toolbarContainer);
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
+			// Render every group in the primary slot with a separator between groups
+			// so the New Chat action sits visually separated from the pin/maximize/close cluster.
+			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._metaRow = $('.chat-composite-bar-meta-row');
@@ -140,12 +134,12 @@ export class SessionHeader extends Disposable {
 				return;
 			}
 
-			// Don't initiate a drag when the gesture starts inside one of the
-			// header toolbars (Run, Open in VS Code, New Chat). A small pointer
+			// Don't initiate a drag when the gesture starts inside the header
+			// toolbar (Run, Open in VS Code, New Chat, pin, close). A small pointer
 			// move during a button click would otherwise start a session drag
 			// and swallow the click.
 			const target = e.target as Node | null;
-			if (target && (this._titleActionsEl.contains(target) || this._inlineToolbarContainer.contains(target))) {
+			if (target && this._titleActionsEl.contains(target)) {
 				e.preventDefault();
 				return;
 			}
@@ -176,7 +170,6 @@ export class SessionHeader extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
-		this._inlineToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
@@ -267,10 +260,7 @@ export class SessionHeader extends Disposable {
 			hasMeta = true;
 		}
 
-		// The New Chat (`+`) toolbar always lives in the meta row (next to the diff
-		// stats), so the meta row is never empty.
-		this._metaRow.appendChild(this._inlineToolbarContainer);
-
+		this._metaRow.style.display = hasMeta ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 
@@ -345,6 +335,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
+			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
 		this._setVisible(false);
