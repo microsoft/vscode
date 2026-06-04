@@ -704,7 +704,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		// for the prompt. The bookmark created at provider entry can be stale by the time
 		// we reach here (after debounce/awaits)
 		if (this._debugRecorder) {
-			logContext.recordingBookmark = this._debugRecorder.createBookmark();
+			const refreshedBookmark = this._debugRecorder.createBookmark();
+			logContext.recordingBookmark = refreshedBookmark;
+			telemetryBuilder.setRequestBookmark(refreshedBookmark);
 		}
 
 		const activeDocAndIdx = assertDefined(historyContext.getDocumentAndIdx(curDocId));
