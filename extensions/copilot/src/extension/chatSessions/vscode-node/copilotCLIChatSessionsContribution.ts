@@ -1375,9 +1375,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let worktreeTurnIndex = 1;
 		let worktreeAgeBucketMs: string | undefined = undefined;
 		if (chatSessionContext) {
-			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
-			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			const parsedId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+			const id = existingSessionId ?? parsedId;
+			// Mirror the guard in `getOrCreateSession`: only count as a new
+			// session when the resource is actually an untitled placeholder.
+			const isNewSession = chatSessionContext.isUntitled && parsedId.startsWith('untitled-') && !existingSessionId;
 			// isolationMode mode will be initialized only for new sessions.
 			const isolationMode = _sessionIsolation.get(id);
 			isolation = isNewSession ? isolationMode : undefined;
@@ -1931,9 +1934,17 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string; permissionLevel?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
 		const { resource } = chatSessionContext.chatSessionItem;
-		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(resource));
-		const id = existingSessionId ?? SessionIdForCLI.parse(resource);
-		const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+		const parsedId = SessionIdForCLI.parse(resource);
+		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+		const id = existingSessionId ?? parsedId;
+		// Only treat the request as a new session when the resource is actually
+		// an untitled placeholder. Without this guard, a stale `isUntitled`
+		// flag combined with a swap-mapping that has already been cleaned up
+		// (see `scheduleUntitledSessionSwap`) causes a follow-up turn against
+		// a real session id to spawn a brand-new SDK session.
+		const isResourceUntitled = parsedId.startsWith('untitled-');
+		const isNewSession = chatSessionContext.isUntitled && isResourceUntitled && !existingSessionId;
+		this.logService.info(`getOrCreateSession: resource=${resource.toString()}, parsedId=${parsedId}, isResourceUntitled=${isResourceUntitled}, contextIsUntitled=${chatSessionContext.isUntitled}, existingSessionId=${existingSessionId}, resolvedId=${id}, isNewSession=${isNewSession}`);
 
 		const { workspaceInfo, cancelled, trusted } = await this.getOrInitializeWorkingDirectory(chatSessionContext, stream, request.toolInvocationToken, token, options.newBranch);
 		const workingDirectory = getWorkingDirectory(workspaceInfo);
@@ -2040,9 +2051,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}> {
 		let folderInfo: FolderRepositoryInfo;
 		if (chatSessionContext) {
-			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
-			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			const parsedId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+			const id = existingSessionId ?? parsedId;
+			// Mirror the guard in `getOrCreateSession`: only count as a new
+			// session when the resource is actually an untitled placeholder.
+			const isNewSession = chatSessionContext.isUntitled && parsedId.startsWith('untitled-') && !existingSessionId;
 
 			if (isNewSession) {
 				// Use FolderRepositoryManager to initialize folder/repository with worktree creation

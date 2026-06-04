@@ -9,20 +9,23 @@ import { Application, Logger } from '../../../../automation';
 import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
- * Per-session scenarios. Each session uses a unique scenario id so that the
- * mock reply is distinct — this catches stale-content bugs where the previous
- * test's response is mistakenly accepted as the current test's response.
+ * Per-session scenarios. Each session uses a pair of unique scenario ids so
+ * that the mock reply is distinct — this catches stale-content bugs where a
+ * previous response is mistakenly accepted as the current one. We send two
+ * prompts per session to also exercise the follow-up message path.
  */
 interface SessionConfig {
 	readonly name: string;
 	readonly scenarioId: string;
 	readonly reply: string;
+	readonly scenarioId2: string;
+	readonly reply2: string;
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE' },
-	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE' },
-	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE' },
+	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2' },
+	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
+	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
 
 export function setup(logger: Logger) {
@@ -41,9 +44,11 @@ export function setup(logger: Logger) {
 			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
 
 			// One scenario per session type, each emitting a distinct reply
-			// so the assertion is unambiguous.
+			// so the assertion is unambiguous. A second scenario per session
+			// covers the follow-up message in the same session.
 			for (const session of SESSIONS) {
 				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
+				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
@@ -113,7 +118,25 @@ export function setup(logger: Logger) {
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${session.scenarioId}]`);
 
 				const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
-				logger.log(`Agents Window (${session.name}) response: ${text}`);
+				logger.log(`Agents Window (${session.name}) response 1: ${text}`);
+
+				// Copilot CLI: after a request completes, the Agents Window
+				// auto-switches the active view to a fresh untitled session;
+				// sending a follow-up prompt there would spawn a brand new
+				// agent session (with its own session id and branch) rather
+				// than continuing the existing one. Click back into the
+				// just-completed session before sending message 2 so the
+				// follow-up lands in the same session.
+				if (session.name === 'Copilot CLI') {
+					await app.workbench.agentsWindow.activateMostRecentSession();
+				}
+
+				// Follow-up message in the same session — exercises the
+				// active-session input path (not the new-session homepage).
+				await app.workbench.agentsWindow.sendFollowUpMessage(`hello again [scenario:${session.scenarioId2}]`);
+
+				const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2);
+				logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
 
 				assert.ok(
 					mockServer.requestCount() > requestsBefore,

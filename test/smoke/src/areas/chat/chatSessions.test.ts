@@ -8,9 +8,10 @@ import { Application, Chat, Logger } from '../../../../automation';
 import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
- * Per-session scenarios. Each session uses a unique scenario id so that the
- * mock reply is distinct — this catches stale-content bugs where the previous
- * test's response is mistakenly accepted as the current test's response.
+ * Per-session scenarios. Each session uses a pair of unique scenario ids so
+ * that the mock reply is distinct — this catches stale-content bugs where a
+ * previous response is mistakenly accepted as the current one. We send two
+ * prompts per session to also exercise the follow-up message path.
  *
  * `kind` selects between the two chat surfaces in the VS Code window:
  *  - 'editor': the chat opens as an editor tab (Copilot CLI, Claude).
@@ -22,12 +23,14 @@ interface SessionConfig {
 	readonly kind: 'editor' | 'view';
 	readonly scenarioId: string;
 	readonly reply: string;
+	readonly scenarioId2: string;
+	readonly reply2: string;
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE' },
-	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE' },
-	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE' },
+	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2' },
+	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE', scenarioId2: 'smoke-chat-sessions-claude-2', reply2: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE_2' },
+	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
 ];
 
 async function openSession(app: Application, session: SessionConfig): Promise<void> {
@@ -39,15 +42,19 @@ async function openSession(app: Application, session: SessionConfig): Promise<vo
 	}
 }
 
-async function sendAndGetResponse(chat: Chat, session: SessionConfig, message: string): Promise<string> {
+async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: string, expectedReply: string): Promise<string> {
 	if (session.kind === 'editor') {
 		await chat.sendEditorMessage(message);
-		await chat.waitForEditorResponse(1500);
-		return (await chat.getLatestEditorResponseText()).trim();
+		// Poll for the actual reply text rather than just waiting for a
+		// completed response bubble. Copilot CLI keeps the
+		// `chat-response-loading` class on the bubble even after streaming
+		// finishes, which would otherwise cause the follow-up assertion to
+		// time out. Each scenario emits a unique reply so a single text
+		// match unambiguously identifies the current response.
+		return (await chat.waitForEditorResponseText(expectedReply, 120_000)).trim();
 	}
 	await chat.sendMessage(message);
-	await chat.waitForResponse(1500);
-	return (await chat.getLatestResponseText()).trim();
+	return (await chat.waitForResponseText(expectedReply, 120_000)).trim();
 }
 
 export function setup(logger: Logger) {
@@ -68,9 +75,11 @@ export function setup(logger: Logger) {
 			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
 
 			// One scenario per session type, each emitting a distinct reply
-			// so the assertion is unambiguous.
+			// so the assertion is unambiguous. A second scenario per session
+			// covers the follow-up message in the same chat surface.
 			for (const session of SESSIONS) {
 				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
+				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
@@ -116,13 +125,26 @@ export function setup(logger: Logger) {
 				const requestsBefore = mockServer.requestCount();
 
 				await openSession(app, session);
-				const responseText = await sendAndGetResponse(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`);
-				logger.log(`Chat Sessions (${session.name}) response: ${responseText}`);
+
+				// First message + first scenario reply.
+				const responseText = await sendAndWaitForReply(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`, session.reply);
+				logger.log(`Chat Sessions (${session.name}) response 1: ${responseText}`);
 
 				assert.ok(
 					responseText.includes(session.reply),
-					`Expected ${session.name} response to include mocked scenario response "${session.reply}".\n\nResponse:\n${responseText}`
+					`Expected ${session.name} response 1 to include mocked scenario response "${session.reply}".\n\nResponse:\n${responseText}`
 				);
+
+				// Follow-up message + second scenario reply, sent in the same
+				// chat surface to exercise the follow-up code path.
+				const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
+				logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
+
+				assert.ok(
+					responseText2.includes(session.reply2),
+					`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
+				);
+
 				assert.ok(
 					mockServer.requestCount() > requestsBefore,
 					`expected the mock LLM server to have received a new request from the ${session.name} session`

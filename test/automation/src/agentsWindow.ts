@@ -12,8 +12,11 @@ const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
+const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
+const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
+const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
-const RESPONSE_COMPLETE = `${RESPONSE}:not(.chat-response-loading)`;
+const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
 export class AgentsWindow {
 
@@ -21,6 +24,10 @@ export class AgentsWindow {
 
 	private get newChatEditorInputSelector(): string {
 		return `${NEW_CHAT_EDITOR} ${this.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
+	}
+
+	private get activeSessionInputSelector(): string {
+		return `${ACTIVE_SESSION_INPUT_EDITOR} ${this.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
 	}
 
 	/**
@@ -133,47 +140,111 @@ export class AgentsWindow {
 		await this.code.waitAndClick(NEW_CHAT_EDITOR);
 		await this.code.waitForTypeInEditor(this.newChatEditorInputSelector, prompt);
 		await this.code.waitForElement(SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
+		await this.code.waitAndClick(SEND_BUTTON_ENABLED);
+		// Verify the new-session view disappeared (confirms send took effect).
+		// Don't retry the click — once submitted, the button becomes disabled
+		// while the session is provisioning, so a retry would only fail.
+		// The first session (especially Copilot CLI) can take longer to
+		// transition, so allow up to ~30 seconds for the view to go away.
+		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 300);
+	}
 
-		const maxClickAttempts = 3;
-		for (let attempt = 1; attempt <= maxClickAttempts; attempt++) {
-			await this.code.waitAndClick(SEND_BUTTON_ENABLED);
-			// Verify the new-session view disappeared (confirms send took effect).
-			try {
-				await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 30 /* ~3 seconds */);
-				return; // View gone — send succeeded
-			} catch {
-				// View still present — click may not have fired; retry
-				if (attempt < maxClickAttempts) {
-					await new Promise(r => setTimeout(r, 1000));
-				}
-			}
-		}
-		// Proceed even if the view didn't disappear — the send may have
-		// worked but the view transition is slow.
+	/**
+	 * Send a follow-up prompt to the currently active session (after the
+	 * new-session view has been dismissed by {@link submitNewSessionPrompt}).
+	 * Waits for the send button to be enabled before clicking it.
+	 */
+	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600): Promise<void> {
+		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
+		await this.code.waitForElement(ACTIVE_SESSION_SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
+		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+	}
+
+	/**
+	 * Click the topmost (most recently active) session item in the sidebar
+	 * sessions list to make it the active session view. This is needed for
+	 * session types (notably Copilot CLI) where the workbench auto-creates a
+	 * fresh untitled session after a request completes; without re-selecting
+	 * the just-completed session, a follow-up prompt would land in the new
+	 * untitled session and spawn a brand new agent session instead of
+	 * continuing the existing conversation.
+	 *
+	 * Returns once the active session has loaded and is ready for input.
+	 */
+	async activateMostRecentSession(timeoutMs: number = 30_000): Promise<void> {
+		const retryCount = Math.ceil(timeoutMs / 100);
+		await this.code.waitForElement(SESSION_LIST_ROW, undefined, retryCount);
+		// The first list row is the most recently active session (the list is
+		// ordered newest-first). Click it to switch the active view away from
+		// the auto-created new-session placeholder.
+		await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="0"]`);
+		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
 	/**
 	 * Wait until at least one assistant response bubble contains text
 	 * matching the predicate. Returns the matched element's full text
 	 * content.
+	 *
+	 * Matches any response bubble (loading or complete). The mock LLM
+	 * server returns its full payload in one chunk, so the content is
+	 * rendered as soon as the streaming starts — even if the session
+	 * provider hasn't yet flipped the bubble out of `chat-response-loading`.
+	 * For some providers (e.g. Copilot CLI) the "loading" class can linger
+	 * well after the content is on screen, so requiring `:not(.chat-response-loading)`
+	 * causes false-negative timeouts.
 	 */
 	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000): Promise<string> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(RESPONSE, undefined, retryCount);
-		await this.code.waitForElement(RESPONSE_COMPLETE, undefined, retryCount);
 
-		const responseSelector = `${RESPONSE_COMPLETE} .rendered-markdown`;
+		const responseSelector = `${RESPONSE} .rendered-markdown`;
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
 			const elements = await this.code.getElements(responseSelector, /* recursive */ true);
 			for (const el of (elements ?? [])) {
 				const text = el.textContent || '';
 				if (typeof predicate === 'string' ? text.includes(predicate) : predicate.test(text)) {
+					// Give the chat session a grace period to transition out of the
+					// in-progress state before returning. The chat-request lifecycle
+					// in extensions (notably Copilot CLI) has post-response async
+					// work (usage metrics, metadata persistence, session bookkeeping)
+					// that runs after the markdown is rendered. Sending a follow-up
+					// message while that work is in flight routes the second request
+					// through the steering code path, which does not reliably
+					// surface the response in the UI. We wait (with a generous cap)
+					// for any response bubble to drop the `chat-response-loading`
+					// class. Some providers leave the class set even after content
+					// has rendered, so we additionally enforce a small minimum
+					// quiet period before returning.
+					await this.waitForResponseSettled(15_000, 4_000);
 					return text;
 				}
 			}
 			await new Promise(r => setTimeout(r, 500));
 		}
 		throw new Error(`Timed out waiting for assistant text matching ${predicate}`);
+	}
+
+	private async waitForResponseSettled(timeoutMs: number, fallbackQuietMs: number): Promise<void> {
+		const settledSelector = `${RESPONSE}:not(.chat-response-loading)`;
+		const start = Date.now();
+		const deadline = start + timeoutMs;
+		while (Date.now() < deadline) {
+			const settled = await this.code.getElements(settledSelector, /* recursive */ true);
+			if ((settled ?? []).length > 0) {
+				return;
+			}
+			await new Promise(r => setTimeout(r, 200));
+		}
+		// Loading class never cleared (e.g. Copilot CLI). Wait a bit longer
+		// unconditionally so the underlying session has time to finish its
+		// post-response bookkeeping before the next request is dispatched.
+		const elapsed = Date.now() - start;
+		if (elapsed < fallbackQuietMs) {
+			await new Promise(r => setTimeout(r, fallbackQuietMs - elapsed));
+		}
 	}
 }
