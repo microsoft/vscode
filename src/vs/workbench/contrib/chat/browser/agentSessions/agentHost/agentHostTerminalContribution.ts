@@ -99,8 +99,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				},
 			},
 			{
-				key: AgentHostConfigKey.DisableCustomTerminalTool,
-				computeValue: () => !this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId),
+				key: AgentHostConfigKey.EnableCustomTerminalTool,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true,
 				registerTriggers: (store, push) => {
 					store.add(this._configurationService.onDidChangeConfiguration(e => {
 						if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)) {

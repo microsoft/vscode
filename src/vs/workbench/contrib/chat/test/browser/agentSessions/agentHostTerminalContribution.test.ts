@@ -143,9 +143,9 @@ function rootStateWithoutDefaultShellKey(): RootState {
 	});
 }
 
-function rootStateWithDisableCustomTerminalToolKey(): RootState {
+function rootStateWithEnableCustomTerminalToolKey(): RootState {
 	return makeRootStateWithSchema({
-		[AgentHostConfigKey.DisableCustomTerminalTool]: { type: 'boolean', title: 'Use SDK Terminal Tool' },
+		[AgentHostConfigKey.EnableCustomTerminalTool]: { type: 'boolean', title: 'Use Agent Host Terminal Tool' },
 	});
 }
 
@@ -333,35 +333,35 @@ suite('AgentHostTerminalContribution', () => {
 		assert.strictEqual(resolver.lastOptions?.remoteAuthority, undefined);
 	});
 
-	test('dispatches inverted disableCustomTerminalTool from the VS Code setting', async () => {
+	test('dispatches enableCustomTerminalTool from the VS Code setting', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
 		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 
-		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		agentHostService.setRootState(rootStateWithEnableCustomTerminalToolKey());
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
+			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
-	test('dispatches disableCustomTerminalTool false by default', async () => {
+	test('dispatches enableCustomTerminalTool true when the setting is enabled', async () => {
 		const { agentHostService } = setup(disposables);
 
-		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		agentHostService.setRootState(rootStateWithEnableCustomTerminalToolKey());
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.DisableCustomTerminalTool]: false,
+			[AgentHostConfigKey.EnableCustomTerminalTool]: true,
 		});
 	});
 
-	test('re-dispatches disableCustomTerminalTool when the enabled setting changes', async () => {
+	test('re-dispatches enableCustomTerminalTool when the enabled setting changes', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
-		const rootState = rootStateWithDisableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
+		const rootState = rootStateWithEnableCustomTerminalToolKey();
+		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
@@ -377,7 +377,7 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
+			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
@@ -401,19 +401,19 @@ suite('AgentHostTerminalContribution', () => {
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 	});
 
-	test('does not re-dispatch disableCustomTerminalTool on a value-only root-state change', async () => {
+	test('does not re-dispatch enableCustomTerminalTool on a value-only root-state change', async () => {
 		const { agentHostService } = setup(disposables);
 
 		// Schema hydrates with our preferred value already present → no push.
-		const rootState = rootStateWithDisableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
+		const rootState = rootStateWithEnableCustomTerminalToolKey();
+		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 
 		// Another window flips the shared value. Schema unchanged → no fight.
-		const updated = rootStateWithDisableCustomTerminalToolKey();
-		updated.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = true;
+		const updated = rootStateWithEnableCustomTerminalToolKey();
+		updated.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = false;
 		agentHostService.setRootState(updated);
 		await flush();
 

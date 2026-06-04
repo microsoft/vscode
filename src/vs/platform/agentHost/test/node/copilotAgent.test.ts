@@ -511,7 +511,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listSessions();
 
-				configurationService.updateRootConfig({ [AgentHostConfigKey.DisableCustomTerminalTool]: true });
+				configurationService.updateRootConfig({ [AgentHostConfigKey.EnableCustomTerminalTool]: true });
 				await Promise.resolve();
 
 				assert.strictEqual(client.stopCount, 0);
@@ -1010,7 +1010,7 @@ suite('CopilotAgent', () => {
 			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				configurationService.updateRootConfig({ [AgentHostConfigKey.DisableCustomTerminalTool]: true });
+				configurationService.updateRootConfig({ [AgentHostConfigKey.EnableCustomTerminalTool]: false });
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'sdk-terminal-defaults'),

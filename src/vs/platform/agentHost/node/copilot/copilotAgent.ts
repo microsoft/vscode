@@ -1563,8 +1563,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const plugins = snapshot.plugins;
 
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
-			const disableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true;
-			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
+			const enableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+			const shellTools = enableCustomTerminalTool ? await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation) : [];
 			// Rely on SDK to find all agents/skills & the like from the plugins instead of us feeding them.
 			// Else we could end up with duplicates or the like.
 			const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
