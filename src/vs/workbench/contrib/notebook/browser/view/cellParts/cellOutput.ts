@@ -96,6 +96,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	detach() {
+		this._clearToolbar();
 		this.renderedOutputContainer?.remove();
 
 		let count = 0;
@@ -152,7 +153,7 @@ class CellOutputElement extends Disposable {
 		} else {
 			// Another mimetype or renderer is picked, we need to clear the current output and re-render
 			const nextElement = this.innerContainer.nextElementSibling;
-			this.toolbarDisposables.clear();
+			this._clearToolbar();
 			const element = this.innerContainer;
 			if (element) {
 				element.remove();
@@ -216,7 +217,7 @@ class CellOutputElement extends Disposable {
 				if (visible && !this.toolbarAttached) {
 					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
 				} else if (!visible) {
-					this.toolbarDisposables.clear();
+					this._clearToolbar();
 				}
 				this.cellOutputContainer.checkForHiddenOutputs();
 			}));
@@ -309,6 +310,7 @@ class CellOutputElement extends Disposable {
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
 
 		outputItemDiv.appendChild(mimeTypePicker);
+		this.toolbarAttached = true;
 
 		const toolbar = this.toolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
@@ -409,7 +411,7 @@ class CellOutputElement extends Disposable {
 
 		// user chooses another mimetype
 		const nextElement = outputItemDiv.nextElementSibling;
-		this.toolbarDisposables.clear();
+		this._clearToolbar();
 		const element = this.innerContainer;
 		if (element) {
 			element.remove();
@@ -461,7 +463,13 @@ class CellOutputElement extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
+	private _clearToolbar() {
+		this.toolbarAttached = false;
+		this.toolbarDisposables.clear();
+	}
+
 	override dispose() {
+		this.detach();
 		if (this._outputHeightTimer) {
 			this.viewCell.unlockOutputHeight();
 			clearTimeout(this._outputHeightTimer);
