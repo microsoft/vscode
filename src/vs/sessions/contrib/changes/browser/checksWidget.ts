@@ -150,7 +150,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 export class CIStatusWidget extends Disposable {
 
 	static readonly HEADER_HEIGHT = 34; // total header height in px
-	static readonly MIN_BODY_HEIGHT = 86; // at least 3 checks (3 * 28)
+	static readonly MIN_BODY_HEIGHT = 3 * CICheckListDelegate.ITEM_HEIGHT + 2; // at least 3 checks (3 * 28) + 2px
 	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
