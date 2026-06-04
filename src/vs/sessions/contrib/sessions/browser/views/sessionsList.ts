@@ -13,15 +13,13 @@ import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -46,8 +44,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ISessionsListModelService, SessionStatusIndicator } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
@@ -55,52 +52,11 @@ import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
 const $ = DOM.$;
 
-// Duration of the cross-fade when the icon swaps to a different glyph/variant.
-const ICON_SWAP_FADE_MS = 180;
-
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
-
-// Marker dataset key on the outgoing element during a cross-fade swap. Lets a
-// follow-up swap (before the previous fade finishes) skip re-processing it.
-const ICON_FADING_OUT_ATTR = 'iconFadingOut';
-
-/**
- * Swap the contents of `container` to `newChild` with a brief opacity cross-fade.
- * Outgoing children (if any) are taken out of normal flow via `position: absolute`
- * so the new child can settle into its normal grid/flex slot during the fade.
- * The container must be `position: relative` for the absolute positioning to anchor.
- *
- * The provided `store` owns the removal timer for the outgoing element so the
- * swap is cleaned up if the row/template is disposed mid-fade. Safe to call
- * repeatedly: rapid successive swaps each mark their own outgoing element and
- * never re-process one already fading out.
- */
-function swapIconWithCrossfade(container: HTMLElement, newChild: HTMLElement, animate: boolean, store: DisposableStore): void {
-	if (!animate) {
-		DOM.clearNode(container);
-		container.appendChild(newChild);
-		return;
-	}
-	for (const existing of Array.from(container.children) as HTMLElement[]) {
-		if (existing.dataset[ICON_FADING_OUT_ATTR] === '1') {
-			continue;
-		}
-		existing.dataset[ICON_FADING_OUT_ATTR] = '1';
-		existing.style.position = 'absolute';
-		existing.style.top = '0';
-		existing.style.left = '0';
-		existing.style.transition = `opacity ${ICON_SWAP_FADE_MS}ms ease`;
-		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(existing), () => { existing.style.opacity = '0'; });
-		disposableTimeout(() => existing.remove(), ICON_SWAP_FADE_MS + 40, store);
-	}
-	newChild.style.opacity = '0';
-	newChild.style.transition = `opacity ${ICON_SWAP_FADE_MS}ms ease`;
-	container.appendChild(newChild);
-	DOM.scheduleAtNextAnimationFrame(DOM.getWindow(newChild), () => { newChild.style.opacity = '1'; });
-}
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
@@ -211,7 +167,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
-	readonly iconContainer: HTMLElement;
+	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly detailsRow: HTMLElement;
@@ -221,8 +177,6 @@ interface ISessionItemTemplate {
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	/** Tracks the current icon CSS selector to avoid rebuilding the DOM (and restarting CSS animations) when the icon hasn't changed. */
-	currentIconSelector: string | undefined;
 }
 
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
@@ -241,20 +195,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _onDidChangeItemHeight = new Emitter<ISession>();
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
-	private readonly _motionReducedSignal;
-
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; getStatusIndicator: (status: SessionStatus, isRead: boolean, isArchived: boolean, motionReduced: boolean, pullRequestIcon?: ThemeIcon) => SessionStatusIndicator; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly agentSessionsService: IAgentSessionsService,
-		private readonly accessibilityService: IAccessibilityService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
-		this._motionReducedSignal = observableSignalFromEvent('reduceMotion', this.accessibilityService.onDidChangeReducedMotion);
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -264,6 +214,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		container.classList.add('session-item');
 
 		const iconContainer = DOM.append(container, $('.session-icon'));
+		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
@@ -291,7 +242,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, iconContainer, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables, currentIconSelector: undefined };
+		return { container, statusIcon, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -357,49 +308,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			this._motionReducedSignal.read(reader);
 
-			// In-progress and needs-input sessions get the shared pixel-art spinner (when
-			// motion is allowed) instead of the codicon `loading~spin` / pulsing dot. The
-			// two states use different spinner variants (and colors), so cache the variant
-			// key on the template — same-variant re-renders only update color, transitions
-			// between variants rebuild the DOM. Note: row recycling (template reused for a
-			// different session) goes through the same swap path, so a recycled row briefly
-			// cross-fades from the previous session's icon to the new one — preferred over a
-			// snap.
-			const motionReduced = this.accessibilityService.isMotionReduced();
-			// Returns true when the icon was swapped, false when the existing one is reused.
-			// Caller is responsible for keeping color in sync on the no-swap path.
-			const applyIconSwap = (key: string, createIcon: () => HTMLElement): boolean => {
-				if (template.currentIconSelector === key) {
-					return false;
-				}
-				const animate = template.currentIconSelector !== undefined;
-				template.currentIconSelector = key;
-				swapIconWithCrossfade(template.iconContainer, createIcon(), animate, template.disposables);
-				return true;
-			};
-			const recolorActiveIcon = (color: string): void => {
-				for (const child of Array.from(template.iconContainer.children) as HTMLElement[]) {
-					if (child.dataset[ICON_FADING_OUT_ATTR] !== '1') {
-						child.style.color = color;
-						break;
-					}
-				}
-			};
-
-			const indicator = this.options.getStatusIndicator(sessionStatus, isRead, isArchived, motionReduced, gitHubInfo?.pullRequest?.icon);
-			const swapped = applyIconSwap(indicator.cacheKey, () => {
-				const iconEl = indicator.kind === 'spinner'
-					? createPixelSpinner(undefined, { variant: indicator.variant })
-					: $(`span${indicator.cacheKey}`);
-				iconEl.style.color = indicator.color;
-				return iconEl;
-			});
-			if (!swapped) {
-				recolorActiveIcon(indicator.color);
-			}
-			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
+			// The status icon (spinner vs. codicon, cross-fade, reduced-motion) is fully
+			// owned by the SessionStatusIcon widget; here we just feed it the latest state.
+			// Row recycling re-feeds the widget, which cross-fades to the new session's icon.
+			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
 		}));
 
@@ -983,17 +896,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), getStatusIndicator: (status, isRead, isArchived, motionReduced, pullRequestIcon) => this._sessionsListModelService.getStatusIndicator(status, isRead, isArchived, motionReduced, pullRequestIcon), visibleSessions: this._sessionsManagementService.visibleSessions },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsManagementService.visibleSessions },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
 			agentSessionsService,
-			accessibilityService,
 			sessionsProvidersService,
 		);
 

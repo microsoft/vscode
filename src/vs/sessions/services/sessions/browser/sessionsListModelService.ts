@@ -12,25 +12,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-
-// Sentinel cache keys used when a session's status is rendered as an animated
-// pixel spinner (vs. a codicon). Distinct per variant so transitions between
-// variants rebuild the DOM, while same-variant re-renders only update color and
-// avoid restarting the CSS animation. Consumers compare these against their
-// cached selector.
-export const PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
-export const PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
-
-/**
- * Describes how a session's status should be visualized: either an animated pixel
- * spinner (for in-progress / needs-input when motion is allowed) or a static codicon.
- * Both variants carry a `cacheKey` (so consumers can skip rebuilding the DOM when the
- * glyph/variant is unchanged) and a ready-to-apply CSS `color` string.
- */
-export type SessionStatusIndicator =
-	| { readonly kind: 'spinner'; readonly variant: 'grid' | 'ring'; readonly cacheKey: string; readonly color: string }
-	| { readonly kind: 'icon'; readonly icon: ThemeIcon; readonly cacheKey: string; readonly color: string };
 
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
@@ -79,14 +60,6 @@ export interface ISessionsListModelService {
 	 * icons returned here are the reduced-motion fallbacks.
 	 */
 	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon;
-
-	/**
-	 * Resolves the visual indicator for a session status, shared by the sessions list
-	 * row renderer and the session header so both surfaces stay in sync. Returns the
-	 * animated pixel spinner for `InProgress`/`NeedsInput` when motion is allowed, and
-	 * the {@link getStatusIcon} codicon otherwise.
-	 */
-	getStatusIndicator(status: SessionStatus, isRead: boolean, isArchived: boolean, motionReduced: boolean, pullRequestIcon?: ThemeIcon): SessionStatusIndicator;
 }
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
@@ -241,26 +214,6 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
-	}
-
-	getStatusIndicator(status: SessionStatus, isRead: boolean, isArchived: boolean, motionReduced: boolean, pullRequestIcon?: ThemeIcon): SessionStatusIndicator {
-		if ((status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) && !motionReduced) {
-			const isNeedsInput = status === SessionStatus.NeedsInput;
-			return {
-				kind: 'spinner',
-				variant: isNeedsInput ? 'ring' : 'grid',
-				cacheKey: isNeedsInput ? PIXEL_SPINNER_RING_KEY : PIXEL_SPINNER_GRID_KEY,
-				color: isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground'),
-			};
-		}
-
-		const icon = this.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
-		return {
-			kind: 'icon',
-			icon,
-			cacheKey: ThemeIcon.asCSSSelector(icon),
-			color: icon.color ? asCssVariable(icon.color.id) : '',
-		};
 	}
 
 	// -- Cleanup --
