@@ -6,10 +6,18 @@
 import crypto from 'crypto';
 
 import { Hash, Host } from '../common/host';
-
+import path from 'node:path';
 
 export class NodeHost implements Host {
+
+	public readonly path: Host['path'];
+
 	public constructor() {
+		this.path = Object.freeze({
+			basename: (pathStr: string, ext?: string): string => {
+				return path.basename(pathStr, ext);
+			}
+		});
 	}
 
 	public createHash(algorithm: string): Hash {

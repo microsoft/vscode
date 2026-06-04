@@ -8,18 +8,6 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import * as protocol from '../common/serverProtocol';
 import { TypeScriptServiceContribution } from './typeScriptService';
 
-enum ExecutionTarget {
-	Semantic,
-	Syntax
-}
-
-type ExecConfig = {
-	readonly lowPriority?: boolean;
-	readonly nonRecoverable?: boolean;
-	readonly cancelOnResourceChange?: vscode.Uri;
-	readonly executionTarget?: ExecutionTarget;
-};
-
 type PrepareNesRenameRequestArgs = Omit<protocol.PrepareNesRenameRequestArgs, 'file' | 'projectFileName' | 'line' | 'offset'> & {
 	file: vscode.Uri;
 	line: number;
@@ -137,8 +125,6 @@ class TelemetrySender {
 export class NesRenameContribution extends TypeScriptServiceContribution {
 
 	private readonly telemetrySender: TelemetrySender;
-
-	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

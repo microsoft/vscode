@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -28,6 +29,7 @@ import { createToolSimpleTextResult } from '../../common/tools/builtinTools/tool
 import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
+
 export const UsagesToolId = 'vscode_listCodeUsages';
 
 const BaseModelDescription = `Find all usages (references, definitions, and implementations) of a code symbol across the workspace. This tool locates where a symbol is referenced, defined, or implemented.
@@ -40,6 +42,38 @@ Input:
 
 IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any occurrence works - a usage, an import, a call site, etc. You can pick whichever occurrence is most convenient.
 
+Output:
+
+Returns code usages of the queried symbol, grouped into definitions, references, and implementations. Empty categories are omitted.
+
+Each usage has:
+
+uri — a URI of the file where the usage appears.
+line — 1-based line number of the usage.
+containers (optional) — enclosing syntactic scopes (function, method, class, interface, namespace, module), ordered innermost first.
+Each container has kind, name, and a range with startLine and endLine (inclusive, 1-based). Use the smallest range that gives you
+enough context before falling back to reading random parts of the file or the whole file. Top-level/file-wide containers are omitted.
+If results are capped, the response includes "truncated": true and "total": <n>; narrow the query (e.g. by file or kind) to see the rest.
+
+Example:
+
+{
+	"symbol": "parseConfig",
+	"definitions": [
+		{ "file": "file:///home/project/src/config.ts", "line": 42 }
+	],
+	"references": [
+		{
+			"file": "file:///home/project/src/server.ts",
+			"line": 88,
+			"containers": [
+				{ "kind": "method", "name": "start", "range": { "startLine": 80, "endLine": 120 } },
+				{ "kind": "class",  "name": "Server", "range": { "startLine": 60, "endLine": 240 } }
+			]
+		}
+	]
+}
+
 If the tool returns an error, retry with corrected input - ensure the file path is correct, the line content matches the actual file content, and the symbol name appears in that line.`;
 
 /**
@@ -51,23 +85,33 @@ const StaticModelDescription = BaseModelDescription + `
 
 If the file's language has no reference provider registered, the tool returns an error.`;
 
-type FilePath = string;
 
-interface LineRange {
-	start: number;
-	end: number;
-}
+namespace Result {
+	export interface LineRange {
+		startLine: number;
+		endLine: number;
+	}
 
-interface CodeUsage {
-	file: FilePath;
-	line: number;
-	parents?: LineRange[];
-}
+	export interface CodeUsage {
+		uri: URI;
+		line: number;
+		containers?: LineRange[];
+	}
 
-interface CodeUsages {
-	definitions?: CodeUsage[];
-	references?: CodeUsage[];
-	implementations?: CodeUsage[];
+	export interface CodeUsages {
+		definitions?: CodeUsage[];
+		references?: CodeUsage[];
+		implementations?: CodeUsage[];
+	}
+
+	export namespace CodeUsages {
+		export function is(value: unknown): value is CodeUsages {
+			if (typeof value !== 'object' || value === null) {
+				return false;
+			}
+			return true;
+		}
+	}
 }
 
 export class UsagesTool extends Disposable implements IToolImpl {
@@ -165,53 +209,58 @@ export class UsagesTool extends Disposable implements IToolImpl {
 
 			const position = new Position(lineNumber, column);
 
-			const codeUsages = await this._commandService.executeCommand<CodeUsages | null>('github.copilot.codeUsages', ref.object.textEditorModel.uri, position);
-			if (codeUsages !== null) {
-			}
+			const codeUsages = await this._commandService.executeCommand<Result.CodeUsages | null>('github.copilot.codeUsages', ref.object.textEditorModel.uri, position);
+			const lines: string[] = [];
+			if (Result.CodeUsages.is(codeUsages)) {
+				if (codeUsages.references === undefined || codeUsages.references.length === 0) {
+					const result = createToolSimpleTextResult(`No usages found for \`${input.symbol}\`.`);
+					result.toolResultMessage = new MarkdownString(localize('tool.usages.noResults', 'Analyzed usages of `{0}`, no results', input.symbol));
+					return result;
+				}
+				return createToolSimpleTextResult(this.formatResult(codeUsages));
+			} else {
 
-			// --- query references, definitions, implementations in parallel ---
-			const [definitions, references, implementations] = await Promise.all([
-				getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, model, position, false, token),
-				getReferencesAtPosition(this._languageFeaturesService.referenceProvider, model, position, false, false, token),
-				getImplementationsAtPosition(this._languageFeaturesService.implementationProvider, model, position, false, token),
-			]);
+				// --- query references, definitions, implementations in parallel ---
+				const [definitions, references, implementations] = await Promise.all([
+					getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, model, position, false, token),
+					getReferencesAtPosition(this._languageFeaturesService.referenceProvider, model, position, false, false, token),
+					getImplementationsAtPosition(this._languageFeaturesService.implementationProvider, model, position, false, token),
+				]);
 
-			if (references.length === 0) {
-				const result = createToolSimpleTextResult(`No usages found for \`${input.symbol}\`.`);
-				result.toolResultMessage = new MarkdownString(localize('tool.usages.noResults', 'Analyzed usages of `{0}`, no results', input.symbol));
+				if (references.length === 0) {
+					const result = createToolSimpleTextResult(`No usages found for \`${input.symbol}\`.`);
+					result.toolResultMessage = new MarkdownString(localize('tool.usages.noResults', 'Analyzed usages of `{0}`, no results', input.symbol));
+					return result;
+				}
+
+				// --- classify and format results with previews ---
+				const previews = await this._getLinePreviews(input.symbol, references, token);
+
+				lines.push(`${references.length} usages of \`${input.symbol}\`:\n`);
+
+				for (let i = 0; i < references.length; i++) {
+					const ref = references[i];
+					const kind = this._classifyReference(ref, definitions, implementations);
+					const startLine = Range.lift(ref.range).startLineNumber;
+					const preview = previews[i];
+					if (preview) {
+						lines.push(`<usage type="${kind}" uri="${ref.uri.toString()}" line="${startLine}">`);
+						lines.push(`\t${preview}`);
+						lines.push(`</usage>`);
+					} else {
+						lines.push(`<usage type="${kind}" uri="${ref.uri.toString()}" line="${startLine}" />`);
+					}
+				}
+				const text = lines.join('\n');
+				const result = createToolSimpleTextResult(text);
+
+				result.toolResultMessage = references.length === 1
+					? new MarkdownString(localize('tool.usages.oneResult', 'Analyzed usages of `{0}`, 1 result', input.symbol))
+					: new MarkdownString(localize('tool.usages.results', 'Analyzed usages of `{0}`, {1} results', input.symbol, references.length));
+
+				result.toolResultDetails = references.map((r): Location => ({ uri: r.uri, range: r.range }));
 				return result;
 			}
-
-			// --- classify and format results with previews ---
-			const previews = await this._getLinePreviews(input.symbol, references, token);
-
-			const lines: string[] = [];
-			lines.push(`${references.length} usages of \`${input.symbol}\`:\n`);
-
-			for (let i = 0; i < references.length; i++) {
-				const ref = references[i];
-				const kind = this._classifyReference(ref, definitions, implementations);
-				const startLine = Range.lift(ref.range).startLineNumber;
-				const preview = previews[i];
-				if (preview) {
-					lines.push(`<usage type="${kind}" uri="${ref.uri.toString()}" line="${startLine}">`);
-					lines.push(`\t${preview}`);
-					lines.push(`</usage>`);
-				} else {
-					lines.push(`<usage type="${kind}" uri="${ref.uri.toString()}" line="${startLine}" />`);
-				}
-			}
-
-			const text = lines.join('\n');
-			const result = createToolSimpleTextResult(text);
-
-			result.toolResultMessage = references.length === 1
-				? new MarkdownString(localize('tool.usages.oneResult', 'Analyzed usages of `{0}`, 1 result', input.symbol))
-				: new MarkdownString(localize('tool.usages.results', 'Analyzed usages of `{0}`, {1} results', input.symbol, references.length));
-
-			result.toolResultDetails = references.map((r): Location => ({ uri: r.uri, range: r.range }));
-
-			return result;
 		} finally {
 			ref.dispose();
 		}
@@ -320,6 +369,14 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		return Range.areIntersectingOrTouching(a.range, b.range);
 	}
 
+	private formatResult(result: Result.CodeUsages): string {
+		return JSON.stringify(result, (key, value) => {
+			if (key === 'uri' && (isUriComponents(value))) {
+				return URI.revive(value).toString();
+			}
+			return value;
+		}, '\t');
+	}
 }
 
 export class UsagesToolContribution extends Disposable implements IWorkbenchContribution {

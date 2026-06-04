@@ -5,7 +5,7 @@
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
-import { ErrorCode, RenameKind, type CachedContextRunnableResult, type CodeUsage, type CodeUsageRequest, type CodeUsageResponse, type CodeUsages, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
+import { ErrorCode, RenameKind, type CachedContextRunnableResult, type CodeUsageRequest, type CodeUsageResponse, type CodeUsages, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
 const ts = TS();
 
@@ -13,7 +13,7 @@ import type { Host } from '../common/host';
 import { PrepareNesRenameResult } from '../common/nesRenameValidator';
 import TS from '../common/typescript';
 import { NodeHost } from './host';
-import { getCodeUsages } from '../common/codeUsage';
+import { CodeUsageProvider } from '../common/codeUsage';
 
 export class LanguageServerSession extends ComputeContextSession {
 	private readonly session: tt.server.Session;
@@ -269,7 +269,8 @@ const codeUsagesHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse 
 
 	let result: CodeUsages;
 	try {
-		result = getCodeUsages(languageServerSession!, languageService, file, pos);
+		const provider = new CodeUsageProvider(languageServerSession!, languageService, file, pos);
+		result = provider.getCodeUsages();
 	} catch (error) {
 		if (error instanceof Error) {
 			return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };

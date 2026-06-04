@@ -11,4 +11,7 @@ export interface Hash {
 export interface Host {
 	createHash(algorithm: string): Hash;
 	isDebugging(): boolean;
+	path: {
+		basename(path: string, ext?: string): string;
+	};
 }

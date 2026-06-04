@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import * as protocol from '../common/serverProtocol';
-import { ExecutionTarget, TypeScriptServiceContribution, type ExecConfig } from './typeScriptService';
+import { TypeScriptServiceContribution } from './typeScriptService';
 
 type CodeUsageRequestArgs = Omit<protocol.CodeUsageRequestArgs, 'file' | 'projectFileName' | 'line' | 'offset'> & {
 	file: vscode.Uri;
@@ -23,18 +23,46 @@ namespace CodeUsageRequestArgs {
 	}
 }
 
-export class CodeUsageContribution extends TypeScriptServiceContribution {
+namespace Result {
+	export interface LineRange {
+		startLine: number;
+		endLine: number;
+	}
 
-	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
+	export interface Container {
+		kind: string;
+		name: string;
+		range: LineRange;
+	}
+
+	export interface CodeUsage {
+		uri: vscode.Uri;
+		line: number;
+		containers?: Container[];
+	}
+
+	export interface CodeUsages {
+		symbol: string;
+		definitions?: CodeUsage[];
+		references?: CodeUsage[];
+		implementations?: CodeUsage[];
+	}
+}
+
+
+export class CodeUsageContribution extends TypeScriptServiceContribution {
 
 	constructor(
 		@ILogService logService: ILogService
 	) {
 		super(logService);
-		this.disposables.add(vscode.commands.registerCommand('github.copilot.codeUsages', async (uri: vscode.Uri | undefined, position: vscode.Position | undefined): Promise<protocol.CodeUsages | null> => {
+		this.disposables.add(vscode.commands.registerCommand('github.copilot.codeUsages', async (uri: vscode.Uri | undefined, position: vscode.Position | undefined): Promise<Result.CodeUsages | null> => {
 			const params = this.resolveParams(uri, position);
 			if (params === undefined) {
-				throw new Error('Failed to resolve code usage parameters.');
+				return null;
+			}
+			if (!this.isActivated(params.document)) {
+				return null;
 			}
 
 			const args: CodeUsageRequestArgs = CodeUsageRequestArgs.create(params.document, params.position);
@@ -44,12 +72,11 @@ export class CodeUsageContribution extends TypeScriptServiceContribution {
 				if (protocol.CodeUsageResponse.isError(result)) {
 					return null;
 				} else if (protocol.CodeUsageResponse.isOk(result)) {
-					return result.body;
+					return this.asResult(result.body);
 				} else {
 					return null;
 				}
 			} catch (error) {
-				console.error('Error occurred while fetching code usages:', error);
 				return null;
 			} finally {
 				tokenSource.dispose();
@@ -67,5 +94,43 @@ export class CodeUsageContribution extends TypeScriptServiceContribution {
 		} else {
 			return undefined;
 		}
+	}
+
+	private asResult(codeUsages: protocol.CodeUsageResponse.OK): Result.CodeUsages {
+		const result: Result.CodeUsages = { symbol: codeUsages.symbol };
+		if (codeUsages.definitions) {
+			result.definitions = codeUsages.definitions.map(def => ({
+				uri: vscode.Uri.file(def.file),
+				line: def.line + 1,
+				containers: def.containers ? def.containers.map(c => ({
+					kind: c.kind,
+					name: c.name,
+					range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
+				})) : undefined
+			}));
+		}
+		if (codeUsages.references) {
+			result.references = codeUsages.references.map(ref => ({
+				uri: vscode.Uri.file(ref.file),
+				line: ref.line + 1,
+				containers: ref.containers ? ref.containers.map(c => ({
+					kind: c.kind,
+					name: c.name,
+					range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
+				})) : undefined
+			}));
+		}
+		if (codeUsages.implementations) {
+			result.implementations = codeUsages.implementations.map(impl => ({
+				uri: vscode.Uri.file(impl.file),
+				line: impl.line + 1,
+				containers: impl.containers ? impl.containers.map(c => ({
+					kind: c.kind,
+					name: c.name,
+					range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
+				})) : undefined
+			}));
+		}
+		return result;
 	}
 }

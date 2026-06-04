@@ -615,13 +615,20 @@ export interface LineRange {
 	end: number;
 }
 
+export interface Container {
+	kind: string;
+	name: string;
+	range: LineRange;
+}
+
 export interface CodeUsage {
 	file: FilePath;
 	line: number;
-	parents?: LineRange[];
+	containers?: Container[];
 }
 
 export interface CodeUsages {
+	symbol: string;
 	definitions?: CodeUsage[];
 	references?: CodeUsage[];
 	implementations?: CodeUsage[];

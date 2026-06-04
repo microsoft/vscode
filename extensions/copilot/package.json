@@ -6956,7 +6956,7 @@
     "tar": "^7.5.11",
     "ts-dedent": "^2.2.0",
     "tsx": "^4.20.3",
-    "typescript": "^5.8.3",
+    "typescript": "^6.0.3",
     "vite-plugin-top-level-await": "^1.5.0",
     "vite-plugin-wasm": "^3.5.0",
     "vitest": "^3.0.5",
