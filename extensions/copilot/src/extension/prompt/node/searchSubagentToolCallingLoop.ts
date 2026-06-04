@@ -7,8 +7,7 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
@@ -50,6 +49,14 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubagentToolCallingLoopOptions> {
 
 	public static readonly ID = 'searchSubagentTool';
+
+	// Render proactively at 0.9. If the model still returns a context-overflow 400,
+	// we do one retry at an aggressively smaller factor before surfacing
+	// a benign fallback to the main agent via the tool wrapper.
+	private static readonly INITIAL_SAFETY_FACTOR = 0.9;
+	private static readonly RETRY_SAFETY_FACTOR = 0.5;
+	private _didRetryAfterOverflow = false;
+	private _lastBuildPromptContext: IBuildPromptContext | undefined;
 
 	constructor(
 		options: ISearchSubagentToolCallingLoopOptions,
@@ -116,12 +123,25 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	}
 
 	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
+		this._lastBuildPromptContext = buildPromptContext;
+		return this._renderPrompt(buildPromptContext, progress, token);
+	}
+
+	private async _renderPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const endpoint = await this.getEndpoint();
-		// Use the effective tool call limit from options (already adjusted for thoroughness in the tool)
 		const maxSearchTurns = this.options.toolCallLimit;
+
+		const tools = buildPromptContext.tools?.availableTools;
+		const toolTokens = tools?.length ? await endpoint.acquireTokenizer().countToolTokens(tools) : 0;
+
+		const factor = this._didRetryAfterOverflow
+			? SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR
+			: SearchSubagentToolCallingLoop.INITIAL_SAFETY_FACTOR;
+		const messageBudget = Math.max(1, Math.floor((endpoint.modelMaxPromptTokens - toolTokens) * factor));
+		const renderEndpoint = toolTokens > 0 || this._didRetryAfterOverflow ? endpoint.cloneWithTokenOverride(messageBudget) : endpoint;
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
-			endpoint,
+			renderEndpoint,
 			SearchSubagentPrompt,
 			{
 				promptContext: buildPromptContext,
@@ -129,7 +149,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				thoroughness: this.options.thoroughness,
 			}
 		);
-		return await renderer.render(progress, token);
+		return renderer.render(progress, token);
 	}
 
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
@@ -151,33 +171,105 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 
 	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
-		return endpoint.makeChatRequest2({
-			debugName: SearchSubagentToolCallingLoop.ID,
-			messages,
-			finishedCb,
-			location: this.options.location,
-			modelCapabilities: { ...modelCapabilities, reasoningEffort: undefined },
-			requestOptions: {
-				...requestOptions,
-				temperature: 0
-			},
-			// This loop is inside a tool called from another request, so never user initiated
-			userInitiatedRequest: false,
-			turnId: this.options.request.id,
-			topLevelTurnId: this.options.topLevelTurnId,
-			telemetryProperties: {
-				requestId: this.options.subAgentInvocationId,
-				messageId: randomUUID(),
-				messageSource: 'chat.editAgent',
-				subType: 'search_subagent',
-				conversationId: this.options.conversation.sessionId,
-				parentToolCallId: this.options.parentToolCallId,
-				parentRequestId: this.options.request.id,
-				parentHeaderRequestId: this.options.parentHeaderRequestId,
-				parentModelCallId: this.options.parentModelCallId,
-				iterationNumber: iterationNumber.toString(),
-			},
-			interactionTypeOverride: 'conversation-subagent'
-		}, token);
+		let currentMessages = messages;
+		while (true) {
+			const response = await endpoint.makeChatRequest2({
+				debugName: SearchSubagentToolCallingLoop.ID,
+				messages: currentMessages,
+				finishedCb,
+				location: this.options.location,
+				modelCapabilities: { ...modelCapabilities, reasoningEffort: undefined },
+				requestOptions: {
+					...requestOptions,
+					temperature: 0
+				},
+				// This loop is inside a tool called from another request, so never user initiated
+				userInitiatedRequest: false,
+				turnId: this.options.request.id,
+				topLevelTurnId: this.options.topLevelTurnId,
+				telemetryProperties: {
+					requestId: this.options.subAgentInvocationId,
+					messageId: randomUUID(),
+					messageSource: 'chat.editAgent',
+					subType: 'search_subagent',
+					conversationId: this.options.conversation.sessionId,
+					parentToolCallId: this.options.parentToolCallId,
+					parentRequestId: this.options.request.id,
+					parentHeaderRequestId: this.options.parentHeaderRequestId,
+					parentModelCallId: this.options.parentModelCallId,
+					iterationNumber: iterationNumber.toString(),
+				},
+				interactionTypeOverride: 'conversation-subagent'
+			}, token);
+
+			if (
+				token.isCancellationRequested ||
+				!this._lastBuildPromptContext ||
+				!isContextOverflowBadRequest(response)
+			) {
+				return response;
+			}
+
+			if (this._didRetryAfterOverflow) {
+				this._sendContextOverflowTelemetry('exhausted', endpoint.model, SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR);
+				return response;
+			}
+
+			this._didRetryAfterOverflow = true;
+			this._logService.warn(`[searchSubagent] context_length_exceeded from API; re-rendering once at safety factor ${SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR}`);
+			this._sendContextOverflowTelemetry('retried', endpoint.model, SearchSubagentToolCallingLoop.RETRY_SAFETY_FACTOR);
+			const rerendered = await this.buildPrompt(this._lastBuildPromptContext, { report: () => { } }, token);
+			currentMessages = rerendered.messages;
+		}
 	}
+
+	/**
+	 * Skip the autopilot auto-retry layer for context-overflow BadRequest.
+	 */
+	protected override shouldAutoRetry(response: ChatResponse): boolean {
+		if (isContextOverflowBadRequest(response)) {
+			return false;
+		}
+		return super.shouldAutoRetry(response);
+	}
+
+	private _sendContextOverflowTelemetry(
+		outcome: 'retried' | 'exhausted',
+		model: string,
+		safetyFactor: number,
+	): void {
+		/* __GDPR__
+			"searchSubagent.contextOverflow" : {
+				"owner": "t-guomaggie",
+				"comment": "Tracks when the search subagent's model returns a 400 with a context-overflow reason, and whether the single shrink-and-retry recovered.",
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "One of: 'retried' (overflowed on the initial 0.9 budget, re-rendering at the retry factor), 'exhausted' (also overflowed on the retry; failure surfaced to the tool wrapper as a benign fallback)." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model id used by the subagent." },
+				"safetyFactor": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The message-budget multiplier in effect after the shrink. Currently always RETRY_SAFETY_FACTOR, but logged as a value so tuning is visible if we change it." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('searchSubagent.contextOverflow', {
+			outcome,
+			model,
+		}, {
+			safetyFactor,
+		});
+	}
+}
+
+const CONTEXT_OVERFLOW_REASON_PATTERNS = [
+	'context_length_exceeded',
+	'context length',
+	'context window',
+	'maximum context',
+	'prompt is too long',
+	'request too large',
+	'request_too_large',
+];
+
+export function isContextOverflowBadRequest(response: ChatResponse): boolean {
+	if (response.type !== ChatFetchResponseType.BadRequest) {
+		return false;
+	}
+	const haystack = `${response.reason ?? ''} ${response.reasonDetail ?? ''}`.toLowerCase();
+	return CONTEXT_OVERFLOW_REASON_PATTERNS.some(p => haystack.includes(p));
 }

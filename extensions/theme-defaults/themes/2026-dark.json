@@ -95,6 +95,7 @@
 		"menu.foreground": "#bfbfbf",
 		"menu.selectionBackground": "#3994BC26",
 		"menu.selectionForeground": "#bfbfbf",
+		"menu.selectionBorder": "#3994BC",
 		"menu.separatorBackground": "#2A2B2C",
 		"menu.border": "#2A2B2CFF",
 		"commandCenter.foreground": "#bfbfbf",

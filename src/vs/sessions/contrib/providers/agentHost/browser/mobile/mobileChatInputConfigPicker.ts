@@ -101,6 +101,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
@@ -161,6 +162,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
+		this._containerElement = container;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-picker-slot-mobile-config'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
@@ -221,19 +223,24 @@ class MobileChatInputConfigPicker extends Disposable {
 	}
 
 	private _updateTrigger(): void {
-		if (!this._slotElement || !this._triggerElement) {
+		if (!this._slotElement || !this._triggerElement || !this._containerElement) {
 			return;
 		}
 
 		const ctx = this._getContext();
 		// Hide the chip when there's nothing to pick (no mode AND no
 		// models). In that state the toolbar is more compact rather than
-		// showing a no-op trigger.
+		// showing a no-op trigger. Also collapse the wrapping
+		// `.action-item` that `MenuWorkbenchToolBar` created — hiding
+		// only the inner slot leaves the wrapper occupying its
+		// `min-width` floor and produces a visible empty gap.
 		if (!ctx || (ctx.modeItems.length === 0 && ctx.modelItems.length === 0)) {
 			this._slotElement.style.display = 'none';
+			this._containerElement.style.display = 'none';
 			return;
 		}
 		this._slotElement.style.display = '';
+		this._containerElement.style.display = '';
 
 		// Auto-resolve the model: if the session has no explicit model
 		// selection yet, push the remembered model (or first available)

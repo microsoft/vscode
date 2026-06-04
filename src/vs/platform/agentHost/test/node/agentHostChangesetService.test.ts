@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
+import { BASELINE_TURN_ID, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -70,7 +70,6 @@ suite('AgentHostChangesetService', () => {
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 
 		changesetService.registerStaticChangesets(sessionStr);
@@ -88,7 +87,6 @@ suite('AgentHostChangesetService', () => {
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
-			{ label: 'This Turn', uriTemplate: `${sessionStr}/changeset/turn/{turnId}` },
 		]);
 	});
 
@@ -101,7 +99,7 @@ suite('AgentHostChangesetService', () => {
 		changesetService.registerStaticChangesets(sessionStr);
 
 		const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
-		assert.strictEqual(changesets?.length, 3, 'expected the three default catalogue entries');
+		assert.strictEqual(changesets?.length, 2, 'expected the two default catalogue entries');
 	});
 
 	test('restoreStaticChangeset publishes files in Ready and refreshes catalogue counts', () => {
@@ -141,10 +139,6 @@ suite('AgentHostChangesetService', () => {
 				label: 'Uncommitted Changes',
 				uriTemplate: `${sessionStr}/changeset/uncommitted`,
 				description: 'Show uncommitted changes in this session',
-			},
-			{
-				label: 'This Turn',
-				uriTemplate: `${sessionStr}/changeset/turn/{turnId}`,
 			},
 		]);
 	});
@@ -197,10 +191,6 @@ suite('AgentHostChangesetService', () => {
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionStr}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
-				},
-				{
-					label: 'This Turn',
-					uriTemplate: `${sessionStr}/changeset/turn/{turnId}`,
 				},
 			],
 		});
@@ -440,6 +430,49 @@ suite('AgentHostChangesetService', () => {
 		const bDiff = { after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 2, removed: 0 } };
 		const sessionStr = sessionUri.toString();
 
+		test('parsePersistedStaticChangesets parses without mutating state', () => {
+			setupSession();
+			changesetService.registerStaticChangesets(sessionStr);
+
+			const result = changesetService.parsePersistedStaticChangesets(sessionStr, {
+				uncommittedRaw: JSON.stringify([aDiff]),
+				sessionRaw: JSON.stringify([bDiff]),
+			});
+
+			assert.deepStrictEqual({
+				uncommitted: result.uncommitted?.map(d => d.after?.uri),
+				session: result.session?.map(d => d.after?.uri),
+				uncommittedState: stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr)),
+				sessionState: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)),
+			}, {
+				uncommitted: ['file:///wd/a.ts'],
+				session: ['file:///wd/b.ts'],
+				uncommittedState: { status: 'computing', files: [] },
+				sessionState: { status: 'computing', files: [] },
+			});
+		});
+
+		test('applyPersistedStaticChangesets seeds parsed diffs', () => {
+			setupSession();
+			changesetService.registerStaticChangesets(sessionStr);
+			const parsed = changesetService.parsePersistedStaticChangesets(sessionStr, {
+				uncommittedRaw: JSON.stringify([aDiff]),
+				sessionRaw: JSON.stringify([bDiff]),
+			});
+
+			changesetService.applyPersistedStaticChangesets(sessionStr, parsed);
+
+			const uncommitted = stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
+			const session = stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
+			assert.deepStrictEqual({
+				uncommitted: uncommitted && { status: uncommitted.status, files: uncommitted.files.map(f => f.id) },
+				session: session && { status: session.status, files: session.files.map(f => f.id) },
+			}, {
+				uncommitted: { status: 'ready', files: ['file:///wd/a.ts'] },
+				session: { status: 'ready', files: ['file:///wd/b.ts'] },
+			});
+		});
+
 		test('new uncommitted key restores only uncommitted state', () => {
 			setupSession();
 			changesetService.registerStaticChangesets(sessionStr);
@@ -537,6 +570,85 @@ suite('AgentHostChangesetService', () => {
 				deletions: 0,
 				files: 2,
 			}, 'catalogue counts must reflect restored files');
+		});
+	});
+
+	suite('idle changeset LRU eviction', () => {
+
+		const sessionStr = sessionUri.toString();
+
+		test('idle changeset states are evicted over the soft limit', () => {
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 2 } }));
+			const first = `${sessionStr}/changeset/session`;
+			const second = `${sessionStr}/changeset/uncommitted`;
+			const third = `${sessionStr}/changeset/turn/turn-1`;
+
+			localStateManager.registerChangeset(first);
+			localStateManager.registerChangeset(second);
+			localStateManager.registerChangeset(third);
+
+			assert.deepStrictEqual({
+				first: localStateManager.getChangesetState(first),
+				second: localStateManager.getChangesetState(second)?.status,
+				third: localStateManager.getChangesetState(third)?.status,
+			}, {
+				first: undefined,
+				second: 'computing',
+				third: 'computing',
+			});
+		});
+
+		test('evictability probe protects subscribed changesets', () => {
+			const first = `${sessionStr}/changeset/session`;
+			const second = `${sessionStr}/changeset/uncommitted`;
+			const third = `${sessionStr}/changeset/turn/turn-1`;
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 2, canEvict: changeset => changeset !== first } }));
+
+			localStateManager.registerChangeset(first);
+			localStateManager.registerChangeset(second);
+			localStateManager.registerChangeset(third);
+
+			assert.deepStrictEqual({
+				first: localStateManager.getChangesetState(first)?.status,
+				second: localStateManager.getChangesetState(second),
+				third: localStateManager.getChangesetState(third)?.status,
+			}, {
+				first: 'computing',
+				second: undefined,
+				third: 'computing',
+			});
+		});
+
+		test('LRU eviction is silent and does not dispatch ChangesetCleared', () => {
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 1 } }));
+			const envelopes: ActionEnvelope[] = [];
+			const listener = disposables.add(localStateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			localStateManager.registerChangeset(`${sessionStr}/changeset/session`);
+			localStateManager.registerChangeset(`${sessionStr}/changeset/uncommitted`);
+
+			assert.deepStrictEqual(envelopes.map(e => e.action.type), []);
+			listener.dispose();
+		});
+
+		test('trimming reconsiders entries after they become evictable', () => {
+			let canEvict = false;
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService(), { changesetStateRetention: { softLimit: 1, canEvict: () => canEvict } }));
+			const first = `${sessionStr}/changeset/session`;
+			const second = `${sessionStr}/changeset/uncommitted`;
+
+			localStateManager.registerChangeset(first);
+			localStateManager.registerChangeset(second);
+			canEvict = true;
+			localStateManager.onChangesetLivenessChanged();
+
+			assert.deepStrictEqual({
+				first: localStateManager.getChangesetState(first),
+				second: localStateManager.getChangesetState(second)?.status,
+			}, {
+				first: undefined,
+				second: 'computing',
+			});
 		});
 	});
 
@@ -684,10 +796,11 @@ suite('AgentHostChangesetService', () => {
 
 	suite('computeCompareTurnsChangeset', () => {
 
-		function makeCheckpointService(pairs: Record<string, { parent: string; current: string } | undefined>) {
+		function makeCheckpointService(pairs: Record<string, { parent: string; current: string } | undefined>, baselineRef?: string) {
 			return {
 				...NULL_CHECKPOINT_SERVICE,
 				getTurnCheckpointPair: async (_session: URI, turnId: string) => pairs[turnId],
+				getBaselineCheckpointRef: async () => baselineRef,
 			};
 		}
 
@@ -728,6 +841,62 @@ suite('AgentHostChangesetService', () => {
 				status: 'ready',
 				ids: ['file:///wd/a.ts'],
 			});
+		});
+
+		test('uses the baseline ref as the from-endpoint when original is BASELINE_TURN_ID', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
+
+			const calls: Array<{ fromRef: string; toRef: string }> = [];
+			const gitService = createNoopGitService();
+			gitService.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+				calls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+				return [];
+			};
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(db),
+				gitService,
+				makeCheckpointService({
+					'mod': { parent: 'ref-baseline', current: 'ref-mod' },
+				}, 'ref-baseline'),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, BASELINE_TURN_ID, 'mod');
+
+			assert.strictEqual(compareUri, `${sessionStr}/changeset/compare/baseline/mod`);
+			assert.deepStrictEqual(calls, [{ fromRef: 'ref-baseline', toRef: 'ref-mod' }]);
+			const state = stateManager.getSnapshot(compareUri)?.state as { status: string } | undefined;
+			assert.strictEqual(state?.status, 'ready');
+		});
+
+		test('transitions to Error when original is BASELINE_TURN_ID but no baseline was captured', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			const gitService = createNoopGitService();
+			let gitCalls = 0;
+			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
+			const svc = disposables.add(new AgentHostChangesetService(
+				stateManager,
+				new NullLogService(),
+				createSessionDataService(new TestSessionDatabase()),
+				gitService,
+				makeCheckpointService({
+					'mod': { parent: 'ref-baseline', current: 'ref-mod' },
+				} /* no baseline */),
+			));
+
+			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, BASELINE_TURN_ID, 'mod');
+
+			const state = stateManager.getSnapshot(compareUri)?.state as { status: string; error?: { message: string } } | undefined;
+			assert.strictEqual(state?.status, 'error');
+			assert.ok(state?.error?.message.includes('baseline'), `expected error to name the missing baseline, got ${state?.error?.message}`);
+			assert.strictEqual(gitCalls, 0, 'git must not be invoked when the baseline is missing');
 		});
 
 		test('transitions to Error when either checkpoint is missing', async () => {
