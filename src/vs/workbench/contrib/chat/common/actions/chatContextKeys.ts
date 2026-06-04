@@ -175,4 +175,14 @@ export namespace ChatContextKeyExprs {
 		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^agent-host-/),
 		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^remote-/),
 	);
+
+	/**
+	 * True when an agent session item (e.g. in the sessions viewer) is an agent
+	 * host session (agent-host-* or remote-*). Keyed on {@link ChatContextKeys.agentSessionType}
+	 * rather than the locked coding agent, for use in session item menus and keybindings.
+	 */
+	export const isAgentHostSessionItem = ContextKeyExpr.or(
+		ContextKeyExpr.regex(ChatContextKeys.agentSessionType.key, /^agent-host-/),
+		ContextKeyExpr.regex(ChatContextKeys.agentSessionType.key, /^remote-/),
+	);
 }
