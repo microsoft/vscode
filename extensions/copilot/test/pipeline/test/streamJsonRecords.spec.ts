@@ -6,7 +6,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { streamJsonRecords } from '../streamJsonRecords';
+import { inferJsonRecordFormat, streamJsonRecords } from '../streamJsonRecords';
 
 describe('streamJsonRecords', () => {
 	let tmpDir: string;
@@ -19,8 +19,8 @@ describe('streamJsonRecords', () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 	});
 
-	async function collect<T>(contents: string): Promise<T[]> {
-		const inputPath = path.join(tmpDir, 'input.json');
+	async function collect<T>(contents: string, ext = '.json'): Promise<T[]> {
+		const inputPath = path.join(tmpDir, `input${ext}`);
 		await fs.writeFile(inputPath, contents);
 		const result: T[] = [];
 		for await (const element of streamJsonRecords<T>(inputPath)) {
@@ -29,7 +29,16 @@ describe('streamJsonRecords', () => {
 		return result;
 	}
 
-	describe('JSON array', () => {
+	test('infers format from the file extension', () => {
+		expect(inferJsonRecordFormat('/a/b/input.json')).toBe('array');
+		expect(inferJsonRecordFormat('/a/b/input.JSON')).toBe('array');
+		expect(inferJsonRecordFormat('/a/b/input.txt')).toBe('array');
+		expect(inferJsonRecordFormat('/a/b/input.jsonl')).toBe('jsonl');
+		expect(inferJsonRecordFormat('/a/b/input.JSONL')).toBe('jsonl');
+		expect(inferJsonRecordFormat('/a/b/input.ndjson')).toBe('jsonl');
+	});
+
+	describe('JSON array (.json)', () => {
 		test('parses an array of objects, primitives and nested structures', async () => {
 			const value = [
 				{ a: 1, b: 'two', c: [1, 2, { d: true }] },
@@ -56,40 +65,44 @@ describe('streamJsonRecords', () => {
 			expect(await collect('[]')).toEqual([]);
 			expect(await collect('   [   ]   ')).toEqual([]);
 		});
+
+		test('throws when a .json file does not start with an array', async () => {
+			await expect(collect('{"a":1}')).rejects.toThrow();
+		});
 	});
 
-	describe('JSON Lines', () => {
+	describe('JSON Lines (.jsonl)', () => {
 		test('parses one object per line', async () => {
 			const value = [
 				{ a: 1, b: 'two' },
 				{ a: 2, b: 'three', nested: { x: [1, 2] } },
 				{ a: 3 },
 			];
-			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'));
+			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'), '.jsonl');
 			expect(result).toEqual(value);
 		});
 
 		test('handles a trailing newline and blank lines', async () => {
 			const value = [{ a: 1 }, { a: 2 }];
 			const contents = `${JSON.stringify(value[0])}\n\n${JSON.stringify(value[1])}\n`;
-			const result = await collect(contents);
+			const result = await collect(contents, '.jsonl');
 			expect(result).toEqual(value);
 		});
 
 		test('handles CRLF line endings and leading whitespace', async () => {
 			const value = [{ a: 1 }, { a: 2 }];
 			const contents = `   ${JSON.stringify(value[0])}\r\n${JSON.stringify(value[1])}\r\n`;
-			const result = await collect(contents);
+			const result = await collect(contents, '.jsonl');
 			expect(result).toEqual(value);
 		});
 
 		test('parses a single object without a trailing newline', async () => {
-			expect(await collect('{"a":1}')).toEqual([{ a: 1 }]);
+			expect(await collect('{"a":1}', '.jsonl')).toEqual([{ a: 1 }]);
 		});
 
 		test('handles brackets and commas inside string values', async () => {
 			const value = [{ s: 'a [ ] , { } b' }, { s: 'second' }];
-			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'));
+			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'), '.ndjson');
 			expect(result).toEqual(value);
 		});
 	});
@@ -97,9 +110,7 @@ describe('streamJsonRecords', () => {
 	test('returns nothing for an empty or whitespace-only file', async () => {
 		expect(await collect('')).toEqual([]);
 		expect(await collect('   \n  \t ')).toEqual([]);
-	});
-
-	test('throws on malformed input', async () => {
-		await expect(collect('not json')).rejects.toThrow();
+		expect(await collect('', '.jsonl')).toEqual([]);
+		expect(await collect('   \n  \t ', '.jsonl')).toEqual([]);
 	});
 });

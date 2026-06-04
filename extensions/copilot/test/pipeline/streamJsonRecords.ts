@@ -4,16 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as path from 'path';
+
+export type JsonRecordFormat = 'array' | 'jsonl';
+
+/**
+ * Infers the record format of an input file from its extension:
+ * - `.jsonl` / `.ndjson` → JSON Lines (one JSON value per line).
+ * - anything else (e.g. `.json`) → a single JSON array.
+ */
+export function inferJsonRecordFormat(inputPath: string): JsonRecordFormat {
+	const ext = path.extname(inputPath).toLowerCase();
+	return ext === '.jsonl' || ext === '.ndjson' ? 'jsonl' : 'array';
+}
 
 /**
  * Streams the top-level records of a file without ever loading the whole file
- * into memory. Two input formats are auto-detected from the first non-whitespace
- * character:
+ * into memory. The format is inferred from the file extension (see
+ * {@link inferJsonRecordFormat}):
  *
- * - A single JSON array (`[ {...}, {...} ]`) when the first character is `[`.
- *   Each top-level array element is yielded in order.
- * - JSON Lines / NDJSON (one JSON value per line) otherwise. Each non-empty line
- *   is parsed and yielded in order.
+ * - A single JSON array (`[ {...}, {...} ]`) — each top-level array element is
+ *   yielded in order.
+ * - JSON Lines / NDJSON (one JSON value per line) — each non-empty line is parsed
+ *   and yielded in order.
  *
  * Node's `fs.readFile`/`fs.promises.readFile` reject files larger than 2 GiB and
  * V8 strings have a maximum length of ~512 MiB, so large inputs (e.g. multi-GB
@@ -26,13 +39,49 @@ import * as fs from 'fs';
  * @yields each parsed top-level record in order.
  */
 export async function* streamJsonRecords<T = unknown>(inputPath: string): AsyncGenerator<T> {
+	const format = inferJsonRecordFormat(inputPath);
 	const stream = fs.createReadStream(inputPath, { encoding: 'utf8' });
 
-	const isWhitespace = (ch: string): boolean => ch === ' ' || ch === '\n' || ch === '\r' || ch === '\t';
+	try {
+		if (format === 'jsonl') {
+			yield* streamJsonLines<T>(stream);
+		} else {
+			yield* streamJsonArray<T>(stream);
+		}
+	} finally {
+		stream.destroy();
+	}
+}
 
-	let mode: 'unknown' | 'array' | 'jsonl' = 'unknown';
+function isWhitespace(ch: string): boolean {
+	return ch === ' ' || ch === '\n' || ch === '\r' || ch === '\t';
+}
 
-	// JSON-array parsing state.
+async function* streamJsonLines<T>(stream: NodeJS.ReadableStream): AsyncGenerator<T> {
+	let line = '';
+	for await (const chunk of stream) {
+		const text = chunk as string;
+		for (let i = 0; i < text.length; i++) {
+			const ch = text[i];
+			if (ch === '\n' || ch === '\r') {
+				const trimmed = line.trim();
+				line = '';
+				if (trimmed.length > 0) {
+					yield JSON.parse(trimmed) as T;
+				}
+			} else {
+				line += ch;
+			}
+		}
+	}
+	const trimmed = line.trim();
+	if (trimmed.length > 0) {
+		yield JSON.parse(trimmed) as T;
+	}
+}
+
+async function* streamJsonArray<T>(stream: NodeJS.ReadableStream): AsyncGenerator<T> {
+	let arrayStarted = false;
 	let arrayEnded = false;
 	let depth = 0;
 	let inString = false;
@@ -40,121 +89,95 @@ export async function* streamJsonRecords<T = unknown>(inputPath: string): AsyncG
 	let current = '';
 	let hasContent = false;
 
-	// JSON-Lines parsing state.
-	let line = '';
+	for await (const chunk of stream) {
+		const text = chunk as string;
+		for (let i = 0; i < text.length; i++) {
+			const ch = text[i];
 
-	try {
-		for await (const chunk of stream) {
-			for (let i = 0; i < chunk.length; i++) {
-				const ch = chunk[i];
-
-				if (mode === 'unknown') {
-					if (isWhitespace(ch)) {
-						continue;
-					}
-					if (ch === '[') {
-						mode = 'array';
-						continue;
-					}
-					// Anything else is treated as the first character of a JSON-Lines record.
-					mode = 'jsonl';
-					// Fall through so this character is handled by the JSON-Lines branch below.
+			if (!arrayStarted) {
+				if (isWhitespace(ch)) {
+					continue;
 				}
-
-				if (mode === 'array') {
-					if (arrayEnded) {
-						break;
-					}
-
-					if (inString) {
-						current += ch;
-						if (escaped) {
-							escaped = false;
-						} else if (ch === '\\') {
-							escaped = true;
-						} else if (ch === '"') {
-							inString = false;
-						}
-						continue;
-					}
-
-					if (ch === '"') {
-						inString = true;
-						current += ch;
-						hasContent = true;
-						continue;
-					}
-
-					if (ch === '{' || ch === '[') {
-						depth++;
-						current += ch;
-						hasContent = true;
-						continue;
-					}
-
-					if (ch === '}' || ch === ']') {
-						if (ch === ']' && depth === 0) {
-							// Closing the outer array.
-							const trimmed = current.trim();
-							current = '';
-							hasContent = false;
-							if (trimmed.length > 0) {
-								yield JSON.parse(trimmed) as T;
-							}
-							arrayEnded = true;
-							continue;
-						}
-						depth--;
-						current += ch;
-						hasContent = true;
-						continue;
-					}
-
-					if (ch === ',' && depth === 0) {
-						const trimmed = current.trim();
-						current = '';
-						hasContent = false;
-						if (trimmed.length > 0) {
-							yield JSON.parse(trimmed) as T;
-						}
-						continue;
-					}
-
-					if (!hasContent && isWhitespace(ch)) {
-						// Skip whitespace between elements so it doesn't accumulate.
-						continue;
-					}
-
-					current += ch;
-					if (!isWhitespace(ch)) {
-						hasContent = true;
-					}
-				} else {
-					// JSON-Lines mode.
-					if (ch === '\n' || ch === '\r') {
-						const trimmed = line.trim();
-						line = '';
-						if (trimmed.length > 0) {
-							yield JSON.parse(trimmed) as T;
-						}
-					} else {
-						line += ch;
-					}
+				if (ch === '[') {
+					arrayStarted = true;
+					continue;
 				}
+				throw new Error(`Expected '[' at start of JSON array input, got '${ch}'`);
 			}
 
 			if (arrayEnded) {
 				break;
 			}
+
+			if (inString) {
+				current += ch;
+				if (escaped) {
+					escaped = false;
+				} else if (ch === '\\') {
+					escaped = true;
+				} else if (ch === '"') {
+					inString = false;
+				}
+				continue;
+			}
+
+			if (ch === '"') {
+				inString = true;
+				current += ch;
+				hasContent = true;
+				continue;
+			}
+
+			if (ch === '{' || ch === '[') {
+				depth++;
+				current += ch;
+				hasContent = true;
+				continue;
+			}
+
+			if (ch === '}' || ch === ']') {
+				if (ch === ']' && depth === 0) {
+					// Closing the outer array.
+					const trimmed = current.trim();
+					current = '';
+					hasContent = false;
+					if (trimmed.length > 0) {
+						yield JSON.parse(trimmed) as T;
+					}
+					arrayEnded = true;
+					continue;
+				}
+				depth--;
+				current += ch;
+				hasContent = true;
+				continue;
+			}
+
+			if (ch === ',' && depth === 0) {
+				const trimmed = current.trim();
+				current = '';
+				hasContent = false;
+				if (trimmed.length > 0) {
+					yield JSON.parse(trimmed) as T;
+				}
+				continue;
+			}
+
+			if (!hasContent && isWhitespace(ch)) {
+				// Skip whitespace between elements so it doesn't accumulate.
+				continue;
+			}
+
+			current += ch;
+			if (!isWhitespace(ch)) {
+				hasContent = true;
+			}
 		}
-	} finally {
-		stream.destroy();
+
+		if (arrayEnded) {
+			break;
+		}
 	}
 
-	if (mode === 'jsonl') {
-		const trimmed = line.trim();
-		if (trimmed.length > 0) {
-			yield JSON.parse(trimmed) as T;
-		}
-	}
+	// An empty or whitespace-only file is treated as containing no records.
 }
