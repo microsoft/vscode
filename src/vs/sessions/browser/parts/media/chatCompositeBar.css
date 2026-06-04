@@ -16,7 +16,8 @@
 .chat-composite-bar.session-header-bar {
 	padding: 6px 10px 0;
 	max-width: 950px;
-	margin: auto;
+	margin: 0 auto;
+	box-sizing: border-box;
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats */
