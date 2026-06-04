@@ -28,7 +28,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { ChatSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -115,8 +115,6 @@ export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
-export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
-export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
@@ -335,8 +333,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
-		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
-		IsSessionReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
+		SessionIsArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
+		SessionIsReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
 		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(!!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim());
 
 		// Pinned & archived styling — reactive
@@ -1509,10 +1507,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
-			[IsSessionArchivedContext.key, element.isArchived.get()],
-			[IsSessionReadContext.key, this.isSessionRead(element)],
+			[SessionIsArchivedContext.key, element.isArchived.get()],
+			[SessionIsReadContext.key, this.isSessionRead(element)],
 			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
-			['chatSessionType', element.sessionType],
+			[ChatSessionTypeContext.key, element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
 		];
 

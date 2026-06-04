@@ -6,7 +6,8 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, DisposableResizeObserver, EventType, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent, reset } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { autorun, IReader } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -17,11 +18,13 @@ import { SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
@@ -69,6 +72,8 @@ export class SessionHeader extends Disposable {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -122,6 +127,30 @@ export class SessionHeader extends Disposable {
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
 
 		this._registerDragSource();
+		this._registerContextMenu();
+	}
+
+	private _registerContextMenu(): void {
+		this._register(addDisposableListener(this._container, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			const session = this._session;
+			if (!session) {
+				return;
+			}
+
+			let anchor: HTMLElement | StandardMouseEvent = this._container;
+			if (isMouseEvent(e)) {
+				anchor = new StandardMouseEvent(getWindow(this._container), e);
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+			this._contextMenuService.showContextMenu({
+				menuId: Menus.SessionHeaderContext,
+				menuActionOptions: { shouldForwardArgs: true, arg: session },
+				getAnchor: () => anchor,
+				contextKeyService: this._contextKeyService
+			});
+		}));
 	}
 
 	private _registerDragSource(): void {

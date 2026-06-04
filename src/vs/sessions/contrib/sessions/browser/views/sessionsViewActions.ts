@@ -20,8 +20,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -507,7 +507,7 @@ registerAction2(class PinSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}, {
 				id: SessionItemContextMenuId,
@@ -515,7 +515,7 @@ registerAction2(class PinSessionAction extends Action2 {
 				order: 0,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}]
 		});
@@ -545,7 +545,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}, {
 				id: SessionItemContextMenuId,
@@ -553,7 +553,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 				order: 0,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}]
 		});
@@ -581,12 +581,12 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}]
 		});
 	}
@@ -612,12 +612,12 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
 				id: Menus.CommandCenter,
 				order: 103,
@@ -654,6 +654,11 @@ registerAction2(class RenameSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
+				order: 1,
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '2_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
@@ -695,8 +700,16 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 				group: '0_read',
 				order: 0,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionReadContext.key, false),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					SessionIsReadContext.negate(),
+					SessionIsArchivedContext.negate(),
+				),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '3_read',
+				order: 0,
+				when: ContextKeyExpr.and(
+					SessionIsReadContext.negate(),
+					SessionIsArchivedContext.negate(),
 				),
 			}]
 		});
@@ -723,8 +736,16 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 				group: '0_read',
 				order: 0,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionReadContext.key, true),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					SessionIsReadContext,
+					SessionIsArchivedContext.negate(),
+				),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '3_read',
+				order: 0,
+				when: ContextKeyExpr.and(
+					SessionIsReadContext,
+					SessionIsArchivedContext.negate(),
 				),
 			}]
 		});

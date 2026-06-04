@@ -19,7 +19,7 @@ import { AbstractChatView, ChatViewKind } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { autorun } from '../../../base/common/observable.js';
-import { SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext } from '../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
@@ -66,6 +66,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _sessionIsStickyKey: IContextKey<boolean>;
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _sessionSupportsMultipleChatsKey: IContextKey<boolean>;
+	private readonly _sessionIsReadKey: IContextKey<boolean>;
+	private readonly _sessionIsArchivedKey: IContextKey<boolean>;
+	private readonly _chatSessionProviderIdKey: IContextKey<string>;
+	private readonly _chatSessionTypeKey: IContextKey<string>;
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
@@ -84,6 +88,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._sessionIsStickyKey = SessionIsStickyContext.bindTo(scopedContextKeyService);
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
 		this._sessionSupportsMultipleChatsKey = SessionSupportsMultipleChatsContext.bindTo(scopedContextKeyService);
+		this._sessionIsReadKey = SessionIsReadContext.bindTo(scopedContextKeyService);
+		this._sessionIsArchivedKey = SessionIsArchivedContext.bindTo(scopedContextKeyService);
+		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
+		this._chatSessionTypeKey = ChatSessionTypeContext.bindTo(scopedContextKeyService);
 
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
@@ -155,6 +163,10 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._sessionIsCreatedKey.set(false);
 			this._sessionIsStickyKey.set(false);
 			this._sessionSupportsMultipleChatsKey.set(false);
+			this._sessionIsReadKey.set(true);
+			this._sessionIsArchivedKey.set(false);
+			this._chatSessionProviderIdKey.set('');
+			this._chatSessionTypeKey.set('');
 			return Disposable.None;
 		}
 
@@ -167,7 +179,17 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._sessionIsStickyKey.set(session.sticky.read(reader));
 		}));
 
+		disposables.add(autorun(reader => {
+			this._sessionIsReadKey.set(session.isRead.read(reader));
+		}));
+
+		disposables.add(autorun(reader => {
+			this._sessionIsArchivedKey.set(session.isArchived.read(reader));
+		}));
+
 		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);
+		this._chatSessionProviderIdKey.set(session.providerId);
+		this._chatSessionTypeKey.set(session.sessionType);
 
 		return disposables;
 	}
