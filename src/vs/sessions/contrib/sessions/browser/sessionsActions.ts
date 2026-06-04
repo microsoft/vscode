@@ -287,7 +287,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
 			menu: {
-				id: Menus.SessionBarInlineToolbar,
+				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 				group: 'navigation',
 				order: 10,
@@ -319,7 +319,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
+				group: '1_session',
 				order: 10,
 				when: SessionIsCreatedContext,
 			},
@@ -343,7 +343,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: 'navigation',
+				group: '1_session',
 				order: 30,
 			},
 		});
@@ -372,7 +372,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: MultipleSessionsVisibleContext,
-				group: 'navigation',
+				group: '1_session',
 				order: 20,
 			},
 		});
