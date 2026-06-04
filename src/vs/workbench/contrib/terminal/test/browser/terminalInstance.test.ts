@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -169,9 +169,9 @@ suite('Workbench - TerminalInstance', () => {
 				_attachBarrier: unknown;
 			};
 
-			strictEqual(privateInstance._xtermReadyPromise instanceof Promise, true);
-			strictEqual(privateInstance._containerReadyBarrier !== undefined, true);
-			strictEqual(privateInstance._attachBarrier !== undefined, true);
+			ok(privateInstance._xtermReadyPromise instanceof Promise);
+			ok(privateInstance._containerReadyBarrier);
+			ok(privateInstance._attachBarrier);
 
 			instance.dispose();
 

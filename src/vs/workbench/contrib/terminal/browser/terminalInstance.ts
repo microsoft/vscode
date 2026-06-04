@@ -109,7 +109,7 @@ const enum Constants {
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 const noXtermReadyPromise: Promise<XtermTerminal | undefined> = Promise.resolve(undefined);
-const noBarrierWait: Promise<boolean> = Promise.resolve(true);
+const noBarrierWait: Promise<void> = Promise.resolve();
 
 interface ICanvasDimensions {
 	width: number;
@@ -1385,6 +1385,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async focusWhenReady(force?: boolean): Promise<void> {
 		await this.xtermReadyPromise;
 		await (this._attachBarrier?.wait() ?? noBarrierWait);
+		if (this.isDisposed) {
+			return;
+		}
 		this.focus(force);
 	}
 
