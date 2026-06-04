@@ -15,6 +15,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { applyOverrides, readCglicenses } from './apply-overrides.js';
 
 interface NoticeEntry {
 	name: string;
@@ -106,13 +107,19 @@ function parseNoticeFile(filePath: string): NoticeEntry[] {
 }
 
 function main(): void {
+	void mainAsync();
+}
+
+async function mainAsync(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
 	const cgPath = args['cg'] || '';
 	const extPath = args['extensions'] || '';
 	const outputPath = args['output'];
+	const cglicensesPath = args['cglicenses'] || '';
+	const strict = 'strict' in args;
 
 	if (!outputPath) {
-		console.error('Usage: merge-notices.js --cg <path> --extensions <path> --output <path>');
+		console.error('Usage: merge-notices.js --cg <path> --extensions <path> --output <path> [--cglicenses <path>] [--strict]');
 		process.exit(1);
 	}
 
@@ -183,6 +190,46 @@ function main(): void {
 		console.log('');
 	}
 
+	// Apply cglicenses.json overrides (the manual "last ~4%" gap-fill file).
+	// CELA-approved: overrides come from human-authored entries, not the tool.
+	let overridesApplied = 0;
+	const unmatchedOverrides: string[] = [];
+	if (cglicensesPath) {
+		if (!fs.existsSync(cglicensesPath)) {
+			console.warn(`WARN: --cglicenses path not found: ${cglicensesPath}`);
+		} else {
+			try {
+				const overrides = readCglicenses(cglicensesPath);
+				console.log(`--- Applying ${overrides.length} cglicenses.json overrides ---`);
+				const result = await applyOverrides(merged, overrides, { fetchUris: true });
+				overridesApplied = result.appliedNames.length;
+				unmatchedOverrides.push(...result.unmatchedNames);
+				for (const name of result.appliedNames.sort()) {
+					console.log(`    * ${name}`);
+				}
+				for (const err of result.errors) {
+					console.error(`    ! ${err}`);
+				}
+				if (result.unmatchedNames.length > 0) {
+					console.warn(`  ${result.unmatchedNames.length} override entries do not match any merged package (possibly stale):`);
+					for (const name of result.unmatchedNames.sort()) {
+						console.warn(`    ? ${name}`);
+					}
+				}
+				if (strict && (result.errors.length > 0 || result.unmatchedNames.length > 0)) {
+					console.error('--strict: failing build due to override errors or unmatched entries');
+					process.exit(2);
+				}
+				console.log('');
+			} catch (err) {
+				console.error(`ERROR reading cglicenses overrides from ${cglicensesPath}: ${(err as Error).message}`);
+				if (strict) {
+					process.exit(2);
+				}
+			}
+		}
+	}
+
 	// Sort and render
 	const sorted = [...merged.values()].sort((a, b) =>
 		a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -237,6 +284,10 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 	console.log(`    From CG: ${cgCount}`);
 	console.log(`    From extension scanner: ${extAdded}`);
 	console.log(`    Extension duplicates skipped: ${extSkipped}`);
+	if (cglicensesPath) {
+		console.log(`    cglicenses overrides applied: ${overridesApplied}`);
+		console.log(`    cglicenses overrides unmatched (possibly stale): ${unmatchedOverrides.length}`);
+	}
 	console.log(`  Output: ${outputPath} (${sizeMB} MB)`);
 }
 

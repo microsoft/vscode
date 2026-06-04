@@ -170,7 +170,7 @@ jobs:
         continueOnError: true
 
       - script: |
-          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
           node .oss-build-out/scan-licenses.js \
             --repo "$(Build.SourcesDirectory)" \
             --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
@@ -181,6 +181,7 @@ jobs:
           node .oss-build-out/merge-notices.js \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --extensions "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt" \
+            --cglicenses "$(Build.SourcesDirectory)/cglicenses.json" \
             --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
 
           # Upload all artifacts
