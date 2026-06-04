@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestType } from '@vscode/copilot-api';
+import { RequestType, type RequestMetadata } from '@vscode/copilot-api';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
+import { setCopilotToken } from '../../../../platform/authentication/common/staticGitHubAuthenticationService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
@@ -149,7 +150,14 @@ describe('getAgentTools background todo enablement', () => {
 		accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		configService = accessor.get(IConfigurationService);
+
+		// The background-todo gate only opens for a signed-in paid user whose
+		// request is routed through CAPI, so set up both for this harness.
+		const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
+		setCopilotToken(accessor.get(IAuthenticationService), paidToken);
+
 		mockEndpoint = instantiationService.createInstance(MockEndpoint, undefined);
+		(mockEndpoint as unknown as { urlOrRequestMetadata: string | RequestMetadata }).urlOrRequestMetadata = { type: RequestType.ChatCompletions };
 	});
 
 	afterAll(() => {
@@ -200,9 +208,13 @@ describe('getAgentTools background todo enablement', () => {
 
 describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', () => {
 
-	function getMethod(): (this: unknown, promptContext: unknown, token: unknown) => void {
-		return (AgentIntentInvocation.prototype as unknown as { _maybeStartBackgroundTodoPass: (this: unknown, promptContext: unknown, token: unknown) => void })._maybeStartBackgroundTodoPass;
+	function getMethod(): (this: unknown, endpoint: unknown, promptContext: unknown, token: unknown) => void {
+		return (AgentIntentInvocation.prototype as unknown as { _maybeStartBackgroundTodoPass: (this: unknown, endpoint: unknown, promptContext: unknown, token: unknown) => void })._maybeStartBackgroundTodoPass;
 	}
+
+	// The guard short-circuits on `request.subAgentInvocationId` before the
+	// endpoint is inspected, so a placeholder endpoint suffices for these tests.
+	const endpoint = {} as unknown as IChatEndpoint;
 
 	function makeStub(request: TestChatRequest, processorLookup: () => unknown) {
 		return {
@@ -227,7 +239,7 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', (
 			return undefined;
 		});
 
-		getMethod().call(stub, { conversation: { sessionId: 'sess-1' } }, {});
+		getMethod().call(stub, endpoint, { conversation: { sessionId: 'sess-1' } }, {});
 
 		expect(processorLookups).toBe(0);
 	});
@@ -241,7 +253,7 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', (
 			return undefined;
 		});
 
-		getMethod().call(stub, { conversation: { sessionId: 'sess-1' } }, {});
+		getMethod().call(stub, endpoint, { conversation: { sessionId: 'sess-1' } }, {});
 
 		expect(processorLookups).toBe(1);
 	});
@@ -256,7 +268,7 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', (
 			return undefined;
 		});
 
-		getMethod().call(stub, { conversation: { sessionId: 'sess-1' } }, {});
+		getMethod().call(stub, endpoint, { conversation: { sessionId: 'sess-1' } }, {});
 
 		expect(processorLookups).toBe(1);
 	});
