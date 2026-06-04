@@ -158,6 +158,10 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
+	getViewId(): string | undefined {
+		return this.view?.id;
+	}
+
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
