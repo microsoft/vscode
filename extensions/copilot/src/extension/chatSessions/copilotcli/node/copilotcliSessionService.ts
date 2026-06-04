@@ -798,7 +798,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 
-			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
+			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
 			session.object.add(mcpGateway);
 
 			// Set origin
@@ -969,15 +969,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private getSandboxConfig(): SessionOptions['sandboxConfig'] {
-		// Team-internal ExP gate: when disabled, sandbox is force-off regardless of user setting.
-		if (!this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AgentSandboxEnabled, this._experimentationService)) {
+		const sandboxSetting = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.CLISandboxEnabled, this._experimentationService);
+		if (sandboxSetting === 'off') {
 			return undefined;
 		}
-		const sandboxSettingId = process.platform === 'win32' ? 'chat.agent.sandbox.enabledWindows' : 'chat.agent.sandbox.enabled';
-		const rawSandboxSetting = this.configurationService.getNonExtensionConfig<unknown>(sandboxSettingId);
-		const sandboxSetting = typeof rawSandboxSetting === 'string'
-			? rawSandboxSetting
-			: rawSandboxSetting === true ? 'on' : rawSandboxSetting === false ? 'off' : undefined;
 		const rawFileSystemSetting = this.configurationService.getNonExtensionConfig<unknown>('chat.agent.sandbox.fileSystem');
 		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
 			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
@@ -1021,7 +1016,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					return undefined;
 				}
 				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
-				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
+				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
 				session.object.add(mcpGateway);
 				return session;
 			}
@@ -1301,9 +1296,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return firstUserMessage;
 	}
 
-	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager): RefCountedSession {
+	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxEnabled: boolean): RefCountedSession {
 		sdkSession.permissions.setRequired({ required: true });
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, []);
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxEnabled);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});
@@ -1602,9 +1597,7 @@ export function buildSandboxConfigForCLI(
 	fileSystemSetting: IAgentSandboxFileSystemSettings | undefined,
 	networkHosts?: { allowedHosts?: readonly string[]; blockedHosts?: readonly string[] },
 ): SessionOptions['sandboxConfig'] {
-	const sandboxEnabled = platform === 'win32'
-		? sandboxSetting === 'allowNetwork'
-		: sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
+	const sandboxEnabled = sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
 	if (!sandboxEnabled) {
 		return undefined;
 	}

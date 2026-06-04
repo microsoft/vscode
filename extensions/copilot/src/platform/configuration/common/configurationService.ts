@@ -626,6 +626,7 @@ export namespace ConfigKey {
 		export const CLIAIGenerateBranchNames = defineSetting<boolean>('chat.cli.aiGenerateBranchNames.enabled', ConfigType.Simple, true);
 		export const CLIForkSessionsEnabled = defineSetting<boolean>('chat.cli.forkSessions.enabled', ConfigType.Simple, true);
 		export const CLIMCPServerEnabled = defineAndMigrateSetting<boolean | undefined>('chat.advanced.cli.mcp.enabled', 'chat.cli.mcp.enabled', true);
+		export const CLISandboxEnabled = defineSetting<'off' | 'on' | 'allowNetwork'>('chat.cli.sandbox.enabled', ConfigType.ExperimentBased, 'off');
 		export const CLIBranchSupport = defineSetting<boolean>('chat.cli.branchSupport.enabled', ConfigType.Simple, false);
 		export const CLIIsolationOption = defineSetting<boolean>('chat.cli.isolationOption.enabled', ConfigType.Simple, true);
 		export const CLIAutoCommitEnabled = defineSetting<boolean>('chat.cli.autoCommit.enabled', ConfigType.Simple, true);
@@ -634,6 +635,7 @@ export namespace ConfigKey {
 		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, true);
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
+		export const CLISessionEventLoggingEnabled = defineSetting<boolean>('chat.cli.sessionEventLogging.enabled', ConfigType.Simple, false);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
 
 		// Experiment-based settings
@@ -802,7 +804,6 @@ export namespace ConfigKey {
 		export const InlineChatUseCodeMapper = defineTeamInternalSetting<boolean>('chat.advanced.inlineChat.useCodeMapper', ConfigType.Simple, false);
 		export const EnablePromptRendererTracing = defineTeamInternalSetting<boolean>('chat.advanced.promptRenderer.trace', ConfigType.Simple, false);
 		// Backed by Experiments
-		export const AgentSandboxEnabled = defineTeamInternalSetting<boolean>('chat.advanced.agent.sandbox.enabled', ConfigType.ExperimentBased, false);
 		export const DebugCollectFetcherTelemetry = defineTeamInternalSetting<boolean>('chat.advanced.debug.collectFetcherTelemetry', ConfigType.ExperimentBased, true);
 		export const DebugShowNetworkStatus = defineTeamInternalSetting<boolean>('chat.advanced.debug.showNetworkStatus', ConfigType.ExperimentBased, false);
 		export const GeminiFunctionCallingMode = defineTeamInternalSetting<'auto' | 'none' | 'required' | 'validated' | undefined>('chat.advanced.gemini.functionCallingMode', ConfigType.ExperimentBased, 'validated');
