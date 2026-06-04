@@ -132,6 +132,9 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 
 		// If we have remote index info, prioritize showing information related to it
 		switch (state.remoteIndexState.status) {
+			case 'noWorkspace':
+				return this._writeStatusItem(undefined);
+
 			case 'initializing':
 				return this._writeStatusItem({
 					primary: {
