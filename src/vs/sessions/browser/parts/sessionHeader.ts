@@ -12,7 +12,6 @@ import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
@@ -25,6 +24,7 @@ import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { SessionStatusIcon } from '../sessionStatusIcon.js';
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
@@ -58,6 +58,8 @@ export class SessionHeader extends Disposable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	private readonly _readStateSignal: IObservable<void>;
+
+	private readonly _statusIcon: SessionStatusIcon;
 
 	get element(): HTMLElement {
 		return this._container;
@@ -93,6 +95,7 @@ export class SessionHeader extends Disposable {
 
 		this._iconEl = $('.chat-composite-bar-session-icon');
 		header.appendChild(this._iconEl);
+		this._statusIcon = this._register(instantiationService.createInstance(SessionStatusIcon, this._iconEl));
 
 		const main = $('.chat-composite-bar-header-main');
 		header.appendChild(main);
@@ -204,6 +207,7 @@ export class SessionHeader extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
+		this._statusIcon.reset();
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
@@ -224,15 +228,13 @@ export class SessionHeader extends Disposable {
 	}
 
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
-		// Session icon — mirror the status-based icon shown in the sessions list.
+		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
+		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
 		const status = session.status.read(reader);
 		const isRead = this._sessionsListModelService.isSessionRead(session);
 		const isArchived = session.isArchived.read(reader);
 		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
-		const icon = this._sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
-		this._iconEl.className = 'chat-composite-bar-session-icon';
-		this._iconEl.classList.add(...ThemeIcon.asClassNameArray(icon));
-		this._iconEl.style.color = icon.color ? asCssVariable(icon.color.id) : '';
+		this._statusIcon.setStatus(status, isRead, isArchived, pullRequestIcon);
 
 		// Session title
 		this._titleEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
