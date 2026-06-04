@@ -100,17 +100,51 @@ export function isMultilineRegexSource(searchString: string): boolean {
 }
 
 export function normalizeMultilineRegexSource(searchString: string): string {
-	let result = '';
+	const result: string[] = [];
+	let lastAppendOffset = 0;
+	let inCharacterClass = false;
+	let escaped = false;
+
 	for (let i = 0; i < searchString.length; i++) {
+		const chCode = searchString.charCodeAt(i);
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+
+		if (chCode === CharCode.Backslash) {
+			escaped = true;
+			continue;
+		}
+
+		if (chCode === CharCode.OpenSquareBracket) {
+			inCharacterClass = true;
+			continue;
+		}
+
+		if (chCode === CharCode.CloseSquareBracket) {
+			inCharacterClass = false;
+			continue;
+		}
+
+		if (inCharacterClass) {
+			continue;
+		}
+
 		const replacement = getMultilineAnyCharGroupReplacement(searchString, i);
 		if (replacement) {
-			result += replacement.value;
+			result.push(searchString.slice(lastAppendOffset, i), replacement.value);
 			i += replacement.length - 1;
-		} else {
-			result += searchString[i];
+			lastAppendOffset = i + 1;
 		}
 	}
-	return result;
+
+	if (result.length === 0) {
+		return searchString;
+	}
+
+	result.push(searchString.slice(lastAppendOffset));
+	return result.join('');
 }
 
 function getMultilineAnyCharGroupReplacement(searchString: string, offset: number): { value: string; length: number } | undefined {

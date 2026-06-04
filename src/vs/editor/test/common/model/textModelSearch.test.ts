@@ -800,7 +800,15 @@ suite('TextModelSearch', () => {
 		assert.strictEqual(normalizeMultilineRegexSource('(.|\\n)*'), '([\\s\\S])*');
 		assert.strictEqual(normalizeMultilineRegexSource('(.+|\\n)*'), '([\\s\\S])*');
 		assert.strictEqual(normalizeMultilineRegexSource('(?:\\n|.)+'), '(?:[\\s\\S])+');
+		assert.strictEqual(normalizeMultilineRegexSource('foo((.|\\n)*)bar'), 'foo(([\\s\\S])*)bar');
 		assert.strictEqual(normalizeMultilineRegexSource('(.|\\n)'), '(.|\\n)');
+	});
+
+	test('does not normalize escaped or character-class regex content', () => {
+		assert.strictEqual(normalizeMultilineRegexSource('\\(.|\\n\\)*'), '\\(.|\\n\\)*');
+		assert.strictEqual(normalizeMultilineRegexSource('[()]|(.|\\n)*'), '[()]|([\\s\\S])*');
+		assert.strictEqual(normalizeMultilineRegexSource('[(.|\\n)*]'), '[(.|\\n)*]');
+		assert.strictEqual(normalizeMultilineRegexSource('[\\]](.|\\n)*'), '[\\]]([\\s\\S])*');
 	});
 
 	test('issue #314038. Multiline regex with dot-or-newline alternation finds triple quoted block', () => {
